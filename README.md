@@ -124,7 +124,6 @@ python verify_m1.py
 - **Dependencies**: `requests`, `python-dotenv`
 
 ```bash
-cd poc
 pip install -r requirements.txt
 python scenarios/test_reconciliation.py
 python verify_m3.py

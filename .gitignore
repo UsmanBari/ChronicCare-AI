@@ -1,6 +1,5 @@
 # Environment variables
 .env
-*.env
 
 # SQLite Database
 *.db
@@ -20,4 +19,3 @@ env/
 # IDE / Editor folders
 .vscode/
 .idea/
-.DS_Store
