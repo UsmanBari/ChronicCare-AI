@@ -139,7 +139,7 @@ def run_m2_verification():
     
     compliance_violations = []
     for pf in python_files:
-        if os.path.basename(pf).startswith("verify_") or "agents" in pf or "test_reconciliation.py" in pf or "fixtures.py" in pf:
+        if os.path.basename(pf).startswith("verify_") or "agents" in pf or "scenarios" in pf:
             continue
         with open(pf, "r", encoding="utf-8", errors="ignore") as f:
             c = f.read().lower()

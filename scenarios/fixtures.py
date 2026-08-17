@@ -136,10 +136,57 @@ NEGATIVE_CONTROL_PAIR = {
     }
 }
 
+# 6. NEAR-THRESHOLD CONFLICT PAIR (Milestone 4: Delta exceeds 1x threshold but within 2x -> moderate severity)
+NEAR_THRESHOLD_CONFLICT_PAIR = {
+    "name": "Near-Threshold Conflict Pair (1x-2x Threshold)",
+    "bundle_a": {
+        "patient": NormalizedPatient(patient_id="SYNTHETIC-PATIENT-MATCH-006", name="Fiona Gallagher", date_of_birth="1988-09-30"),
+        "observations": [
+            # Glucose threshold = 15.0 mg/dL. 110 vs 128 -> delta 18.0 (15.0 < 18.0 <= 30.0 -> moderate)
+            NormalizedObservation(patient_id="SYNTHETIC-PATIENT-MATCH-006", observation_type="glucose", value=110.0, unit="mg/dL", timestamp="2026-08-15T10:00:00Z", source="fhir", source_record_id="FHIR-OBS-61")
+        ],
+        "medications": []
+    },
+    "bundle_b": {
+        "patient": NormalizedPatient(patient_id="SYNTHETIC-PATIENT-MATCH-006", name="Fiona Gallagher", date_of_birth="1988-09-30"),
+        "observations": [
+            NormalizedObservation(patient_id="SYNTHETIC-PATIENT-MATCH-006", observation_type="glucose", value=128.0, unit="mg/dL", timestamp="2026-08-15T10:30:00Z", source="local", source_record_id="LOC-OBS-61")
+        ],
+        "medications": []
+    }
+}
+
+# 7. LOW-TRUST AGREE PAIR (Milestone 4: Both sources are low trust -> agree -> severity low & requires review)
+LOW_TRUST_AGREE_PAIR = {
+    "name": "Low-Trust Agree Pair (Self-Reported Both Sides)",
+    "bundle_a": {
+        "patient": NormalizedPatient(patient_id="SYNTHETIC-PATIENT-MATCH-007", name="George Harris", date_of_birth="1975-02-14"),
+        "observations": [
+            NormalizedObservation(patient_id="SYNTHETIC-PATIENT-MATCH-007", observation_type="glucose", value=120.0, unit="mg/dL", timestamp="2026-08-15T10:00:00Z", source="local", source_record_id="LOC-OBS-71")
+        ],
+        "medications": []
+    },
+    "bundle_b": {
+        "patient": NormalizedPatient(patient_id="SYNTHETIC-PATIENT-MATCH-007", name="George Harris", date_of_birth="1975-02-14"),
+        "observations": [
+            NormalizedObservation(patient_id="SYNTHETIC-PATIENT-MATCH-007", observation_type="glucose", value=120.0, unit="mg/dL", timestamp="2026-08-15T10:15:00Z", source="local", source_record_id="LOC-OBS-72")
+        ],
+        "medications": []
+    }
+}
+
+# Optional fixture-level origins mapping (does NOT alter M2 models)
+FIXTURE_ORIGINS = {
+    "LOC-OBS-71": "local_self_reported",
+    "LOC-OBS-72": "local_self_reported",
+}
+
 ALL_FIXTURE_PAIRS = [
     CLEAN_AGREE_PAIR,
     CONFLICT_PAIR,
     MISSING_DATA_PAIR,
     INSUFFICIENT_DATA_PAIR,
-    NEGATIVE_CONTROL_PAIR
+    NEGATIVE_CONTROL_PAIR,
+    NEAR_THRESHOLD_CONFLICT_PAIR,
+    LOW_TRUST_AGREE_PAIR
 ]

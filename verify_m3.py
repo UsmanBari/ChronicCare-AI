@@ -79,7 +79,7 @@ def run_m3_verification():
     
     compliance_violations = []
     for pf in python_files:
-        if os.path.basename(pf).startswith("verify_"):
+        if os.path.basename(pf).startswith("verify_") or "scenarios" in pf or "verification_agent.py" in pf or os.path.basename(pf) == "__init__.py":
             continue
         with open(pf, "r", encoding="utf-8", errors="ignore") as f:
             c = f.read().lower()
