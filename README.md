@@ -1,218 +1,257 @@
-# ChronicCare AI - Proof of Concept (POC)
+# 🏥 ChronicCare AI — Clinical Data Reconciliation & Verification Platform (POC)
 
-## Project Overview & Scope
-ChronicCare AI is a clinical decision-support system POC testing a trust-aware **Reconciliation → Verification** pipeline across two distinct data-source modes:
-1. **Connected Mode**: External FHIR/EHR server (SMART Health IT Open R4 endpoint).
-2. **Isolated Mode**: Local Store (SQLite database for offline/air-gapped synthetic patient records).
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
+[![FHIR Standard](https://img.shields.io/badge/FHIR-R4%20SMART-green.svg)](https://r4.smarthealthit.org/)
+[![Local Store](https://img.shields.io/badge/Storage-SQLite3-lightgrey.svg)](https://www.sqlite.org/)
+[![Architecture](https://img.shields.io/badge/Core-Deterministic%20Rule--Based-orange.svg)]()
+[![AI Safety](https://img.shields.io/badge/LLM-Zero%20Core%20Dependency-brightgreen.svg)]()
+[![Reproducibility](https://img.shields.io/badge/Reproducibility-100%25%20Byte--Identical-blueviolet.svg)]()
 
----
-
-## Milestone 1: Environment & Data-Source Foundation
-Establishes project scaffolding, verifies SMART Health IT R4 server reachability (`/metadata`), retrieves raw synthetic FHIR JSON, and initializes a local SQLite database for isolated synthetic patient records.
-
----
-
-## Milestone 2: Data Source Abstraction Layer
-Implements a source-agnostic **Data Source Abstraction Layer** (`data_sources/data_source.py`) exposing `get_patient_bundle(patient_id, mode)` which returns normalized patient, observation, and medication dataclass instances (`NormalizedPatient`, `NormalizedObservation`, `NormalizedMedication`). Proves structural and type equivalence across sources.
+> **Proof-of-Concept Scope**: ChronicCare AI is a clinical decision-support system POC testing a trust-aware **Reconciliation → Verification** pipeline for chronic disease management across two distinct patient deployment modes: **Connected Mode** (FHIR/EHR API) and **Isolated Mode** (Local SQLite Store).
 
 ---
 
-## Milestone 3: The Reconciliation Agent
+## 🌟 Executive Summary & Key Architecture
 
-### Purpose & Architecture
-Milestone 3 implements the deterministic, rule-based **Reconciliation Agent** (`agents/reconciliation_agent.py`).
-The Reconciliation Agent takes two normalized bundles (Connected Mode + Isolated Mode) asserted by the caller to represent the **SAME** real-world patient, and compares observations and medications to characterize agreement, conflict, missing data, or insufficient data.
+ChronicCare AI addresses data inconsistency and trust management when combining existing patient clinical histories with incoming patient check-ins. Rather than relying on non-deterministic LLMs or clinical risk engines for core data handling, this platform provides a **100% deterministic, rule-based pipeline** that normalizes records, reconciles observation and medication deltas, assigns source-aware trust levels, and evaluates risk severity to safely distinguish **auto-resolvable updates** from cases requiring **human clinical review**.
 
-> **Scope Clarification & Non-Clinical Boundary:**
-> - The Reconciliation Agent is **strictly rule-based** (zero LLM, ML, or agent frameworks).
-> - It characterizes agreement/disagreement only; it does **NOT** resolve conflicts, pick winners, assign trust/confidence scores, or flag items for human review (human review flagging belongs strictly to M4).
-> - Matching windows and conflict thresholds are illustrative POC values, not clinical guidelines.
+```mermaid
+flowchart TD
+    subgraph DataSources ["1. Data Source Abstraction (M1-M2)"]
+        nodeFHIR["🏥 FHIR REST API\n(Connected Mode)"]
+        nodeLocal["🔒 Local Store / SQLite\n(Isolated Mode)"]
+        nodeAdapter["🔌 Source-Blind Adapter\nget_patient_bundle()"]
+        nodeFHIR --> nodeAdapter
+        nodeLocal --> nodeAdapter
+    end
 
-```text
-                  Normalized Bundle A          Normalized Bundle B
-                    (Connected Mode)            (Isolated Mode)
-                           │                           │
-                           └─────────────┬─────────────┘
-                                         │
-                                         ▼
-                             reconcile_bundles()
-                                         │
-                       ┌─────────────────┼─────────────────┐
-                       ▼                 ▼                 ▼
-                   Step 1:            Step 2:           Step 3:
-                   Matching        Classification     Result Building
-                 (48h Window)     (Agree/Conflict)    (Full Provenance)
-                                         │
-                                         ▼
-                                ReconciliationResult
+    subgraph ReconEngine ["2. Reconciliation Agent (M3)"]
+        nodeBundleA["📦 Bundle A: Prior History\n(Normalized Dataclass)"]
+        nodeBundleB["📦 Bundle B: New Check-In\n(Normalized Dataclass)"]
+        nodeAdapter --> nodeBundleA
+        nodeAdapter --> nodeBundleB
+        
+        nodeRecon["🔄 reconcile_bundles()\n• 48h Match Window\n• 1-to-1 Nearest Neighbor\n• Delta Threshold Check"]
+        nodeBundleA --> nodeRecon
+        nodeBundleB --> nodeRecon
+        nodeReconRes["📄 ReconciliationResult\n(Provenance Preserved)"]
+        nodeRecon --> nodeReconRes
+    end
+
+    subgraph VerifEngine ["3. Verification Agent (M4)"]
+        nodeVerif["🛡️ verify_reconciliation()\n• Trust Level Mapping\n• Severity Decision Matrix\n• Human Review Flagging"]
+        nodeReconRes --> nodeVerif
+        nodeOrigins["🏷️ Fixture Origins\n(Clinician / Self-Reported)"]
+        nodeOrigins --> nodeVerif
+        nodeVerifRes["📋 VerificationResult"]
+        nodeVerif --> nodeVerifRes
+    end
+
+    subgraph OutputStage ["4. Scenario Evidence & Audit (M5)"]
+        nodeEvidence["📊 Evidence Generators\nscenarios/run_all_scenarios.py"]
+        nodeVerifRes --> nodeEvidence
+        nodeJSON["📁 scenario_evidence.json"]
+        nodeMD["📄 scenario_evidence_readable.md"]
+        nodeEvidence --> nodeJSON
+        nodeEvidence --> nodeMD
+    end
 ```
 
 ---
 
-### Patient Identity Contract Validation
-Before performing any comparisons, `reconcile_bundles()` verifies that `bundle_a["patient"].patient_id == bundle_b["patient"].patient_id`. If the IDs differ, `reconcile_bundles()` immediately raises a `ValueError`.
+## 🎯 Deployment Modes vs. Reconciliation Topologies
 
-> **Synthetic Test Fixtures Rationale (`scenarios/fixtures.py`):**
-> Because the live FHIR sandbox patient (`768be7ac-...`) and local SQLite patients (`LOCAL-PATIENT-001`) represent different synthetic individuals, cross-source reconciliation testing uses hand-authored synthetic paired bundles sharing a common `patient_id`.
+### 1. Architectural Distinction (Deployment Modes)
+In ChronicCare AI, a patient belongs to one of two deployment architecture cases:
+
+- **Connected Mode 🏥**: The patient has an accessible EHR at their healthcare provider (represented via SMART Health IT FHIR R4 sandbox for the POC). All clinical data originates from `source = "fhir"`.
+- **Isolated Mode 🔒**: The patient does NOT have an accessible FHIR/EHR source (e.g., offline or air-gapped). Their records exist in our Local Store (`source = "local"`).
+
+> [!IMPORTANT]
+> **Core Identity Invariant (`Patient A != Patient B`)**:
+> FHIR Patient A and Local Store Patient B represent two **completely different individuals** in different deployment settings. They are never assigned the same `patient_id` or reconciled against each other.
+
+```mermaid
+graph LR
+    subgraph ConnectedMode ["Connected Deployment Mode"]
+        PatientA["👤 Patient A\n(SYNTHEA-PATIENT-001)"] --> FHIRA["Prior FHIR History\n(source='fhir')"]
+        PatientA --> FHIRB["New FHIR Check-In\n(source='fhir')"]
+        FHIRA & FHIRB ==> ReconConnected["🔄 Connected Reconciliation\n(same patient, fhir + fhir)"]
+    end
+
+    subgraph IsolatedMode ["Isolated Deployment Mode"]
+        PatientB["👤 Patient B\n(LOCAL-PATIENT-001)"] --> LocalA["Prior Local History\n(source='local')"]
+        PatientB --> LocalB["New Local Check-In\n(source='local')"]
+        LocalA & LocalB ==> ReconIsolated["🔄 Isolated Reconciliation\n(same patient, local + local)"]
+    end
+```
+
+### 2. Reconciliation Topology Invariants
+Every reconciliation scenario in the codebase strictly satisfies four mandatory invariants:
+
+1. **Identity Invariant**: `patient_id_A == patient_id_B` (must represent ONE actual patient).
+2. **Store Invariant**: `source_A == source_B` (`"fhir" + "fhir"` OR `"local" + "local"`). Mixed sources (`fhir + local`) are strictly forbidden and rejected at runtime.
+3. **Mode Invariant**: Each scenario runs in exactly one deployment mode (`connected` or `isolated`).
+4. **Semantic Invariant**: Bundle A represents **prior/existing patient history**, and Bundle B represents a **new incoming check-in/report**.
 
 ---
 
-### Reconciliation Logic & Matching Rules
+## 🚀 Milestone Pipeline Architecture (M1–M5)
 
-#### 1. Observation Matching & Classification Rules
-- **Match Window**: `OBSERVATION_MATCH_WINDOW_HOURS = 48` (48 hours).
-- **Matching Algorithm**: Deterministic, 1-to-1, nearest-neighbor matching by timestamp for identical `observation_type`. Each source record participates in at most one comparison.
-- **Classification Statuses**:
-  - `"agree"`: Matched pair where `abs(value_a - value_b) <= threshold`.
-  - `"conflict"`: Matched pair where `abs(value_a - value_b) > threshold`.
-  - `"missing_in_a"`: Record present in Bundle B, absent in Bundle A.
-  - `"missing_in_b"`: Record present in Bundle A, absent in Bundle B.
-  - `"insufficient_data"`: Matched pair within 48h window, but required value is `None` or non-numeric.
+### 🔹 Milestone 1: Environment & Data-Source Foundation
+- Scaffolding, dependency verification, and FHIR REST API connectivity (`https://r4.smarthealthit.org`).
+- Local SQLite database creation (`local_store.db`) with `patients`, `observations`, and `medications` tables.
+- Verification script: `python verify_m1.py`
+
+### 🔹 Milestone 2: Source-Blind Data Abstraction Layer
+- Exposes `get_patient_bundle(patient_id, mode)` in `data_sources/data_source.py`.
+- Converts raw FHIR JSON bundles and SQLite rows into unified, immutable dataclasses:
+  - `NormalizedPatient(patient_id, name, date_of_birth)`
+  - `NormalizedObservation(patient_id, observation_type, value, unit, timestamp, source, source_record_id)`
+  - `NormalizedMedication(patient_id, medication_name, status, dosage, timestamp, source, source_record_id)`
+- Proves structural and type equivalence across sources without any mode-branching inside downstream consumers (`scenarios/test_source_blind.py`).
+- Verification script: `python verify_m2.py`
+
+---
+
+### 🔹 Milestone 3: Deterministic Reconciliation Agent
+
+The **Reconciliation Agent** (`agents/reconciliation_agent.py`) executes 1-to-1 nearest-neighbor timestamp matching within a strict 48-hour window and evaluates observation values against defined conflict thresholds.
+
+```mermaid
+flowchart LR
+    Start["Input Bundles A & B"] --> CheckID{"patient_id_A == patient_id_B\nand source_A == source_B?"}
+    CheckID -- No --> Error["🚨 Raise ValueError\n(Invariant Violation)"]
+    CheckID -- Yes --> MatchObs["1-to-1 Nearest Neighbor Match\n(Window <= 48.0 Hours)"]
+    MatchObs --> CheckVals{"Value Numeric & Units Match?"}
+    CheckVals -- No --> StatusInsuff["status = 'insufficient_data'"]
+    CheckVals -- Yes --> CheckDelta{"abs(val_A - val_B) > threshold?"}
+    CheckDelta -- Yes --> StatusConflict["status = 'conflict'"]
+    CheckDelta -- No --> StatusAgree["status = 'agree'"]
+    MatchObs --> Unmatched["Unmatched Records"] --> StatusMissing["status = 'missing_in_a'\nor 'missing_in_b'"]
+```
 
 #### Illustrative Conflict Thresholds (`OBSERVATION_CONFLICT_THRESHOLDS`)
-*(Note: Illustrative POC threshold values only — NOT clinical guidance)*
-- `glucose`: 15.0 mg/dL
-- `hba1c`: 0.5 %
-- `blood_pressure_systolic`: 10.0 mmHg
-- `blood_pressure_diastolic`: 10.0 mmHg
-- `weight`: 2.0 kg
+> *(Illustrative POC threshold values only — NOT clinical guidance)*
 
-#### 2. Medication Matching & Classification Rules
-- **Matching**: Matched by normalized medication name (`medication_name.strip().lower()`).
-- **Classification Statuses**:
-  - `"agree"`: Status and dosage match identically after whitespace/case normalization.
-  - `"conflict"`: Medication names match, but status or dosage differ.
-  - `"missing_in_a"`: Medication present in Bundle B, absent in Bundle A.
-  - `"missing_in_b"`: Medication present in Bundle A, absent in Bundle B.
+| Observation Type | Conflict Threshold | Match Window |
+| :--- | :---: | :---: |
+| **Glucose** | `15.0 mg/dL` | `48.0 Hours` |
+| **HbA1c** | `0.5 %` | `48.0 Hours` |
+| **Systolic BP** | `10.0 mmHg` | `48.0 Hours` |
+| **Diastolic BP** | `10.0 mmHg` | `48.0 Hours` |
+| **Weight** | `2.0 kg` | `48.0 Hours` |
+
+- Verification script: `python verify_m3.py`
 
 ---
 
-### Provenance Preservation
-Every `ObservationComparison` and `MedicationComparison` retains full provenance fields:
-- `source_a`, `source_record_id_a`, `timestamp_a`
-- `source_b`, `source_record_id_b`, `timestamp_b`
+### 🔹 Milestone 4: Trust-Aware Verification Agent
 
----
+The **Verification Agent** (`agents/verification_agent.py`) consumes M3's `ReconciliationResult` and applies deterministic trust mappings and severity rules to assign risk severity (`"none"`, `"low"`, `"moderate"`, `"high"`), human review flags (`requires_human_review = True/False`), and auditable `review_reason` strings.
 
-## Milestone 4: The Verification Agent
+#### Trust Level Hierarchy (`TRUST_LEVELS`)
+- **`fhir` source** $\rightarrow$ `"high"` trust by default
+- **`local` source** $\rightarrow$ `"medium"` trust by default
+- **`local_clinician_entered`** $\rightarrow$ `"high"` trust
+- **`local_ocr_or_upload`** $\rightarrow$ `"medium"` trust
+- **`local_self_reported`** $\rightarrow$ `"low"` trust
+- **Missing side (`source is None`)** $\rightarrow$ `None`
 
-### Purpose & Architecture
-Milestone 4 implements the deterministic, rule-based **Verification Agent** (`agents/verification_agent.py`).
-Sitting directly on top of M3's Reconciliation Agent output (`ReconciliationResult`), the Verification Agent evaluates trust metadata and risk severity to decide whether a comparison can proceed automatically (`requires_human_review = False`) or requires human review (`requires_human_review = True`), assigning an auditable `review_reason` string.
+#### Deterministic Decision & Severity Matrix
 
-> **Scope Clarification & Non-Clinical Boundary:**
-> - The Verification Agent is **strictly rule-based** (zero LLM, ML, RAG, or agent frameworks).
-> - It does **NOT** perform conflict resolution (never picks a winning value between sources).
-> - It does **NOT** make clinical triage or care decisions (e.g. green/yellow/red routing, appointment scheduling).
-> - It does **NOT** alter M2 normalized schemas or M3 reconciliation output — Verification only adds a judgment layer on top.
+```mermaid
+flowchart TD
+    ReconItem["Reconciliation Item"] --> CheckStatus{"Reconciliation Status?"}
+    
+    CheckStatus -- "agree" --> CheckTrust{"Both trust levels Low?"}
+    CheckTrust -- Yes --> AgreeLow["Severity: 'low'\nrequires_human_review = True\n(Low-trust agreement)"]
+    CheckTrust -- No --> AgreeTrusted["Severity: 'none'\nrequires_human_review = False\n✨ AUTO-RESOLVED"]
+    
+    CheckStatus -- "conflict" --> CheckType{"Observation or Medication?"}
+    CheckType -- Observation --> ObsDelta{"Delta > 2x Threshold?"}
+    ObsDelta -- Yes --> HighSeverity["Severity: 'high'\nrequires_human_review = True"]
+    ObsDelta -- No --> ModSeverity["Severity: 'moderate'\nrequires_human_review = True"]
+    CheckType -- Medication --> MedStat{"Status 'active' vs 'stopped'?"}
+    MedStat -- Yes --> HighSeverity
+    MedStat -- No --> ModSeverity
 
----
+    CheckStatus -- "missing_in_a / missing_in_b" --> PresentTrust{"Present Side Trust Level?"}
+    PresentTrust -- "high" --> LowMissing["Severity: 'low'\nrequires_human_review = False\n✨ AUTO-RESOLVED"]
+    PresentTrust -- "medium / low" --> ModMissing["Severity: 'moderate'\nrequires_human_review = True"]
 
-### Trust Level Assignment & Origin Handling
-The Verification Agent assigns trust levels (`"high"`, `"medium"`, `"low"`) to data sources:
-```python
-TRUST_LEVELS = {
-    "fhir_clinician_entered": "high",
-    "local_clinician_entered": "high",
-    "local_ocr_or_upload": "medium",
-    "local_self_reported": "low",
-}
-```
-- **Simplified POC Assignment Rule**: `source == "fhir"` -> `"high"` trust; `source == "local"` -> `"medium"` trust by default.
-- **Fixture-Level Origin Tagging**: Optional origin tags (e.g. `"self_reported"` -> `"low"`) are mapped via fixture-level lookup dictionaries (`FIXTURE_ORIGINS`) without altering M2's `NormalizedObservation` or `NormalizedMedication` schema definitions.
-- **Missing Side Nullability**: If `source` is `None` (missing record on one side), the corresponding `trust_level` for that side is strictly `None`.
-
----
-
-### Severity & Review Decision Table
-*(Illustrative POC rules only — explicitly NOT clinical guidance)*
-
-1. `reconciliation_status == "agree"`:
-   - Both trust levels present & at least one is NOT `"low"` -> severity `"none"`, `requires_human_review = False` (auto-resolved).
-   - Both trust levels present & BOTH are `"low"` -> severity `"low"`, `requires_human_review = True` (reason: "agreement only between low-trust sources").
-
-2. `reconciliation_status == "conflict"`:
-   - **Observations**:
-     - `delta` within 1x–2x M3 threshold -> severity `"moderate"`, `requires_human_review = True`.
-     - `delta` exceeding 2x threshold -> severity `"high"`, `requires_human_review = True`.
-   - **Medications**:
-     - Status conflict involving `"active"` vs `"stopped"` -> severity `"high"`, `requires_human_review = True`.
-     - Other status/dosage mismatch -> severity `"moderate"`, `requires_human_review = True`.
-
-3. `reconciliation_status in ("missing_in_a", "missing_in_b")`:
-   - Present side is `"high"` trust -> severity `"low"`, `requires_human_review = False` (auto-resolved path for high-trust single-source data).
-   - Present side is `"medium"` or `"low"` trust -> severity `"moderate"`, `requires_human_review = True`.
-
-4. `reconciliation_status == "insufficient_data"`:
-   - Severity `"moderate"` unconditionally, `requires_human_review = True`.
-
----
-
-### What M1–M5 Together Prove / Do Not Prove
-
-- **What It Proves**: M1–M5 demonstrate that a deterministic, trust-aware Reconciliation → Verification pipeline can ingest multi-source EHR/local patient data, identify data conflicts, preserve full record provenance end-to-end, prioritize risk severity, distinguish auto-resolvable missing-data from review-required missing-data based on present-side trust, explicitly track trust metadata, and produce defense-ready structured evidence traces.
-- **What It Does NOT Prove**: M1–M5 do **NOT** prove clinical validity or medical safety, do **NOT** constitute a certified medical device, and relied on synthetic/hand-authored test fixtures rather than a live matched real-patient clinical dataset.
-
----
-
-## Milestone 5: Scenarios, Evidence, and Defense Writeup
-
-### Status: **ALL 5 MILESTONES COMPLETE (M1–M5)**
-
-Milestone 5 exercises the end-to-end pipeline against the committed defense scenario set, captures full structured evidence traces, and establishes the formal FYP proposal defense document (`POC_RESULTS.md`).
-
----
-
-### Artifacts & Deliverables
-- **Scenario Execution Runner**: `scenarios/run_all_scenarios.py`
-- **Structured JSON Evidence Trace**: `output/scenario_evidence.json`
-- **Presentation-Ready Readable Evidence**: `output/scenario_evidence_readable.md`
-- **Defense Writeup & Results**: `POC_RESULTS.md`
-
----
-
-### Defense Scenario Set
-1. **Scenario 1 — Clean/Connected (All High-Trust)**: Both sources agree within thresholds; local records explicitly tagged `local_clinician_entered` (high trust). Outcome: 100% eligible for automatic resolution (0 review required).
-2. **Scenario 2 — Conflicting Observation**: Glucose (115 vs 175 mg/dL) & HbA1c (6.4 vs 8.1%) disagree beyond 2x threshold. Outcome: severity `"high"`, review required with delta-driven reason.
-3. **Scenario 3 — Missing Medication Record (2 Subcases)**:
-   - **3A**: Present side high-trust (`fhir`) $\rightarrow$ severity `"low"`, `requires_human_review = False` (auto-resolved).
-   - **3B**: Present side low-trust (`local_self_reported`) $\rightarrow$ severity `"moderate"`, `requires_human_review = True`.
-   - *Demonstrates that present-side trust level dictates auto-resolution vs. human review.*
-4. **Scenario 4 — Trust Metadata in Conflict Cases (2 Subcases)**:
-   - **4A**: Both sides high-trust (`trust_a = "high"`, `trust_b = "high"`).
-   - **4B**: Side B low-trust (`trust_a = "high"`, `trust_b = "low"`).
-   - *Demonstrates trust metadata is explicitly tracked per comparison without altering delta-driven observation severity.*
-5. **Adversarial Stress-Test Scenario C1 (Separate)**: Mismatched dosage strings (`"1 tablet twice daily"` vs `"2 tablets once daily"`). Outcome: severity `"moderate"`, review required. Narrow claim: string mismatch detection, not semantic dosage parsing.
-
----
-
-### Reproducibility Guarantee
-Executing `python scenarios/run_all_scenarios.py` twice against the fixed repository fixtures produces **100% identical, deterministic scenario outcomes and evidence traces**.
-
----
-
-### How to Run All Scenarios & Verifications
-
-```bash
-# Execute full pipeline (Regression check + 4 Defense Scenarios + Adversarial C1 + Evidence Generation)
-python scenarios/run_all_scenarios.py
+    CheckStatus -- "insufficient_data" --> InsuffMod["Severity: 'moderate'\nrequires_human_review = True"]
 ```
 
-#### Individual Verification Commands
-```bash
-python verify_m4.py
-python verify_m3.py
-python verify_m2.py
-python verify_m1.py
-```
+- Verification script: `python verify_m4.py`
 
 ---
 
-### System Requirements & Setup
+### 🔹 Milestone 5: Scenario Suite & Evidence Generation
+
+Milestone 5 executes the end-to-end pipeline across the full scenario suite, captures structured evidence, and enforces 100% byte-for-byte reproducibility.
+
+- Runner script: `python scenarios/run_all_scenarios.py`
+- Structured JSON output: `output/scenario_evidence.json`
+- Human-readable Markdown report: `output/scenario_evidence_readable.md`
+- Formal FYP defense writeup: `POC_RESULTS.md`
+
+---
+
+## 📊 Defense Scenario Matrix & Verification Results
+
+All 6 official scenarios plus 1 adversarial stress-test scenario pass cleanly under the corrected same-patient, same-mode architecture:
+
+| Scenario ID | Scenario Name | Topology Mode | Key Conditions | Expected Outcome | Verification Summary | Verdict |
+| :--- | :--- | :---: | :--- | :--- | :--- | :---: |
+| `scenario_1` | **Scenario 1 — Clean/Connected** | Connected (`fhir + fhir`) | Prior FHIR history vs. new FHIR check-in; all deltas within threshold | All severity `"none"`, `requires_human_review = False` | `auto_resolved = 4, review = 0` | **PASS** |
+| `scenario_2` | **Scenario 2 — Conflicting Observation** | Isolated (`local + local`) | Glucose (115 vs 175) & HbA1c (6.4 vs 8.1%) delta > 2x threshold | Severity `"high"`, `requires_human_review = True` | `auto_resolved = 0, review = 2` | **PASS** |
+| `scenario_3a` | **Scenario 3A — Missing Med (High Trust)** | Connected (`fhir + fhir`) | Lisinopril 10mg present in FHIR prior state (high trust), missing in check-in | Severity `"low"`, `requires_human_review = False` | `auto_resolved = 1, review = 0` | **PASS** |
+| `scenario_3b` | **Scenario 3B — Missing Med (Low Trust)** | Isolated (`local + local`) | Lisinopril 10mg present only in check-in (`local_self_reported` = low trust) | Severity `"moderate"`, `requires_human_review = True` | `auto_resolved = 0, review = 1` | **PASS** |
+| `scenario_4a` | **Scenario 4A — Trust Metadata (Both High)** | Isolated (`local + local`) | Glucose conflict (delta 55); both sides `local_clinician_entered` (high trust) | Both `high` trust, severity `"high"`, review=`True` | `trust_a=high, trust_b=high` | **PASS** |
+| `scenario_4b` | **Scenario 4B — Trust Metadata (One Low)** | Isolated (`local + local`) | Glucose conflict (delta 55); Side B `local_self_reported` (low trust) | `trust_a=high, trust_b=low`, severity `"high"`, review=`True` | `trust_a=high, trust_b=low` | **PASS** |
+| `scenario_c1` | **Adversarial C1 — Med Dosage Mismatch** | Isolated (`local + local`) | Metformin 500mg active on both sides; dosage string mismatch | Severity `"moderate"`, `requires_human_review = True` | `auto_resolved = 0, review = 1` | **PASS** |
+
+---
+
+## 🛠️ Installation & Execution Guide
+
+### 1. Prerequisites & Environment Setup
 - **Python Version**: Python 3.9+
 - **Dependencies**: `requests`, `python-dotenv`
 
 ```bash
+# Clone the repository
+git clone https://github.com/UsmanBari/ChronicCare-AI.git
+cd ChronicCare-AI
+
+# Install dependencies
 pip install -r requirements.txt
+```
+
+### 2. Execute Full End-to-End Pipeline & Generate Evidence
+```bash
 python scenarios/run_all_scenarios.py
 ```
+
+### 3. Run Individual Milestone Verifications
+```bash
+python verify_m1.py
+python verify_m2.py
+python verify_m3.py
+python verify_m4.py
+```
+
+### 4. Verify 100% Byte-for-Byte Reproducibility
+```bash
+python -c "import os, sys, subprocess; root='.'; j_path=os.path.join(root,'output/scenario_evidence.json'); md_path=os.path.join(root,'output/scenario_evidence_readable.md'); j1=open(j_path,'rb').read(); md1=open(md_path,'rb').read(); res=subprocess.run([sys.executable, os.path.join(root,'scenarios/run_all_scenarios.py')], stdout=subprocess.PIPE, stderr=subprocess.PIPE); j2=open(j_path,'rb').read(); md2=open(md_path,'rb').read(); print('RUN 2 EXIT CODE:', res.returncode); print('JSON BYTE IDENTICAL:', j1 == j2); print('MD BYTE IDENTICAL:', md1 == md2)"
+```
+
+---
+
+## 🛡️ Non-Clinical & Scope Declarations
+
+> [!NOTE]
+> - **No Clinical Triage or Treatment Selection**: The Reconciliation and Verification agents identify data conflicts, assess trust, and flag human review necessity. They do **not** select winning clinical values, prescribe medications, or make triage decisions.
+> - **Zero Core LLM Dependency**: The pipeline is 100% deterministic and rule-based, guaranteeing reproducible outputs for auditability.
+> - **Synthetic Test Data**: All scenario bundles use synthetic Synthea or fictional test data. No real patient PHI is stored or processed.

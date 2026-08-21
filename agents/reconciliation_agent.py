@@ -1,8 +1,9 @@
 """
 Reconciliation Agent (Milestone 3)
 
-Deterministic, rule-based reconciliation between two normalized patient bundles
-(Connected Mode and Isolated Mode) for the SAME patient.
+Deterministic, rule-based reconciliation between prior/existing patient state
+and new incoming check-in data for the SAME patient within the SAME deployment mode
+(Connected Mode or Isolated Mode).
 
 Performs NO clinical interpretation, risk calculation, trust scoring, human-review flagging,
 or LLM processing. Identifies agreement, conflict, missing data, or insufficient data.
@@ -409,6 +410,15 @@ def reconcile_bundles(bundle_a: Dict[str, Any], bundle_b: Dict[str, Any]) -> Rec
     if not pid_a or not pid_b or pid_a != pid_b:
         raise ValueError(
             f"Patient Identity Contract Violation: Bundle A patient_id '{pid_a}' does not match Bundle B patient_id '{pid_b}'."
+        )
+
+    # Enforce Store Invariant: source_a == source_b (reject cross-store reconciliation e.g. FHIR vs Local)
+    sources_a = {o.source for o in bundle_a.get("observations", []) if o.source} | {m.source for m in bundle_a.get("medications", []) if m.source}
+    sources_b = {o.source for o in bundle_b.get("observations", []) if o.source} | {m.source for m in bundle_b.get("medications", []) if m.source}
+    if sources_a and sources_b and sources_a != sources_b:
+        raise ValueError(
+            f"Store Invariant Violation: Bundle A source(s) {sources_a} does not match Bundle B source(s) {sources_b}. "
+            "Reconciliation across different deployment modes (FHIR vs Local Store) is forbidden."
         )
 
     # 1. Matching Step

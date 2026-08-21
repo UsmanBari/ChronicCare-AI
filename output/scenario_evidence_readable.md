@@ -29,8 +29,8 @@ This document contains the complete, human-readable evidence trace captured by r
 
 - **Scenario ID**: `scenario_1`
 - **Patient ID**: `M5-PATIENT-SCENARIO-1`
-- **Description**: Both FHIR and Local bundles agree within M3 thresholds. Local records explicitly tagged 'local_clinician_entered' to achieve high trust.
-- **Origin Tags Used**: `{'M5-S1-LOC-OBS-01': 'local_clinician_entered', 'M5-S1-LOC-OBS-02': 'local_clinician_entered', 'M5-S1-LOC-OBS-03': 'local_clinician_entered', 'M5-S1-LOC-MED-01': 'local_clinician_entered'}`
+- **Description**: Both prior FHIR record and new FHIR check-in agree within M3 thresholds for Connected Patient A (M5-PATIENT-SCENARIO-1).
+- **Origin Tags Used**: `{}`
 - **Expected Outcome**: all severity 'none', zero requires_human_review (100% eligible for automatic resolution under deterministic rules)
 - **Verification Summary**: `{'auto_resolved': 4, 'requires_review': 0, 'severity_none': 4, 'severity_low': 0, 'severity_moderate': 0, 'severity_high': 0}`
 - **Scenario Verdict**: **PASS**
@@ -38,14 +38,14 @@ This document contains the complete, human-readable evidence trace captured by r
 #### Observation Traces
 | Observation | Recon Status | Side A (Val/Src/ID/Trust) | Side B (Val/Src/ID/Trust) | Delta | Severity | Review Required | Review Reason |
 | :--- | :---: | :--- | :--- | :---: | :---: | :---: | :--- |
-| `glucose` | `agree` | `120.0 mg/dL (fhir:M5-S1-FHIR-OBS-01, high)` | `122.0 mg/dL (local:M5-S1-LOC-OBS-01, high)` | `2.0` | `none` | **NO (Auto)** | Agreement between trusted sources (auto-resolved) |
-| `hba1c` | `agree` | `6.8 % (fhir:M5-S1-FHIR-OBS-02, high)` | `6.9 % (local:M5-S1-LOC-OBS-02, high)` | `0.1` | `none` | **NO (Auto)** | Agreement between trusted sources (auto-resolved) |
-| `blood_pressure_systolic` | `agree` | `124.0 mmHg (fhir:M5-S1-FHIR-OBS-03, high)` | `126.0 mmHg (local:M5-S1-LOC-OBS-03, high)` | `2.0` | `none` | **NO (Auto)** | Agreement between trusted sources (auto-resolved) |
+| `glucose` | `agree` | `120.0 mg/dL (fhir:M5-S1-FHIR-OBS-01, high)` | `122.0 mg/dL (fhir:M5-S1-FHIR-OBS-01-CHECKIN, high)` | `2.0` | `none` | **NO (Auto)** | Agreement between trusted sources (auto-resolved) |
+| `hba1c` | `agree` | `6.8 % (fhir:M5-S1-FHIR-OBS-02, high)` | `6.9 % (fhir:M5-S1-FHIR-OBS-02-CHECKIN, high)` | `0.1` | `none` | **NO (Auto)** | Agreement between trusted sources (auto-resolved) |
+| `blood_pressure_systolic` | `agree` | `124.0 mmHg (fhir:M5-S1-FHIR-OBS-03, high)` | `126.0 mmHg (fhir:M5-S1-FHIR-OBS-03-CHECKIN, high)` | `2.0` | `none` | **NO (Auto)** | Agreement between trusted sources (auto-resolved) |
 
 #### Medication Traces
 | Medication | Recon Status | Side A (Status/Dosage/Src/ID/Trust) | Side B (Status/Dosage/Src/ID/Trust) | Severity | Review Required | Review Reason |
 | :--- | :---: | :--- | :--- | :---: | :---: | :--- |
-| `Metformin 500mg` | `agree` | `active | '1 tablet twice daily' (fhir:M5-S1-FHIR-MED-01, high)` | `active | '1 tablet twice daily' (local:M5-S1-LOC-MED-01, high)` | `none` | **NO (Auto)** | Medication agreement between trusted sources (auto-resolved) |
+| `Metformin 500mg` | `agree` | `active | '1 tablet twice daily' (fhir:M5-S1-FHIR-MED-01, high)` | `active | '1 tablet twice daily' (fhir:M5-S1-FHIR-MED-01-CHECKIN, high)` | `none` | **NO (Auto)** | Medication agreement between trusted sources (auto-resolved) |
 
 ---
 
@@ -53,7 +53,7 @@ This document contains the complete, human-readable evidence trace captured by r
 
 - **Scenario ID**: `scenario_2`
 - **Patient ID**: `M5-PATIENT-SCENARIO-2`
-- **Description**: Glucose and HbA1c readings disagree beyond M3 thresholds within 48h window. Input values informed by ADA benchmarks for realism.
+- **Description**: Glucose and HbA1c readings disagree beyond M3 thresholds within 48h window between prior Local state and new Local check-in for Isolated Patient B (M5-PATIENT-SCENARIO-2).
 - **Origin Tags Used**: `{}`
 - **Expected Outcome**: severity 'high' (delta > 2x threshold), requires_human_review = True with delta-driven review_reason
 - **Verification Summary**: `{'auto_resolved': 0, 'requires_review': 2, 'severity_none': 0, 'severity_low': 0, 'severity_moderate': 0, 'severity_high': 2}`
@@ -62,8 +62,8 @@ This document contains the complete, human-readable evidence trace captured by r
 #### Observation Traces
 | Observation | Recon Status | Side A (Val/Src/ID/Trust) | Side B (Val/Src/ID/Trust) | Delta | Severity | Review Required | Review Reason |
 | :--- | :---: | :--- | :--- | :---: | :---: | :---: | :--- |
-| `glucose` | `conflict` | `115.0 mg/dL (fhir:M5-S2-FHIR-OBS-01, high)` | `175.0 mg/dL (local:M5-S2-LOC-OBS-01, medium)` | `60.0` | `high` | **YES** | Observation conflict exceeding 2x threshold (delta 60.0 > 2x threshold 30.0) |
-| `hba1c` | `conflict` | `6.4 % (fhir:M5-S2-FHIR-OBS-02, high)` | `8.1 % (local:M5-S2-LOC-OBS-02, medium)` | `1.7` | `high` | **YES** | Observation conflict exceeding 2x threshold (delta 1.7 > 2x threshold 1.0) |
+| `glucose` | `conflict` | `115.0 mg/dL (local:M5-S2-LOC-OBS-01, medium)` | `175.0 mg/dL (local:M5-S2-LOC-OBS-01-CHECKIN, medium)` | `60.0` | `high` | **YES** | Observation conflict exceeding 2x threshold (delta 60.0 > 2x threshold 30.0) |
+| `hba1c` | `conflict` | `6.4 % (local:M5-S2-LOC-OBS-02, medium)` | `8.1 % (local:M5-S2-LOC-OBS-02-CHECKIN, medium)` | `1.7` | `high` | **YES** | Observation conflict exceeding 2x threshold (delta 1.7 > 2x threshold 1.0) |
 
 ---
 
@@ -71,7 +71,7 @@ This document contains the complete, human-readable evidence trace captured by r
 
 - **Scenario ID**: `scenario_3a`
 - **Patient ID**: `M5-PATIENT-SCENARIO-3A`
-- **Description**: Active Lisinopril present in FHIR side only (high trust). Demonstrates eligible-for-automatic-resolution path.
+- **Description**: Active Lisinopril present in FHIR prior state only (high trust), missing in new check-in for Connected Patient A. Auto-resolved.
 - **Origin Tags Used**: `{}`
 - **Expected Outcome**: severity 'low', requires_human_review = False (auto-resolved due to high-trust present side)
 - **Verification Summary**: `{'auto_resolved': 1, 'requires_review': 0, 'severity_none': 0, 'severity_low': 1, 'severity_moderate': 0, 'severity_high': 0}`
@@ -88,7 +88,7 @@ This document contains the complete, human-readable evidence trace captured by r
 
 - **Scenario ID**: `scenario_3b`
 - **Patient ID**: `M5-PATIENT-SCENARIO-3B`
-- **Description**: Active Lisinopril present in Local side only, explicitly tagged 'local_self_reported' (low trust). Requires human review.
+- **Description**: Active Lisinopril present in new Local check-in only, explicitly tagged 'local_self_reported' (low trust) for Isolated Patient B. Requires human review.
 - **Origin Tags Used**: `{'M5-S3B-LOC-MED-01': 'local_self_reported'}`
 - **Expected Outcome**: severity 'moderate', requires_human_review = True (review required due to non-high trust present side)
 - **Verification Summary**: `{'auto_resolved': 0, 'requires_review': 1, 'severity_none': 0, 'severity_low': 0, 'severity_moderate': 1, 'severity_high': 0}`
@@ -105,8 +105,8 @@ This document contains the complete, human-readable evidence trace captured by r
 
 - **Scenario ID**: `scenario_4a`
 - **Patient ID**: `M5-PATIENT-SCENARIO-4A`
-- **Description**: Glucose conflict (delta 55 > 2x threshold) between FHIR (high trust) and Local tagged clinician-entered (high trust).
-- **Origin Tags Used**: `{'M5-S4A-LOC-OBS-01': 'local_clinician_entered'}`
+- **Description**: Glucose conflict (delta 55 > 2x threshold) between prior Local state and new Local check-in, both tagged clinician-entered (high trust).
+- **Origin Tags Used**: `{'M5-S4A-LOC-OBS-01': 'local_clinician_entered', 'M5-S4A-LOC-OBS-02': 'local_clinician_entered'}`
 - **Expected Outcome**: trust_level_a='high', trust_level_b='high', severity='high', requires_human_review=True
 - **Verification Summary**: `{'auto_resolved': 0, 'requires_review': 1, 'severity_none': 0, 'severity_low': 0, 'severity_moderate': 0, 'severity_high': 1}`
 - **Scenario Verdict**: **PASS**
@@ -114,7 +114,7 @@ This document contains the complete, human-readable evidence trace captured by r
 #### Observation Traces
 | Observation | Recon Status | Side A (Val/Src/ID/Trust) | Side B (Val/Src/ID/Trust) | Delta | Severity | Review Required | Review Reason |
 | :--- | :---: | :--- | :--- | :---: | :---: | :---: | :--- |
-| `glucose` | `conflict` | `110.0 mg/dL (fhir:M5-S4A-FHIR-OBS-01, high)` | `165.0 mg/dL (local:M5-S4A-LOC-OBS-01, high)` | `55.0` | `high` | **YES** | Observation conflict exceeding 2x threshold (delta 55.0 > 2x threshold 30.0) |
+| `glucose` | `conflict` | `110.0 mg/dL (local:M5-S4A-LOC-OBS-01, high)` | `165.0 mg/dL (local:M5-S4A-LOC-OBS-02, high)` | `55.0` | `high` | **YES** | Observation conflict exceeding 2x threshold (delta 55.0 > 2x threshold 30.0) |
 
 ---
 
@@ -122,8 +122,8 @@ This document contains the complete, human-readable evidence trace captured by r
 
 - **Scenario ID**: `scenario_4b`
 - **Patient ID**: `M5-PATIENT-SCENARIO-4B`
-- **Description**: Identical glucose conflict (delta 55 > 2x threshold) between FHIR (high trust) and Local tagged self-reported (low trust). Demonstrates trust tracking without altering delta-driven severity.
-- **Origin Tags Used**: `{'M5-S4B-LOC-OBS-01': 'local_self_reported'}`
+- **Description**: Identical glucose conflict (delta 55 > 2x threshold) between prior Local state (high trust) and new Local check-in tagged self-reported (low trust).
+- **Origin Tags Used**: `{'M5-S4B-LOC-OBS-01': 'local_clinician_entered', 'M5-S4B-LOC-OBS-02': 'local_self_reported'}`
 - **Expected Outcome**: trust_level_a='high', trust_level_b='low', severity='high', requires_human_review=True (trust metadata carried into result)
 - **Verification Summary**: `{'auto_resolved': 0, 'requires_review': 1, 'severity_none': 0, 'severity_low': 0, 'severity_moderate': 0, 'severity_high': 1}`
 - **Scenario Verdict**: **PASS**
@@ -131,7 +131,7 @@ This document contains the complete, human-readable evidence trace captured by r
 #### Observation Traces
 | Observation | Recon Status | Side A (Val/Src/ID/Trust) | Side B (Val/Src/ID/Trust) | Delta | Severity | Review Required | Review Reason |
 | :--- | :---: | :--- | :--- | :---: | :---: | :---: | :--- |
-| `glucose` | `conflict` | `110.0 mg/dL (fhir:M5-S4B-FHIR-OBS-01, high)` | `165.0 mg/dL (local:M5-S4B-LOC-OBS-01, low)` | `55.0` | `high` | **YES** | Observation conflict exceeding 2x threshold (delta 55.0 > 2x threshold 30.0) |
+| `glucose` | `conflict` | `110.0 mg/dL (local:M5-S4B-LOC-OBS-01, high)` | `165.0 mg/dL (local:M5-S4B-LOC-OBS-02, low)` | `55.0` | `high` | **YES** | Observation conflict exceeding 2x threshold (delta 55.0 > 2x threshold 30.0) |
 
 ---
 
@@ -139,8 +139,8 @@ This document contains the complete, human-readable evidence trace captured by r
 
 - **Scenario ID**: `scenario_c1`
 - **Patient ID**: `M5-PATIENT-ADVERSARIAL-C1`
-- **Description**: Same active medication name on both sides with mismatched dosage strings ('1 tablet twice daily' vs '2 tablets once daily in evening'). Demonstrates string dosage mismatch detection with full provenance.
-- **Origin Tags Used**: `{'M5-C1-LOC-MED-01': 'local_clinician_entered'}`
+- **Description**: Same active medication name on prior Local state and new Local check-in with mismatched dosage strings ('1 tablet twice daily' vs '2 tablets once daily in evening').
+- **Origin Tags Used**: `{'M5-C1-LOC-MED-01': 'local_clinician_entered', 'M5-C1-LOC-MED-02': 'local_clinician_entered'}`
 - **Expected Outcome**: severity 'moderate', requires_human_review = True (dosage string mismatch detected; narrow claim: string mismatch detection, not semantic dosage parsing)
 - **Verification Summary**: `{'auto_resolved': 0, 'requires_review': 1, 'severity_none': 0, 'severity_low': 0, 'severity_moderate': 1, 'severity_high': 0}`
 - **Scenario Verdict**: **PASS**
@@ -148,6 +148,6 @@ This document contains the complete, human-readable evidence trace captured by r
 #### Medication Traces
 | Medication | Recon Status | Side A (Status/Dosage/Src/ID/Trust) | Side B (Status/Dosage/Src/ID/Trust) | Severity | Review Required | Review Reason |
 | :--- | :---: | :--- | :--- | :---: | :---: | :--- |
-| `Metformin 500mg` | `conflict` | `active | '1 tablet twice daily' (fhir:M5-C1-FHIR-MED-01, high)` | `active | '2 tablets once daily in evening' (local:M5-C1-LOC-MED-01, high)` | `moderate` | **YES** | Medication dosage or status mismatch (A: status=active, dosage='1 tablet twice daily' vs B: status=active, dosage='2 tablets once daily in evening') |
+| `Metformin 500mg` | `conflict` | `active | '1 tablet twice daily' (local:M5-C1-LOC-MED-01, high)` | `active | '2 tablets once daily in evening' (local:M5-C1-LOC-MED-02, high)` | `moderate` | **YES** | Medication dosage or status mismatch (A: status=active, dosage='1 tablet twice daily' vs B: status=active, dosage='2 tablets once daily in evening') |
 
 ---

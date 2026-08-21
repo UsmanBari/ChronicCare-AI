@@ -70,11 +70,40 @@ def run_regression_suite() -> bool:
 # SCENARIO DEFINITIONS
 # =============================================================================
 
-# Scenario 1: Clean/Connected, All High-Trust
+def validate_scenario_invariants(scenario_def: Dict[str, Any]) -> bool:
+    """
+    Automated invariant validator for defense scenarios.
+    Enforces:
+    1. patient_id_A == patient_id_B
+    2. source_A == source_B (both "fhir" or both "local")
+    3. source_A in {"fhir", "local"}
+    """
+    b_a = scenario_def["bundle_a"]
+    b_b = scenario_def["bundle_b"]
+
+    pid_a = b_a["patient"].patient_id
+    pid_b = b_b["patient"].patient_id
+    if pid_a != pid_b:
+        raise ValueError(f"Scenario Identity Contract Error in '{scenario_def['id']}': patient_id_a '{pid_a}' != patient_id_b '{pid_b}'")
+
+    sources_a = {o.source for o in b_a.get("observations", [])} | {m.source for m in b_a.get("medications", [])}
+    sources_b = {o.source for o in b_b.get("observations", [])} | {m.source for m in b_b.get("medications", [])}
+    all_sources = sources_a | sources_b
+
+    if len(all_sources) > 1:
+        raise ValueError(f"Scenario Store Invariant Error in '{scenario_def['id']}': mixed sources detected {all_sources}. Must be pure FHIR or pure Local!")
+
+    if all_sources and not all_sources.issubset({"fhir", "local"}):
+        raise ValueError(f"Invalid Scenario Source Error in '{scenario_def['id']}': source must be 'fhir' or 'local', got {all_sources}")
+
+    return True
+
+
+# Scenario 1: Clean/Connected, All High-Trust (Connected Mode)
 SCENARIO_1 = {
     "id": "scenario_1",
     "name": "Scenario 1 — Clean/Connected, All High-Trust",
-    "description": "Both FHIR and Local bundles agree within M3 thresholds. Local records explicitly tagged 'local_clinician_entered' to achieve high trust.",
+    "description": "Both prior FHIR record and new FHIR check-in agree within M3 thresholds for Connected Patient A (M5-PATIENT-SCENARIO-1).",
     "bundle_a": {
         "patient": NormalizedPatient(patient_id="M5-PATIENT-SCENARIO-1", name="Sarah Jenkins", date_of_birth="1978-04-12"),
         "observations": [
@@ -89,42 +118,37 @@ SCENARIO_1 = {
     "bundle_b": {
         "patient": NormalizedPatient(patient_id="M5-PATIENT-SCENARIO-1", name="Sarah Jenkins", date_of_birth="1978-04-12"),
         "observations": [
-            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-1", observation_type="glucose", value=122.0, unit="mg/dL", timestamp="2026-08-15T10:30:00Z", source="local", source_record_id="M5-S1-LOC-OBS-01"),
-            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-1", observation_type="hba1c", value=6.9, unit="%", timestamp="2026-08-15T10:30:00Z", source="local", source_record_id="M5-S1-LOC-OBS-02"),
-            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-1", observation_type="blood_pressure_systolic", value=126.0, unit="mmHg", timestamp="2026-08-15T10:30:00Z", source="local", source_record_id="M5-S1-LOC-OBS-03"),
+            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-1", observation_type="glucose", value=122.0, unit="mg/dL", timestamp="2026-08-15T10:30:00Z", source="fhir", source_record_id="M5-S1-FHIR-OBS-01-CHECKIN"),
+            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-1", observation_type="hba1c", value=6.9, unit="%", timestamp="2026-08-15T10:30:00Z", source="fhir", source_record_id="M5-S1-FHIR-OBS-02-CHECKIN"),
+            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-1", observation_type="blood_pressure_systolic", value=126.0, unit="mmHg", timestamp="2026-08-15T10:30:00Z", source="fhir", source_record_id="M5-S1-FHIR-OBS-03-CHECKIN"),
         ],
         "medications": [
-            NormalizedMedication(patient_id="M5-PATIENT-SCENARIO-1", medication_name="Metformin 500mg", status="active", dosage="1 tablet twice daily", timestamp="2026-01-01T00:00:00Z", source="local", source_record_id="M5-S1-LOC-MED-01")
+            NormalizedMedication(patient_id="M5-PATIENT-SCENARIO-1", medication_name="Metformin 500mg", status="active", dosage="1 tablet twice daily", timestamp="2026-01-01T00:00:00Z", source="fhir", source_record_id="M5-S1-FHIR-MED-01-CHECKIN")
         ]
     },
-    "origins": {
-        "M5-S1-LOC-OBS-01": "local_clinician_entered",
-        "M5-S1-LOC-OBS-02": "local_clinician_entered",
-        "M5-S1-LOC-OBS-03": "local_clinician_entered",
-        "M5-S1-LOC-MED-01": "local_clinician_entered",
-    },
+    "origins": None,
     "expected_check": lambda v: v.summary["requires_review"] == 0 and all(o.severity == "none" for o in v.observation_verifications + v.medication_verifications),
     "expected_summary_text": "all severity 'none', zero requires_human_review (100% eligible for automatic resolution under deterministic rules)"
 }
 
-# Scenario 2: Conflicting Observation
+# Scenario 2: Conflicting Observation (Isolated Mode)
 SCENARIO_2 = {
     "id": "scenario_2",
     "name": "Scenario 2 — Conflicting Observation",
-    "description": "Glucose and HbA1c readings disagree beyond M3 thresholds within 48h window. Input values informed by ADA benchmarks for realism.",
+    "description": "Glucose and HbA1c readings disagree beyond M3 thresholds within 48h window between prior Local state and new Local check-in for Isolated Patient B (M5-PATIENT-SCENARIO-2).",
     "bundle_a": {
         "patient": NormalizedPatient(patient_id="M5-PATIENT-SCENARIO-2", name="Robert Vance", date_of_birth="1962-11-05"),
         "observations": [
-            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-2", observation_type="glucose", value=115.0, unit="mg/dL", timestamp="2026-08-15T09:00:00Z", source="fhir", source_record_id="M5-S2-FHIR-OBS-01"),
-            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-2", observation_type="hba1c", value=6.4, unit="%", timestamp="2026-08-15T09:00:00Z", source="fhir", source_record_id="M5-S2-FHIR-OBS-02"),
+            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-2", observation_type="glucose", value=115.0, unit="mg/dL", timestamp="2026-08-15T09:00:00Z", source="local", source_record_id="M5-S2-LOC-OBS-01"),
+            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-2", observation_type="hba1c", value=6.4, unit="%", timestamp="2026-08-15T09:00:00Z", source="local", source_record_id="M5-S2-LOC-OBS-02"),
         ],
         "medications": []
     },
     "bundle_b": {
         "patient": NormalizedPatient(patient_id="M5-PATIENT-SCENARIO-2", name="Robert Vance", date_of_birth="1962-11-05"),
         "observations": [
-            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-2", observation_type="glucose", value=175.0, unit="mg/dL", timestamp="2026-08-15T11:00:00Z", source="local", source_record_id="M5-S2-LOC-OBS-01"), # delta 60.0 > 2x threshold (30.0)
-            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-2", observation_type="hba1c", value=8.1, unit="%", timestamp="2026-08-15T11:00:00Z", source="local", source_record_id="M5-S2-LOC-OBS-02"), # delta 1.7 > 2x threshold (1.0)
+            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-2", observation_type="glucose", value=175.0, unit="mg/dL", timestamp="2026-08-15T11:00:00Z", source="local", source_record_id="M5-S2-LOC-OBS-01-CHECKIN"), # delta 60.0 > 2x threshold (30.0)
+            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-2", observation_type="hba1c", value=8.1, unit="%", timestamp="2026-08-15T11:00:00Z", source="local", source_record_id="M5-S2-LOC-OBS-02-CHECKIN"), # delta 1.7 > 2x threshold (1.0)
         ],
         "medications": []
     },
@@ -133,11 +157,11 @@ SCENARIO_2 = {
     "expected_summary_text": "severity 'high' (delta > 2x threshold), requires_human_review = True with delta-driven review_reason"
 }
 
-# Scenario 3A: Missing Medication (High-Trust Present Side)
+# Scenario 3A: Missing Medication (High-Trust Present Side - Connected Mode)
 SCENARIO_3A = {
     "id": "scenario_3a",
     "name": "Scenario 3A — Missing Medication Record (High-Trust Present Side)",
-    "description": "Active Lisinopril present in FHIR side only (high trust). Demonstrates eligible-for-automatic-resolution path.",
+    "description": "Active Lisinopril present in FHIR prior state only (high trust), missing in new check-in for Connected Patient A. Auto-resolved.",
     "bundle_a": {
         "patient": NormalizedPatient(patient_id="M5-PATIENT-SCENARIO-3A", name="Carol Danvers", date_of_birth="1983-06-21"),
         "observations": [],
@@ -155,11 +179,11 @@ SCENARIO_3A = {
     "expected_summary_text": "severity 'low', requires_human_review = False (auto-resolved due to high-trust present side)"
 }
 
-# Scenario 3B: Missing Medication (Low-Trust Present Side)
+# Scenario 3B: Missing Medication (Low-Trust Present Side - Isolated Mode)
 SCENARIO_3B = {
     "id": "scenario_3b",
     "name": "Scenario 3B — Missing Medication Record (Low-Trust Present Side)",
-    "description": "Active Lisinopril present in Local side only, explicitly tagged 'local_self_reported' (low trust). Requires human review.",
+    "description": "Active Lisinopril present in new Local check-in only, explicitly tagged 'local_self_reported' (low trust) for Isolated Patient B. Requires human review.",
     "bundle_a": {
         "patient": NormalizedPatient(patient_id="M5-PATIENT-SCENARIO-3B", name="Carol Danvers", date_of_birth="1983-06-21"),
         "observations": [],
@@ -179,79 +203,82 @@ SCENARIO_3B = {
     "expected_summary_text": "severity 'moderate', requires_human_review = True (review required due to non-high trust present side)"
 }
 
-# Scenario 4A: Trust Metadata in Conflict Cases (Both Sides High-Trust)
+# Scenario 4A: Trust Metadata in Conflict Cases (Both Sides High-Trust - Isolated Mode)
 SCENARIO_4A = {
     "id": "scenario_4a",
     "name": "Scenario 4A — Trust Metadata in Conflict Cases (Both Sides High-Trust)",
-    "description": "Glucose conflict (delta 55 > 2x threshold) between FHIR (high trust) and Local tagged clinician-entered (high trust).",
+    "description": "Glucose conflict (delta 55 > 2x threshold) between prior Local state and new Local check-in, both tagged clinician-entered (high trust).",
     "bundle_a": {
         "patient": NormalizedPatient(patient_id="M5-PATIENT-SCENARIO-4A", name="David Banner", date_of_birth="1971-12-18"),
         "observations": [
-            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-4A", observation_type="glucose", value=110.0, unit="mg/dL", timestamp="2026-08-15T10:00:00Z", source="fhir", source_record_id="M5-S4A-FHIR-OBS-01")
+            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-4A", observation_type="glucose", value=110.0, unit="mg/dL", timestamp="2026-08-15T10:00:00Z", source="local", source_record_id="M5-S4A-LOC-OBS-01")
         ],
         "medications": []
     },
     "bundle_b": {
         "patient": NormalizedPatient(patient_id="M5-PATIENT-SCENARIO-4A", name="David Banner", date_of_birth="1971-12-18"),
         "observations": [
-            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-4A", observation_type="glucose", value=165.0, unit="mg/dL", timestamp="2026-08-15T10:30:00Z", source="local", source_record_id="M5-S4A-LOC-OBS-01")
+            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-4A", observation_type="glucose", value=165.0, unit="mg/dL", timestamp="2026-08-15T10:30:00Z", source="local", source_record_id="M5-S4A-LOC-OBS-02")
         ],
         "medications": []
     },
     "origins": {
-        "M5-S4A-LOC-OBS-01": "local_clinician_entered"
+        "M5-S4A-LOC-OBS-01": "local_clinician_entered",
+        "M5-S4A-LOC-OBS-02": "local_clinician_entered"
     },
     "expected_check": lambda v: len(v.observation_verifications) == 1 and v.observation_verifications[0].trust_level_a == "high" and v.observation_verifications[0].trust_level_b == "high" and v.observation_verifications[0].severity == "high",
     "expected_summary_text": "trust_level_a='high', trust_level_b='high', severity='high', requires_human_review=True"
 }
 
-# Scenario 4B: Trust Metadata in Conflict Cases (One Side Low-Trust)
+# Scenario 4B: Trust Metadata in Conflict Cases (One Side Low-Trust - Isolated Mode)
 SCENARIO_4B = {
     "id": "scenario_4b",
     "name": "Scenario 4B — Trust Metadata in Conflict Cases (One Side Low-Trust)",
-    "description": "Identical glucose conflict (delta 55 > 2x threshold) between FHIR (high trust) and Local tagged self-reported (low trust). Demonstrates trust tracking without altering delta-driven severity.",
+    "description": "Identical glucose conflict (delta 55 > 2x threshold) between prior Local state (high trust) and new Local check-in tagged self-reported (low trust).",
     "bundle_a": {
         "patient": NormalizedPatient(patient_id="M5-PATIENT-SCENARIO-4B", name="David Banner", date_of_birth="1971-12-18"),
         "observations": [
-            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-4B", observation_type="glucose", value=110.0, unit="mg/dL", timestamp="2026-08-15T10:00:00Z", source="fhir", source_record_id="M5-S4B-FHIR-OBS-01")
+            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-4B", observation_type="glucose", value=110.0, unit="mg/dL", timestamp="2026-08-15T10:00:00Z", source="local", source_record_id="M5-S4B-LOC-OBS-01")
         ],
         "medications": []
     },
     "bundle_b": {
         "patient": NormalizedPatient(patient_id="M5-PATIENT-SCENARIO-4B", name="David Banner", date_of_birth="1971-12-18"),
         "observations": [
-            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-4B", observation_type="glucose", value=165.0, unit="mg/dL", timestamp="2026-08-15T10:30:00Z", source="local", source_record_id="M5-S4B-LOC-OBS-01")
+            NormalizedObservation(patient_id="M5-PATIENT-SCENARIO-4B", observation_type="glucose", value=165.0, unit="mg/dL", timestamp="2026-08-15T10:30:00Z", source="local", source_record_id="M5-S4B-LOC-OBS-02")
         ],
         "medications": []
     },
     "origins": {
-        "M5-S4B-LOC-OBS-01": "local_self_reported"
+        "M5-S4B-LOC-OBS-01": "local_clinician_entered",
+        "M5-S4B-LOC-OBS-02": "local_self_reported"
     },
     "expected_check": lambda v: len(v.observation_verifications) == 1 and v.observation_verifications[0].trust_level_a == "high" and v.observation_verifications[0].trust_level_b == "low" and v.observation_verifications[0].severity == "high",
     "expected_summary_text": "trust_level_a='high', trust_level_b='low', severity='high', requires_human_review=True (trust metadata carried into result)"
 }
 
-# Adversarial Scenario C1 — Medication Dosage Mismatch (KEPT SEPARATE)
+# Adversarial Scenario C1 — Medication Dosage Mismatch (KEPT SEPARATE - Isolated Mode)
 SCENARIO_C1 = {
     "id": "scenario_c1",
     "name": "Adversarial / Stress-Test Scenario C1 — Medication Dosage Mismatch (Separate from 4 Official Scenarios)",
-    "description": "Same active medication name on both sides with mismatched dosage strings ('1 tablet twice daily' vs '2 tablets once daily in evening'). Demonstrates string dosage mismatch detection with full provenance.",
+    "description": "Same active medication name on prior Local state and new Local check-in with mismatched dosage strings ('1 tablet twice daily' vs '2 tablets once daily in evening').",
     "bundle_a": {
         "patient": NormalizedPatient(patient_id="M5-PATIENT-ADVERSARIAL-C1", name="Elena Rostova", date_of_birth="1982-08-14"),
         "observations": [],
         "medications": [
-            NormalizedMedication(patient_id="M5-PATIENT-ADVERSARIAL-C1", medication_name="Metformin 500mg", status="active", dosage="1 tablet twice daily", timestamp="2026-01-01T00:00:00Z", source="fhir", source_record_id="M5-C1-FHIR-MED-01")
+            NormalizedMedication(patient_id="M5-PATIENT-ADVERSARIAL-C1", medication_name="Metformin 500mg", status="active", dosage="1 tablet twice daily", timestamp="2026-01-01T00:00:00Z", source="local", source_record_id="M5-C1-LOC-MED-01")
         ]
     },
     "bundle_b": {
         "patient": NormalizedPatient(patient_id="M5-PATIENT-ADVERSARIAL-C1", name="Elena Rostova", date_of_birth="1982-08-14"),
         "observations": [],
         "medications": [
-            NormalizedMedication(patient_id="M5-PATIENT-ADVERSARIAL-C1", medication_name="Metformin 500mg", status="active", dosage="2 tablets once daily in evening", timestamp="2026-01-01T00:00:00Z", source="local", source_record_id="M5-C1-LOC-MED-01")
+            NormalizedMedication(patient_id="M5-PATIENT-ADVERSARIAL-C1", medication_name="Metformin 500mg", status="active", dosage="2 tablets once daily in evening", timestamp="2026-01-01T00:00:00Z", source="local", source_record_id="M5-C1-LOC-MED-02")
         ]
     },
     "origins": {
-        "M5-C1-LOC-MED-01": "local_clinician_entered"
+        "M5-C1-LOC-MED-01": "local_clinician_entered",
+        "M5-C1-LOC-MED-02": "local_clinician_entered"
     },
     "expected_check": lambda v: len(v.medication_verifications) == 1 and v.medication_verifications[0].severity == "moderate" and v.medication_verifications[0].requires_human_review is True,
     "expected_summary_text": "severity 'moderate', requires_human_review = True (dosage string mismatch detected; narrow claim: string mismatch detection, not semantic dosage parsing)"
@@ -267,6 +294,9 @@ ADVERSARIAL_SCENARIOS = [SCENARIO_C1]
 
 def execute_scenario(scenario_def: Dict[str, Any]) -> Dict[str, Any]:
     """Executes a single scenario through the real M3 -> M4 pipeline and captures structured evidence."""
+    # 0. Validate Identity and Store Invariants
+    validate_scenario_invariants(scenario_def)
+
     bundle_a = scenario_def["bundle_a"]
     bundle_b = scenario_def["bundle_b"]
     origins = scenario_def["origins"]

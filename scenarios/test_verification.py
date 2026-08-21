@@ -107,19 +107,19 @@ def run_verification_tests():
     print("[PASS] Negative control produces 0 requires_human_review (100% auto-resolved, severity 'none').")
 
     # Check 2: High-Trust Missing Data Case
-    # High-trust present side (FHIR) with missing local data -> severity "low", requires_human_review = False
+    # High-trust present side (prior state) with missing incoming check-in data -> severity "low", requires_human_review = False
     print("Check 2: High-Trust Missing Data Auto-Resolution Check...")
     r_missing = reconcile_bundles(MISSING_DATA_PAIR["bundle_a"], MISSING_DATA_PAIR["bundle_b"])
     v_missing = verify_reconciliation(r_missing, origins=FIXTURE_ORIGINS)
     
-    # Weight is in FHIR (high trust), missing in Local
+    # Weight is in prior state (high trust), missing in new check-in
     weight_v = [o for o in v_missing.observation_verifications if o.observation_type == "weight"][0]
     assert weight_v.reconciliation_status == "missing_in_b"
     assert weight_v.trust_level_a == "high" and weight_v.trust_level_b is None
     assert weight_v.severity == "low", f"Expected severity 'low' for high-trust missing data, got {weight_v.severity}"
     assert weight_v.requires_human_review is False, "High-trust missing data must have requires_human_review = False"
 
-    # HbA1c is in Local (medium trust), missing in FHIR -> moderate severity, requires_human_review = True
+    # HbA1c is in new check-in (medium trust), missing in prior state -> moderate severity, requires_human_review = True
     hba1c_v = [o for o in v_missing.observation_verifications if o.observation_type == "hba1c"][0]
     assert hba1c_v.reconciliation_status == "missing_in_a"
     assert hba1c_v.trust_level_b == "medium" and hba1c_v.trust_level_a is None

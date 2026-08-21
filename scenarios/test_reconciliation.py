@@ -84,8 +84,8 @@ def run_reconciliation_tests():
     # Exact Provenance check for Clean Agree Glucose
     glucose_clean = [o for o in res_clean.observation_comparisons if o.observation_type == "glucose"][0]
     assert glucose_clean.source_record_id_a == "FHIR-OBS-01", f"Expected FHIR-OBS-01, got {glucose_clean.source_record_id_a}"
-    assert glucose_clean.source_record_id_b == "LOC-OBS-01", f"Expected LOC-OBS-01, got {glucose_clean.source_record_id_b}"
-    assert glucose_clean.source_a == "fhir" and glucose_clean.source_b == "local"
+    assert glucose_clean.source_record_id_b == "FHIR-OBS-01-CHECKIN", f"Expected FHIR-OBS-01-CHECKIN, got {glucose_clean.source_record_id_b}"
+    assert glucose_clean.source_a == "fhir" and glucose_clean.source_b == "fhir"
 
     # Conflict Pair
     res_conflict = reconcile_bundles(CONFLICT_PAIR["bundle_a"], CONFLICT_PAIR["bundle_b"])
@@ -96,7 +96,7 @@ def run_reconciliation_tests():
     assert len(med_conflicts) == 1, "Expected 1 medication conflict (Lisinopril status)"
     # Exact Provenance check for Conflict Glucose
     glucose_conflict = [o for o in res_conflict.observation_comparisons if o.observation_type == "glucose"][0]
-    assert glucose_conflict.source_record_id_a == "FHIR-OBS-21" and glucose_conflict.source_record_id_b == "LOC-OBS-21"
+    assert glucose_conflict.source_record_id_a == "LOC-OBS-21" and glucose_conflict.source_record_id_b == "LOC-OBS-21-CHECKIN"
 
     # Missing Data Pair
     res_missing = reconcile_bundles(MISSING_DATA_PAIR["bundle_a"], MISSING_DATA_PAIR["bundle_b"])
@@ -134,8 +134,8 @@ def run_reconciliation_tests():
     boundary_bundle_b = {
         "patient": NormalizedPatient(patient_id="PATIENT-BOUND", name="Test"),
         "observations": [
-            NormalizedObservation(patient_id="PATIENT-BOUND", observation_type="glucose", value=125.0, unit="mg/dL", timestamp="2026-08-15T10:30:00Z", source="local", source_record_id="OBS-B3"), # delta 15.0 == threshold 15.0 -> agree
-            NormalizedObservation(patient_id="PATIENT-BOUND", observation_type="weight", value=72.1, unit="kg", timestamp="2026-08-15T10:30:00Z", source="local", source_record_id="OBS-B4"), # delta 2.1 > threshold 2.0 -> conflict
+            NormalizedObservation(patient_id="PATIENT-BOUND", observation_type="glucose", value=125.0, unit="mg/dL", timestamp="2026-08-15T10:30:00Z", source="fhir", source_record_id="OBS-B3"), # delta 15.0 == threshold 15.0 -> agree
+            NormalizedObservation(patient_id="PATIENT-BOUND", observation_type="weight", value=72.1, unit="kg", timestamp="2026-08-15T10:30:00Z", source="fhir", source_record_id="OBS-B4"), # delta 2.1 > threshold 2.0 -> conflict
         ],
         "medications": []
     }
@@ -158,7 +158,7 @@ def run_reconciliation_tests():
     window_bundle_b = {
         "patient": NormalizedPatient(patient_id="PATIENT-WIN", name="Test"),
         "observations": [
-            NormalizedObservation(patient_id="PATIENT-WIN", observation_type="glucose", value=120.0, unit="mg/dL", timestamp="2026-08-05T10:00:00Z", source="local", source_record_id="OBS-W2") # 96 hours diff > 48h
+            NormalizedObservation(patient_id="PATIENT-WIN", observation_type="glucose", value=120.0, unit="mg/dL", timestamp="2026-08-05T10:00:00Z", source="fhir", source_record_id="OBS-W2") # 96 hours diff > 48h
         ],
         "medications": []
     }
@@ -179,8 +179,8 @@ def run_reconciliation_tests():
     nn_bundle_b = {
         "patient": NormalizedPatient(patient_id="PATIENT-NN", name="Test"),
         "observations": [
-            NormalizedObservation(patient_id="PATIENT-NN", observation_type="glucose", value=122.0, unit="mg/dL", timestamp="2026-08-15T10:15:00Z", source="local", source_record_id="OBS-NN-B1"),
-            NormalizedObservation(patient_id="PATIENT-NN", observation_type="glucose", value=131.0, unit="mg/dL", timestamp="2026-08-15T20:15:00Z", source="local", source_record_id="OBS-NN-B2"),
+            NormalizedObservation(patient_id="PATIENT-NN", observation_type="glucose", value=122.0, unit="mg/dL", timestamp="2026-08-15T10:15:00Z", source="fhir", source_record_id="OBS-NN-B1"),
+            NormalizedObservation(patient_id="PATIENT-NN", observation_type="glucose", value=131.0, unit="mg/dL", timestamp="2026-08-15T20:15:00Z", source="fhir", source_record_id="OBS-NN-B2"),
         ],
         "medications": []
     }
@@ -202,7 +202,7 @@ def run_reconciliation_tests():
     unit_bundle_b = {
         "patient": NormalizedPatient(patient_id="PATIENT-UNIT", name="Test"),
         "observations": [
-            NormalizedObservation(patient_id="PATIENT-UNIT", observation_type="glucose", value=6.1, unit="mmol/L", timestamp="2026-08-15T10:15:00Z", source="local", source_record_id="OBS-U2")
+            NormalizedObservation(patient_id="PATIENT-UNIT", observation_type="glucose", value=6.1, unit="mmol/L", timestamp="2026-08-15T10:15:00Z", source="fhir", source_record_id="OBS-U2")
         ],
         "medications": []
     }
@@ -222,7 +222,7 @@ def run_reconciliation_tests():
     unk_bundle_b = {
         "patient": NormalizedPatient(patient_id="PATIENT-UNK", name="Test"),
         "observations": [
-            NormalizedObservation(patient_id="PATIENT-UNK", observation_type="body_temperature", value=37.2, unit="Cel", timestamp="2026-08-15T10:15:00Z", source="local", source_record_id="OBS-UNK2")
+            NormalizedObservation(patient_id="PATIENT-UNK", observation_type="body_temperature", value=37.2, unit="Cel", timestamp="2026-08-15T10:15:00Z", source="fhir", source_record_id="OBS-UNK2")
         ],
         "medications": []
     }
