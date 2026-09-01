@@ -50,7 +50,7 @@ const adherenceData = [
 ];
 
 export const TrendScreen = () => {
-  const { returnToHomeAndClearRun, t, isUrdu } = useApp();
+  const { returnToHomeAndClearRun, checkIn, t, isUrdu } = useApp();
 
   return (
     <div className="w-full max-w-xl mx-auto space-y-5 animate-fadeIn">
@@ -67,6 +67,13 @@ export const TrendScreen = () => {
         <p className="text-xs text-slate-300 max-w-md mx-auto">
           {t.trendsSubtitle}
         </p>
+
+        {/* Brand-new session without daily check-in indicator */}
+        {!checkIn.submittedAt && (
+          <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-700/80 text-teal-300 text-[11px] font-medium">
+            <span>{isUrdu ? "آج کا کوئی چیک ان درج نہیں — بنیادی طبی ڈیٹا ظاہر ہو رہا ہے" : "No check-ins yet today — showing baseline clinical trajectory"}</span>
+          </div>
+        )}
       </div>
 
       {/* Chart 1: Blood Glucose */}

@@ -83,18 +83,21 @@ export const AdminDashboardScreen = () => {
 
         {/* Stat 4: Active Alerts */}
         <div
-          className={`rounded-2xl border p-4 text-center shadow-xs transition-colors ${
+          key={`admin-alert-${activeAlertsCount}`}
+          className={`rounded-2xl border p-4 text-center shadow-xs transition-all duration-500 animate-fadeIn ${
             activeAlertsCount > 0
-              ? "bg-red-50 border-red-200 text-red-900"
+              ? "bg-red-950/90 border-red-500 text-white ring-2 ring-red-500/40 shadow-lg shadow-red-600/30"
               : "bg-white border-slate-200 text-navy-800"
           }`}
         >
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+          <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+            activeAlertsCount > 0 ? "text-red-200" : "text-slate-500"
+          }`}>
             {t.statActiveAlerts}
           </span>
           <div
             className={`text-2xl font-bold font-sans mt-0.5 ${
-              activeAlertsCount > 0 ? "text-red-700 animate-pulse" : "text-slate-700"
+              activeAlertsCount > 0 ? "text-white animate-pulse" : "text-slate-700"
             }`}
           >
             {activeAlertsCount > 0 ? `🔴 ${activeAlertsCount} Urgent` : "0"}

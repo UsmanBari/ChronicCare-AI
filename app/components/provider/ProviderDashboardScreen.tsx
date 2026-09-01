@@ -72,26 +72,37 @@ export const ProviderDashboardScreen = () => {
             </p>
           </div>
 
-          {/* Live Counters */}
+          {/* Live Counters with Visible Transition Flash */}
           <div className="flex items-center gap-3">
             {/* Active Cases Counter */}
-            <div className="bg-navy-700/80 border border-slate-600/60 rounded-xl p-3 px-4 text-center min-w-[120px]">
+            <div
+              key={`active-${activeCasesCount}`}
+              className={`border rounded-xl p-3 px-4 text-center min-w-[120px] transition-all duration-500 animate-fadeIn ${
+                activeCasesCount > 2
+                  ? "bg-teal-950/80 border-teal-400 ring-2 ring-teal-400/30 shadow-lg shadow-teal-500/20"
+                  : "bg-navy-700/80 border-slate-600/60"
+              }`}
+            >
               <span className="text-[10px] uppercase font-bold text-slate-300 block">
                 {t.activeCasesLabel}
               </span>
-              <div className="text-xl sm:text-2xl font-bold text-white font-sans mt-0.5">
-                {activeCasesCount}
-                <span className="text-xs font-normal text-teal-300 block text-[11px]">
-                  {activeCasesSubtext || "Tracked"}
-                </span>
+              <div className="text-xl sm:text-2xl font-bold text-white font-sans mt-0.5 flex items-center justify-center gap-1">
+                <span>{activeCasesCount}</span>
+                {activeCasesCount > 2 && (
+                  <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping shrink-0" />
+                )}
               </div>
+              <span className="text-xs font-normal text-teal-300 block text-[10px]">
+                {activeCasesSubtext || "Tracked"}
+              </span>
             </div>
 
             {/* Urgent Cases Counter */}
             <div
-              className={`rounded-xl p-3 px-4 text-center min-w-[120px] transition-all border ${
+              key={`urgent-${urgentCasesCount}`}
+              className={`rounded-xl p-3 px-4 text-center min-w-[120px] transition-all duration-500 animate-fadeIn border ${
                 urgentCasesCount > 0
-                  ? "bg-red-900/60 border-red-500 text-white animate-pulse"
+                  ? "bg-red-950/90 border-red-500 text-white ring-2 ring-red-500/40 shadow-lg shadow-red-600/30"
                   : "bg-navy-700/80 border-slate-600/60 text-slate-300"
               }`}
             >
@@ -101,7 +112,7 @@ export const ProviderDashboardScreen = () => {
               <div className="text-xl sm:text-2xl font-bold font-sans mt-0.5 flex items-center justify-center gap-1">
                 {urgentCasesCount > 0 ? (
                   <span className="text-red-300 flex items-center gap-1">
-                    <AlertOctagon className="w-5 h-5 text-red-400" />
+                    <AlertOctagon className="w-4 h-4 text-red-400 animate-pulse" />
                     <span>🔴 1 New Urgent Case</span>
                   </span>
                 ) : (

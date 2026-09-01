@@ -13,6 +13,7 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Check,
+  Database,
 } from "lucide-react";
 
 export const HomeScreen = () => {
@@ -30,6 +31,18 @@ export const HomeScreen = () => {
 
   return (
     <div className="w-full max-w-lg mx-auto space-y-5 animate-fadeIn">
+      {/* Visible Isolated Offline Mode Banner */}
+      {connectionMode === "offline" && (
+        <div className="p-3 rounded-xl bg-amber-50 border border-amber-800/30 text-amber-900 text-xs flex items-center justify-between animate-fadeIn shadow-xs">
+          <div className="flex items-center gap-2 font-semibold">
+            <Database className="w-4 h-4 text-amber-800 shrink-0" />
+            <span>{isUrdu ? "آئسولیٹڈ موڈ — لوکل اسٹور استعمال ہو رہا ہے" : "Offline — using Local Store"}</span>
+          </div>
+          <span className="text-[10px] px-2 py-0.5 rounded bg-amber-200/70 text-amber-900 font-bold uppercase">
+            Isolated Mode
+          </span>
+        </div>
+      )}
       {/* PRESENTER CONTROLS (Demo presentation tool, clearly demarcated) */}
       <div className="p-4 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-100/90 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
