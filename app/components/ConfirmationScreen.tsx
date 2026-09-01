@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useApp } from "../context/AppContext";
-import { CheckCircle2, Home, CalendarCheck, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Home, CalendarCheck, ShieldCheck, ArrowRight, Activity } from "lucide-react";
 
 export const ConfirmationScreen = () => {
   const { setScreen, resetSession, checkIn, t, isUrdu } = useApp();
@@ -52,14 +52,26 @@ export const ConfirmationScreen = () => {
           </div>
         </div>
 
-        {/* Return Button */}
+        {/* Primary Action: View Results */}
+        <button
+          type="button"
+          onClick={() => setScreen("processing")}
+          id="view-my-results-btn"
+          className="w-full py-3 px-4 bg-teal-700 hover:bg-teal-600 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+        >
+          <Activity className="w-4 h-4" />
+          <span>{t.viewResultsBtn}</span>
+          <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+        </button>
+
+        {/* Secondary Return Button */}
         <button
           type="button"
           onClick={resetSession}
           id="finish-return-home-btn"
-          className="w-full py-3 px-4 bg-navy-800 hover:bg-navy-700 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+          className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs rounded-xl transition-all flex items-center justify-center gap-2"
         >
-          <Home className="w-4 h-4" />
+          <Home className="w-3.5 h-3.5" />
           <span>{t.finishBtn}</span>
         </button>
       </div>

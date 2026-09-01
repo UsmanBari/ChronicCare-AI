@@ -11,6 +11,9 @@ import { HomeScreen } from "./components/HomeScreen";
 import { CheckInEntryScreen } from "./components/CheckInEntryScreen";
 import { AdaptiveInterviewScreen } from "./components/AdaptiveInterviewScreen";
 import { ConfirmationScreen } from "./components/ConfirmationScreen";
+import { ProcessingScreen } from "./components/ProcessingScreen";
+import { RiskResultScreen } from "./components/RiskResultScreen";
+import { TrendScreen } from "./components/TrendScreen";
 
 export default function App() {
   const { screen } = useApp();
@@ -30,6 +33,9 @@ export default function App() {
           {screen === "checkin_entry" && <CheckInEntryScreen />}
           {screen === "adaptive_interview" && <AdaptiveInterviewScreen />}
           {screen === "confirmation" && <ConfirmationScreen />}
+          {screen === "processing" && <ProcessingScreen />}
+          {screen === "risk_result" && <RiskResultScreen />}
+          {screen === "trends" && <TrendScreen />}
         </div>
       </main>
 

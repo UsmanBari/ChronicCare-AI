@@ -10,10 +10,14 @@ export type ScreenType =
   | "home"
   | "checkin_entry"
   | "adaptive_interview"
-  | "confirmation";
+  | "confirmation"
+  | "processing"
+  | "risk_result"
+  | "trends";
 
 export type ConnectionMode = "fhir" | "offline" | null;
 export type MissedMedsOption = "yes" | "no" | "prefer_not_to_answer" | null;
+export type RiskLevel = "low" | "moderate" | "high";
 
 export interface HealthProfile {
   conditions: string[];

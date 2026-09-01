@@ -91,12 +91,47 @@ export interface Translations {
   q3Text: string;
   submitCheckInBtn: string;
 
-  // Screen 7: Confirmation
+  // Screen 7: Confirmation (M1 -> M2 Extension)
   confirmationTitle: string;
   confirmationSubtitle: string;
   confirmationMessage: string;
   submittedAt: string;
   finishBtn: string;
+  viewResultsBtn: string;
+
+  // M2 Screen 2 & 3: Processing & Verification
+  processingTitle: string;
+  processingSubtitle: string;
+  verifiedTitle: string;
+  verifiedSubtitle: string;
+
+  // M2 Screen 4: Risk Result & RiskBadge
+  riskLowTitle: string;
+  riskModerateTitle: string;
+  riskHighTitle: string;
+  riskSupportingText: string;
+  riskDescription: string;
+  seeWhyBtn: string;
+
+  // M2 Screen 5: Why / Contributing Factors
+  contributingFactorsTitle: string;
+  shapDisclaimer: string;
+  factor1: string;
+  factor2: string;
+  factor3: string;
+  factor4: string;
+  viewTrendsBtn: string;
+
+  // M2 Screen 6: Trend Screen
+  trendsTitle: string;
+  trendsSubtitle: string;
+  glucoseChartTitle: string;
+  bloodPressureChartTitle: string;
+  adherenceChartTitle: string;
+  systolicLabel: string;
+  diastolicLabel: string;
+  targetRangeLabel: string;
+  dayLabel: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -188,6 +223,41 @@ export const translations: Record<Language, Translations> = {
     confirmationMessage: "Thank you for completing your daily check-in. Your responses have been securely stored in your active profile.",
     submittedAt: "Submitted on",
     finishBtn: "Return to Home",
+    viewResultsBtn: "View My Results",
+
+    // M2 Screen 2 & 3: Processing & Verification
+    processingTitle: "Analyzing your recent health information…",
+    processingSubtitle: "Synthesizing symptoms, clinical parameters, and check-in responses",
+    verifiedTitle: "Result verified",
+    verifiedSubtitle: "Input parameters validated against baseline record",
+
+    // M2 Screen 4: Risk Result
+    riskLowTitle: "Low Risk",
+    riskModerateTitle: "Moderate Risk",
+    riskHighTitle: "High Risk",
+    riskSupportingText: "Your recent check-ins look stable",
+    riskDescription: "All tracked clinical parameters and daily symptom responses are within target safety boundaries.",
+    seeWhyBtn: "See Why",
+
+    // M2 Screen 5: Why / Contributing Factors
+    contributingFactorsTitle: "Contributing Factors",
+    shapDisclaimer: "Example contributing factors — representative visualization of future SHAP-based explanation.",
+    factor1: "Blood glucose readings remain within individual target range (avg 110 mg/dL)",
+    factor2: "Consistent medication adherence with zero reported missed doses",
+    factor3: "Blood pressure measurements remain stable and controlled (120/80 mmHg baseline)",
+    factor4: "No acute symptom escalations detected in daily check-in",
+    viewTrendsBtn: "View Trends",
+
+    // M2 Screen 6: Trend Screen
+    trendsTitle: "Health Trends & Trajectory",
+    trendsSubtitle: "Consistent multi-day tracking across key clinical indicators",
+    glucoseChartTitle: "Blood Glucose (mg/dL)",
+    bloodPressureChartTitle: "Blood Pressure (mmHg)",
+    adherenceChartTitle: "Medication Adherence (%)",
+    systolicLabel: "Systolic",
+    diastolicLabel: "Diastolic",
+    targetRangeLabel: "Target Range",
+    dayLabel: "Day",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -277,5 +347,40 @@ export const translations: Record<Language, Translations> = {
     confirmationMessage: "روزانہ چیک ان مکمل کرنے کا شکریہ۔ آپ کے جوابات آپ کی فعال پروفائل میں محفوظ ہو گئے ہیں۔",
     submittedAt: "جمع کرانے کا وقت",
     finishBtn: "ہوم اسکرین پر واپس جائیں",
+    viewResultsBtn: "میرے نتائج دیکھیں",
+
+    // M2 Screen 2 & 3: Processing & Verification
+    processingTitle: "آپ کی صحت کی حالیہ معلومات کا تجزیہ ہو رہا ہے…",
+    processingSubtitle: "علامات، طبی تاریخ اور چیک ان ڈیٹا کا جائزہ لیا جا رہا ہے",
+    verifiedTitle: "نتیجہ تصدیق شدہ",
+    verifiedSubtitle: "بنیادی ریکارڈ کے مطابق تصدیق مکمل ہو گئی",
+
+    // M2 Screen 4: Risk Result
+    riskLowTitle: "کم خطرہ (Low Risk)",
+    riskModerateTitle: "معتدل خطرہ (Moderate Risk)",
+    riskHighTitle: "زیادہ خطرہ (High Risk)",
+    riskSupportingText: "آپ کا حالیہ چیک ان مستحکم نظر آتا ہے",
+    riskDescription: "تمام زیر نگرانی علامات اور طبی اشارے ہدف کے مطابق محفوظ حد میں ہیں۔",
+    seeWhyBtn: "وجوہات دیکھیں",
+
+    // M2 Screen 5: Why / Contributing Factors
+    contributingFactorsTitle: "معاون عوامل (Contributing Factors)",
+    shapDisclaimer: "Example contributing factors — representative visualization of future SHAP-based explanation.",
+    factor1: "بلڈ شوگر کی مقدار انفرادی ہدف کی حد میں ہے (اوسط 110 mg/dL)",
+    factor2: "باقاعدگی سے ادویات کا استعمال اور کوئی خوراک نہیں چھوٹی",
+    factor3: "بلڈ پریشر معمول کے مطابق اور کنٹرول میں ہے (120/80 mmHg)",
+    factor4: "روزانہ چیک ان میں کسی شدید علامت کی نشاندہی نہیں ہوئی",
+    viewTrendsBtn: "رجحانات دیکھیں",
+
+    // M2 Screen 6: Trend Screen
+    trendsTitle: "صحت کے رجحانات",
+    trendsSubtitle: "اہم طبی اشاریوں کی کثیر روزہ نگرانی",
+    glucoseChartTitle: "بلڈ شوگر (mg/dL)",
+    bloodPressureChartTitle: "بلڈ پریشر (mmHg)",
+    adherenceChartTitle: "ادویات کی پابندی (%)",
+    systolicLabel: "سسٹولک",
+    diastolicLabel: "ڈائسٹولک",
+    targetRangeLabel: "ہدف کی حد",
+    dayLabel: "دن",
   }
 };
