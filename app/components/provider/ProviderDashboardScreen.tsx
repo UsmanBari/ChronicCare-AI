@@ -186,15 +186,21 @@ export const ProviderDashboardScreen = () => {
               className="p-3.5 rounded-xl border border-slate-200 hover:border-teal-600 hover:bg-slate-50/70 transition-all cursor-pointer flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
-                <span
-                  className={`w-3 h-3 rounded-full shrink-0 ${
-                    demoScenario === "emergency" && !isAliResolved
-                      ? "bg-red-600 animate-ping"
-                      : demoScenario === "conflict" && !isAliResolved
-                      ? "bg-amber-500"
-                      : "bg-mutedGreen-800"
-                  }`}
-                />
+                <div className="shrink-0">
+                  {demoScenario === "emergency" && !isAliResolved ? (
+                    <div className="w-7 h-7 rounded-lg bg-red-100 border border-red-300 text-red-700 flex items-center justify-center animate-pulse">
+                      <AlertOctagon className="w-4 h-4" />
+                    </div>
+                  ) : demoScenario === "conflict" && !isAliResolved ? (
+                    <div className="w-7 h-7 rounded-lg bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center">
+                      <AlertTriangle className="w-4 h-4" />
+                    </div>
+                  ) : (
+                    <div className="w-7 h-7 rounded-lg bg-mutedGreen-100 border border-mutedGreen-800/30 text-mutedGreen-800 flex items-center justify-center">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                  )}
+                </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-navy-800">Ali Khan</span>
@@ -202,7 +208,7 @@ export const ProviderDashboardScreen = () => {
                   </div>
                   <span className="text-xs text-slate-500 block">
                     {demoScenario === "emergency" && !isAliResolved ? (
-                      <span className="text-red-700 font-semibold">🔴 High-Risk Pattern Alerted</span>
+                      <span className="text-red-700 font-semibold">🔴 Critical: High-Risk Pattern Alerted</span>
                     ) : demoScenario === "conflict" && !isAliResolved ? (
                       <span className="text-amber-800 font-semibold">🟡 Discrepancy: Glucose 180 vs 140 mg/dL</span>
                     ) : (
@@ -224,11 +230,17 @@ export const ProviderDashboardScreen = () => {
               className="p-3.5 rounded-xl border border-slate-200 hover:border-teal-600 hover:bg-slate-50/70 transition-all cursor-pointer flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
-                <span
-                  className={`w-3 h-3 rounded-full shrink-0 ${
-                    isSaraResolved ? "bg-mutedGreen-800" : "bg-amber-500"
-                  }`}
-                />
+                <div className="shrink-0">
+                  {isSaraResolved ? (
+                    <div className="w-7 h-7 rounded-lg bg-mutedGreen-100 border border-mutedGreen-800/30 text-mutedGreen-800 flex items-center justify-center">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                  ) : (
+                    <div className="w-7 h-7 rounded-lg bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center">
+                      <AlertTriangle className="w-4 h-4" />
+                    </div>
+                  )}
+                </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-navy-800">Sara Ahmed</span>
@@ -256,7 +268,9 @@ export const ProviderDashboardScreen = () => {
               className="p-3.5 rounded-xl border border-slate-200 hover:border-teal-600 hover:bg-slate-50/70 transition-all cursor-pointer flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
-                <span className="w-3 h-3 rounded-full bg-mutedGreen-800 shrink-0" />
+                <div className="w-7 h-7 rounded-lg bg-mutedGreen-100 border border-mutedGreen-800/30 text-mutedGreen-800 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-navy-800">Ahmed</span>
