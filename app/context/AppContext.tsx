@@ -81,6 +81,10 @@ interface AppContextType {
   showSettings: boolean;
   setShowSettings: (show: boolean) => void;
 
+  // Evaluator Tour Modal toggle
+  showTour: boolean;
+  setShowTour: (show: boolean) => void;
+
   // Selected patient in Provider Portal
   selectedPatient: string | null;
   setSelectedPatient: (patient: string | null) => void;
@@ -131,11 +135,12 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [portal, setPortal] = useState<PortalType>("landing");
-  const [screen, setScreen] = useState<PatientScreenType>("home");
-  const [providerScreen, setProviderScreen] = useState<ProviderScreenType>("dashboard");
-  const [adminScreen, setAdminScreen] = useState<AdminScreenType>("dashboard");
+  const [portal, setPortalState] = useState<PortalType>("landing");
+  const [screen, setScreenState] = useState<PatientScreenType>("home");
+  const [providerScreen, setProviderScreenState] = useState<ProviderScreenType>("dashboard");
+  const [adminScreen, setAdminScreenState] = useState<AdminScreenType>("dashboard");
   const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [showTour, setShowTour] = useState<boolean>(true);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
 
   const [language, setLanguage] = useState<Language>("en");
@@ -178,6 +183,74 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [resolvedCases, setResolvedCases] = useState<string[]>([]);
   const [acknowledgedPatients, setAcknowledgedPatients] = useState<string[]>([]);
 
+  // Browser History & Back/Forward Button Navigation Synchronization
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Initialize root history state if empty
+    if (!window.history.state) {
+      window.history.replaceState(
+        { portal: "landing", screen: "home", providerScreen: "dashboard", adminScreen: "dashboard" },
+        ""
+      );
+    }
+
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state) {
+        const { portal: p, screen: s, providerScreen: ps, adminScreen: as } = event.state;
+        if (p) setPortalState(p);
+        if (s) setScreenState(s);
+        if (ps) setProviderScreenState(ps);
+        if (as) setAdminScreenState(as);
+      } else {
+        setPortalState("landing");
+        setScreenState("home");
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const pushNavState = (
+    nextPortal: PortalType,
+    nextScreen: PatientScreenType,
+    nextProviderScreen: ProviderScreenType,
+    nextAdminScreen: AdminScreenType
+  ) => {
+    if (typeof window !== "undefined") {
+      window.history.pushState(
+        {
+          portal: nextPortal,
+          screen: nextScreen,
+          providerScreen: nextProviderScreen,
+          adminScreen: nextAdminScreen,
+        },
+        ""
+      );
+    }
+  };
+
+  const setPortal = (p: PortalType) => {
+    setPortalState(p);
+    pushNavState(p, screen, providerScreen, adminScreen);
+  };
+
+  const setScreen = (s: PatientScreenType) => {
+    setScreenState(s);
+    pushNavState(portal, s, providerScreen, adminScreen);
+  };
+
+  const setProviderScreen = (ps: ProviderScreenType) => {
+    setProviderScreenState(ps);
+    pushNavState(portal, screen, ps, adminScreen);
+  };
+
+  const setAdminScreen = (as: AdminScreenType) => {
+    setAdminScreenState(as);
+    pushNavState(portal, screen, providerScreen, as);
+  };
+
   const resolveCase = (patientName: string) => {
     if (!resolvedCases.includes(patientName)) {
       setResolvedCases((prev) => [...prev, patientName]);
@@ -194,7 +267,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const isUrdu = language === "ur";
 
   const returnToHomeAndClearRun = () => {
-    setScreen("home");
+    setScreenState("home");
+    pushNavState(portal, "home", providerScreen, adminScreen);
     setCheckIn({
       note: "",
       thirst: null,
@@ -207,7 +281,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const resetDemo = () => {
     setDemoScenario("normal");
-    setScreen("home");
+    setScreenState("home");
+    pushNavState("patient", "home", "dashboard", "dashboard");
     setCheckIn({
       note: "",
       thirst: null,
@@ -241,6 +316,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setAdminScreen,
         showSettings,
         setShowSettings,
+        showTour,
+        setShowTour,
         selectedPatient,
         setSelectedPatient,
         language,

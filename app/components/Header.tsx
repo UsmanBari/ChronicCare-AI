@@ -13,6 +13,7 @@ import {
   Stethoscope,
   Shield,
   Layers,
+  HelpCircle,
 } from "lucide-react";
 
 export const Header = () => {
@@ -28,6 +29,7 @@ export const Header = () => {
     setProviderScreen,
     setAdminScreen,
     setShowSettings,
+    setShowTour,
     returnToHomeAndClearRun,
   } = useApp();
 
@@ -163,6 +165,17 @@ export const Header = () => {
               </div>
             )}
           </div>
+
+          {/* Evaluator Tour Guide Trigger */}
+          <button
+            onClick={() => setShowTour(true)}
+            id="evaluator-guide-btn"
+            title="Evaluator Guide & Walkthrough Instructions"
+            className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-full bg-teal-50 hover:bg-teal-100 text-teal-850 border border-teal-200 transition-colors shadow-xs"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-teal-700" />
+            <span className="hidden sm:inline">Guide</span>
+          </button>
 
           {/* Language Toggle */}
           <button

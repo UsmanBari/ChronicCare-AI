@@ -6,6 +6,7 @@ import { Header } from "./components/Header";
 import { DemoFooter } from "./components/DemoFooter";
 import { PortalLandingScreen } from "./components/PortalLandingScreen";
 import { UnifiedSettingsModal } from "./components/UnifiedSettingsModal";
+import { EvaluatorTourModal } from "./components/EvaluatorTourModal";
 
 // Patient Portal Components
 import { LoginScreen } from "./components/LoginScreen";
@@ -36,12 +37,15 @@ import { AdminLoginScreen } from "./components/admin/AdminLoginScreen";
 import { AdminDashboardScreen } from "./components/admin/AdminDashboardScreen";
 
 export default function App() {
-  const { portal, screen, providerScreen, adminScreen } = useApp();
+  const { portal, screen, providerScreen, adminScreen, showTour, setShowTour } = useApp();
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 selection:bg-teal-100 selection:text-teal-900">
       {/* Top Header */}
       <Header />
+
+      {/* Evaluator Tour Guide Modal (Self-Guided Presentation Tour) */}
+      <EvaluatorTourModal isOpen={showTour} onClose={() => setShowTour(false)} />
 
       {/* Unified Settings Modal (Global) */}
       <UnifiedSettingsModal />
