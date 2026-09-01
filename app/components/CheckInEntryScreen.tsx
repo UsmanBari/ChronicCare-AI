@@ -5,7 +5,7 @@ import { useApp } from "../context/AppContext";
 import { Mic, ArrowRight, ArrowLeft, Sparkles, MessageSquare, Volume2 } from "lucide-react";
 
 export const CheckInEntryScreen = () => {
-  const { setScreen, checkIn, setCheckIn, t, isUrdu } = useApp();
+  const { setScreen, returnToHomeAndClearRun, checkIn, setCheckIn, t, isUrdu } = useApp();
   const [note, setNote] = useState(checkIn.note || "");
   const [isListening, setIsListening] = useState(false);
 
@@ -97,7 +97,7 @@ export const CheckInEntryScreen = () => {
         <div className="flex items-center gap-3 pt-2">
           <button
             type="button"
-            onClick={() => setScreen("home")}
+            onClick={returnToHomeAndClearRun}
             id="back-to-home-btn"
             className="px-4 py-3 border border-slate-300 text-slate-700 font-semibold text-sm rounded-xl hover:bg-slate-100 transition-all flex items-center gap-1.5"
           >
