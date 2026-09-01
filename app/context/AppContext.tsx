@@ -13,11 +13,15 @@ export type ScreenType =
   | "confirmation"
   | "processing"
   | "risk_result"
-  | "trends";
+  | "trends"
+  | "conflict_detail"
+  | "conflict_review"
+  | "emergency";
 
 export type ConnectionMode = "fhir" | "offline" | null;
 export type MissedMedsOption = "yes" | "no" | "prefer_not_to_answer" | null;
 export type RiskLevel = "low" | "moderate" | "high";
+export type DemoScenario = "normal" | "conflict" | "emergency";
 
 export interface HealthProfile {
   conditions: string[];
@@ -58,8 +62,15 @@ interface AppContextType {
   checkIn: CheckInData;
   setCheckIn: React.Dispatch<React.SetStateAction<CheckInData>>;
   
-  // Reset session
-  resetSession: () => void;
+  // Presenter Controls: Demo scenario flag (normal | conflict | emergency)
+  demoScenario: DemoScenario;
+  setDemoScenario: (scenario: DemoScenario) => void;
+
+  // Clear transient run state when returning to home
+  returnToHomeAndClearRun: () => void;
+
+  // Complete Reset Demo mechanism for live presentations
+  resetDemo: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -69,6 +80,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [language, setLanguage] = useState<Language>("en");
   const [userIdentifier, setUserIdentifier] = useState<string>("");
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>(null);
+  
+  // Presenter Controls default to 'normal'
+  const [demoScenario, setDemoScenario] = useState<DemoScenario>("normal");
   
   const [profile, setProfile] = useState<HealthProfile>({
     conditions: ["Type 2 Diabetes"],
@@ -88,7 +102,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const t = translations[language];
   const isUrdu = language === "ur";
 
-  const resetSession = () => {
+  // Clears transient check-in data when navigating back to home
+  const returnToHomeAndClearRun = () => {
+    setScreen("home");
+    setCheckIn({
+      note: "",
+      thirst: null,
+      urination: null,
+      missedMeds: null,
+      lowConfidence: false,
+      submittedAt: null,
+    });
+  };
+
+  // Full presenter reset to clean state
+  const resetDemo = () => {
+    setDemoScenario("normal");
     setScreen("home");
     setCheckIn({
       note: "",
@@ -117,7 +146,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setProfile,
         checkIn,
         setCheckIn,
-        resetSession,
+        demoScenario,
+        setDemoScenario,
+        returnToHomeAndClearRun,
+        resetDemo,
       }}
     >
       <div dir={isUrdu ? "rtl" : "ltr"} className={isUrdu ? "font-urdu" : "font-sans"}>

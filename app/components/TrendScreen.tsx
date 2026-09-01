@@ -50,7 +50,7 @@ const adherenceData = [
 ];
 
 export const TrendScreen = () => {
-  const { resetSession, t, isUrdu } = useApp();
+  const { returnToHomeAndClearRun, t, isUrdu } = useApp();
 
   return (
     <div className="w-full max-w-xl mx-auto space-y-5 animate-fadeIn">
@@ -224,7 +224,7 @@ export const TrendScreen = () => {
       <div className="pt-2">
         <button
           type="button"
-          onClick={resetSession}
+          onClick={returnToHomeAndClearRun}
           id="trends-return-home-btn"
           className="w-full py-3.5 px-4 bg-navy-800 hover:bg-navy-700 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
         >

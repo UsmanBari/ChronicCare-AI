@@ -5,7 +5,7 @@ import { useApp } from "../context/AppContext";
 import { CheckCircle2, Home, CalendarCheck, ShieldCheck, ArrowRight, Activity } from "lucide-react";
 
 export const ConfirmationScreen = () => {
-  const { setScreen, resetSession, checkIn, t, isUrdu } = useApp();
+  const { setScreen, returnToHomeAndClearRun, checkIn, t, isUrdu } = useApp();
 
   return (
     <div className="w-full max-w-md mx-auto bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-fadeIn text-center">
@@ -67,7 +67,7 @@ export const ConfirmationScreen = () => {
         {/* Secondary Return Button */}
         <button
           type="button"
-          onClick={resetSession}
+          onClick={returnToHomeAndClearRun}
           id="finish-return-home-btn"
           className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs rounded-xl transition-all flex items-center justify-center gap-2"
         >

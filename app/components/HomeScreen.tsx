@@ -2,13 +2,101 @@
 
 import React from "react";
 import { useApp } from "../context/AppContext";
-import { Calendar, Clock, Activity, Pill, ArrowRight, BellRing, Sparkles } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  Activity,
+  Pill,
+  ArrowRight,
+  BellRing,
+  Sparkles,
+  SlidersHorizontal,
+  RotateCcw,
+  Check,
+} from "lucide-react";
 
 export const HomeScreen = () => {
-  const { setScreen, profile, connectionMode, t, isUrdu } = useApp();
+  const {
+    setScreen,
+    profile,
+    connectionMode,
+    t,
+    isUrdu,
+    demoScenario,
+    setDemoScenario,
+    resetDemo,
+  } = useApp();
 
   return (
     <div className="w-full max-w-lg mx-auto space-y-5 animate-fadeIn">
+      {/* PRESENTER CONTROLS (Demo presentation tool, clearly demarcated) */}
+      <div className="p-4 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-100/90 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase text-slate-600">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-teal-700" />
+            <span>{t.presenterControlsLabel}</span>
+          </div>
+          <button
+            type="button"
+            onClick={resetDemo}
+            id="presenter-reset-demo-btn"
+            title="Reset demo state and return to Normal"
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-200 transition-colors shadow-xs"
+          >
+            <RotateCcw className="w-3 h-3 text-slate-600" />
+            <span>{t.resetDemoBtn}</span>
+          </button>
+        </div>
+
+        {/* 3 Scenario Selection Buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {/* Scenario A: Normal */}
+          <button
+            type="button"
+            id="scenario-normal-btn"
+            onClick={() => setDemoScenario("normal")}
+            className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all text-center flex items-center justify-center gap-1.5 ${
+              demoScenario === "normal"
+                ? "bg-navy-800 text-white border-navy-800 shadow-sm"
+                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+            }`}
+          >
+            {demoScenario === "normal" && <Check className="w-3.5 h-3.5 text-teal-400" />}
+            <span>{t.scenarioNormalBtn}</span>
+          </button>
+
+          {/* Scenario B: Conflict */}
+          <button
+            type="button"
+            id="scenario-conflict-btn"
+            onClick={() => setDemoScenario("conflict")}
+            className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all text-center flex items-center justify-center gap-1.5 ${
+              demoScenario === "conflict"
+                ? "bg-amber-800 text-white border-amber-800 shadow-sm"
+                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+            }`}
+          >
+            {demoScenario === "conflict" && <Check className="w-3.5 h-3.5 text-amber-300" />}
+            <span>{t.scenarioConflictBtn}</span>
+          </button>
+
+          {/* Scenario C: Emergency */}
+          <button
+            type="button"
+            id="scenario-emergency-btn"
+            onClick={() => setDemoScenario("emergency")}
+            className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all text-center flex items-center justify-center gap-1.5 ${
+              demoScenario === "emergency"
+                ? "bg-red-700 text-white border-red-700 shadow-sm"
+                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+            }`}
+          >
+            {demoScenario === "emergency" && <Check className="w-3.5 h-3.5 text-red-200" />}
+            <span>{t.scenarioEmergencyBtn}</span>
+          </button>
+        </div>
+      </div>
+
       {/* Welcome Greeting */}
       <div className="flex items-center justify-between">
         <div>

@@ -2,36 +2,66 @@
 
 import React, { useEffect, useState } from "react";
 import { useApp } from "../context/AppContext";
-import { Loader2, ShieldCheck, CheckCircle2, Sparkles, Activity } from "lucide-react";
+import { Loader2, ShieldCheck, CheckCircle2, Activity } from "lucide-react";
 
 export const ProcessingScreen = () => {
-  const { setScreen, t, isUrdu } = useApp();
+  const { setScreen, demoScenario, t, isUrdu } = useApp();
   const [phase, setPhase] = useState<"analyzing" | "verified">("analyzing");
   const [progress, setProgress] = useState(15);
 
   useEffect(() => {
-    // Increment progress bar over 2.2 seconds
-    const interval = setInterval(() => {
-      setProgress((prev) => (prev < 90 ? prev + 12 : prev));
-    }, 280);
+    if (demoScenario === "emergency") {
+      // Scenario C (Emergency): Quick ~1 second analysis, skips verification flash entirely
+      const progressInterval = setInterval(() => {
+        setProgress((prev) => (prev < 90 ? prev + 35 : prev));
+      }, 180);
 
-    // After 2.2 seconds, transition to the brief "✓ Verified" flash state
-    const analyzeTimer = setTimeout(() => {
-      setProgress(100);
-      setPhase("verified");
-    }, 2200);
+      const emergencyTimer = setTimeout(() => {
+        setProgress(100);
+        setScreen("emergency");
+      }, 1000);
 
-    // After 1 second of "✓ Verified" flash, reveal the Risk Result screen
-    const verifiedTimer = setTimeout(() => {
-      setScreen("risk_result");
-    }, 3200);
+      return () => {
+        clearInterval(progressInterval);
+        clearTimeout(emergencyTimer);
+      };
+    } else if (demoScenario === "conflict") {
+      // Scenario B (Conflict): Standard 2.2 second analysis, transitions to Conflict screen (no verified flash)
+      const progressInterval = setInterval(() => {
+        setProgress((prev) => (prev < 90 ? prev + 12 : prev));
+      }, 280);
 
-    return () => {
-      clearInterval(interval);
-      clearTimeout(analyzeTimer);
-      clearTimeout(verifiedTimer);
-    };
-  }, [setScreen]);
+      const conflictTimer = setTimeout(() => {
+        setProgress(100);
+        setScreen("conflict_detail");
+      }, 2200);
+
+      return () => {
+        clearInterval(progressInterval);
+        clearTimeout(conflictTimer);
+      };
+    } else {
+      // Scenario A (Normal): Standard 2.2 second analysis -> 1 second "✓ Verified" flash -> Risk Result
+      const progressInterval = setInterval(() => {
+        setProgress((prev) => (prev < 90 ? prev + 12 : prev));
+      }, 280);
+
+      const analyzeTimer = setTimeout(() => {
+        setProgress(100);
+        setPhase("verified");
+      }, 2200);
+
+      const verifiedTimer = setTimeout(() => {
+        setScreen("risk_result");
+      }, 3200);
+
+      return () => {
+        clearInterval(progressInterval);
+        clearTimeout(analyzeTimer);
+        clearTimeout(verifiedTimer);
+      };
+    }
+  }, [demoScenario, setScreen]);
 
   return (
     <div className="w-full max-w-md mx-auto bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden p-8 text-center animate-fadeIn">
@@ -39,9 +69,17 @@ export const ProcessingScreen = () => {
         <div className="space-y-6 py-4 animate-fadeIn">
           {/* Animated Spinner with Pulsing Brand Rings */}
           <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
-            <div className="absolute inset-0 rounded-full bg-teal-500/20 pulse-active" />
-            <div className="w-16 h-16 rounded-full bg-navy-800 text-teal-400 flex items-center justify-center shadow-lg relative z-10">
-              <Activity className="w-7 h-7 animate-pulse text-teal-400" />
+            <div
+              className={`absolute inset-0 rounded-full pulse-active ${
+                demoScenario === "emergency" ? "bg-red-500/20" : "bg-teal-500/20"
+              }`}
+            />
+            <div
+              className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg relative z-10 ${
+                demoScenario === "emergency" ? "bg-red-700 text-white" : "bg-navy-800 text-teal-400"
+              }`}
+            >
+              <Activity className="w-7 h-7 animate-pulse" />
             </div>
           </div>
 
@@ -57,7 +95,11 @@ export const ProcessingScreen = () => {
           {/* Progress bar */}
           <div className="w-full max-w-xs mx-auto bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
             <div
-              className="bg-gradient-to-r from-navy-800 to-teal-600 h-full rounded-full transition-all duration-300 ease-out"
+              className={`h-full rounded-full transition-all duration-300 ease-out ${
+                demoScenario === "emergency"
+                  ? "bg-gradient-to-r from-red-600 to-red-500"
+                  : "bg-gradient-to-r from-navy-800 to-teal-600"
+              }`}
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -68,7 +110,7 @@ export const ProcessingScreen = () => {
           </div>
         </div>
       ) : (
-        /* Brief Verification Flash State (~1s) */
+        /* Brief Verification Flash State (~1s) - Scenario A Normal only */
         <div className="space-y-5 py-4 animate-fadeIn">
           <div className="w-20 h-20 rounded-full bg-mutedGreen-100 border-4 border-white shadow-lg flex items-center justify-center mx-auto text-mutedGreen-800 animate-fadeIn">
             <CheckCircle2 className="w-10 h-10 animate-scale" />

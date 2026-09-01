@@ -14,6 +14,9 @@ import { ConfirmationScreen } from "./components/ConfirmationScreen";
 import { ProcessingScreen } from "./components/ProcessingScreen";
 import { RiskResultScreen } from "./components/RiskResultScreen";
 import { TrendScreen } from "./components/TrendScreen";
+import { ConflictScreen } from "./components/ConflictScreen";
+import { RoutedToReviewScreen } from "./components/RoutedToReviewScreen";
+import { EmergencyScreen } from "./components/EmergencyScreen";
 
 export default function App() {
   const { screen } = useApp();
@@ -36,6 +39,9 @@ export default function App() {
           {screen === "processing" && <ProcessingScreen />}
           {screen === "risk_result" && <RiskResultScreen />}
           {screen === "trends" && <TrendScreen />}
+          {screen === "conflict_detail" && <ConflictScreen />}
+          {screen === "conflict_review" && <RoutedToReviewScreen />}
+          {screen === "emergency" && <EmergencyScreen />}
         </div>
       </main>
 

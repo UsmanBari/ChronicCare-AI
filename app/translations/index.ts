@@ -73,6 +73,14 @@ export interface Translations {
   lastCheckIn: string;
   lastCheckInValue: string;
 
+  // Presenter Controls (Demo tool)
+  presenterControlsLabel: string;
+  scenarioNormalBtn: string;
+  scenarioConflictBtn: string;
+  scenarioEmergencyBtn: string;
+  resetDemoBtn: string;
+  activeScenarioLabel: string;
+
   // Screen 5: Check-in Entry
   checkInEntryTitle: string;
   checkInEntrySubtitle: string;
@@ -132,6 +140,25 @@ export interface Translations {
   diastolicLabel: string;
   targetRangeLabel: string;
   dayLabel: string;
+
+  // M3: Reconciliation Conflict Screen
+  conflictDetectedTitle: string;
+  conflictPatientReported: string;
+  conflictEhrRecord: string;
+  patientCheckInSource: string;
+  fhirEhrSource: string;
+  confidenceLowTag: string;
+  unansweredQuestionTag: string;
+  conflictSimulationCaption: string;
+
+  // M3: Low Confidence / Routed to Human Review Screen
+  routedToReviewTitle: string;
+  routedToReviewDesc: string;
+
+  // M3: Emergency Screen
+  emergencyDetectedTitle: string;
+  emergencyGuidanceText: string;
+  emergencyAlertedText: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -202,6 +229,14 @@ export const translations: Record<Language, Translations> = {
     lastCheckIn: "Previous Check-In",
     lastCheckInValue: "Yesterday, 8:30 AM (Logged)",
 
+    // Presenter Controls
+    presenterControlsLabel: "DEMO CONTROL — NOT PART OF PRODUCT",
+    scenarioNormalBtn: "Scenario A: Normal",
+    scenarioConflictBtn: "Scenario B: Conflict",
+    scenarioEmergencyBtn: "Scenario C: Emergency",
+    resetDemoBtn: "Reset Demo",
+    activeScenarioLabel: "Active Demo Scenario",
+
     checkInEntryTitle: "Daily Symptom Check-In",
     checkInEntrySubtitle: "Describe how you are feeling in your own words or speak into your microphone.",
     howAreYouFeelingLabel: "How are you feeling today?",
@@ -258,6 +293,25 @@ export const translations: Record<Language, Translations> = {
     diastolicLabel: "Diastolic",
     targetRangeLabel: "Target Range",
     dayLabel: "Day",
+
+    // M3: Reconciliation Conflict Screen
+    conflictDetectedTitle: "Conflict Detected",
+    conflictPatientReported: "Your reported blood sugar: 180 mg/dL",
+    conflictEhrRecord: "Your last clinic record (FHIR): 140 mg/dL",
+    patientCheckInSource: "Patient Check-in",
+    fhirEhrSource: "FHIR EHR",
+    confidenceLowTag: "Confidence: Low",
+    unansweredQuestionTag: "This check-in also included an unanswered question.",
+    conflictSimulationCaption: "This is a simulated system state for demonstration purposes. The actual reconciliation and verification logic has been separately validated in our technical proof of concept.",
+
+    // M3: Low Confidence / Routed to Human Review Screen
+    routedToReviewTitle: "Low Confidence — Routed to Human Review",
+    routedToReviewDesc: "Your check-in has been flagged for review by your care provider. You'll be notified once it's been reviewed.",
+
+    // M3: Emergency Screen
+    emergencyDetectedTitle: "Emergency Pattern Detected",
+    emergencyGuidanceText: "Based on your responses, please seek medical attention promptly.",
+    emergencyAlertedText: "Your care provider has been alerted.",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -326,6 +380,14 @@ export const translations: Record<Language, Translations> = {
     lastCheckIn: "پچھلا چیک ان",
     lastCheckInValue: "کل صبح 8:30 بجے (محفوظ شدہ)",
 
+    // Presenter Controls
+    presenterControlsLabel: "ڈیمو کنٹرول — پروڈکٹ کا حصہ نہیں ہے",
+    scenarioNormalBtn: "منظرنامہ A: نارمل",
+    scenarioConflictBtn: "منظرنامہ B: تضاد (Conflict)",
+    scenarioEmergencyBtn: "منظرنامہ C: ایمرجنسی",
+    resetDemoBtn: "ڈیمو ری سیٹ کریں",
+    activeScenarioLabel: "فعال ڈیمو منظرنامہ",
+
     checkInEntryTitle: "روزانہ علامات کا چیک ان",
     checkInEntrySubtitle: "بیان کریں کہ آپ کیسا محسوس کر رہے ہیں یا مائیکروفون میں بولیں۔",
     howAreYouFeelingLabel: "آج آپ کیسا محسوس کر رہے ہیں؟",
@@ -382,5 +444,24 @@ export const translations: Record<Language, Translations> = {
     diastolicLabel: "ڈائسٹولک",
     targetRangeLabel: "ہدف کی حد",
     dayLabel: "دن",
+
+    // M3: Reconciliation Conflict Screen
+    conflictDetectedTitle: "تضاد پایا گیا (Conflict Detected)",
+    conflictPatientReported: "مریض کی طرف سے درج شدہ بلڈ شوگر: 180 mg/dL",
+    conflictEhrRecord: "کلینک کا آخری ریکارڈ (FHIR): 140 mg/dL",
+    patientCheckInSource: "مریض کا چیک ان",
+    fhirEhrSource: "ہسپتال کا ریکارڈ (FHIR EHR)",
+    confidenceLowTag: "اعتماد: کم (Confidence: Low)",
+    unansweredQuestionTag: "اس چیک ان میں ایک غیر جواب شدہ سوال بھی شامل تھا۔",
+    conflictSimulationCaption: "This is a simulated system state for demonstration purposes. The actual reconciliation and verification logic has been separately validated in our technical proof of concept.",
+
+    // M3: Low Confidence / Routed to Human Review Screen
+    routedToReviewTitle: "کم اعتماد — ڈاکٹر کے جائزے کے لیے بھیج دیا گیا",
+    routedToReviewDesc: "آپ کے چیک ان کو دیکھ بھال فراہم کرنے والے ڈاکٹر کے جائزے کے لیے بھیج دیا گیا ہے۔ جائزہ مکمل ہونے پر آپ کو مطلع کیا جائے گا۔",
+
+    // M3: Emergency Screen
+    emergencyDetectedTitle: "ایمرجنسی صورتحال کی نشاندہی (Emergency Pattern Detected)",
+    emergencyGuidanceText: "آپ کے جوابات کے مطابق، براہ کرم فوری طور پر طبی امداد حاصل کریں۔",
+    emergencyAlertedText: "آپ کے ڈاکٹر اور نگہداشت فراہم کنندہ کو الرٹ جاری کر دیا گیا ہے۔",
   }
 };
