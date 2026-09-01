@@ -239,6 +239,14 @@ To prevent reliance on color alone for safety-critical clinical triage, all stat
 
 ```text
 ChronicCare-AI/
+├── backend-poc-technical/                       # Original technical PoC (Reconciliation & Verification algorithms)
+│   ├── agents/                                  # Algorithmic Reconciliation & Verification agents (Python)
+│   ├── data_sources/                            # FHIR R4 client & Local SQLite source-blind adapters
+│   ├── scenarios/                               # Deterministic scenario benchmarks & test suites
+│   ├── output/                                  # Execution logs, telemetry & clinical reports
+│   ├── POC_RESULTS.md                           # Technical PoC benchmark results
+│   ├── requirements.txt                         # Python dependencies
+│   └── README.md                                # Technical PoC documentation
 ├── DEMO_SCRIPT.md                               # Live presenter click-by-click cue sheet
 ├── README.md                                    # Project documentation
 ├── next.config.mjs                              # Next.js configuration

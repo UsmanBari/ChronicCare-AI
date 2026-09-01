@@ -1,0 +1,377 @@
+{
+  "metadata": {
+    "title": "ChronicCare AI POC - Milestone 5 Defense Scenario Evidence",
+    "all_regression_passed": true,
+    "all_official_scenarios_passed": true,
+    "all_adversarial_scenarios_passed": true,
+    "reproducibility_note": "Executing run_all_scenarios.py twice against fixed fixtures produces deterministic, identical scenario evidence."
+  },
+  "official_scenarios": [
+    {
+      "id": "scenario_1",
+      "name": "Scenario 1 \u2014 Clean/Connected, All High-Trust",
+      "description": "Both prior FHIR record and new FHIR check-in agree within M3 thresholds for Connected Patient A (M5-PATIENT-SCENARIO-1).",
+      "patient_id": "M5-PATIENT-SCENARIO-1",
+      "origin_tags": {},
+      "summary": {
+        "auto_resolved": 4,
+        "requires_review": 0,
+        "severity_none": 4,
+        "severity_low": 0,
+        "severity_moderate": 0,
+        "severity_high": 0
+      },
+      "observations": [
+        {
+          "item_key": "observation:glucose",
+          "observation_type": "glucose",
+          "reconciliation_status": "agree",
+          "value_a": 120.0,
+          "unit_a": "mg/dL",
+          "source_a": "fhir",
+          "source_record_id_a": "M5-S1-FHIR-OBS-01",
+          "trust_level_a": "high",
+          "value_b": 122.0,
+          "unit_b": "mg/dL",
+          "source_b": "fhir",
+          "source_record_id_b": "M5-S1-FHIR-OBS-01-CHECKIN",
+          "trust_level_b": "high",
+          "delta": 2.0,
+          "severity": "none",
+          "requires_human_review": false,
+          "review_reason": "Agreement between trusted sources (auto-resolved)"
+        },
+        {
+          "item_key": "observation:hba1c",
+          "observation_type": "hba1c",
+          "reconciliation_status": "agree",
+          "value_a": 6.8,
+          "unit_a": "%",
+          "source_a": "fhir",
+          "source_record_id_a": "M5-S1-FHIR-OBS-02",
+          "trust_level_a": "high",
+          "value_b": 6.9,
+          "unit_b": "%",
+          "source_b": "fhir",
+          "source_record_id_b": "M5-S1-FHIR-OBS-02-CHECKIN",
+          "trust_level_b": "high",
+          "delta": 0.1,
+          "severity": "none",
+          "requires_human_review": false,
+          "review_reason": "Agreement between trusted sources (auto-resolved)"
+        },
+        {
+          "item_key": "observation:blood_pressure_systolic",
+          "observation_type": "blood_pressure_systolic",
+          "reconciliation_status": "agree",
+          "value_a": 124.0,
+          "unit_a": "mmHg",
+          "source_a": "fhir",
+          "source_record_id_a": "M5-S1-FHIR-OBS-03",
+          "trust_level_a": "high",
+          "value_b": 126.0,
+          "unit_b": "mmHg",
+          "source_b": "fhir",
+          "source_record_id_b": "M5-S1-FHIR-OBS-03-CHECKIN",
+          "trust_level_b": "high",
+          "delta": 2.0,
+          "severity": "none",
+          "requires_human_review": false,
+          "review_reason": "Agreement between trusted sources (auto-resolved)"
+        }
+      ],
+      "medications": [
+        {
+          "item_key": "medication:Metformin 500mg",
+          "medication_name": "Metformin 500mg",
+          "reconciliation_status": "agree",
+          "status_a": "active",
+          "dosage_a": "1 tablet twice daily",
+          "source_a": "fhir",
+          "source_record_id_a": "M5-S1-FHIR-MED-01",
+          "trust_level_a": "high",
+          "status_b": "active",
+          "dosage_b": "1 tablet twice daily",
+          "source_b": "fhir",
+          "source_record_id_b": "M5-S1-FHIR-MED-01-CHECKIN",
+          "trust_level_b": "high",
+          "severity": "none",
+          "requires_human_review": false,
+          "review_reason": "Medication agreement between trusted sources (auto-resolved)"
+        }
+      ],
+      "expected_outcome": "all severity 'none', zero requires_human_review (100% eligible for automatic resolution under deterministic rules)",
+      "actual_outcome": "requires_review=0, auto_resolved=4",
+      "pass_fail": "PASS"
+    },
+    {
+      "id": "scenario_2",
+      "name": "Scenario 2 \u2014 Conflicting Observation",
+      "description": "Glucose and HbA1c readings disagree beyond M3 thresholds within 48h window between prior Local state and new Local check-in for Isolated Patient B (M5-PATIENT-SCENARIO-2).",
+      "patient_id": "M5-PATIENT-SCENARIO-2",
+      "origin_tags": {},
+      "summary": {
+        "auto_resolved": 0,
+        "requires_review": 2,
+        "severity_none": 0,
+        "severity_low": 0,
+        "severity_moderate": 0,
+        "severity_high": 2
+      },
+      "observations": [
+        {
+          "item_key": "observation:glucose",
+          "observation_type": "glucose",
+          "reconciliation_status": "conflict",
+          "value_a": 115.0,
+          "unit_a": "mg/dL",
+          "source_a": "local",
+          "source_record_id_a": "M5-S2-LOC-OBS-01",
+          "trust_level_a": "medium",
+          "value_b": 175.0,
+          "unit_b": "mg/dL",
+          "source_b": "local",
+          "source_record_id_b": "M5-S2-LOC-OBS-01-CHECKIN",
+          "trust_level_b": "medium",
+          "delta": 60.0,
+          "severity": "high",
+          "requires_human_review": true,
+          "review_reason": "Observation conflict exceeding 2x threshold (delta 60.0 > 2x threshold 30.0)"
+        },
+        {
+          "item_key": "observation:hba1c",
+          "observation_type": "hba1c",
+          "reconciliation_status": "conflict",
+          "value_a": 6.4,
+          "unit_a": "%",
+          "source_a": "local",
+          "source_record_id_a": "M5-S2-LOC-OBS-02",
+          "trust_level_a": "medium",
+          "value_b": 8.1,
+          "unit_b": "%",
+          "source_b": "local",
+          "source_record_id_b": "M5-S2-LOC-OBS-02-CHECKIN",
+          "trust_level_b": "medium",
+          "delta": 1.7,
+          "severity": "high",
+          "requires_human_review": true,
+          "review_reason": "Observation conflict exceeding 2x threshold (delta 1.7 > 2x threshold 1.0)"
+        }
+      ],
+      "medications": [],
+      "expected_outcome": "severity 'high' (delta > 2x threshold), requires_human_review = True with delta-driven review_reason",
+      "actual_outcome": "requires_review=2, auto_resolved=0",
+      "pass_fail": "PASS"
+    },
+    {
+      "id": "scenario_3a",
+      "name": "Scenario 3A \u2014 Missing Medication Record (High-Trust Present Side)",
+      "description": "Active Lisinopril present in FHIR prior state only (high trust), missing in new check-in for Connected Patient A. Auto-resolved.",
+      "patient_id": "M5-PATIENT-SCENARIO-3A",
+      "origin_tags": {},
+      "summary": {
+        "auto_resolved": 1,
+        "requires_review": 0,
+        "severity_none": 0,
+        "severity_low": 1,
+        "severity_moderate": 0,
+        "severity_high": 0
+      },
+      "observations": [],
+      "medications": [
+        {
+          "item_key": "medication:Lisinopril 10mg",
+          "medication_name": "Lisinopril 10mg",
+          "reconciliation_status": "missing_in_b",
+          "status_a": "active",
+          "dosage_a": "1 tablet daily",
+          "source_a": "fhir",
+          "source_record_id_a": "M5-S3A-FHIR-MED-01",
+          "trust_level_a": "high",
+          "status_b": null,
+          "dosage_b": null,
+          "source_b": null,
+          "source_record_id_b": null,
+          "trust_level_b": null,
+          "severity": "low",
+          "requires_human_review": false,
+          "review_reason": "Medication missing in one source (missing_in_b); present side is high-trust (auto-resolved)"
+        }
+      ],
+      "expected_outcome": "severity 'low', requires_human_review = False (auto-resolved due to high-trust present side)",
+      "actual_outcome": "requires_review=0, auto_resolved=1",
+      "pass_fail": "PASS"
+    },
+    {
+      "id": "scenario_3b",
+      "name": "Scenario 3B \u2014 Missing Medication Record (Low-Trust Present Side)",
+      "description": "Active Lisinopril present in new Local check-in only, explicitly tagged 'local_self_reported' (low trust) for Isolated Patient B. Requires human review.",
+      "patient_id": "M5-PATIENT-SCENARIO-3B",
+      "origin_tags": {
+        "M5-S3B-LOC-MED-01": "local_self_reported"
+      },
+      "summary": {
+        "auto_resolved": 0,
+        "requires_review": 1,
+        "severity_none": 0,
+        "severity_low": 0,
+        "severity_moderate": 1,
+        "severity_high": 0
+      },
+      "observations": [],
+      "medications": [
+        {
+          "item_key": "medication:Lisinopril 10mg",
+          "medication_name": "Lisinopril 10mg",
+          "reconciliation_status": "missing_in_a",
+          "status_a": null,
+          "dosage_a": null,
+          "source_a": null,
+          "source_record_id_a": null,
+          "trust_level_a": null,
+          "status_b": "active",
+          "dosage_b": "1 tablet daily",
+          "source_b": "local",
+          "source_record_id_b": "M5-S3B-LOC-MED-01",
+          "trust_level_b": "low",
+          "severity": "moderate",
+          "requires_human_review": true,
+          "review_reason": "Medication missing in one source (missing_in_a); present side is low-trust"
+        }
+      ],
+      "expected_outcome": "severity 'moderate', requires_human_review = True (review required due to non-high trust present side)",
+      "actual_outcome": "requires_review=1, auto_resolved=0",
+      "pass_fail": "PASS"
+    },
+    {
+      "id": "scenario_4a",
+      "name": "Scenario 4A \u2014 Trust Metadata in Conflict Cases (Both Sides High-Trust)",
+      "description": "Glucose conflict (delta 55 > 2x threshold) between prior Local state and new Local check-in, both tagged clinician-entered (high trust).",
+      "patient_id": "M5-PATIENT-SCENARIO-4A",
+      "origin_tags": {
+        "M5-S4A-LOC-OBS-01": "local_clinician_entered",
+        "M5-S4A-LOC-OBS-02": "local_clinician_entered"
+      },
+      "summary": {
+        "auto_resolved": 0,
+        "requires_review": 1,
+        "severity_none": 0,
+        "severity_low": 0,
+        "severity_moderate": 0,
+        "severity_high": 1
+      },
+      "observations": [
+        {
+          "item_key": "observation:glucose",
+          "observation_type": "glucose",
+          "reconciliation_status": "conflict",
+          "value_a": 110.0,
+          "unit_a": "mg/dL",
+          "source_a": "local",
+          "source_record_id_a": "M5-S4A-LOC-OBS-01",
+          "trust_level_a": "high",
+          "value_b": 165.0,
+          "unit_b": "mg/dL",
+          "source_b": "local",
+          "source_record_id_b": "M5-S4A-LOC-OBS-02",
+          "trust_level_b": "high",
+          "delta": 55.0,
+          "severity": "high",
+          "requires_human_review": true,
+          "review_reason": "Observation conflict exceeding 2x threshold (delta 55.0 > 2x threshold 30.0)"
+        }
+      ],
+      "medications": [],
+      "expected_outcome": "trust_level_a='high', trust_level_b='high', severity='high', requires_human_review=True",
+      "actual_outcome": "requires_review=1, auto_resolved=0",
+      "pass_fail": "PASS"
+    },
+    {
+      "id": "scenario_4b",
+      "name": "Scenario 4B \u2014 Trust Metadata in Conflict Cases (One Side Low-Trust)",
+      "description": "Identical glucose conflict (delta 55 > 2x threshold) between prior Local state (high trust) and new Local check-in tagged self-reported (low trust).",
+      "patient_id": "M5-PATIENT-SCENARIO-4B",
+      "origin_tags": {
+        "M5-S4B-LOC-OBS-01": "local_clinician_entered",
+        "M5-S4B-LOC-OBS-02": "local_self_reported"
+      },
+      "summary": {
+        "auto_resolved": 0,
+        "requires_review": 1,
+        "severity_none": 0,
+        "severity_low": 0,
+        "severity_moderate": 0,
+        "severity_high": 1
+      },
+      "observations": [
+        {
+          "item_key": "observation:glucose",
+          "observation_type": "glucose",
+          "reconciliation_status": "conflict",
+          "value_a": 110.0,
+          "unit_a": "mg/dL",
+          "source_a": "local",
+          "source_record_id_a": "M5-S4B-LOC-OBS-01",
+          "trust_level_a": "high",
+          "value_b": 165.0,
+          "unit_b": "mg/dL",
+          "source_b": "local",
+          "source_record_id_b": "M5-S4B-LOC-OBS-02",
+          "trust_level_b": "low",
+          "delta": 55.0,
+          "severity": "high",
+          "requires_human_review": true,
+          "review_reason": "Observation conflict exceeding 2x threshold (delta 55.0 > 2x threshold 30.0)"
+        }
+      ],
+      "medications": [],
+      "expected_outcome": "trust_level_a='high', trust_level_b='low', severity='high', requires_human_review=True (trust metadata carried into result)",
+      "actual_outcome": "requires_review=1, auto_resolved=0",
+      "pass_fail": "PASS"
+    }
+  ],
+  "adversarial_scenarios": [
+    {
+      "id": "scenario_c1",
+      "name": "Adversarial / Stress-Test Scenario C1 \u2014 Medication Dosage Mismatch (Separate from 4 Official Scenarios)",
+      "description": "Same active medication name on prior Local state and new Local check-in with mismatched dosage strings ('1 tablet twice daily' vs '2 tablets once daily in evening').",
+      "patient_id": "M5-PATIENT-ADVERSARIAL-C1",
+      "origin_tags": {
+        "M5-C1-LOC-MED-01": "local_clinician_entered",
+        "M5-C1-LOC-MED-02": "local_clinician_entered"
+      },
+      "summary": {
+        "auto_resolved": 0,
+        "requires_review": 1,
+        "severity_none": 0,
+        "severity_low": 0,
+        "severity_moderate": 1,
+        "severity_high": 0
+      },
+      "observations": [],
+      "medications": [
+        {
+          "item_key": "medication:Metformin 500mg",
+          "medication_name": "Metformin 500mg",
+          "reconciliation_status": "conflict",
+          "status_a": "active",
+          "dosage_a": "1 tablet twice daily",
+          "source_a": "local",
+          "source_record_id_a": "M5-C1-LOC-MED-01",
+          "trust_level_a": "high",
+          "status_b": "active",
+          "dosage_b": "2 tablets once daily in evening",
+          "source_b": "local",
+          "source_record_id_b": "M5-C1-LOC-MED-02",
+          "trust_level_b": "high",
+          "severity": "moderate",
+          "requires_human_review": true,
+          "review_reason": "Medication dosage or status mismatch (A: status=active, dosage='1 tablet twice daily' vs B: status=active, dosage='2 tablets once daily in evening')"
+        }
+      ],
+      "expected_outcome": "severity 'moderate', requires_human_review = True (dosage string mismatch detected; narrow claim: string mismatch detection, not semantic dosage parsing)",
+      "actual_outcome": "requires_review=1, auto_resolved=0",
+      "pass_fail": "PASS"
+    }
+  ]
+}
