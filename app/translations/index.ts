@@ -14,11 +14,26 @@ export interface Translations {
   no: string;
   preferNotToAnswer: string;
   skip: string;
+  close: string;
+  resolve: string;
+  scheduleAppointment: string;
+  escalate: string;
+  acknowledge: string;
+  confirmed: string;
+  pending: string;
+  resolved: string;
+  active: string;
 
-  // Header
+  // Header & Navigation
   settings: string;
   connectedHospital: string;
   offlineMode: string;
+  portalSwitchTitle: string;
+  patientPortal: string;
+  providerPortal: string;
+  adminPortal: string;
+  switchPortal: string;
+  backToDashboard: string;
 
   // Screen 1: Login / Sign-up
   loginTitle: string;
@@ -34,6 +49,14 @@ export interface Translations {
   toggleToSignUp: string;
   toggleToSignIn: string;
   loginHelpText: string;
+
+  // Provider Login
+  providerLoginTitle: string;
+  providerLoginSubtitle: string;
+  providerIdLabel: string;
+  providerIdPlaceholder: string;
+  adminLoginTitle: string;
+  adminLoginSubtitle: string;
 
   // Screen 2: Connection Choice
   connectionTitle: string;
@@ -61,7 +84,7 @@ export interface Translations {
   ageLabel: string;
   agePlaceholder: string;
 
-  // Screen 4: Home / Dashboard
+  // Screen 4: Home / Dashboard (Patient)
   homeGreeting: string;
   homeSubtitle: string;
   reminderTitle: string;
@@ -72,6 +95,7 @@ export interface Translations {
   trackedMeds: string;
   lastCheckIn: string;
   lastCheckInValue: string;
+  patientAppointmentsBtn: string;
 
   // Presenter Controls (Demo tool)
   presenterControlsLabel: string;
@@ -99,7 +123,7 @@ export interface Translations {
   q3Text: string;
   submitCheckInBtn: string;
 
-  // Screen 7: Confirmation (M1 -> M2 Extension)
+  // Screen 7: Confirmation
   confirmationTitle: string;
   confirmationSubtitle: string;
   confirmationMessage: string;
@@ -107,21 +131,17 @@ export interface Translations {
   finishBtn: string;
   viewResultsBtn: string;
 
-  // M2 Screen 2 & 3: Processing & Verification
+  // M2: Processing & Risk & Trends
   processingTitle: string;
   processingSubtitle: string;
   verifiedTitle: string;
   verifiedSubtitle: string;
-
-  // M2 Screen 4: Risk Result & RiskBadge
   riskLowTitle: string;
   riskModerateTitle: string;
   riskHighTitle: string;
   riskSupportingText: string;
   riskDescription: string;
   seeWhyBtn: string;
-
-  // M2 Screen 5: Why / Contributing Factors
   contributingFactorsTitle: string;
   shapDisclaimer: string;
   factor1: string;
@@ -129,8 +149,6 @@ export interface Translations {
   factor3: string;
   factor4: string;
   viewTrendsBtn: string;
-
-  // M2 Screen 6: Trend Screen
   trendsTitle: string;
   trendsSubtitle: string;
   glucoseChartTitle: string;
@@ -141,7 +159,7 @@ export interface Translations {
   targetRangeLabel: string;
   dayLabel: string;
 
-  // M3: Reconciliation Conflict Screen
+  // M3: Conflict & Review & Emergency
   conflictDetectedTitle: string;
   conflictPatientReported: string;
   conflictEhrRecord: string;
@@ -150,15 +168,65 @@ export interface Translations {
   confidenceLowTag: string;
   unansweredQuestionTag: string;
   conflictSimulationCaption: string;
-
-  // M3: Low Confidence / Routed to Human Review Screen
   routedToReviewTitle: string;
   routedToReviewDesc: string;
-
-  // M3: Emergency Screen
   emergencyDetectedTitle: string;
   emergencyGuidanceText: string;
   emergencyAlertedText: string;
+
+  // M4: Provider Dashboard & Review Queue
+  providerDashboardTitle: string;
+  providerSubtitle: string;
+  activeCasesLabel: string;
+  urgentCasesLabel: string;
+  notificationsTitle: string;
+  patientListTitle: string;
+  reviewQueueTitle: string;
+  viewReviewQueueBtn: string;
+  columnPatient: string;
+  columnReason: string;
+  columnConfidence: string;
+  columnStatus: string;
+  columnActions: string;
+  alertDetailsTitle: string;
+  reconciliationAlertBadge: string;
+  caseResolvedToast: string;
+  caseAcknowledgedToast: string;
+  incompleteCheckInTitle: string;
+  incompleteCheckInDesc: string;
+
+  // M4: Appointment Scheduling
+  scheduleTitle: string;
+  scheduleSubtitle: string;
+  selectSlotLabel: string;
+  confirmBookingBtn: string;
+  bookingSuccessTitle: string;
+  bookingSuccessDesc: string;
+
+  // M4: Patient Appointments View
+  noAppointmentsTitle: string;
+  noAppointmentsDesc: string;
+  myAppointmentsTitle: string;
+  appointmentWith: string;
+  appointmentReason: string;
+  appointmentStatus: string;
+
+  // M4: Admin Portal
+  adminDashboardTitle: string;
+  adminSubtitle: string;
+  statUsers: string;
+  statProviders: string;
+  statPatients: string;
+  statActiveAlerts: string;
+  userManagementTitle: string;
+  auditLogTitle: string;
+
+  // M4: Unified Settings
+  unifiedSettingsTitle: string;
+  unifiedSettingsSubtitle: string;
+  languageSettingLabel: string;
+  connectionModeSettingLabel: string;
+  activeProfileLabel: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -175,10 +243,25 @@ export const translations: Record<Language, Translations> = {
     no: "No",
     preferNotToAnswer: "Prefer not to answer",
     skip: "Skip",
+    close: "Close",
+    resolve: "Resolve Case",
+    scheduleAppointment: "Schedule Appointment",
+    escalate: "Escalate",
+    acknowledge: "Acknowledge",
+    confirmed: "Confirmed",
+    pending: "Pending Review",
+    resolved: "Resolved",
+    active: "Active",
 
     settings: "Settings",
     connectedHospital: "City General Hospital (FHIR)",
     offlineMode: "Isolated Mode (Local Store)",
+    portalSwitchTitle: "Select Portal",
+    patientPortal: "Patient Portal",
+    providerPortal: "Provider Portal",
+    adminPortal: "Admin Portal",
+    switchPortal: "Switch Portal",
+    backToDashboard: "Back to Dashboard",
 
     loginTitle: "Welcome to ChronicCare AI",
     loginSubtitle: "Sign in to manage your chronic condition check-ins and care journey.",
@@ -192,7 +275,14 @@ export const translations: Record<Language, Translations> = {
     signUpBtn: "Create Account",
     toggleToSignUp: "Don't have an account? Sign up here",
     toggleToSignIn: "Already have an account? Sign in",
-    loginHelpText: "Enter any non-empty credentials to proceed to connection selection.",
+    loginHelpText: "Enter any non-empty credentials to proceed.",
+
+    providerLoginTitle: "Provider Clinical Access",
+    providerLoginSubtitle: "Sign in to access patient triage, review queue, and EHR alerts.",
+    providerIdLabel: "Clinical ID / Provider Email",
+    providerIdPlaceholder: "e.g. dr.sanamalik@citygeneral.org",
+    adminLoginTitle: "System Administration Portal",
+    adminLoginSubtitle: "Manage platform users, system parameters, and audit trails.",
 
     connectionTitle: "Select Connection Mode",
     connectionSubtitle: "Choose how ChronicCare AI should access and synchronize your clinical profile.",
@@ -218,7 +308,7 @@ export const translations: Record<Language, Translations> = {
     ageLabel: "Patient Age (Years)",
     agePlaceholder: "e.g. 58",
 
-    homeGreeting: "Good day, Patient",
+    homeGreeting: "Good day, Ali Khan",
     homeSubtitle: "Your daily care overview and proactive symptom check-in.",
     reminderTitle: "Time for your daily check-in",
     reminderDesc: "Take 60 seconds to record your daily symptoms and ensure your care plan remains on track.",
@@ -228,8 +318,8 @@ export const translations: Record<Language, Translations> = {
     trackedMeds: "Tracked Prescriptions",
     lastCheckIn: "Previous Check-In",
     lastCheckInValue: "Yesterday, 8:30 AM (Logged)",
+    patientAppointmentsBtn: "My Appointments",
 
-    // Presenter Controls
     presenterControlsLabel: "DEMO CONTROL — NOT PART OF PRODUCT",
     scenarioNormalBtn: "Scenario A: Normal",
     scenarioConflictBtn: "Scenario B: Conflict",
@@ -260,13 +350,11 @@ export const translations: Record<Language, Translations> = {
     finishBtn: "Return to Home",
     viewResultsBtn: "View My Results",
 
-    // M2 Screen 2 & 3: Processing & Verification
     processingTitle: "Analyzing your recent health information…",
     processingSubtitle: "Synthesizing symptoms, clinical parameters, and check-in responses",
     verifiedTitle: "Result verified",
     verifiedSubtitle: "Input parameters validated against baseline record",
 
-    // M2 Screen 4: Risk Result
     riskLowTitle: "Low Risk",
     riskModerateTitle: "Moderate Risk",
     riskHighTitle: "High Risk",
@@ -274,7 +362,6 @@ export const translations: Record<Language, Translations> = {
     riskDescription: "All tracked clinical parameters and daily symptom responses are within target safety boundaries.",
     seeWhyBtn: "See Why",
 
-    // M2 Screen 5: Why / Contributing Factors
     contributingFactorsTitle: "Contributing Factors",
     shapDisclaimer: "Example contributing factors — representative visualization of future SHAP-based explanation.",
     factor1: "Blood glucose readings remain within individual target range (avg 110 mg/dL)",
@@ -283,7 +370,6 @@ export const translations: Record<Language, Translations> = {
     factor4: "No acute symptom escalations detected in daily check-in",
     viewTrendsBtn: "View Trends",
 
-    // M2 Screen 6: Trend Screen
     trendsTitle: "Health Trends & Trajectory",
     trendsSubtitle: "Consistent multi-day tracking across key clinical indicators",
     glucoseChartTitle: "Blood Glucose (mg/dL)",
@@ -294,7 +380,6 @@ export const translations: Record<Language, Translations> = {
     targetRangeLabel: "Target Range",
     dayLabel: "Day",
 
-    // M3: Reconciliation Conflict Screen
     conflictDetectedTitle: "Conflict Detected",
     conflictPatientReported: "Your reported blood sugar: 180 mg/dL",
     conflictEhrRecord: "Your last clinic record (FHIR): 140 mg/dL",
@@ -304,14 +389,66 @@ export const translations: Record<Language, Translations> = {
     unansweredQuestionTag: "This check-in also included an unanswered question.",
     conflictSimulationCaption: "This is a simulated system state for demonstration purposes. The actual reconciliation and verification logic has been separately validated in our technical proof of concept.",
 
-    // M3: Low Confidence / Routed to Human Review Screen
     routedToReviewTitle: "Low Confidence — Routed to Human Review",
     routedToReviewDesc: "Your check-in has been flagged for review by your care provider. You'll be notified once it's been reviewed.",
 
-    // M3: Emergency Screen
     emergencyDetectedTitle: "Emergency Pattern Detected",
     emergencyGuidanceText: "Based on your responses, please seek medical attention promptly.",
     emergencyAlertedText: "Your care provider has been alerted.",
+
+    // M4: Provider Dashboard & Review Queue
+    providerDashboardTitle: "Clinical Provider Dashboard",
+    providerSubtitle: "Proactive triage, clinical reconciliation alerts, and review queue.",
+    activeCasesLabel: "Active Cases",
+    urgentCasesLabel: "Urgent Cases",
+    notificationsTitle: "Clinical Notifications",
+    patientListTitle: "Assigned Patient Cohort",
+    reviewQueueTitle: "Clinical Review Queue",
+    viewReviewQueueBtn: "Open Review Queue",
+    columnPatient: "Patient",
+    columnReason: "Triage Reason",
+    columnConfidence: "Confidence",
+    columnStatus: "Status",
+    columnActions: "Action",
+    alertDetailsTitle: "Reconciliation Alert & Triage",
+    reconciliationAlertBadge: "Reconciliation Discrepancy",
+    caseResolvedToast: "Case marked as resolved and closed.",
+    caseAcknowledgedToast: "Case reviewed and acknowledged.",
+    incompleteCheckInTitle: "Incomplete Check-In",
+    incompleteCheckInDesc: "Insufficient data submitted for automated risk assessment. Scheduled for routine clinical check.",
+
+    // M4: Appointment Scheduling
+    scheduleTitle: "Schedule Patient Follow-up",
+    scheduleSubtitle: "Select an available clinic consultation slot for Ali Khan.",
+    selectSlotLabel: "Available Time Slots",
+    confirmBookingBtn: "Confirm Appointment",
+    bookingSuccessTitle: "Appointment Confirmed",
+    bookingSuccessDesc: "Appointment booked. Ali Khan has been notified in their Patient Portal.",
+
+    // M4: Patient Appointments View
+    noAppointmentsTitle: "No Upcoming Appointments",
+    noAppointmentsDesc: "You currently have no scheduled appointments. Your care provider will notify you if a follow-up is required.",
+    myAppointmentsTitle: "Scheduled Clinical Appointments",
+    appointmentWith: "Provider",
+    appointmentReason: "Reason for Visit",
+    appointmentStatus: "Status",
+
+    // M4: Admin Portal
+    adminDashboardTitle: "System Administration & Telemetry",
+    adminSubtitle: "Platform health, user access directory, and immutable audit log.",
+    statUsers: "Total Users",
+    statProviders: "Providers",
+    statPatients: "Patients",
+    statActiveAlerts: "Active System Alerts",
+    userManagementTitle: "User Directory & Roles",
+    auditLogTitle: "System Audit & Compliance Log",
+
+    // M4: Unified Settings
+    unifiedSettingsTitle: "Application Settings",
+    unifiedSettingsSubtitle: "Manage language preferences, clinical connection mode, and profile parameters.",
+    languageSettingLabel: "Display Language",
+    connectionModeSettingLabel: "Clinical Data Synchronizer",
+    activeProfileLabel: "Active Profile",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -326,10 +463,25 @@ export const translations: Record<Language, Translations> = {
     no: "نہیں",
     preferNotToAnswer: "جواب نہ دینے کو ترجیح",
     skip: "چھوڑ دیں",
+    close: "بند کریں",
+    resolve: "کیس حل کریں",
+    scheduleAppointment: "اپوائنٹمنٹ طے کریں",
+    escalate: "ایسکلیٹ کریں",
+    acknowledge: "تصدیق کریں",
+    confirmed: "تصدیق شدہ",
+    pending: "زیر التواء جائزہ",
+    resolved: "حل شدہ",
+    active: "فعال",
 
     settings: "ترتیبات",
     connectedHospital: "سٹی جنرل ہسپتال (FHIR)",
     offlineMode: "آف لائن موڈ (مقامی اسٹور)",
+    portalSwitchTitle: "پورٹل منتخب کریں",
+    patientPortal: "مریض پورٹل",
+    providerPortal: "ڈاکٹر / پرووائیڈر پورٹل",
+    adminPortal: "ایڈمن پورٹل",
+    switchPortal: "پورٹل تبدیل کریں",
+    backToDashboard: "ڈیش بورڈ پر واپس",
 
     loginTitle: "کرونک کیئر اے آئی میں خوش آمدید",
     loginSubtitle: "اپنی دائمی بیماریوں کی دیکھ بھال اور روزانہ چیک ان کے لیے سائن ان کریں۔",
@@ -343,7 +495,14 @@ export const translations: Record<Language, Translations> = {
     signUpBtn: "اکاؤنٹ بنائیں",
     toggleToSignUp: "کیا اکاؤنٹ موجود نہیں ہے؟ یہاں سائن اپ کریں",
     toggleToSignIn: "کیا پہلے سے اکاؤنٹ موجود ہے؟ سائن ان کریں",
-    loginHelpText: "آگے بڑھنے کے لیے کوئی بھی معلوماتی ان پٹ درج کریں۔",
+    loginHelpText: "آگے بڑھنے کے لیے کوئی بھی معلومات درج کریں۔",
+
+    providerLoginTitle: "ڈاکٹر / کلینیکل لاگ ان",
+    providerLoginSubtitle: "مریضوں کی فہرست اور الرٹس تک رسائی کے لیے سائن ان کریں۔",
+    providerIdLabel: "کلینیکل آئی ڈی یا ای میل",
+    providerIdPlaceholder: "مثلاً dr.sanamalik@citygeneral.org",
+    adminLoginTitle: "سسٹم ایڈمنسٹریشن پورٹل",
+    adminLoginSubtitle: "سسٹم کے صارفین اور آڈٹ لاگ کا انتظام کریں۔",
 
     connectionTitle: "کنکشن کا طریقہ منتخب کریں",
     connectionSubtitle: "منتخب کریں کہ کرونک کیئر اے آئی آپ کی طبی معلومات کیسے حاصل کرے۔",
@@ -369,7 +528,7 @@ export const translations: Record<Language, Translations> = {
     ageLabel: "مریض کی عمر (سال)",
     agePlaceholder: "مثلاً 58",
 
-    homeGreeting: "خوش آمدید",
+    homeGreeting: "خوش آمدید، علی خان",
     homeSubtitle: "آپ کی روزانہ نگہداشت کا جائزہ اور علامات کا چیک ان۔",
     reminderTitle: "روزانہ چیک ان کا وقت ہو گیا ہے",
     reminderDesc: "اپنی علامات درج کرنے کے لیے 60 سیکنڈ نکالیں تاکہ آپ کی صحت کا معمول درست رہے۔",
@@ -379,8 +538,8 @@ export const translations: Record<Language, Translations> = {
     trackedMeds: "زیر نگرانی ادویات",
     lastCheckIn: "پچھلا چیک ان",
     lastCheckInValue: "کل صبح 8:30 بجے (محفوظ شدہ)",
+    patientAppointmentsBtn: "میری اپوائنٹمنٹس",
 
-    // Presenter Controls
     presenterControlsLabel: "ڈیمو کنٹرول — پروڈکٹ کا حصہ نہیں ہے",
     scenarioNormalBtn: "منظرنامہ A: نارمل",
     scenarioConflictBtn: "منظرنامہ B: تضاد (Conflict)",
@@ -411,13 +570,11 @@ export const translations: Record<Language, Translations> = {
     finishBtn: "ہوم اسکرین پر واپس جائیں",
     viewResultsBtn: "میرے نتائج دیکھیں",
 
-    // M2 Screen 2 & 3: Processing & Verification
     processingTitle: "آپ کی صحت کی حالیہ معلومات کا تجزیہ ہو رہا ہے…",
     processingSubtitle: "علامات، طبی تاریخ اور چیک ان ڈیٹا کا جائزہ لیا جا رہا ہے",
     verifiedTitle: "نتیجہ تصدیق شدہ",
     verifiedSubtitle: "بنیادی ریکارڈ کے مطابق تصدیق مکمل ہو گئی",
 
-    // M2 Screen 4: Risk Result
     riskLowTitle: "کم خطرہ (Low Risk)",
     riskModerateTitle: "معتدل خطرہ (Moderate Risk)",
     riskHighTitle: "زیادہ خطرہ (High Risk)",
@@ -425,7 +582,6 @@ export const translations: Record<Language, Translations> = {
     riskDescription: "تمام زیر نگرانی علامات اور طبی اشارے ہدف کے مطابق محفوظ حد میں ہیں۔",
     seeWhyBtn: "وجوہات دیکھیں",
 
-    // M2 Screen 5: Why / Contributing Factors
     contributingFactorsTitle: "معاون عوامل (Contributing Factors)",
     shapDisclaimer: "Example contributing factors — representative visualization of future SHAP-based explanation.",
     factor1: "بلڈ شوگر کی مقدار انفرادی ہدف کی حد میں ہے (اوسط 110 mg/dL)",
@@ -434,7 +590,6 @@ export const translations: Record<Language, Translations> = {
     factor4: "روزانہ چیک ان میں کسی شدید علامت کی نشاندہی نہیں ہوئی",
     viewTrendsBtn: "رجحانات دیکھیں",
 
-    // M2 Screen 6: Trend Screen
     trendsTitle: "صحت کے رجحانات",
     trendsSubtitle: "اہم طبی اشاریوں کی کثیر روزہ نگرانی",
     glucoseChartTitle: "بلڈ شوگر (mg/dL)",
@@ -445,7 +600,6 @@ export const translations: Record<Language, Translations> = {
     targetRangeLabel: "ہدف کی حد",
     dayLabel: "دن",
 
-    // M3: Reconciliation Conflict Screen
     conflictDetectedTitle: "تضاد پایا گیا (Conflict Detected)",
     conflictPatientReported: "مریض کی طرف سے درج شدہ بلڈ شوگر: 180 mg/dL",
     conflictEhrRecord: "کلینک کا آخری ریکارڈ (FHIR): 140 mg/dL",
@@ -455,13 +609,65 @@ export const translations: Record<Language, Translations> = {
     unansweredQuestionTag: "اس چیک ان میں ایک غیر جواب شدہ سوال بھی شامل تھا۔",
     conflictSimulationCaption: "This is a simulated system state for demonstration purposes. The actual reconciliation and verification logic has been separately validated in our technical proof of concept.",
 
-    // M3: Low Confidence / Routed to Human Review Screen
     routedToReviewTitle: "کم اعتماد — ڈاکٹر کے جائزے کے لیے بھیج دیا گیا",
     routedToReviewDesc: "آپ کے چیک ان کو دیکھ بھال فراہم کرنے والے ڈاکٹر کے جائزے کے لیے بھیج دیا گیا ہے۔ جائزہ مکمل ہونے پر آپ کو مطلع کیا جائے گا۔",
 
-    // M3: Emergency Screen
     emergencyDetectedTitle: "ایمرجنسی صورتحال کی نشاندہی (Emergency Pattern Detected)",
     emergencyGuidanceText: "آپ کے جوابات کے مطابق، براہ کرم فوری طور پر طبی امداد حاصل کریں۔",
     emergencyAlertedText: "آپ کے ڈاکٹر اور نگہداشت فراہم کنندہ کو الرٹ جاری کر دیا گیا ہے۔",
+
+    // M4: Provider Dashboard & Review Queue
+    providerDashboardTitle: "کلینیکل پرووائیڈر ڈیش بورڈ",
+    providerSubtitle: "مریضوں کی نگرانی، طبی تضادات اور ریویو کیو۔",
+    activeCasesLabel: "فعال کیسز",
+    urgentCasesLabel: "ارجنٹ کیسز",
+    notificationsTitle: "کلینیکل اطلاعات",
+    patientListTitle: "نگرانی کے تحت مریض",
+    reviewQueueTitle: "کلینیکل ریویو کیو",
+    viewReviewQueueBtn: "ریویو کیو کھولیں",
+    columnPatient: "مریض",
+    columnReason: "وجہ",
+    columnConfidence: "اعتماد",
+    columnStatus: "حیثیت",
+    columnActions: "کارروائی",
+    alertDetailsTitle: "طبی تضاد کا الرٹ اور جائزہ",
+    reconciliationAlertBadge: "طبی تضاد",
+    caseResolvedToast: "کیس کامیابی سے حل کر دیا گیا۔",
+    caseAcknowledgedToast: "کیس کا جائزہ مکمل اور تسلیم کر لیا گیا۔",
+    incompleteCheckInTitle: "نامکمل چیک ان",
+    incompleteCheckInDesc: "خودکار تجزیے کے لیے ڈیٹا ناکافی تھا۔ معمول کے جائزے کے لیے زیر التواء ہے۔",
+
+    // M4: Appointment Scheduling
+    scheduleTitle: "مریض کے لیے اپوائنٹمنٹ بک کریں",
+    scheduleSubtitle: "علی خان کے فالو اپ کے لیے دستیاب وقت کا انتخاب کریں۔",
+    selectSlotLabel: "دستیاب اوقات",
+    confirmBookingBtn: "اپوائنٹمنٹ کی تصدیق کریں",
+    bookingSuccessTitle: "اپوائنٹمنٹ کنفرم ہو گئی",
+    bookingSuccessDesc: "اپوائنٹمنٹ بک ہو گئی ہے۔ علی خان کو ان کے مریض پورٹل میں اطلاع بھیج دی گئی ہے۔",
+
+    // M4: Patient Appointments View
+    noAppointmentsTitle: "کوئی طے شدہ اپوائنٹمنٹ نہیں ہے",
+    noAppointmentsDesc: "آپ کی اس وقت کوئی اپوائنٹمنٹ طے نہیں ہے۔ فالو اپ کی ضرورت پر آپ کا ڈاکٹر مطلع کرے گا۔",
+    myAppointmentsTitle: "میری طے شدہ اپوائنٹمنٹس",
+    appointmentWith: "ڈاکٹر",
+    appointmentReason: "ملاقات کا مقصد",
+    appointmentStatus: "حیثیت",
+
+    // M4: Admin Portal
+    adminDashboardTitle: "سسٹم ایڈمنسٹریشن اور ٹیلی میٹری",
+    adminSubtitle: "پلیٹ فارم کی حالت، صارفین کی ڈائریکٹری اور آڈٹ لاگ۔",
+    statUsers: "کل صارفین",
+    statProviders: "ڈاکٹرز",
+    statPatients: "مریض",
+    statActiveAlerts: "فعال الرٹس",
+    userManagementTitle: "صارفین کی فہرست اور کردار",
+    auditLogTitle: "سسٹم آڈٹ اور تعمیل کا لاگ",
+
+    // M4: Unified Settings
+    unifiedSettingsTitle: "ایپلیکیشن ترتیبات",
+    unifiedSettingsSubtitle: "زبان، کلینیکل کنکشن موڈ اور پروفائل کی ترتیبات۔",
+    languageSettingLabel: "زبان کا انتخاب",
+    connectionModeSettingLabel: "کلینیکل ڈیٹا سنکرونائزر",
+    activeProfileLabel: "فعال پروفائل",
   }
 };

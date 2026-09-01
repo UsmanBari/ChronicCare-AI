@@ -3,7 +3,9 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { Language, translations, Translations } from "../translations";
 
-export type ScreenType =
+export type PortalType = "landing" | "patient" | "provider" | "admin";
+
+export type PatientScreenType =
   | "login"
   | "connection"
   | "profile"
@@ -16,7 +18,18 @@ export type ScreenType =
   | "trends"
   | "conflict_detail"
   | "conflict_review"
-  | "emergency";
+  | "emergency"
+  | "appointments";
+
+export type ProviderScreenType =
+  | "login"
+  | "dashboard"
+  | "review_queue"
+  | "reconciliation_alert"
+  | "patient_detail"
+  | "schedule_appointment";
+
+export type AdminScreenType = "login" | "dashboard";
 
 export type ConnectionMode = "fhir" | "offline" | null;
 export type MissedMedsOption = "yes" | "no" | "prefer_not_to_answer" | null;
@@ -38,58 +51,110 @@ export interface CheckInData {
   submittedAt: string | null;
 }
 
+export interface AppointmentState {
+  isBooked: boolean;
+  slot: string;
+  reason: string;
+  provider: string;
+  status: string;
+  bookedAt: string;
+}
+
 interface AppContextType {
-  screen: ScreenType;
-  setScreen: (screen: ScreenType) => void;
+  // Portals
+  portal: PortalType;
+  setPortal: (p: PortalType) => void;
+
+  // Patient Screen state
+  screen: PatientScreenType;
+  setScreen: (screen: PatientScreenType) => void;
+
+  // Provider Screen state
+  providerScreen: ProviderScreenType;
+  setProviderScreen: (screen: ProviderScreenType) => void;
+
+  // Admin Screen state
+  adminScreen: AdminScreenType;
+  setAdminScreen: (screen: AdminScreenType) => void;
+
+  // Unified Settings toggle
+  showSettings: boolean;
+  setShowSettings: (show: boolean) => void;
+
+  // Selected patient in Provider Portal
+  selectedPatient: string | null;
+  setSelectedPatient: (patient: string | null) => void;
+
+  // Language & Translations
   language: Language;
   setLanguage: (lang: Language) => void;
   t: Translations;
   isUrdu: boolean;
-  
-  // Auth state (Mocked UI)
+
+  // Auth identifiers
   userIdentifier: string;
   setUserIdentifier: (id: string) => void;
-  
-  // Connection choice state (Mocked)
+  providerIdentifier: string;
+  setProviderIdentifier: (id: string) => void;
+  adminIdentifier: string;
+  setAdminIdentifier: (id: string) => void;
+
+  // Connection mode
   connectionMode: ConnectionMode;
   setConnectionMode: (mode: ConnectionMode) => void;
-  
-  // Health profile state (Mocked)
+
+  // Patient profile & check-in
   profile: HealthProfile;
   setProfile: React.Dispatch<React.SetStateAction<HealthProfile>>;
-  
-  // Daily check-in data
   checkIn: CheckInData;
   setCheckIn: React.Dispatch<React.SetStateAction<CheckInData>>;
-  
-  // Presenter Controls: Demo scenario flag (normal | conflict | emergency)
+
+  // Shared appointment state across Patient & Provider
+  appointment: AppointmentState;
+  setAppointment: React.Dispatch<React.SetStateAction<AppointmentState>>;
+
+  // Provider actions state
+  resolvedCases: string[];
+  resolveCase: (patientName: string) => void;
+  acknowledgedPatients: string[];
+  acknowledgePatient: (patientName: string) => void;
+
+  // Presenter Controls (demo scenario)
   demoScenario: DemoScenario;
   setDemoScenario: (scenario: DemoScenario) => void;
 
-  // Clear transient run state when returning to home
+  // Clean navigation helpers
   returnToHomeAndClearRun: () => void;
-
-  // Complete Reset Demo mechanism for live presentations
   resetDemo: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [screen, setScreen] = useState<ScreenType>("login");
+  const [portal, setPortal] = useState<PortalType>("landing");
+  const [screen, setScreen] = useState<PatientScreenType>("home");
+  const [providerScreen, setProviderScreen] = useState<ProviderScreenType>("dashboard");
+  const [adminScreen, setAdminScreen] = useState<AdminScreenType>("dashboard");
+  const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
+
   const [language, setLanguage] = useState<Language>("en");
-  const [userIdentifier, setUserIdentifier] = useState<string>("");
-  const [connectionMode, setConnectionMode] = useState<ConnectionMode>(null);
-  
-  // Presenter Controls default to 'normal'
+  const [userIdentifier, setUserIdentifier] = useState<string>("ali.khan@demo.care");
+  const [providerIdentifier, setProviderIdentifier] = useState<string>("dr.sanamalik@citygeneral.org");
+  const [adminIdentifier, setAdminIdentifier] = useState<string>("admin@citygeneral.org");
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>("fhir");
+
+  // Presenter controls
   const [demoScenario, setDemoScenario] = useState<DemoScenario>("normal");
-  
+
+  // Patient Baseline Profile
   const [profile, setProfile] = useState<HealthProfile>({
     conditions: ["Type 2 Diabetes"],
     medications: ["Metformin 500mg (Daily)"],
     age: "58",
   });
-  
+
+  // Transient check-in data
   const [checkIn, setCheckIn] = useState<CheckInData>({
     note: "",
     thirst: null,
@@ -99,10 +164,35 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     submittedAt: null,
   });
 
+  // Shared Appointment state
+  const [appointment, setAppointment] = useState<AppointmentState>({
+    isBooked: false,
+    slot: "",
+    reason: "",
+    provider: "Dr. Sana Malik",
+    status: "Confirmed",
+    bookedAt: "",
+  });
+
+  // Provider review actions
+  const [resolvedCases, setResolvedCases] = useState<string[]>([]);
+  const [acknowledgedPatients, setAcknowledgedPatients] = useState<string[]>([]);
+
+  const resolveCase = (patientName: string) => {
+    if (!resolvedCases.includes(patientName)) {
+      setResolvedCases((prev) => [...prev, patientName]);
+    }
+  };
+
+  const acknowledgePatient = (patientName: string) => {
+    if (!acknowledgedPatients.includes(patientName)) {
+      setAcknowledgedPatients((prev) => [...prev, patientName]);
+    }
+  };
+
   const t = translations[language];
   const isUrdu = language === "ur";
 
-  // Clears transient check-in data when navigating back to home
   const returnToHomeAndClearRun = () => {
     setScreen("home");
     setCheckIn({
@@ -115,7 +205,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  // Full presenter reset to clean state
   const resetDemo = () => {
     setDemoScenario("normal");
     setScreen("home");
@@ -127,25 +216,55 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       lowConfidence: false,
       submittedAt: null,
     });
+    setResolvedCases([]);
+    setAcknowledgedPatients([]);
+    setAppointment({
+      isBooked: false,
+      slot: "",
+      reason: "",
+      provider: "Dr. Sana Malik",
+      status: "Confirmed",
+      bookedAt: "",
+    });
   };
 
   return (
     <AppContext.Provider
       value={{
+        portal,
+        setPortal,
         screen,
         setScreen,
+        providerScreen,
+        setProviderScreen,
+        adminScreen,
+        setAdminScreen,
+        showSettings,
+        setShowSettings,
+        selectedPatient,
+        setSelectedPatient,
         language,
         setLanguage,
         t,
         isUrdu,
         userIdentifier,
         setUserIdentifier,
+        providerIdentifier,
+        setProviderIdentifier,
+        adminIdentifier,
+        setAdminIdentifier,
         connectionMode,
         setConnectionMode,
         profile,
         setProfile,
         checkIn,
         setCheckIn,
+        appointment,
+        setAppointment,
+        resolvedCases,
+        resolveCase,
+        acknowledgedPatients,
+        acknowledgePatient,
         demoScenario,
         setDemoScenario,
         returnToHomeAndClearRun,

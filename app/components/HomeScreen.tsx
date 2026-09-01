@@ -25,6 +25,7 @@ export const HomeScreen = () => {
     demoScenario,
     setDemoScenario,
     resetDemo,
+    appointment,
   } = useApp();
 
   return (
@@ -97,7 +98,7 @@ export const HomeScreen = () => {
         </div>
       </div>
 
-      {/* Welcome Greeting */}
+      {/* Welcome Greeting & Appointments shortcut */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-2xl font-bold text-navy-800">
@@ -107,6 +108,19 @@ export const HomeScreen = () => {
             {t.homeSubtitle}
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setScreen("appointments")}
+          id="view-my-appointments-btn"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-navy-800 text-xs font-semibold transition-all shadow-xs"
+        >
+          <Calendar className="w-3.5 h-3.5 text-teal-700" />
+          <span>{t.patientAppointmentsBtn}</span>
+          {appointment.isBooked && (
+            <span className="w-2 h-2 rounded-full bg-teal-600 animate-pulse" />
+          )}
+        </button>
       </div>
 
       {/* PROMINENT REMINDER CARD */}
