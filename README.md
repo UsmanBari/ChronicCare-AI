@@ -19,6 +19,23 @@
 
 ---
 
+## 🔬 What is Real vs. Mocked
+
+To provide transparent technical clarity for examiners and clinical reviewers, the table below delineates the functional boundary between the active interactive UI layer and simulated computational backends:
+
+| Dimension | Real & Interactive in this Prototype | Mocked / Simulated for Demonstration |
+|---|---|---|
+| **User Interface & Layout** | Complete responsive React UI (desktop, tablet, mobile down to 375px), modal overlays, slide-up drawers, bilingual typography. | None — all screens and layout containers are fully rendered components. |
+| **State Management** | Centralized React Context (`AppContext`) managing multi-portal navigation, form inputs, dynamic case counters, and cross-portal state sync. | Backend database persistence (data resets upon full page refresh). |
+| **Form & Input Validation** | Live debounced voice input simulation, multi-branch question gating, input requirement validation, checkbox logic. | Real automatic speech recognition (ASR) cloud transcription API. |
+| **Localization** | Native bidirectional bilingual dictionary engine with instant toggle between English and Urdu (اردو) across every screen. | Machine translation API (translations are curated statically). |
+| **Clinical Discrepancy Flow** | Live deterministic scenario branching (Normal, Conflict, Emergency) via Presenter Controls, triggering dynamic triage states. | Real-time clinical ML risk inference models and automated SHAP value generation. |
+| **Cross-Portal Sync** | Provider appointment booking dynamically writes to shared state and immediately renders in the Patient Portal's appointment view. | Live enterprise calendar sync / SMS / push notification delivery services. |
+| **EHR Connectivity** | Interactive dual connection path (HL7® FHIR® network simulation vs. Isolated Offline Local Store profile creation). | Live TLS authenticated SMART on FHIR endpoint connectivity. |
+| **Resilience & Safety** | Custom top-level React `ErrorBoundary` with client diagnostic reporting and full reset recovery capabilities. | Real-time automated clinical safety incident escalation to 911/EMS dispatch. |
+
+---
+
 ## 📖 Overview
 
 **ChronicCare AI** is an intelligent chronic disease management platform designed to support patients with **Type 2 Diabetes (T2D)** and **Hypertension (HTN)** alongside their healthcare providers and clinical administrators. Managing chronic conditions requires continuous daily patient engagement, accurate data reconciliation between self-reported observations and electronic health records (EHR), and immediate clinical safety escalation.
@@ -33,6 +50,8 @@ The application showcases the complete intended clinical workflow, including our
 ---
 
 ## 🏗️ Architecture
+
+### System Topology & Multi-Portal Structure
 
 ```mermaid
 flowchart TD
@@ -71,6 +90,33 @@ flowchart TD
     Schedule -.->|Cross-Portal Appointment Sync| MyAppointments
     OutcomeFork -.->|Live Case Counter & Queue Update| DashboardDr
     DashboardDr -.->|Active Alert Parity| DashboardAdm
+```
+
+The three-portal architecture directly mirrors the modular decomposition proposed for ChronicCare AI: empowering autonomous patient self-monitoring, providing clinicians with high-signal triage tools without alert fatigue, and giving institutional administrators total governance over integration health and compliance auditability.
+
+### Reconciliation & Triage Sequence (Scenario B: Conflict)
+
+The sequence diagram below details the flagship cross-portal reconciliation workflow demonstrated in this prototype:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Patient as Patient (Ali Khan)
+    participant App as Patient Portal
+    participant State as Shared Clinical State
+    participant Prov as Provider Portal (Dr. Sana Malik)
+    actor Clinician as Clinician (Dr. Sana Malik)
+
+    Patient->>App: Submits Check-In (Reports 180 mg/dL Blood Glucose)
+    App->>App: Evaluates against FHIR EHR Baseline (140 mg/dL)
+    App->>Patient: Displays Reconciliation Conflict Screen (180 vs 140 mg/dL, Low Confidence)
+    App->>State: Routes Case to Clinical Review Queue & Updates Active Count (+1)
+    State-->>Prov: Triggers Notification ("Review required — Ali Khan, conflicting glucose")
+    Clinician->>Prov: Opens Review Queue & Inspects Reconciliation Alert Detail
+    Clinician->>Prov: Selects [Schedule Appointment] for Monday 9:00 AM
+    Prov->>State: Commits Confirmed Appointment (Dr. Sana Malik, Mon 9:00 AM)
+    State-->>App: Broadcasts Booked Appointment
+    Patient->>App: Opens "My Appointments" -> Confirmed Appointment Rendered
 ```
 
 ---
@@ -132,6 +178,16 @@ The prototype features a dedicated **Presenter Controls** panel on the Patient H
 
 ---
 
+## 🧪 Testing & Quality Assurance
+
+A comprehensive 25-point manual QA regression audit was conducted across all three portals to validate functional boundaries, accessibility, and system resilience:
+
+- **Regression Coverage**: Verified input validation on all login forms, dual-path connection initialization, 4-way adaptive interview branching, 375px mobile chart responsiveness, and 6-way portal switcher combinations.
+- **Accessibility & DEI Standards**: Validated that all clinical triage states (Low Risk, Discrepancy, Emergency) use multi-modal signaling combining geometric shape icons, explicit typography, and color tokens to ensure full usability for colorblind reviewers.
+- **Client Resilience**: Verified application stability under rapid action double-clicking, browser state resets, and top-level React `ErrorBoundary` interception to eliminate live presentation risk.
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -157,6 +213,8 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to interact 
 
 ## 🎨 Design System
 
+### Palette & Color Tokens
+
 | Token | Hex Value | Preview | Usage |
 |---|---|:---:|---|
 | **Primary Navy** | `#16233F` | `■` | Primary headers, hero cards, dark navigation elements |
@@ -164,6 +222,14 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to interact 
 | **Supporting Amber** | `#8A5A18` | `■` | Clinical review warnings, conflict tags, offline badges |
 | **Muted Green** | `#24623F` | `■` | Low risk indicators, resolved cases, verification checkmarks |
 
+### Multi-Modal Triage Accessibility
+
+To prevent reliance on color alone for safety-critical clinical triage, all status indicators combine color, shape, and text:
+- **Stable / Verified**: Boxed green container with `CheckCircle2` icon + explicit *"Stable"* / *"Low Risk"* label.
+- **Discrepancy / Review Required**: Boxed amber container with `AlertTriangle` icon + explicit *"Discrepancy: Glucose 180 vs 140 mg/dL"* label.
+- **Critical / Emergency**: Boxed red container with `AlertOctagon` icon + explicit *"Critical: High-Risk Pattern Alerted"* label.
+
+### Typography & Localization
 - **Typography**: Editorial serif headings (`Cambria`, `Georgia`, serif; `Noto Nastaliq Urdu` for Urdu) paired with clean sans-serif body typography (`Inter`, system-ui).
 - **Localization**: Native bilingual dictionary toggle supporting English and Urdu (اردو) across all components.
 
@@ -192,6 +258,7 @@ ChronicCare-AI/
     │   ├── ConnectionScreen.tsx                 # Dual-mode selection (FHIR vs. Local)
     │   ├── DemoFooter.tsx                       # Global "DEMO — DATA NOT REAL" watermark
     │   ├── EmergencyScreen.tsx                  # Red alert emergency guidance view
+    │   ├── ErrorBoundary.tsx                    # Top-level client error resilience boundary
     │   ├── Header.tsx                           # Global header & quick portal switcher
     │   ├── HealthProfileScreen.tsx              # Offline profile setup form
     │   ├── HomeScreen.tsx                       # Patient dashboard & Presenter Controls
@@ -239,6 +306,12 @@ Following the completion of this interface prototype, future project milestones 
 
 | Name | Role / Core Responsibilities |
 |---|---|
-| **Usman Bari** | System Architecture, Frontend Interface & Integration |
-| **Hassaan Mudassar** | Multi-Agent Coordination & Verification Protocol |
-| **Muhammad Saad** | Machine Learning Pipeline & Clinical Feature Engineering |
+| **Usman Bari** | Reasoning & ML core: orchestration, Verification Agent, Guideline RAG, both risk classifiers + preprocessing + SHAP, FHIR integration, system integration |
+| **Hassaan Mudassar** | Interaction layer: Adaptive Interview, Reconciliation, Local Store (shared with Saad), Provider Dashboard, Admin UI |
+| **Muhammad Saad** | Longitudinal reasoning & validation: Trend Analysis Agent, Patient App UI, Local Store (shared with Hassaan), evaluation framework & pilot coordination |
+
+---
+
+## 📌 Project Status
+
+Academic Final Year Project (FYP) prototype developed for defense evaluation at FAST-NUCES (Fall 2026). Strictly for research and demonstration purposes; not approved for clinical diagnostic or commercial use.
