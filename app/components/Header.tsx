@@ -28,6 +28,7 @@ export const Header = () => {
     setProviderScreen,
     setAdminScreen,
     setShowSettings,
+    returnToHomeAndClearRun,
   } = useApp();
 
   const [showPortalMenu, setShowPortalMenu] = useState(false);
@@ -102,7 +103,7 @@ export const Header = () => {
                   type="button"
                   onClick={() => {
                     setPortal("patient");
-                    setScreen("home");
+                    returnToHomeAndClearRun();
                     setShowPortalMenu(false);
                   }}
                   id="switch-to-patient-btn"
