@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-navy: #16233F;
+  --accent-teal: #0B6E70;
+  --supporting-amber: #8A5A18;
+  --supporting-green: #24623F;
+}
+
+body {
+  background-color: #F8FAFC;
+  color: #16233F;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Serif heading style */
+.font-heading {
+  font-family: 'Cambria', 'Georgia', serif;
+}
+
+/* RTL Adjustments for Urdu */
+[dir="rtl"] {
+  text-align: right;
+}
+
+[dir="rtl"] .font-heading {
+  font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', serif;
+  line-height: 1.8;
+}
+
+/* Custom subtle animations */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(11, 110, 112, 0.7);
+  }
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 14px rgba(11, 110, 112, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(11, 110, 112, 0);
+  }
+}
+
+.pulse-active {
+  animation: pulse-ring 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
