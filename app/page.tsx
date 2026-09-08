@@ -7,6 +7,7 @@ import { DemoFooter } from "./components/DemoFooter";
 import { PortalLandingScreen } from "./components/PortalLandingScreen";
 import { UnifiedSettingsModal } from "./components/UnifiedSettingsModal";
 import { EvaluatorTourModal } from "./components/EvaluatorTourModal";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Patient Portal Components
 import { LoginScreen } from "./components/LoginScreen";
@@ -36,8 +37,25 @@ import { AppointmentSchedulingScreen } from "./components/provider/AppointmentSc
 import { AdminLoginScreen } from "./components/admin/AdminLoginScreen";
 import { AdminDashboardScreen } from "./components/admin/AdminDashboardScreen";
 
+const screenTransition = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+  transition: { duration: 0.22, ease: "easeOut" as const },
+};
+
 export default function App() {
   const { portal, screen, providerScreen, adminScreen, showTour, setShowTour } = useApp();
+
+  // Compute a unique key for the active screen to drive AnimatePresence
+  const activeKey =
+    portal === "landing"
+      ? "portal-landing"
+      : portal === "patient"
+      ? `patient-${screen}`
+      : portal === "provider"
+      ? `provider-${providerScreen}`
+      : `admin-${adminScreen}`;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 selection:bg-teal-100 selection:text-teal-900">
@@ -50,111 +68,122 @@ export default function App() {
       {/* Unified Settings Modal (Global) */}
       <UnifiedSettingsModal />
 
-      {/* Main Flow Viewport */}
+      {/* Main Flow Viewport with AnimatePresence Transitions */}
       <main className="flex-1 w-full">
-        {/* Landing Portal Selection */}
-        {portal === "landing" && <PortalLandingScreen />}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeKey}
+            initial={screenTransition.initial}
+            animate={screenTransition.animate}
+            exit={screenTransition.exit}
+            transition={screenTransition.transition}
+            className="w-full"
+          >
+            {/* Landing Portal Selection */}
+            {portal === "landing" && <PortalLandingScreen />}
 
-        {/* Patient Portal Flow */}
-        {portal === "patient" && (
-          <div className="w-full">
-            {/* Narrow / Auth & Interview Screens */}
-            {(screen === "login" ||
-              screen === "connection" ||
-              screen === "profile" ||
-              screen === "checkin_entry" ||
-              screen === "adaptive_interview" ||
-              screen === "confirmation" ||
-              screen === "processing" ||
-              screen === "risk_result" ||
-              screen === "conflict_detail" ||
-              screen === "conflict_review" ||
-              screen === "emergency") && (
-              <div className="max-w-xl mx-auto px-4 sm:px-6 py-6 md:py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
-                {screen === "login" && <LoginScreen />}
-                {screen === "connection" && <ConnectionScreen />}
-                {screen === "profile" && <HealthProfileScreen />}
-                {screen === "checkin_entry" && <CheckInEntryScreen />}
-                {screen === "adaptive_interview" && <AdaptiveInterviewScreen />}
-                {screen === "confirmation" && <ConfirmationScreen />}
-                {screen === "processing" && <ProcessingScreen />}
-                {screen === "risk_result" && <RiskResultScreen />}
-                {screen === "conflict_detail" && <ConflictScreen />}
-                {screen === "conflict_review" && <RoutedToReviewScreen />}
-                {screen === "emergency" && <EmergencyScreen />}
+            {/* Patient Portal Flow */}
+            {portal === "patient" && (
+              <div className="w-full">
+                {/* Narrow / Auth & Interview Screens */}
+                {(screen === "login" ||
+                  screen === "connection" ||
+                  screen === "profile" ||
+                  screen === "checkin_entry" ||
+                  screen === "adaptive_interview" ||
+                  screen === "confirmation" ||
+                  screen === "processing" ||
+                  screen === "risk_result" ||
+                  screen === "conflict_detail" ||
+                  screen === "conflict_review" ||
+                  screen === "emergency") && (
+                  <div className="max-w-xl mx-auto px-4 sm:px-6 py-6 md:py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
+                    {screen === "login" && <LoginScreen />}
+                    {screen === "connection" && <ConnectionScreen />}
+                    {screen === "profile" && <HealthProfileScreen />}
+                    {screen === "checkin_entry" && <CheckInEntryScreen />}
+                    {screen === "adaptive_interview" && <AdaptiveInterviewScreen />}
+                    {screen === "confirmation" && <ConfirmationScreen />}
+                    {screen === "processing" && <ProcessingScreen />}
+                    {screen === "risk_result" && <RiskResultScreen />}
+                    {screen === "conflict_detail" && <ConflictScreen />}
+                    {screen === "conflict_review" && <RoutedToReviewScreen />}
+                    {screen === "emergency" && <EmergencyScreen />}
+                  </div>
+                )}
+
+                {/* Dashboard & Content Rich Patient Screens */}
+                {screen === "home" && (
+                  <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 md:py-8">
+                    <HomeScreen />
+                  </div>
+                )}
+                {screen === "trends" && (
+                  <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 md:py-8">
+                    <TrendScreen />
+                  </div>
+                )}
+                {screen === "appointments" && (
+                  <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 md:py-8">
+                    <PatientAppointmentsScreen />
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Dashboard & Content Rich Patient Screens */}
-            {screen === "home" && (
-              <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 md:py-8">
-                <HomeScreen />
+            {/* Provider Portal Flow */}
+            {portal === "provider" && (
+              <div className="w-full">
+                {providerScreen === "login" && (
+                  <div className="max-w-md mx-auto px-4 py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
+                    <ProviderLoginScreen />
+                  </div>
+                )}
+                {providerScreen === "dashboard" && (
+                  <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+                    <ProviderDashboardScreen />
+                  </div>
+                )}
+                {providerScreen === "review_queue" && (
+                  <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+                    <ReviewQueueScreen />
+                  </div>
+                )}
+                {providerScreen === "reconciliation_alert" && (
+                  <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+                    <ReconciliationAlertDetail />
+                  </div>
+                )}
+                {providerScreen === "patient_detail" && (
+                  <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+                    <PatientDetailScreen />
+                  </div>
+                )}
+                {providerScreen === "schedule_appointment" && (
+                  <div className="max-w-3xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+                    <AppointmentSchedulingScreen />
+                  </div>
+                )}
               </div>
             )}
-            {screen === "trends" && (
-              <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 md:py-8">
-                <TrendScreen />
-              </div>
-            )}
-            {screen === "appointments" && (
-              <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 md:py-8">
-                <PatientAppointmentsScreen />
-              </div>
-            )}
-          </div>
-        )}
 
-        {/* Provider Portal Flow */}
-        {portal === "provider" && (
-          <div className="w-full">
-            {providerScreen === "login" && (
-              <div className="max-w-md mx-auto px-4 py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
-                <ProviderLoginScreen />
+            {/* Admin Portal Flow */}
+            {portal === "admin" && (
+              <div className="w-full">
+                {adminScreen === "login" && (
+                  <div className="max-w-md mx-auto px-4 py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
+                    <AdminLoginScreen />
+                  </div>
+                )}
+                {adminScreen === "dashboard" && (
+                  <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+                    <AdminDashboardScreen />
+                  </div>
+                )}
               </div>
             )}
-            {providerScreen === "dashboard" && (
-              <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
-                <ProviderDashboardScreen />
-              </div>
-            )}
-            {providerScreen === "review_queue" && (
-              <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
-                <ReviewQueueScreen />
-              </div>
-            )}
-            {providerScreen === "reconciliation_alert" && (
-              <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
-                <ReconciliationAlertDetail />
-              </div>
-            )}
-            {providerScreen === "patient_detail" && (
-              <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
-                <PatientDetailScreen />
-              </div>
-            )}
-            {providerScreen === "schedule_appointment" && (
-              <div className="max-w-3xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
-                <AppointmentSchedulingScreen />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Admin Portal Flow */}
-        {portal === "admin" && (
-          <div className="w-full">
-            {adminScreen === "login" && (
-              <div className="max-w-md mx-auto px-4 py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
-                <AdminLoginScreen />
-              </div>
-            )}
-            {adminScreen === "dashboard" && (
-              <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
-                <AdminDashboardScreen />
-              </div>
-            )}
-          </div>
-        )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Demo Watermark and Scope Footer */}
