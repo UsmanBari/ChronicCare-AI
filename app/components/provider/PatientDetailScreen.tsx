@@ -13,6 +13,7 @@ import {
   Calendar,
   User,
   Pill,
+  ShieldCheck,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -75,34 +76,34 @@ export const PatientDetailScreen = () => {
   const isSara = patientName === "Sara Ahmed";
 
   return (
-    <div className="w-full max-w-3xl mx-auto space-y-5 animate-fadeIn py-2">
+    <div className="w-full max-w-4xl mx-auto space-y-6 animate-fadeIn py-2" dir={isUrdu ? "rtl" : "ltr"}>
       {/* Toast */}
       {toastMessage && (
-        <div className="p-3.5 rounded-xl bg-mutedGreen-100 border border-mutedGreen-800 text-mutedGreen-800 text-xs font-bold shadow-lg flex items-center justify-between animate-slideUp">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-mutedGreen-800 shrink-0" />
+        <div className="p-4 rounded-2xl bg-mutedGreen-100 border border-mutedGreen-800 text-mutedGreen-900 text-sm font-bold shadow-lg flex items-center justify-between animate-slideUp">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-mutedGreen-800 shrink-0" />
             <span>{toastMessage}</span>
           </div>
         </div>
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-        <div className="flex items-center gap-2.5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setProviderScreen("dashboard")}
             id="patient-detail-back-btn"
-            className="p-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 transition-colors"
+            className="w-11 h-11 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 flex items-center justify-center transition-colors shadow-xs"
           >
-            <ArrowLeft className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+            <ArrowLeft className={`w-5 h-5 ${isUrdu ? "rotate-180" : ""}`} />
           </button>
           <div>
-            <h1 className="font-heading text-2xl font-bold text-navy-800">
+            <h1 className="font-heading text-2xl sm:text-3xl font-bold text-navy-800">
               {patientName}
             </h1>
-            <span className="text-xs text-slate-500">
-              {isSara ? "62y F • Hypertension" : "45y M • Type 2 Diabetes & Hypertension"}
+            <span className="text-xs font-semibold text-slate-500">
+              {isSara ? "62y F • Hypertension • Baseline ID: PT-01934" : "45y M • Type 2 Diabetes & Hypertension • Baseline ID: PT-00318"}
             </span>
           </div>
         </div>
@@ -111,34 +112,34 @@ export const PatientDetailScreen = () => {
           type="button"
           onClick={handleAcknowledge}
           id="patient-acknowledge-btn"
-          className={`py-2 px-4 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 ${
+          className={`min-h-[44px] py-2.5 px-5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
             isAcknowledged
               ? "bg-mutedGreen-100 text-mutedGreen-800 border border-mutedGreen-800/30"
               : "bg-teal-700 hover:bg-teal-600 text-white shadow-sm active:scale-[0.98]"
           }`}
         >
-          <CheckCircle2 className="w-3.5 h-3.5" />
+          <CheckCircle2 className="w-4 h-4" />
           <span>{isAcknowledged ? "Acknowledged ✓" : t.acknowledge}</span>
         </button>
       </div>
 
       {/* Sara Ahmed Incomplete Check-in Notice */}
       {isSara && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2">
+        <div className="p-5 rounded-2xl bg-amber-50 border border-amber-300 space-y-2">
           <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
             <Info className="w-4 h-4 text-amber-700" />
             <span>{t.incompleteCheckInTitle}</span>
           </div>
-          <p className="text-xs text-slate-600 leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">
             {t.incompleteCheckInDesc}
           </p>
         </div>
       )}
 
       {/* Overview Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <span className="font-heading text-sm font-bold text-navy-800">
+      <div className="surface-card rounded-3xl p-6 sm:p-7 shadow-sm space-y-5">
+        <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
+          <span className="font-heading text-base font-bold text-navy-800">
             Automated Clinical Assessment
           </span>
           {/* Reusable RiskBadge */}
@@ -146,20 +147,20 @@ export const PatientDetailScreen = () => {
         </div>
 
         {/* Contributing Factors & SHAP Disclaimer */}
-        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-navy-800">
+        <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-bold text-navy-800 uppercase tracking-wider">
             <Activity className="w-4 h-4 text-teal-700" />
             <span>{t.contributingFactorsTitle}</span>
           </div>
 
-          <div className="p-2.5 rounded-lg bg-teal-50 border border-teal-200 flex items-start gap-2 text-[11px] text-teal-900 leading-snug">
-            <Info className="w-3.5 h-3.5 text-teal-700 shrink-0 mt-0.5" />
+          <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 flex items-start gap-2.5 text-xs text-teal-900 leading-snug">
+            <Info className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
             <span className="font-medium">{t.shapDisclaimer}</span>
           </div>
 
-          <ul className="space-y-1.5 text-xs text-slate-700 pt-1">
+          <ul className="space-y-2 text-xs sm:text-sm text-slate-700 pt-1">
             <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-3.5 h-3.5 text-mutedGreen-800 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-mutedGreen-800 shrink-0" />
               <span>
                 {isSara
                   ? "Baseline BP stable at 128/84 mmHg; pending medication log"
@@ -167,7 +168,7 @@ export const PatientDetailScreen = () => {
               </span>
             </li>
             <li className="flex items-center gap-2">
-              <CheckCircle2 className="w-3.5 h-3.5 text-mutedGreen-800 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-mutedGreen-800 shrink-0" />
               <span>
                 {isSara
                   ? "No reported acute distress or symptoms in previous 14 days"
@@ -178,49 +179,49 @@ export const PatientDetailScreen = () => {
         </div>
 
         {/* Multi-Day Observation Charts */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2">
           {/* Glucose Chart */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
             <div className="flex items-center justify-between text-xs font-bold text-navy-800">
               <span>{t.glucoseChartTitle}</span>
-              <span className="text-[10px] text-teal-800 bg-teal-100/60 px-2 py-0.5 rounded">
-                Target: 90–130
+              <span className="text-[10px] text-teal-800 bg-teal-100/60 px-2 py-0.5 rounded font-bold">
+                Target: 90–130 mg/dL
               </span>
             </div>
-            <div className="h-36 w-full">
+            <div className="h-44 w-full pt-1">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={ahmedGlucoseData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
                   <defs>
                     <linearGradient id="ahmedGlucGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0B6E70" stopOpacity={0.25} />
+                      <stop offset="5%" stopColor="#0B6E70" stopOpacity={0.2} />
                       <stop offset="95%" stopColor="#0B6E70" stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#64748B" }} />
-                  <YAxis domain={[80, 140]} tick={{ fontSize: 9, fill: "#64748B" }} />
+                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#64748B" }} />
+                  <YAxis domain={[80, 140]} tick={{ fontSize: 10, fill: "#64748B" }} />
                   <Tooltip />
-                  <Area type="monotone" dataKey="value" stroke="#0B6E70" strokeWidth={2} fill="url(#ahmedGlucGrad)" />
+                  <Area type="monotone" dataKey="value" stroke="#0B6E70" strokeWidth={2.5} fill="url(#ahmedGlucGrad)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* Blood Pressure Chart */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
             <div className="flex items-center justify-between text-xs font-bold text-navy-800">
               <span>{t.bloodPressureChartTitle}</span>
-              <span className="text-[10px] text-slate-500 font-normal">Systolic / Diastolic</span>
+              <span className="text-[10px] text-slate-500 font-semibold">Systolic / Diastolic</span>
             </div>
-            <div className="h-36 w-full">
+            <div className="h-44 w-full pt-1">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={ahmedBpData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#64748B" }} />
-                  <YAxis domain={[60, 140]} tick={{ fontSize: 9, fill: "#64748B" }} />
+                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#64748B" }} />
+                  <YAxis domain={[60, 140]} tick={{ fontSize: 10, fill: "#64748B" }} />
                   <Tooltip />
-                  <Line type="monotone" dataKey="systolic" stroke="#16233F" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="diastolic" stroke="#108B8D" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="systolic" stroke="#16233F" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="diastolic" stroke="#108B8D" strokeWidth={2.5} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

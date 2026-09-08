@@ -13,9 +13,9 @@
 }
 
 body {
-  background: radial-gradient(circle at 85% 15%, rgba(11, 110, 112, 0.04) 0%, transparent 40%),
-              radial-gradient(circle at 10% 80%, rgba(22, 35, 63, 0.03) 0%, transparent 40%),
-              #F8FAFC;
+  background-color: #F8FAFC;
+  background-image: radial-gradient(circle, rgba(22, 35, 63, 0.045) 1px, transparent 1px);
+  background-size: 24px 24px;
   color: #16233F;
   min-height: 100vh;
   margin: 0;
@@ -23,29 +23,23 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Elevation & Soft Glass Surfaces */
-.glass-resting {
-  background-color: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(226, 232, 240, 0.7);
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
-}
-
-.glass-raised {
-  background-color: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+/* Crisp Clinical Surface Classes */
+.surface-card {
+  background-color: #FFFFFF;
   border: 1px solid rgba(226, 232, 240, 0.9);
-  box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.03), 0 1px 2px -1px rgba(15, 23, 42, 0.02);
 }
 
-.glass-teal-subtle {
-  background-color: rgba(240, 249, 249, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(11, 110, 112, 0.2);
-  box-shadow: 0 4px 6px -1px rgba(11, 110, 112, 0.06), 0 2px 4px -2px rgba(11, 110, 112, 0.04);
+.surface-raised {
+  background-color: #FFFFFF;
+  border: 1px solid rgba(226, 232, 240, 1);
+  box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.05), 0 4px 6px -4px rgba(15, 23, 42, 0.03);
+}
+
+.surface-teal-subtle {
+  background-color: rgba(240, 249, 249, 0.85);
+  border: 1px solid rgba(11, 110, 112, 0.25);
+  box-shadow: 0 1px 3px 0 rgba(11, 110, 112, 0.04);
 }
 
 /* Custom Serif heading style */

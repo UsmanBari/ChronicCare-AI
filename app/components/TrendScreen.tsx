@@ -53,59 +53,58 @@ export const TrendScreen = () => {
   const { returnToHomeAndClearRun, checkIn, t, isUrdu } = useApp();
 
   return (
-    <div className="w-full max-w-xl mx-auto space-y-5 animate-fadeIn">
+    <div className="w-full max-w-4xl mx-auto space-y-6 animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
       {/* Header */}
-      <div className="bg-navy-800 rounded-2xl p-6 text-white text-center shadow-lg relative overflow-hidden">
-        <div className="absolute -top-10 -right-10 w-32 h-32 bg-teal-500/15 rounded-full blur-2xl pointer-events-none" />
-        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-teal-500/20 text-teal-300 text-[10px] font-bold uppercase tracking-wider mb-2">
-          <TrendingUp className="w-3 h-3" />
-          <span>8-Day Observation Window</span>
+      <div className="bg-navy-800 rounded-3xl p-6 sm:p-8 text-white text-center shadow-lg relative overflow-hidden border border-teal-500/30">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-teal-500/25 text-teal-200 text-xs font-bold uppercase tracking-wider mb-2.5">
+          <TrendingUp className="w-3.5 h-3.5" />
+          <span>8-Day Clinical Observation Window</span>
         </div>
-        <h1 className="font-heading text-2xl font-bold text-white mb-1">
+        <h1 className="font-heading text-2xl sm:text-3xl font-bold text-white mb-1.5">
           {t.trendsTitle}
         </h1>
-        <p className="text-xs text-slate-300 max-w-md mx-auto">
+        <p className="text-sm text-slate-200 max-w-md mx-auto leading-relaxed">
           {t.trendsSubtitle}
         </p>
 
         {/* Brand-new session without daily check-in indicator */}
         {!checkIn.submittedAt && (
-          <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-700/80 text-teal-300 text-[11px] font-medium">
+          <div className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-700/80 text-teal-300 text-xs font-medium">
             <span>{isUrdu ? "آج کا کوئی چیک ان درج نہیں — بنیادی طبی ڈیٹا ظاہر ہو رہا ہے" : "No check-ins yet today — showing baseline clinical trajectory"}</span>
           </div>
         )}
       </div>
 
       {/* Chart 1: Blood Glucose */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <h2 className="font-heading text-sm font-bold text-navy-800 flex items-center gap-2">
-            <Activity className="w-4 h-4 text-teal-700" />
+      <div className="surface-card rounded-3xl p-6 shadow-sm space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-3.5">
+          <h2 className="font-heading text-base font-bold text-navy-800 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-teal-700" />
             <span>{t.glucoseChartTitle}</span>
           </h2>
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200/60">
-            Target: 90–130 mg/dL
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200 self-start sm:self-auto">
+            Target Range: 90–130 mg/dL (100% In-Range)
           </span>
         </div>
 
-        <div className="h-48 w-full pt-2">
+        <div className="h-56 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={glucoseData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+            <AreaChart data={glucoseData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="glucoseGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#0B6E70" stopOpacity={0.25} />
+                  <stop offset="5%" stopColor="#0B6E70" stopOpacity={0.2} />
                   <stop offset="95%" stopColor="#0B6E70" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#64748B" }} />
-              <YAxis domain={[80, 150]} tick={{ fontSize: 10, fill: "#64748B" }} />
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#64748B" }} />
+              <YAxis domain={[80, 150]} tick={{ fontSize: 11, fill: "#64748B" }} />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "#16233F",
-                  borderRadius: "8px",
+                  borderRadius: "12px",
                   color: "#FFFFFF",
-                  fontSize: "11px",
+                  fontSize: "12px",
                   border: "none",
                 }}
               />
@@ -117,7 +116,7 @@ export const TrendScreen = () => {
                 strokeWidth={2.5}
                 fillOpacity={1}
                 fill="url(#glucoseGrad)"
-                dot={{ r: 3, fill: "#0B6E70" }}
+                dot={{ r: 4, fill: "#0B6E70" }}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -125,36 +124,36 @@ export const TrendScreen = () => {
       </div>
 
       {/* Chart 2: Blood Pressure */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <h2 className="font-heading text-sm font-bold text-navy-800 flex items-center gap-2">
-            <Heart className="w-4 h-4 text-amber-800" />
+      <div className="surface-card rounded-3xl p-6 shadow-sm space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-3.5">
+          <h2 className="font-heading text-base font-bold text-navy-800 flex items-center gap-2">
+            <Heart className="w-5 h-5 text-amber-800" />
             <span>{t.bloodPressureChartTitle}</span>
           </h2>
-          <div className="flex items-center gap-2 text-[10px] font-semibold text-slate-500">
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-navy-800" />
-              {t.systolicLabel}
+          <div className="flex items-center gap-3 text-xs font-semibold text-slate-600">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-navy-800" />
+              {t.systolicLabel} (mmHg)
             </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-teal-600" />
-              {t.diastolicLabel}
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-teal-600" />
+              {t.diastolicLabel} (mmHg)
             </span>
           </div>
         </div>
 
-        <div className="h-48 w-full pt-2">
+        <div className="h-56 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={bpData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+            <LineChart data={bpData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#64748B" }} />
-              <YAxis domain={[60, 140]} tick={{ fontSize: 10, fill: "#64748B" }} />
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#64748B" }} />
+              <YAxis domain={[60, 140]} tick={{ fontSize: 11, fill: "#64748B" }} />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "#16233F",
-                  borderRadius: "8px",
+                  borderRadius: "12px",
                   color: "#FFFFFF",
-                  fontSize: "11px",
+                  fontSize: "12px",
                   border: "none",
                 }}
               />
@@ -164,7 +163,7 @@ export const TrendScreen = () => {
                 name={t.systolicLabel}
                 stroke="#16233F"
                 strokeWidth={2.5}
-                dot={{ r: 3, fill: "#16233F" }}
+                dot={{ r: 4, fill: "#16233F" }}
               />
               <Line
                 type="monotone"
@@ -172,7 +171,7 @@ export const TrendScreen = () => {
                 name={t.diastolicLabel}
                 stroke="#108B8D"
                 strokeWidth={2.5}
-                dot={{ r: 3, fill: "#108B8D" }}
+                dot={{ r: 4, fill: "#108B8D" }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -180,60 +179,60 @@ export const TrendScreen = () => {
       </div>
 
       {/* Chart 3: Medication Adherence */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <h2 className="font-heading text-sm font-bold text-navy-800 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-mutedGreen-800" />
+      <div className="surface-card rounded-3xl p-6 shadow-sm space-y-3.5">
+        <div className="flex items-center justify-between border-b border-slate-200/80 pb-3.5">
+          <h2 className="font-heading text-base font-bold text-navy-800 flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-mutedGreen-800" />
             <span>{t.adherenceChartTitle}</span>
           </h2>
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-mutedGreen-50 text-mutedGreen-800 border border-mutedGreen-800/30">
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-mutedGreen-50 text-mutedGreen-800 border border-mutedGreen-800/30">
             100% Adherent
           </span>
         </div>
 
-        <div className="h-36 w-full pt-2">
+        <div className="h-44 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={adherenceData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+            <AreaChart data={adherenceData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="adherenceGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#24623F" stopOpacity={0.25} />
+                  <stop offset="5%" stopColor="#24623F" stopOpacity={0.2} />
                   <stop offset="95%" stopColor="#24623F" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#64748B" }} />
-              <YAxis domain={[0, 110]} tick={{ fontSize: 10, fill: "#64748B" }} />
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#64748B" }} />
+              <YAxis domain={[0, 110]} tick={{ fontSize: 11, fill: "#64748B" }} />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "#16233F",
-                  borderRadius: "8px",
+                  borderRadius: "12px",
                   color: "#FFFFFF",
-                  fontSize: "11px",
+                  fontSize: "12px",
                   border: "none",
                 }}
               />
               <Area
                 type="stepAfter"
                 dataKey="adherence"
-                name={isUrdu ? "پابندی" : "Adherence"}
+                name={isUrdu ? "پابندی" : "Adherence (%)"}
                 stroke="#24623F"
                 strokeWidth={2.5}
                 fillOpacity={1}
                 fill="url(#adherenceGrad)"
-                dot={{ r: 3, fill: "#24623F" }}
+                dot={{ r: 4, fill: "#24623F" }}
               />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Return to Home (End of M2 Flow) */}
+      {/* Return to Home (End of Flow) */}
       <div className="pt-2">
         <button
           type="button"
           onClick={returnToHomeAndClearRun}
           id="trends-return-home-btn"
-          className="w-full py-3.5 px-4 bg-navy-800 hover:bg-navy-700 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+          className="w-full min-h-[48px] py-3.5 px-5 bg-navy-800 hover:bg-navy-900 active:scale-[0.99] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
         >
           <Home className="w-4 h-4" />
           <span>{t.finishBtn}</span>
