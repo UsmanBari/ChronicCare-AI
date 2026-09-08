@@ -35,10 +35,57 @@ export const PortalLandingScreen = () => {
   };
 
   return (
-    <div className="w-full pb-16 animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
-      {/* 1. Landing Navigation Sub-Bar */}
-      <nav className="sticky top-[69px] z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-2.5 flex items-center justify-between gap-4">
+    <div className="w-full pb-16 animate-fadeIn relative overflow-hidden" dir={isUrdu ? "rtl" : "ltr"}>
+      {/* Fix 3: Persistent Full-Viewport ECG Heartbeat Background Layer with Traveling Pulse */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <svg className="w-full h-full opacity-[0.14]" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <pattern id="ecg-pattern" x="0" y="0" width="400" height="300" patternUnits="userSpaceOnUse">
+              <path
+                d="M0,150 L120,150 L140,150 L155,90 L170,210 L185,150 L200,150 L400,150"
+                stroke="#0B6E70"
+                strokeWidth="2"
+                fill="none"
+                strokeLinecap="round"
+              />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#ecg-pattern)" />
+        </svg>
+
+        {/* Traveling glowing pulse dot */}
+        <motion.div
+          className="absolute w-3.5 h-3.5 rounded-full bg-teal-400 shadow-[0_0_14px_rgba(23,162,165,0.9)]"
+          animate={{
+            x: ["-5vw", "105vw"],
+            y: ["35vh", "35vh"],
+            opacity: [0, 1, 1, 0],
+          }}
+          transition={{
+            duration: 5,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+        <motion.div
+          className="absolute w-2.5 h-2.5 rounded-full bg-teal-500 shadow-[0_0_10px_rgba(23,162,165,0.7)]"
+          animate={{
+            x: ["-5vw", "105vw"],
+            y: ["75vh", "75vh"],
+            opacity: [0, 1, 1, 0],
+          }}
+          transition={{
+            duration: 6,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 2.5,
+          }}
+        />
+      </div>
+
+      {/* 1. Landing Navigation Sub-Bar (Sticky, max-w-7xl) */}
+      <nav className="sticky top-[69px] z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 md:px-12 py-2.5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-1 sm:gap-6 text-xs font-semibold text-slate-600">
             <button
               onClick={() => scrollToSection("patients")}
@@ -77,32 +124,17 @@ export const PortalLandingScreen = () => {
         </div>
       </nav>
 
-      {/* 2. Enterprise Hero Section */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 pt-8 md:pt-14 pb-12 md:pb-16 relative overflow-hidden">
-        {/* Subtle Background EKG Waveform Motif (Part D) */}
-        <svg
-          className="absolute inset-0 w-full h-full opacity-[0.07] pointer-events-none"
-          viewBox="0 0 800 200"
-          preserveAspectRatio="none"
-        >
-          <path
-            d="M0,100 L150,100 L170,100 L185,35 L200,165 L215,100 L230,100 L400,100 L420,100 L435,50 L450,150 L465,100 L480,100 L800,100"
-            stroke="#0B6E70"
-            strokeWidth="3"
-            fill="none"
-            strokeLinecap="round"
-          />
-        </svg>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center relative z-10">
+      {/* 2. Enterprise Hero Section (Top-aligned, max-w-7xl, tightened top gap) */}
+      <section className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 md:px-12 pt-4 md:pt-6 pb-12 md:pb-16">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start text-left" dir={isUrdu ? "rtl" : "ltr"}>
           {/* Hero Left Content */}
-          <div className="lg:col-span-7 space-y-6">
+          <div className="lg:col-span-7 space-y-5">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold tracking-wide uppercase shadow-2xs">
               <Sparkles className="w-3.5 h-3.5 text-teal-700" />
               <span>{isUrdu ? "دائمی امراض کا ذہین کلینیکل سوٹ" : "Intelligent Chronic Care Suite"}</span>
             </div>
 
-            <h1 className="font-heading text-3xl sm:text-4xl lg:text-[42px] font-bold text-navy-800 leading-[1.2] tracking-tight">
+            <h1 className="font-heading text-3xl sm:text-4xl lg:text-[42px] font-bold text-navy-800 leading-[1.18] tracking-tight">
               {isUrdu
                 ? "دائمی امراض کی نگہداشت اور کلینیکل ہم آہنگی"
                 : "Continuous chronic care with real-time clinical reconciliation."}
@@ -115,14 +147,14 @@ export const PortalLandingScreen = () => {
                 : '"Continuity of care, between every visit."'}
             </p>
 
-            <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-xl">
+            <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl">
               {isUrdu
                 ? "ذیابیطس اور ہائی بلڈ پریشر کے مریضوں کے روزانہ علامات، ہسپتال کے FHIR ریکارڈز کا خودکار موازنہ، اور معالجین کے لیے فوری ٹریاج ورک اسپیس۔"
                 : "A multi-portal platform uniting daily patient symptom monitoring, automated HL7® FHIR® EHR telemetry reconciliation, and clinician-in-the-loop decision support."}
             </p>
 
             {/* Hero CTAs */}
-            <div className="flex flex-wrap items-center gap-3.5 pt-2">
+            <div className="flex flex-wrap items-center gap-3.5 pt-1">
               <button
                 type="button"
                 onClick={() => scrollToSection("portal-picker")}
@@ -142,9 +174,9 @@ export const PortalLandingScreen = () => {
             </div>
           </div>
 
-          {/* Hero Right Visual: Clean Vector SVG Illustration Card */}
-          <div className="lg:col-span-5 flex justify-center">
-            <div className="w-full max-w-md rounded-3xl bg-teal-50/90 border border-teal-200/90 p-6 sm:p-7 shadow-lg relative overflow-hidden">
+          {/* Hero Right Visual: Asymmetric Telemetry Card */}
+          <div className="lg:col-span-5 flex justify-center w-full">
+            <div className="w-full rounded-3xl bg-teal-50/95 border border-teal-200/90 p-6 sm:p-7 shadow-lg relative overflow-hidden">
               {/* Monoline watermark */}
               <div className="absolute top-2 right-2 text-teal-700/10 pointer-events-none">
                 <Activity className="w-44 h-44" strokeWidth={1} />
@@ -199,10 +231,10 @@ export const PortalLandingScreen = () => {
         </div>
       </section>
 
-      {/* 3. Three Product Sections (Glooko-style alternating cards) */}
-      <section className="space-y-12 md:space-y-16 py-8">
+      {/* 3. Three Product Sections (Glooko-style alternating cards, max-w-7xl) */}
+      <section className="relative z-10 space-y-12 md:space-y-16 py-6">
         {/* Product 1: For Patients (Image Left, Text Right) */}
-        <div id="patients" className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 scroll-mt-28">
+        <div id="patients" className="max-w-7xl mx-auto px-4 sm:px-8 md:px-12 scroll-mt-28">
           <div className="surface-card rounded-3xl p-6 sm:p-10 shadow-sm border border-slate-200/90">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               {/* Visual Panel Left */}
@@ -271,7 +303,7 @@ export const PortalLandingScreen = () => {
         </div>
 
         {/* Product 2: For Providers (Text Left, Image Right) */}
-        <div id="providers" className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 scroll-mt-28">
+        <div id="providers" className="max-w-7xl mx-auto px-4 sm:px-8 md:px-12 scroll-mt-28">
           <div className="surface-card rounded-3xl p-6 sm:p-10 shadow-sm border border-slate-200/90">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               {/* Text Content Left */}
@@ -338,7 +370,7 @@ export const PortalLandingScreen = () => {
         </div>
 
         {/* Product 3: For Admins (Image Left, Text Right) */}
-        <div id="admins" className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 scroll-mt-28">
+        <div id="admins" className="max-w-7xl mx-auto px-4 sm:px-8 md:px-12 scroll-mt-28">
           <div className="surface-card rounded-3xl p-6 sm:p-10 shadow-sm border border-slate-200/90">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
               {/* Visual Panel Left */}
@@ -405,8 +437,8 @@ export const PortalLandingScreen = () => {
         </div>
       </section>
 
-      {/* 4. Stats / Credibility Section (Real Project Facts) */}
-      <section id="stats" className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-8 scroll-mt-28">
+      {/* 4. Stats / Credibility Section (Real Project Facts, max-w-7xl) */}
+      <section id="stats" className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 md:px-12 py-8 scroll-mt-28">
         <div className="bg-gradient-to-br from-navy-900 via-navy-800 to-teal-900 rounded-3xl p-8 sm:p-10 text-white shadow-xl border border-teal-500/30">
           <div className="text-center max-w-xl mx-auto mb-8">
             <span className="text-xs font-bold uppercase tracking-widest text-teal-300 block mb-1">
@@ -453,8 +485,8 @@ export const PortalLandingScreen = () => {
         </div>
       </section>
 
-      {/* 5. Trust / Standards Section */}
-      <section id="standards" className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-8 scroll-mt-28">
+      {/* 5. Trust / Standards Section (max-w-7xl) */}
+      <section id="standards" className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 md:px-12 py-8 scroll-mt-28">
         <div className="text-center max-w-xl mx-auto mb-8">
           <span className="text-xs font-bold uppercase tracking-widest text-teal-700 block mb-1">
             {isUrdu ? "تکنیکی اور طبی بنیادیں" : "CLINICAL & TECHNICAL FOUNDATIONS"}
@@ -507,8 +539,8 @@ export const PortalLandingScreen = () => {
         </div>
       </section>
 
-      {/* 6. Portal Picker Section (Interactive Prototype Entrance) */}
-      <section id="portal-picker" className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 pt-10 scroll-mt-28">
+      {/* 6. Portal Picker Section (Interactive Prototype Entrance, max-w-7xl) */}
+      <section id="portal-picker" className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 md:px-12 pt-10 scroll-mt-28">
         <div className="text-center max-w-xl mx-auto mb-8">
           <span className="text-xs font-bold uppercase tracking-widest text-teal-700 block mb-1">
             {isUrdu ? "پروٹوٹائپ تک رسائی" : "PROTOTYPE DEMONSTRATION ACCESS"}
@@ -647,9 +679,9 @@ export const PortalLandingScreen = () => {
         </div>
       </section>
 
-      {/* 7. Academic FYP Context Note */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 pt-10 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-xs font-medium">
+      {/* 7. Academic FYP Context Note (max-w-7xl) */}
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 md:px-12 pt-10 text-center">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100/90 border border-slate-200 text-slate-600 text-xs font-medium backdrop-blur-xs">
           <span>FYP-1 Proposal Defense</span>
           <span>•</span>
           <span>FAST-NUCES Department of Computer Science</span>

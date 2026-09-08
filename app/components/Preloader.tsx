@@ -23,11 +23,11 @@ export const Preloader = ({ onComplete }: { onComplete: () => void }) => {
       if (pct < 100) {
         frameId = requestAnimationFrame(tick);
       } else {
-        // Trigger the brief Welcome beat (Part C)
+        // Trigger the brief Welcome beat (Hold for 2.8s)
         setShowWelcome(true);
         setTimeout(() => {
           onComplete();
-        }, 650);
+        }, 2800);
       }
     };
 
@@ -56,7 +56,7 @@ export const Preloader = ({ onComplete }: { onComplete: () => void }) => {
     <motion.div
       initial={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.45, ease: "easeInOut" }}
+      transition={{ duration: 1.0, ease: "easeInOut" }}
       className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0A0F1C] select-none overflow-hidden px-4 text-center"
     >
       {/* Part B: Full-screen Animated Heartbeat / EKG Waveform in Background */}
@@ -139,7 +139,7 @@ export const Preloader = ({ onComplete }: { onComplete: () => void }) => {
             initial={{ opacity: 0, scale: 0.92, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 1.04 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
+            transition={{ duration: 0.99, ease: "easeOut" }}
             className="relative z-10 flex flex-col items-center justify-center text-center space-y-4 max-w-xl mx-auto"
           >
             <div className="w-16 h-16 rounded-2xl bg-teal-500/20 border border-teal-400/50 flex items-center justify-center text-teal-300 mb-2 shadow-xl shadow-teal-500/30">
