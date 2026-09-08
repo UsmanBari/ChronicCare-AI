@@ -78,8 +78,23 @@ export const PortalLandingScreen = () => {
       </nav>
 
       {/* 2. Enterprise Hero Section */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 pt-8 md:pt-14 pb-12 md:pb-16">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 pt-8 md:pt-14 pb-12 md:pb-16 relative overflow-hidden">
+        {/* Subtle Background EKG Waveform Motif (Part D) */}
+        <svg
+          className="absolute inset-0 w-full h-full opacity-[0.07] pointer-events-none"
+          viewBox="0 0 800 200"
+          preserveAspectRatio="none"
+        >
+          <path
+            d="M0,100 L150,100 L170,100 L185,35 L200,165 L215,100 L230,100 L400,100 L420,100 L435,50 L450,150 L465,100 L480,100 L800,100"
+            stroke="#0B6E70"
+            strokeWidth="3"
+            fill="none"
+            strokeLinecap="round"
+          />
+        </svg>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center relative z-10">
           {/* Hero Left Content */}
           <div className="lg:col-span-7 space-y-6">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 border border-teal-200 text-teal-800 text-xs font-bold tracking-wide uppercase shadow-2xs">
@@ -403,22 +418,34 @@ export const PortalLandingScreen = () => {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs">
+            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs flex flex-col items-center">
+              <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-teal-300 mb-2">
+                <Layers className="w-5 h-5" />
+              </div>
               <div className="font-heading text-3xl sm:text-4xl font-bold text-teal-300 mb-1">5</div>
               <div className="text-xs text-slate-200 font-semibold uppercase tracking-wider">Milestones Built & Demonstrated</div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs">
+            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs flex flex-col items-center">
+              <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-teal-300 mb-2">
+                <Activity className="w-5 h-5" />
+              </div>
               <div className="font-heading text-3xl sm:text-4xl font-bold text-teal-300 mb-1">3</div>
               <div className="text-xs text-slate-200 font-semibold uppercase tracking-wider">Live Interactive Demo Scenarios</div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs">
+            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs flex flex-col items-center">
+              <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-teal-300 mb-2">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
               <div className="font-heading text-3xl sm:text-4xl font-bold text-teal-300 mb-1">7 / 7</div>
               <div className="text-xs text-slate-200 font-semibold uppercase tracking-wider">Backend Verification Tests Passed</div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs">
+            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs flex flex-col items-center">
+              <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-400/30 flex items-center justify-center text-teal-300 mb-2">
+                <Database className="w-5 h-5" />
+              </div>
               <div className="font-heading text-3xl sm:text-4xl font-bold text-teal-300 mb-1">2</div>
               <div className="text-xs text-slate-200 font-semibold uppercase tracking-wider">Modes: FHIR Sync & Fully Offline</div>
             </div>
