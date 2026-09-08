@@ -62,26 +62,26 @@ export const AdaptiveInterviewScreen = () => {
   };
 
   return (
-    <div className="w-full max-w-lg mx-auto bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-fadeIn">
+    <div className="w-full max-w-lg mx-auto glass-raised rounded-3xl border border-slate-200/90 shadow-2xl overflow-hidden animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
       {/* Header */}
-      <div className="bg-navy-800 p-6 text-white text-center relative overflow-hidden">
-        <div className="absolute -top-10 -right-10 w-32 h-32 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-teal-500/20 text-teal-300 text-[10px] font-bold uppercase tracking-wider mb-2">
-          <Sparkles className="w-3 h-3" />
+      <div className="bg-gradient-to-br from-navy-800 via-navy-800 to-teal-800 p-6 sm:p-7 text-white text-center relative overflow-hidden">
+        <div className="absolute -top-10 -right-10 w-36 h-36 bg-teal-400/15 rounded-full blur-2xl pointer-events-none" />
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/25 text-teal-200 text-xs font-bold uppercase tracking-wider mb-2.5">
+          <Sparkles className="w-3.5 h-3.5" />
           <span>{t.questionCount}</span>
         </div>
-        <h1 className="font-heading text-2xl font-bold mb-1">{t.adaptiveInterviewTitle}</h1>
-        <p className="text-xs text-slate-300 max-w-md mx-auto">{t.adaptiveInterviewSubtitle}</p>
+        <h1 className="font-heading text-2xl sm:text-[26px] font-bold mb-1.5">{t.adaptiveInterviewTitle}</h1>
+        <p className="text-sm text-slate-200 max-w-md mx-auto leading-relaxed">{t.adaptiveInterviewSubtitle}</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-6">
+      <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-6">
         {/* QUESTION 1 */}
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 transition-all">
-          <div className="flex items-start gap-2.5">
-            <span className="w-6 h-6 rounded-full bg-navy-800 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+        <div className="p-5 rounded-2xl bg-slate-50/90 border border-slate-200 space-y-4 transition-all">
+          <div className="flex items-start gap-3">
+            <span className="w-7 h-7 rounded-full bg-navy-800 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
               1
             </span>
-            <p className="text-sm font-semibold text-navy-800 leading-relaxed flex-1">
+            <p className="text-base font-semibold text-navy-800 leading-relaxed flex-1">
               {t.q1Text}
             </p>
           </div>
@@ -91,7 +91,7 @@ export const AdaptiveInterviewScreen = () => {
               type="button"
               id="q1-yes-btn"
               onClick={() => handleQ1Select(true)}
-              className={`py-2.5 px-4 rounded-xl text-sm font-semibold border-2 transition-all ${
+              className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${
                 q1Thirst === true
                   ? "bg-teal-700 text-white border-teal-700 shadow-md"
                   : "bg-white text-navy-800 border-slate-200 hover:border-teal-600 hover:bg-teal-50/50"
@@ -103,7 +103,7 @@ export const AdaptiveInterviewScreen = () => {
               type="button"
               id="q1-no-btn"
               onClick={() => handleQ1Select(false)}
-              className={`py-2.5 px-4 rounded-xl text-sm font-semibold border-2 transition-all ${
+              className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${
                 q1Thirst === false
                   ? "bg-navy-800 text-white border-navy-800 shadow-md"
                   : "bg-white text-navy-800 border-slate-200 hover:border-slate-400 hover:bg-slate-100/50"
@@ -116,16 +116,16 @@ export const AdaptiveInterviewScreen = () => {
 
         {/* QUESTION 2 (Follow-up ONLY if Q1 is YES) */}
         {q1Thirst === true && (
-          <div className="p-4 rounded-2xl bg-teal-50/60 border border-teal-200 space-y-3 transition-all animate-fadeIn">
-            <div className="flex items-start gap-2.5">
-              <span className="w-6 h-6 rounded-full bg-teal-700 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+          <div className="p-5 rounded-2xl bg-teal-50/70 border border-teal-300 space-y-4 transition-all animate-fadeIn">
+            <div className="flex items-start gap-3">
+              <span className="w-7 h-7 rounded-full bg-teal-700 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
                 2
               </span>
               <div className="flex-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 block mb-0.5">
+                <span className="text-xs font-bold uppercase tracking-wider text-teal-800 block mb-0.5">
                   Follow-up Question
                 </span>
-                <p className="text-sm font-semibold text-navy-800 leading-relaxed">
+                <p className="text-base font-semibold text-navy-800 leading-relaxed">
                   {t.q2Text}
                 </p>
               </div>
@@ -136,7 +136,7 @@ export const AdaptiveInterviewScreen = () => {
                 type="button"
                 id="q2-yes-btn"
                 onClick={() => handleQ2Select(true)}
-                className={`py-2.5 px-4 rounded-xl text-sm font-semibold border-2 transition-all ${
+                className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${
                   q2Urination === true
                     ? "bg-teal-700 text-white border-teal-700 shadow-md"
                     : "bg-white text-navy-800 border-teal-200 hover:border-teal-600 hover:bg-teal-100/50"
@@ -148,7 +148,7 @@ export const AdaptiveInterviewScreen = () => {
                 type="button"
                 id="q2-no-btn"
                 onClick={() => handleQ2Select(false)}
-                className={`py-2.5 px-4 rounded-xl text-sm font-semibold border-2 transition-all ${
+                className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${
                   q2Urination === false
                     ? "bg-navy-800 text-white border-navy-800 shadow-md"
                     : "bg-white text-navy-800 border-teal-200 hover:border-slate-400 hover:bg-slate-100/50"
@@ -162,23 +162,23 @@ export const AdaptiveInterviewScreen = () => {
 
         {/* QUESTION 3 (Shown for both paths) */}
         {isQ1Answered && (
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 transition-all animate-fadeIn">
-            <div className="flex items-start gap-2.5">
-              <span className="w-6 h-6 rounded-full bg-navy-800 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+          <div className="p-5 rounded-2xl bg-slate-50/90 border border-slate-200 space-y-4 transition-all animate-fadeIn">
+            <div className="flex items-start gap-3">
+              <span className="w-7 h-7 rounded-full bg-navy-800 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
                 {q1Thirst === true ? "3" : "2"}
               </span>
-              <p className="text-sm font-semibold text-navy-800 leading-relaxed flex-1">
+              <p className="text-base font-semibold text-navy-800 leading-relaxed flex-1">
                 {t.q3Text}
               </p>
             </div>
 
-            <div className="space-y-2 pt-1">
+            <div className="space-y-3 pt-1">
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   id="q3-yes-btn"
                   onClick={() => handleQ3Select("yes")}
-                  className={`py-2.5 px-4 rounded-xl text-sm font-semibold border-2 transition-all ${
+                  className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${
                     q3MissedMeds === "yes"
                       ? "bg-amber-800 text-white border-amber-800 shadow-md"
                       : "bg-white text-navy-800 border-slate-200 hover:border-amber-800 hover:bg-amber-50/50"
@@ -190,7 +190,7 @@ export const AdaptiveInterviewScreen = () => {
                   type="button"
                   id="q3-no-btn"
                   onClick={() => handleQ3Select("no")}
-                  className={`py-2.5 px-4 rounded-xl text-sm font-semibold border-2 transition-all ${
+                  className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${
                     q3MissedMeds === "no"
                       ? "bg-mutedGreen-800 text-white border-mutedGreen-800 shadow-md"
                       : "bg-white text-navy-800 border-slate-200 hover:border-mutedGreen-800 hover:bg-mutedGreen-50/50"
@@ -205,10 +205,10 @@ export const AdaptiveInterviewScreen = () => {
                 type="button"
                 id="q3-prefer-not-btn"
                 onClick={() => handleQ3Select("prefer_not_to_answer")}
-                className={`w-full py-2 px-3 rounded-xl text-xs font-medium border transition-all text-center ${
+                className={`w-full min-h-[44px] py-2.5 px-4 rounded-xl text-xs font-semibold border transition-all text-center flex items-center justify-center ${
                   q3MissedMeds === "prefer_not_to_answer"
                     ? "bg-slate-700 text-white border-slate-700 shadow-sm"
-                    : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 hover:text-navy-800"
+                    : "bg-white text-slate-600 border-slate-300 hover:bg-slate-100 hover:text-navy-800"
                 }`}
               >
                 {t.preferNotToAnswer}
@@ -223,7 +223,7 @@ export const AdaptiveInterviewScreen = () => {
             type="button"
             onClick={() => setScreen("checkin_entry")}
             id="back-to-checkin-btn"
-            className="px-4 py-3 border border-slate-300 text-slate-700 font-semibold text-sm rounded-xl hover:bg-slate-100 transition-all flex items-center gap-1.5"
+            className="min-h-[48px] px-5 py-3 border border-slate-300 bg-white text-slate-700 font-semibold text-sm rounded-xl hover:bg-slate-50 transition-all flex items-center gap-2 shadow-xs"
           >
             <ArrowLeft className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
             <span>{t.back}</span>
@@ -233,7 +233,7 @@ export const AdaptiveInterviewScreen = () => {
             type="submit"
             disabled={!canSubmit}
             id="submit-checkin-btn"
-            className={`flex-1 py-3 px-4 font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${
+            className={`flex-1 min-h-[48px] py-3 px-5 font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${
               canSubmit
                 ? "bg-teal-700 hover:bg-teal-600 active:scale-[0.99] text-white shadow-teal-700/20"
                 : "bg-slate-200 text-slate-400 cursor-not-allowed"

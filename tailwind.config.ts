@@ -38,6 +38,12 @@ const config: Config = {
           100: "#EAF5EF",
           50: "#F4FAF6",
         },
+        emergencyRed: {
+          800: "#B0362C", // Reserved strictly for emergencies
+          700: "#C93E33",
+          100: "#FBEAE8",
+          50: "#FCF5F4",
+        },
       },
       fontFamily: {
         serif: ["Cambria", "Georgia", "serif"],

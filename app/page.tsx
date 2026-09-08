@@ -51,47 +51,108 @@ export default function App() {
       <UnifiedSettingsModal />
 
       {/* Main Flow Viewport */}
-      <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 md:p-8">
+      <main className="flex-1 w-full">
         {/* Landing Portal Selection */}
         {portal === "landing" && <PortalLandingScreen />}
 
         {/* Patient Portal Flow */}
         {portal === "patient" && (
-          <div className="w-full max-w-xl">
-            {screen === "login" && <LoginScreen />}
-            {screen === "connection" && <ConnectionScreen />}
-            {screen === "profile" && <HealthProfileScreen />}
-            {screen === "home" && <HomeScreen />}
-            {screen === "checkin_entry" && <CheckInEntryScreen />}
-            {screen === "adaptive_interview" && <AdaptiveInterviewScreen />}
-            {screen === "confirmation" && <ConfirmationScreen />}
-            {screen === "processing" && <ProcessingScreen />}
-            {screen === "risk_result" && <RiskResultScreen />}
-            {screen === "trends" && <TrendScreen />}
-            {screen === "conflict_detail" && <ConflictScreen />}
-            {screen === "conflict_review" && <RoutedToReviewScreen />}
-            {screen === "emergency" && <EmergencyScreen />}
-            {screen === "appointments" && <PatientAppointmentsScreen />}
+          <div className="w-full">
+            {/* Narrow / Auth & Interview Screens */}
+            {(screen === "login" ||
+              screen === "connection" ||
+              screen === "profile" ||
+              screen === "checkin_entry" ||
+              screen === "adaptive_interview" ||
+              screen === "confirmation" ||
+              screen === "processing" ||
+              screen === "risk_result" ||
+              screen === "conflict_detail" ||
+              screen === "conflict_review" ||
+              screen === "emergency") && (
+              <div className="max-w-xl mx-auto px-4 sm:px-6 py-6 md:py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
+                {screen === "login" && <LoginScreen />}
+                {screen === "connection" && <ConnectionScreen />}
+                {screen === "profile" && <HealthProfileScreen />}
+                {screen === "checkin_entry" && <CheckInEntryScreen />}
+                {screen === "adaptive_interview" && <AdaptiveInterviewScreen />}
+                {screen === "confirmation" && <ConfirmationScreen />}
+                {screen === "processing" && <ProcessingScreen />}
+                {screen === "risk_result" && <RiskResultScreen />}
+                {screen === "conflict_detail" && <ConflictScreen />}
+                {screen === "conflict_review" && <RoutedToReviewScreen />}
+                {screen === "emergency" && <EmergencyScreen />}
+              </div>
+            )}
+
+            {/* Dashboard & Content Rich Patient Screens */}
+            {screen === "home" && (
+              <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 md:py-8">
+                <HomeScreen />
+              </div>
+            )}
+            {screen === "trends" && (
+              <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 md:py-8">
+                <TrendScreen />
+              </div>
+            )}
+            {screen === "appointments" && (
+              <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 md:py-8">
+                <PatientAppointmentsScreen />
+              </div>
+            )}
           </div>
         )}
 
         {/* Provider Portal Flow */}
         {portal === "provider" && (
           <div className="w-full">
-            {providerScreen === "login" && <ProviderLoginScreen />}
-            {providerScreen === "dashboard" && <ProviderDashboardScreen />}
-            {providerScreen === "review_queue" && <ReviewQueueScreen />}
-            {providerScreen === "reconciliation_alert" && <ReconciliationAlertDetail />}
-            {providerScreen === "patient_detail" && <PatientDetailScreen />}
-            {providerScreen === "schedule_appointment" && <AppointmentSchedulingScreen />}
+            {providerScreen === "login" && (
+              <div className="max-w-md mx-auto px-4 py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
+                <ProviderLoginScreen />
+              </div>
+            )}
+            {providerScreen === "dashboard" && (
+              <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+                <ProviderDashboardScreen />
+              </div>
+            )}
+            {providerScreen === "review_queue" && (
+              <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+                <ReviewQueueScreen />
+              </div>
+            )}
+            {providerScreen === "reconciliation_alert" && (
+              <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+                <ReconciliationAlertDetail />
+              </div>
+            )}
+            {providerScreen === "patient_detail" && (
+              <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+                <PatientDetailScreen />
+              </div>
+            )}
+            {providerScreen === "schedule_appointment" && (
+              <div className="max-w-3xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+                <AppointmentSchedulingScreen />
+              </div>
+            )}
           </div>
         )}
 
         {/* Admin Portal Flow */}
         {portal === "admin" && (
           <div className="w-full">
-            {adminScreen === "login" && <AdminLoginScreen />}
-            {adminScreen === "dashboard" && <AdminDashboardScreen />}
+            {adminScreen === "login" && (
+              <div className="max-w-md mx-auto px-4 py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
+                <AdminLoginScreen />
+              </div>
+            )}
+            {adminScreen === "dashboard" && (
+              <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
+                <AdminDashboardScreen />
+              </div>
+            )}
           </div>
         )}
       </main>

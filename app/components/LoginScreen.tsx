@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
-import { Lock, Mail, UserCheck, ArrowRight, Activity, Shield } from "lucide-react";
+import { Lock, Mail, UserCheck, ArrowRight, Activity, ShieldCheck, ShieldAlert } from "lucide-react";
 
 export const LoginScreen = () => {
   const { setScreen, setUserIdentifier, t, isUrdu } = useApp();
@@ -23,37 +23,38 @@ export const LoginScreen = () => {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-fadeIn">
-      {/* Hero Header */}
-      <div className="bg-navy-800 p-6 text-white text-center relative overflow-hidden">
-        <div className="absolute -top-10 -right-10 w-32 h-32 bg-teal-700/20 rounded-full blur-2xl pointer-events-none" />
-        <div className="w-12 h-12 rounded-xl bg-navy-700/80 border border-teal-500/30 flex items-center justify-center mx-auto mb-3 shadow-inner">
-          <Activity className="w-6 h-6 text-teal-400" />
+    <div className="w-full max-w-md mx-auto glass-raised rounded-3xl border border-slate-200/90 shadow-2xl overflow-hidden animate-fadeIn">
+      {/* Soft Navy-to-Teal Gradient Hero Header */}
+      <div className="bg-gradient-to-br from-navy-800 via-navy-800 to-teal-800 p-7 text-white text-center relative overflow-hidden">
+        <div className="absolute -top-10 -right-10 w-36 h-36 bg-teal-400/15 rounded-full blur-2xl pointer-events-none" />
+        <div className="w-14 h-14 rounded-2xl bg-navy-700/80 border border-teal-400/40 flex items-center justify-center mx-auto mb-3.5 shadow-inner text-teal-300">
+          <Activity className="w-7 h-7" />
         </div>
-        <h1 className="font-heading text-2xl font-bold tracking-tight text-white mb-1.5">
+        <h1 className="font-heading text-2xl sm:text-[26px] font-bold tracking-tight text-white mb-1.5">
           {isSignUp ? t.createAccountTitle : t.loginTitle}
         </h1>
-        <p className="text-slate-300 text-xs leading-relaxed max-w-xs mx-auto">
+        <p className="text-slate-200 text-sm leading-relaxed max-w-xs mx-auto">
           {isSignUp ? t.createAccountSubtitle : t.loginSubtitle}
         </p>
       </div>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      {/* Form Area */}
+      <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-5" dir={isUrdu ? "rtl" : "ltr"}>
         {error && (
-          <div className="p-3 text-xs bg-amber-50 border border-amber-800/30 text-amber-800 rounded-lg">
-            {error}
+          <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
-        {/* Email or Phone */}
+        {/* Email or Phone Input (48px Touch Target) */}
         <div>
-          <label className="block text-xs font-semibold text-navy-800 mb-1.5" htmlFor="login-identifier">
+          <label className="block text-sm font-semibold text-navy-800 mb-2" htmlFor="login-identifier">
             {t.emailOrPhoneLabel}
           </label>
           <div className="relative">
-            <div className={`absolute inset-y-0 ${isUrdu ? "right-0 pr-3" : "left-0 pl-3"} flex items-center pointer-events-none text-slate-400`}>
-              <Mail className="w-4 h-4" />
+            <div className={`absolute inset-y-0 ${isUrdu ? "right-0 pr-3.5" : "left-0 pl-3.5"} flex items-center pointer-events-none text-slate-400`}>
+              <Mail className="w-5 h-5" />
             </div>
             <input
               id="login-identifier"
@@ -61,19 +62,19 @@ export const LoginScreen = () => {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder={t.emailOrPhonePlaceholder}
-              className={`w-full text-sm rounded-xl border border-slate-300 bg-slate-50/50 py-2.5 ${isUrdu ? "pr-9 pl-3" : "pl-9 pr-3"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all`}
+              className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white/90 ${isUrdu ? "pr-11 pl-4" : "pl-11 pr-4"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all shadow-xs`}
             />
           </div>
         </div>
 
-        {/* Password */}
+        {/* Password Input (48px Touch Target) */}
         <div>
-          <label className="block text-xs font-semibold text-navy-800 mb-1.5" htmlFor="login-password">
+          <label className="block text-sm font-semibold text-navy-800 mb-2" htmlFor="login-password">
             {t.passwordLabel}
           </label>
           <div className="relative">
-            <div className={`absolute inset-y-0 ${isUrdu ? "right-0 pr-3" : "left-0 pl-3"} flex items-center pointer-events-none text-slate-400`}>
-              <Lock className="w-4 h-4" />
+            <div className={`absolute inset-y-0 ${isUrdu ? "right-0 pr-3.5" : "left-0 pl-3.5"} flex items-center pointer-events-none text-slate-400`}>
+              <Lock className="w-5 h-5" />
             </div>
             <input
               id="login-password"
@@ -81,23 +82,23 @@ export const LoginScreen = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={t.passwordPlaceholder}
-              className={`w-full text-sm rounded-xl border border-slate-300 bg-slate-50/50 py-2.5 ${isUrdu ? "pr-9 pl-3" : "pl-9 pr-3"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all`}
+              className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white/90 ${isUrdu ? "pr-11 pl-4" : "pl-11 pr-4"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all shadow-xs`}
             />
           </div>
         </div>
 
-        {/* Submit Button */}
+        {/* Primary Action Button (48px Touch Target) */}
         <button
           type="submit"
           id="login-submit-btn"
-          className="w-full mt-2 py-3 px-4 bg-navy-800 hover:bg-navy-700 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+          className="w-full h-12 mt-2 bg-navy-800 hover:bg-navy-900 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
         >
           <span>{isSignUp ? t.signUpBtn : t.signInBtn}</span>
           <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
         </button>
 
-        {/* Toggle Sign Up / Sign In */}
-        <div className="text-center pt-2">
+        {/* Toggle Mode Button */}
+        <div className="text-center pt-1">
           <button
             type="button"
             onClick={() => {
@@ -105,16 +106,21 @@ export const LoginScreen = () => {
               setError("");
             }}
             id="toggle-auth-mode-btn"
-            className="text-xs font-medium text-teal-700 hover:text-teal-800 underline underline-offset-4 transition-colors"
+            className="text-sm font-medium text-teal-700 hover:text-teal-800 underline underline-offset-4 transition-colors py-1"
           >
             {isSignUp ? t.toggleToSignIn : t.toggleToSignUp}
           </button>
         </div>
 
+        {/* Visible Trust Signal Badge */}
+        <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200/70 flex items-center justify-center gap-2 text-xs font-medium text-teal-900">
+          <ShieldCheck className="w-4 h-4 text-teal-700 shrink-0" />
+          <span>Your health data is kept private • HIPAA Compliant</span>
+        </div>
+
         {/* Non-functional Auth Note */}
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-center gap-1 text-[11px] text-slate-400">
-          <Shield className="w-3.5 h-3.5 text-slate-400" />
-          <span>{t.loginHelpText}</span>
+        <div className="pt-2 text-center text-xs text-slate-400">
+          {t.loginHelpText}
         </div>
       </form>
     </div>

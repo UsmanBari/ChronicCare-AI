@@ -33,8 +33,8 @@ export const RiskBadge: React.FC<RiskBadgeProps> = ({ riskLevel, size = "md" }) 
     high: {
       label: t.riskHighTitle,
       icon: AlertOctagon,
-      badgeClasses: "bg-red-100 text-red-800 border-red-800/30",
-      dotClass: "bg-red-600",
+      badgeClasses: "bg-emergencyRed-100 text-emergencyRed-800 border-emergencyRed-800/40",
+      dotClass: "bg-emergencyRed-800",
     },
   };
 
