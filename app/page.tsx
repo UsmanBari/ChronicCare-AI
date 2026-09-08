@@ -79,27 +79,29 @@ export default function App() {
       {/* Unified Settings Modal (Global) */}
       <UnifiedSettingsModal />
 
-      {/* Non-Blocking Floating Evaluator Toast on Landing (Optional non-intrusive nudge) */}
+      {/* Non-Blocking Floating Evaluator Toast on Landing (Responsive full-width bottom bar on mobile, floating card on desktop) */}
       {hasLoaded && !showTour && !dismissTourToast && portal === "landing" && (
         <motion.div
           initial={{ opacity: 0, y: 20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 15 }}
           transition={{ duration: 0.35, delay: 0.5 }}
-          className="fixed bottom-14 right-4 sm:right-6 z-40 max-w-sm bg-white/95 backdrop-blur-md border border-teal-200/90 rounded-2xl p-3.5 shadow-xl flex items-center gap-3"
+          className="fixed bottom-0 left-0 right-0 md:bottom-14 md:right-6 md:left-auto z-40 w-full md:w-auto md:max-w-sm bg-white/95 backdrop-blur-md border-t md:border border-teal-200/90 rounded-none md:rounded-2xl p-3 md:p-3.5 shadow-2xl md:shadow-xl flex items-center justify-between gap-3"
         >
-          <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <span className="text-xs font-bold text-navy-800 block">Evaluator Guided Tour</span>
-            <span className="text-[11px] text-slate-500 block leading-tight">1-minute walkthrough of FYP demo capabilities</span>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-xs font-bold text-navy-800 block truncate">Evaluator Guided Tour</span>
+              <span className="text-[11px] text-slate-500 block leading-tight truncate">1-min FYP demo walkthrough</span>
+            </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => setShowTour(true)}
-              className="px-2.5 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-semibold text-[11px] transition-colors shadow-2xs"
+              className="min-h-[44px] px-3 py-2 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-semibold text-xs transition-colors shadow-2xs flex items-center justify-center"
             >
               Start Tour
             </button>
@@ -107,9 +109,9 @@ export default function App() {
               type="button"
               onClick={() => setDismissTourToast(true)}
               title="Dismiss"
-              className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition-colors"
+              className="min-h-[44px] min-w-[44px] p-2 text-slate-400 hover:text-slate-600 rounded-lg transition-colors flex items-center justify-center"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         </motion.div>

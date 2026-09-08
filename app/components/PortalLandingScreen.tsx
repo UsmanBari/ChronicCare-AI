@@ -154,11 +154,11 @@ export const PortalLandingScreen = () => {
             </p>
 
             {/* Hero CTAs */}
-            <div className="flex flex-wrap items-center gap-3.5 pt-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-1 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => scrollToSection("portal-picker")}
-                className="min-h-[48px] px-6 py-3 bg-teal-700 hover:bg-teal-600 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center gap-2"
+                className="min-h-[48px] px-6 py-3 bg-teal-700 hover:bg-teal-600 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
               >
                 <span>{isUrdu ? "پورٹل میں داخل ہوں" : "Enter Interactive Prototype"}</span>
                 <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
@@ -167,7 +167,7 @@ export const PortalLandingScreen = () => {
               <button
                 type="button"
                 onClick={() => scrollToSection("patients")}
-                className="min-h-[48px] px-5 py-3 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm rounded-xl transition-all shadow-xs"
+                className="min-h-[48px] px-5 py-3 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm rounded-xl transition-all shadow-xs flex items-center justify-center w-full sm:w-auto"
               >
                 {isUrdu ? "پلیٹ فارم کیسے کام کرتا ہے؟" : "See How It Works"}
               </button>
