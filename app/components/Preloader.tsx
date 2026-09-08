@@ -23,11 +23,11 @@ export const Preloader = ({ onComplete }: { onComplete: () => void }) => {
       if (pct < 100) {
         frameId = requestAnimationFrame(tick);
       } else {
-        // Trigger the brief Welcome beat (Hold for 2.8s)
+        // Trigger the brief Welcome beat (Hold for 2.3s)
         setShowWelcome(true);
         setTimeout(() => {
           onComplete();
-        }, 2800);
+        }, 2300);
       }
     };
 

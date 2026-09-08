@@ -555,8 +555,8 @@ export const PortalLandingScreen = () => {
           </p>
         </div>
 
-        {/* Portal Cards: Deliberate Asymmetric Hierarchy */}
-        <div className="space-y-4 max-w-4xl mx-auto">
+        {/* Portal Cards: Deliberate Asymmetric Hierarchy spanning full max-w-7xl width */}
+        <div className="space-y-4 w-full">
           {/* Primary Card: Patient Portal */}
           <motion.button
             whileHover={{ y: -3, scale: 1.005 }}
