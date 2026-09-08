@@ -14,8 +14,8 @@
 
 body {
   background-color: #F8FAFC;
-  background-image: radial-gradient(circle, rgba(22, 35, 63, 0.045) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-image: radial-gradient(circle, rgba(22, 35, 63, 0.08) 1.5px, transparent 1.5px);
+  background-size: 28px 28px;
   color: #16233F;
   min-height: 100vh;
   margin: 0;

@@ -167,79 +167,69 @@ export const PortalLandingScreen = () => {
           </div>
         </div>
 
-        {/* Right Zone: ~42% Decorative Ambient Zone with Living Motion Blobs */}
-        <div className="lg:col-span-5 hidden lg:flex flex-col justify-center items-center relative min-h-[500px] p-6">
+        {/* Right Zone: ~42% Flat Asymmetric Color Block Panel (Option B) */}
+        <div className="lg:col-span-5 hidden lg:flex flex-col justify-center items-center relative min-h-[520px]">
+          {/* Flat Asymmetric Solid Background Panel */}
+          <div className="absolute inset-0 bg-teal-50/90 rounded-3xl border border-teal-200/80 shadow-sm" />
           
-          {/* Layered Blurred Gradient Blobs with Slow Continuous Float Physics */}
-          <motion.div
-            animate={{ x: [0, 24, 0], y: [0, -20, 0] }}
-            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-6 right-2 w-80 h-80 bg-teal-600/20 rounded-full blur-3xl pointer-events-none"
-          />
-          <motion.div
-            animate={{ x: [0, -20, 0], y: [0, 22, 0] }}
-            transition={{ duration: 14, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-            className="absolute bottom-6 left-2 w-72 h-72 bg-navy-800/18 rounded-full blur-3xl pointer-events-none"
-          />
-          <motion.div
-            animate={{ scale: [1, 1.15, 1], opacity: [0.15, 0.25, 0.15] }}
-            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 bg-teal-400/25 rounded-full blur-2xl pointer-events-none"
-          />
+          {/* Subtle monoline watermark */}
+          <div className="absolute top-6 right-6 text-teal-700/10 pointer-events-none">
+            <Activity className="w-48 h-48" strokeWidth={1} />
+          </div>
 
-          {/* Ambient Glass Feature Card */}
+          {/* Clinical Architecture Card */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
-            className="relative z-10 w-full max-w-sm rounded-3xl glass-resting p-7 border border-slate-200/90 shadow-lg space-y-6"
+            transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
+            className="relative z-10 w-full max-w-sm rounded-2xl bg-white/95 p-6 border border-teal-200/90 shadow-md space-y-5 m-4"
           >
-            {/* Watermark Icon */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
               <div className="flex items-center gap-2 text-navy-800">
                 <HeartPulse className="w-5 h-5 text-teal-700" />
-                <span className="font-heading font-bold text-sm">ChronicCare Ecosystem</span>
+                <span className="font-heading font-bold text-sm">ChronicCare Engine</span>
               </div>
-              <span className="px-2.5 py-1 rounded-full bg-mutedGreen-100 text-mutedGreen-800 text-[10px] font-bold flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" /> Active Sync
+              <span className="px-2.5 py-0.5 rounded-full bg-mutedGreen-100 text-mutedGreen-800 text-[10px] font-bold flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3" /> Live
               </span>
             </div>
 
             {/* Feature Badges */}
-            <div className="space-y-3.5 text-xs">
-              <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-white/80 border border-slate-200/70 shadow-2xs">
-                <div className="w-7 h-7 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
+            <div className="space-y-3 text-xs">
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div className="w-6 h-6 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
                   1
                 </div>
                 <div>
-                  <div className="font-bold text-navy-800 text-sm">Adaptive Check-in</div>
-                  <div className="text-slate-500 text-xs mt-0.5">Dynamic clinical interview targeting T2D and Hypertension markers.</div>
+                  <div className="font-bold text-navy-800 text-xs">Adaptive Patient Check-in</div>
+                  <div className="text-slate-500 text-[11px] mt-0.5">Dynamic clinical interview targeting T2D and HTN markers.</div>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-white/80 border border-slate-200/70 shadow-2xs">
-                <div className="w-7 h-7 rounded-xl bg-navy-100 text-navy-800 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div className="w-6 h-6 rounded-lg bg-navy-100 text-navy-800 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
                   2
                 </div>
                 <div>
-                  <div className="font-bold text-navy-800 text-sm">HL7® FHIR® Reconciliation</div>
-                  <div className="text-slate-500 text-xs mt-0.5">Automated detection of telemetry discrepancies against hospital records.</div>
+                  <div className="font-bold text-navy-800 text-xs">HL7® FHIR® Reconciliation</div>
+                  <div className="text-slate-500 text-[11px] mt-0.5">Cross-record discrepancy detection against hospital EHR.</div>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-white/80 border border-slate-200/70 shadow-2xs">
-                <div className="w-7 h-7 rounded-xl bg-mutedGreen-100 text-mutedGreen-800 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div className="w-6 h-6 rounded-lg bg-mutedGreen-100 text-mutedGreen-800 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">
                   3
                 </div>
                 <div>
-                  <div className="font-bold text-navy-800 text-sm">Closed-Loop Care</div>
-                  <div className="text-slate-500 text-xs mt-0.5">Direct provider escalation, follow-up scheduling, and compliance logs.</div>
+                  <div className="font-bold text-navy-800 text-xs">Closed-Loop Care Triage</div>
+                  <div className="text-slate-500 text-[11px] mt-0.5">Direct clinician escalations, scheduling, and compliance logs.</div>
                 </div>
               </div>
             </div>
 
             {/* Subtle Footnote */}
-            <div className="pt-2 text-center text-xs text-slate-400">
+            <div className="pt-1 text-center text-[11px] text-slate-400 font-medium">
               End-to-End Encrypted • HIPAA & WCAG 2.1 AA Aligned
             </div>
           </motion.div>

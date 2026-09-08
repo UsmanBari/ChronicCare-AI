@@ -140,7 +140,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [providerScreen, setProviderScreenState] = useState<ProviderScreenType>("dashboard");
   const [adminScreen, setAdminScreenState] = useState<AdminScreenType>("dashboard");
   const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [showTour, setShowTour] = useState<boolean>(true);
+  const [showTour, setShowTour] = useState<boolean>(false);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
 
   const [language, setLanguage] = useState<Language>("en");
