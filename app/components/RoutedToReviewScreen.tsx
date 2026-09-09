@@ -1,11 +1,24 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
-import { AlertCircle, UserCheck, Home, ArrowLeft, Clock, ShieldCheck } from "lucide-react";
+import { AlertCircle, UserCheck, Home, ArrowLeft, Clock, ShieldCheck, Calendar, CheckCircle2 } from "lucide-react";
 
 export const RoutedToReviewScreen = () => {
-  const { returnToHomeAndClearRun, t, isUrdu } = useApp();
+  const { returnToHomeAndClearRun, appointment, setAppointment, t, isUrdu } = useApp();
+  const [requestedLocal, setRequestedLocal] = useState(appointment.status === "Requested");
+
+  const handleRequestFollowUp = () => {
+    setAppointment({
+      isBooked: true,
+      slot: "Next available — Thu, 10:30 AM",
+      reason: "Patient-requested: flagged for clinical review",
+      provider: "Dr. Sana Malik",
+      status: "Requested",
+      bookedAt: new Date().toISOString(),
+    });
+    setRequestedLocal(true);
+  };
 
   return (
     <div className="w-full max-w-lg mx-auto surface-raised rounded-3xl border border-slate-200 shadow-xl overflow-hidden animate-fadeIn text-center space-y-0" dir={isUrdu ? "rtl" : "ltr"}>
@@ -21,7 +34,7 @@ export const RoutedToReviewScreen = () => {
       </div>
 
       {/* Details Box */}
-      <div className="p-6 sm:p-7 space-y-6">
+      <div className="p-6 sm:p-7 space-y-5">
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-700 leading-relaxed text-left flex items-start gap-3.5">
           <UserCheck className="w-5 h-5 text-teal-700 shrink-0 mt-0.5" />
           <p>{t.routedToReviewDesc}</p>
@@ -34,6 +47,24 @@ export const RoutedToReviewScreen = () => {
           </span>
           <span className="font-bold">Pending Provider Review</span>
         </div>
+
+        {/* Request Follow-Up Appointment CTA */}
+        {requestedLocal ? (
+          <div className="p-4 rounded-2xl bg-mutedGreen-50 border border-mutedGreen-800/30 text-mutedGreen-900 text-sm font-semibold flex items-center justify-center gap-2.5 shadow-2xs animate-fadeIn">
+            <CheckCircle2 className="w-5 h-5 text-mutedGreen-800 shrink-0" />
+            <span>Follow-up consultation requested (Thu, 10:30 AM). Forwarded to Dr. Sana Malik.</span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleRequestFollowUp}
+            id="request-followup-appointment-btn"
+            className="w-full min-h-[48px] py-3.5 px-4 bg-amber-600 hover:bg-amber-700 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+          >
+            <Calendar className="w-4 h-4" />
+            <span>Request Follow-Up Appointment</span>
+          </button>
+        )}
 
         {/* Return to Home button */}
         <button

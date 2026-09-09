@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useApp } from "../../context/AppContext";
 import {
   Shield,
@@ -17,17 +17,24 @@ import {
   Calendar,
   Building2,
   Hospital,
+  Plus,
+  X,
 } from "lucide-react";
 
 export const AdminDashboardScreen = () => {
-  const { setPortal, demoScenario, resolvedCases, appointment, t, isUrdu } = useApp();
+  const { setPortal, demoScenario, resolvedCases, appointment, setAppointment, t, isUrdu } = useApp();
 
   // Active alerts mirrors Provider urgent cases count
   const isAliResolved = resolvedCases.includes("Ali Khan");
   const activeAlertsCount = demoScenario === "emergency" && !isAliResolved ? 1 : 0;
 
-  // Supervisor Requirement (Items 5, 6, 7): Explicit Doctors & Patients with assignment IDs and Clinics
-  const doctors = [
+  // 1a. State-driven Clinics, Doctors, and Patients
+  const [clinics, setClinics] = useState<string[]>([
+    "City General Hospital",
+    "Northside Community Clinic",
+  ]);
+
+  const [doctors, setDoctors] = useState([
     {
       id: "PRV-002",
       name: "Dr. Sana Malik",
@@ -42,9 +49,9 @@ export const AdminDashboardScreen = () => {
       clinic: "Northside Community Clinic",
       assignedPatientIds: ["PAT-033"],
     },
-  ];
+  ]);
 
-  const patients = [
+  const [patients, setPatients] = useState([
     {
       id: "PAT-014",
       name: "Ali Khan",
@@ -66,9 +73,83 @@ export const AdminDashboardScreen = () => {
       clinic: "Northside Community Clinic",
       assignedDoctorId: "PRV-002",
     },
-  ];
+  ]);
 
-  // Supervisor Requirement (Item 8): Admin Schedule View synced with shared appointment context
+  // Form states for creation
+  const [showAddDoctor, setShowAddDoctor] = useState(false);
+  const [newDoctorName, setNewDoctorName] = useState("");
+  const [newDoctorRole, setNewDoctorRole] = useState("Clinical Specialist");
+  const [newDoctorClinic, setNewDoctorClinic] = useState(clinics[0]);
+
+  const [showAddPatient, setShowAddPatient] = useState(false);
+  const [newPatientName, setNewPatientName] = useState("");
+  const [newPatientCondition, setNewPatientCondition] = useState("Type 2 Diabetes");
+  const [newPatientClinic, setNewPatientClinic] = useState(clinics[0]);
+  const [newPatientDoctorId, setNewPatientDoctorId] = useState("PRV-002");
+
+  const [showAddClinic, setShowAddClinic] = useState(false);
+  const [newClinicName, setNewClinicName] = useState("");
+
+  const handleAddDoctor = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDoctorName.trim()) return;
+    const newId = `PRV-${String(doctors.length + 3).padStart(3, "0")}`;
+    const targetClinic = newDoctorClinic || clinics[0];
+    setDoctors([
+      ...doctors,
+      {
+        id: newId,
+        name: newDoctorName.trim(),
+        role: newDoctorRole.trim() || "Clinical Specialist",
+        clinic: targetClinic,
+        assignedPatientIds: [],
+      },
+    ]);
+    setNewDoctorName("");
+    setShowAddDoctor(false);
+  };
+
+  const handleAddPatient = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPatientName.trim()) return;
+    const newId = `PAT-${String(patients.length + 45).padStart(3, "0")}`;
+    const targetDoctorId = newPatientDoctorId || doctors[0]?.id || "PRV-002";
+    const targetClinic = newPatientClinic || clinics[0];
+
+    const newPatient = {
+      id: newId,
+      name: newPatientName.trim(),
+      condition: newPatientCondition.trim() || "Type 2 Diabetes",
+      clinic: targetClinic,
+      assignedDoctorId: targetDoctorId,
+    };
+
+    setPatients([...patients, newPatient]);
+
+    // Update doctor's assignedPatientIds bidirectionally
+    setDoctors(
+      doctors.map((doc) =>
+        doc.id === targetDoctorId
+          ? { ...doc, assignedPatientIds: [...doc.assignedPatientIds, newId] }
+          : doc
+      )
+    );
+
+    setNewPatientName("");
+    setShowAddPatient(false);
+  };
+
+  const handleAddClinic = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClinicName.trim()) return;
+    if (!clinics.includes(newClinicName.trim())) {
+      setClinics([...clinics, newClinicName.trim()]);
+    }
+    setNewClinicName("");
+    setShowAddClinic(false);
+  };
+
+  // Schedule Entries synced with shared appointment context
   const scheduleEntries = [
     {
       id: "SCH-101",
@@ -107,7 +188,8 @@ export const AdminDashboardScreen = () => {
 
   const auditLogs = [
     { action: "Dr. Sana Malik reviewed Ali Khan's case", time: "2:14 PM", type: "Clinical Review" },
-    { action: "Admin changed role permissions for Telemetry Worker", time: "1:48 PM", type: "Security" },
+    { action: "Admin registered new Clinic endpoint", time: "2:02 PM", type: "Configuration" },
+    { action: "Admin updated staff assignment roster", time: "1:48 PM", type: "Security" },
     { action: "Ali Khan connected FHIR source (City General Hospital)", time: "1:31 PM", type: "Integration" },
     { action: "HL7® FHIR® Interface handshake validated (Endpoint 200 OK)", time: "1:00 PM", type: "System" },
   ];
@@ -156,7 +238,7 @@ export const AdminDashboardScreen = () => {
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
             {t.statProviders}
           </span>
-          <div className="text-3xl font-bold text-teal-700 font-sans mt-1">18</div>
+          <div className="text-3xl font-bold text-teal-700 font-sans mt-1">{doctors.length}</div>
         </div>
 
         {/* Stat 3: Patients */}
@@ -164,10 +246,10 @@ export const AdminDashboardScreen = () => {
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
             {t.statPatients}
           </span>
-          <div className="text-3xl font-bold text-navy-800 font-sans mt-1">108</div>
+          <div className="text-3xl font-bold text-navy-800 font-sans mt-1">{patients.length + 105}</div>
         </div>
 
-        {/* Stat 4: Active Alerts (Color + Icon + Label) */}
+        {/* Stat 4: Active Alerts */}
         <div
           key={`admin-alert-${activeAlertsCount}`}
           className={`rounded-2xl border p-5 text-center shadow-xs transition-all duration-500 animate-fadeIn ${
@@ -198,7 +280,71 @@ export const AdminDashboardScreen = () => {
         </div>
       </div>
 
-      {/* Section A: Clinical Staff & Enrolled Patients (Explicit Assignment Relationships & Clinics) */}
+      {/* Clinic Management Banner (Item 7 & Fix 1) */}
+      <div className="glass-resting rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-200/90 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
+          <div className="flex items-center gap-2 text-navy-800 font-heading font-bold text-base">
+            <Building2 className="w-5 h-5 text-teal-700" />
+            <span>Connected Healthcare Clinics & Centers</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAddClinic(!showAddClinic)}
+            id="add-clinic-btn"
+            className="min-h-[36px] text-xs font-bold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1.5 rounded-xl transition-colors inline-flex items-center gap-1.5 self-start sm:self-auto"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Clinic</span>
+          </button>
+        </div>
+
+        {/* Inline Add Clinic Form */}
+        {showAddClinic && (
+          <form onSubmit={handleAddClinic} className="p-3.5 rounded-2xl bg-teal-50/80 border border-teal-200 flex flex-col sm:flex-row items-center gap-3 animate-fadeIn">
+            <input
+              type="text"
+              placeholder="e.g. South Suburban Health Center"
+              value={newClinicName}
+              onChange={(e) => setNewClinicName(e.target.value)}
+              id="new-clinic-name-input"
+              className="w-full flex-1 px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs text-navy-800 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+              required
+            />
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="submit"
+                id="save-clinic-btn"
+                className="flex-1 sm:flex-none min-h-[38px] px-4 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold transition-colors shadow-2xs"
+              >
+                Save Clinic
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddClinic(false)}
+                className="p-2 rounded-xl text-slate-500 hover:bg-slate-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Clinics Chips */}
+        <div className="flex flex-wrap gap-2 pt-1">
+          {clinics.map((clinic, idx) => (
+            <div
+              key={idx}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-slate-200/90 text-navy-800 text-xs font-semibold shadow-2xs"
+            >
+              <Hospital className="w-3.5 h-3.5 text-teal-700" />
+              <span>{clinic}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Section A: Clinical Staff & Enrolled Patients (Interactive Creation) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
         {/* Doctors Directory */}
         <div className="glass-resting rounded-3xl p-6 sm:p-7 shadow-sm space-y-4">
@@ -207,10 +353,66 @@ export const AdminDashboardScreen = () => {
               <Stethoscope className="w-5 h-5 text-teal-700" />
               <span>Attending Clinical Providers</span>
             </h2>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 font-bold">
-              {doctors.length} Attending
-            </span>
+            <button
+              type="button"
+              onClick={() => setShowAddDoctor(!showAddDoctor)}
+              id="add-doctor-btn"
+              className="text-xs font-bold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1.5 rounded-xl transition-colors inline-flex items-center gap-1"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Doctor</span>
+            </button>
           </div>
+
+          {/* Inline Add Doctor Form */}
+          {showAddDoctor && (
+            <form onSubmit={handleAddDoctor} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-navy-800">Register New Clinical Provider</span>
+                <button type="button" onClick={() => setShowAddDoctor(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="Doctor Full Name (e.g. Dr. Haris Farooq)"
+                  value={newDoctorName}
+                  onChange={(e) => setNewDoctorName(e.target.value)}
+                  id="new-doctor-name-input"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs text-navy-800 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                  required
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Specialty (e.g. Nephrologist)"
+                    value={newDoctorRole}
+                    onChange={(e) => setNewDoctorRole(e.target.value)}
+                    id="new-doctor-role-input"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs text-navy-800 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                  />
+                  <select
+                    value={newDoctorClinic}
+                    onChange={(e) => setNewDoctorClinic(e.target.value)}
+                    id="new-doctor-clinic-select"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-navy-800 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                  >
+                    {clinics.map((c, i) => (
+                      <option key={i} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <button
+                type="submit"
+                id="save-doctor-btn"
+                className="w-full min-h-[38px] py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold transition-colors shadow-2xs"
+              >
+                Save Doctor Profile
+              </button>
+            </form>
+          )}
 
           <div className="divide-y divide-slate-100 text-sm space-y-3">
             {doctors.map((doc) => {
@@ -241,16 +443,20 @@ export const AdminDashboardScreen = () => {
                       Assigned Patients ({assigned.length})
                     </span>
                     <div className="flex flex-wrap gap-1.5">
-                      {assigned.map((p) => (
-                        <span
-                          key={p.id}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-800 text-[11px] font-medium"
-                        >
-                          <User className="w-3 h-3 text-teal-700" />
-                          <span>{p.name}</span>
-                          <span className="text-[10px] text-slate-400">({p.id})</span>
-                        </span>
-                      ))}
+                      {assigned.length > 0 ? (
+                        assigned.map((p) => (
+                          <span
+                            key={p.id}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-800 text-[11px] font-medium"
+                          >
+                            <User className="w-3 h-3 text-teal-700" />
+                            <span>{p.name}</span>
+                            <span className="text-[10px] text-slate-400">({p.id})</span>
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-slate-400 italic text-[11px]">No active patient assignments</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -266,10 +472,83 @@ export const AdminDashboardScreen = () => {
               <Users className="w-5 h-5 text-teal-700" />
               <span>Enrolled Patient Cohort</span>
             </h2>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-bold">
-              {patients.length} Tracked
-            </span>
+            <button
+              type="button"
+              onClick={() => setShowAddPatient(!showAddPatient)}
+              id="add-patient-btn"
+              className="text-xs font-bold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1.5 rounded-xl transition-colors inline-flex items-center gap-1"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Patient</span>
+            </button>
           </div>
+
+          {/* Inline Add Patient Form */}
+          {showAddPatient && (
+            <form onSubmit={handleAddPatient} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-navy-800">Enroll New Chronic Patient</span>
+                <button type="button" onClick={() => setShowAddPatient(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="Patient Full Name (e.g. Fatima Noor)"
+                  value={newPatientName}
+                  onChange={(e) => setNewPatientName(e.target.value)}
+                  id="new-patient-name-input"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs text-navy-800 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Condition (e.g. Type 2 Diabetes / HTN)"
+                  value={newPatientCondition}
+                  onChange={(e) => setNewPatientCondition(e.target.value)}
+                  id="new-patient-condition-input"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs text-navy-800 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                  required
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Clinic</label>
+                    <select
+                      value={newPatientClinic}
+                      onChange={(e) => setNewPatientClinic(e.target.value)}
+                      id="new-patient-clinic-select"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-navy-800 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                    >
+                      {clinics.map((c, i) => (
+                        <option key={i} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Attending Doctor</label>
+                    <select
+                      value={newPatientDoctorId}
+                      onChange={(e) => setNewPatientDoctorId(e.target.value)}
+                      id="new-patient-doctor-select"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs text-navy-800 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                    >
+                      {doctors.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name} ({d.id})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="submit"
+                id="save-patient-btn"
+                className="w-full min-h-[38px] py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold transition-colors shadow-2xs"
+              >
+                Save Patient Profile
+              </button>
+            </form>
+          )}
 
           <div className="divide-y divide-slate-100 text-sm space-y-3">
             {patients.map((p) => {
@@ -332,7 +611,9 @@ export const AdminDashboardScreen = () => {
                 key={sch.id}
                 className={`p-4 rounded-2xl border transition-all ${
                   sch.isLive
-                    ? "bg-teal-50/70 border-teal-300 ring-2 ring-teal-400/30"
+                    ? sch.status === "Requested"
+                      ? "bg-amber-50/80 border-amber-300 ring-2 ring-amber-400/30"
+                      : "bg-teal-50/70 border-teal-300 ring-2 ring-teal-400/30"
                     : "bg-white/80 border-slate-200/70"
                 }`}
               >
@@ -342,13 +623,15 @@ export const AdminDashboardScreen = () => {
                     <span className="text-[10px] text-slate-400 font-mono">({sch.patientId})</span>
                   </div>
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                       sch.status === "Confirmed"
-                        ? "bg-mutedGreen-100 text-mutedGreen-800"
-                        : "bg-amber-100 text-amber-800"
+                        ? "bg-mutedGreen-100 text-mutedGreen-800 border border-mutedGreen-200"
+                        : sch.status === "Requested"
+                        ? "bg-amber-100 text-amber-900 border border-amber-300"
+                        : "bg-slate-100 text-slate-700"
                     }`}
                   >
-                    {sch.status}
+                    {sch.status === "Requested" ? "Patient Requested" : sch.status}
                   </span>
                 </div>
 
@@ -359,7 +642,7 @@ export const AdminDashboardScreen = () => {
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">Slot</span>
-                    <span className={`font-medium ${sch.isLive ? "text-teal-800 font-bold" : "text-slate-800"}`}>
+                    <span className={`font-medium ${sch.isLive ? (sch.status === "Requested" ? "text-amber-800 font-bold" : "text-teal-800 font-bold") : "text-slate-800"}`}>
                       {sch.slot}
                     </span>
                   </div>

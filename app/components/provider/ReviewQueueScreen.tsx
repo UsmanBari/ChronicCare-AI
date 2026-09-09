@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   Clock,
   ShieldCheck,
+  Calendar,
 } from "lucide-react";
 
 export const ReviewQueueScreen = () => {
@@ -20,6 +21,8 @@ export const ReviewQueueScreen = () => {
     setSelectedPatient,
     demoScenario,
     resolvedCases,
+    appointment,
+    setAppointment,
     t,
     isUrdu,
   } = useApp();
@@ -57,6 +60,41 @@ export const ReviewQueueScreen = () => {
           <span>City General Triage Engine</span>
         </span>
       </div>
+
+      {/* Patient-Requested Follow-Up Alert Banner (Fix 2) */}
+      {appointment.isBooked && appointment.status === "Requested" && (
+        <div className="p-5 rounded-3xl bg-amber-50 border-2 border-amber-300 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-amber-200 text-amber-900 flex items-center justify-center shrink-0 shadow-2xs">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-navy-800 text-sm">Ali Khan (PT-04821)</span>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-950 font-bold text-[10px] uppercase tracking-wider">
+                  Patient-Requested Follow-Up
+                </span>
+              </div>
+              <p className="text-xs text-amber-900 mt-1 leading-relaxed">
+                Patient requested consultation slot ({appointment.slot}) following flagged check-in discrepancy.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setAppointment((prev) => ({ ...prev, status: "Confirmed" }));
+              }}
+              id="confirm-requested-appointment-btn"
+              className="min-h-[40px] px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Confirm Appointment</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Queue Table (Soft Glass Elevation) */}
       <div className="glass-resting rounded-3xl shadow-sm overflow-hidden border border-slate-200/80">
