@@ -16,7 +16,10 @@ import {
   ShieldCheck,
   HeartPulse,
   ChevronRight,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
+import { FhirSourceBadge } from "./FhirSourceBadge";
 
 export const HomeScreen = () => {
   const {
@@ -30,6 +33,14 @@ export const HomeScreen = () => {
     resetDemo,
     appointment,
   } = useApp();
+
+  // Dynamic medication dosage update for Scenario D (EHR update)
+  const displayedMedications =
+    demoScenario === "ehr_update"
+      ? profile.medications.map((m) =>
+          m.includes("Lisinopril") ? "Lisinopril 20mg (Once daily)" : m
+        )
+      : profile.medications;
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
@@ -54,8 +65,8 @@ export const HomeScreen = () => {
           </button>
         </div>
 
-        {/* 3 Scenario Radio-style Selector Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        {/* 4 Scenario Radio-style Selector Buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {/* Scenario A: Normal */}
           <button
             type="button"
@@ -99,6 +110,21 @@ export const HomeScreen = () => {
           >
             {demoScenario === "emergency" && <Check className="w-4 h-4 text-red-200 shrink-0" />}
             <span>{t.scenarioEmergencyBtn}</span>
+          </button>
+
+          {/* Scenario D: EHR Update */}
+          <button
+            type="button"
+            id="scenario-ehr-update-btn"
+            onClick={() => setDemoScenario("ehr_update")}
+            className={`min-h-[44px] py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border transition-all text-center flex items-center justify-center gap-2 ${
+              demoScenario === "ehr_update"
+                ? "bg-teal-700 text-white border-teal-700 shadow-sm font-bold"
+                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+            }`}
+          >
+            {demoScenario === "ehr_update" && <Check className="w-4 h-4 text-teal-200 shrink-0" />}
+            <span>Scenario D: EHR Update</span>
           </button>
         </div>
       </div>
@@ -165,7 +191,7 @@ export const HomeScreen = () => {
               {t.reminderDesc}
             </p>
 
-            <div className="pt-2">
+            <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <button
                 type="button"
                 onClick={() => setScreen("checkin_entry")}
@@ -180,6 +206,17 @@ export const HomeScreen = () => {
         </div>
       </div>
 
+      {/* Direct Emergency Reporting Entry Point Button */}
+      <button
+        type="button"
+        onClick={() => setScreen("emergency")}
+        id="report-urgent-symptoms-btn"
+        className="w-full py-3.5 px-4 rounded-2xl border-2 border-red-200/90 text-emergencyRed-800 font-bold text-sm bg-white hover:bg-red-50/80 transition-colors flex items-center justify-center gap-2 shadow-xs"
+      >
+        <AlertTriangle className="w-4 h-4 text-emergencyRed-700" />
+        <span>Report Urgent Symptoms Now</span>
+      </button>
+
       {/* Health Snapshot (Resting Surface) */}
       <div className="surface-card rounded-3xl p-6 sm:p-7 space-y-5">
         <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
@@ -192,17 +229,33 @@ export const HomeScreen = () => {
           </span>
         </div>
 
+        {/* Scenario D: EHR Update Notification Banner */}
+        {demoScenario === "ehr_update" && (
+          <div className="p-3.5 rounded-2xl bg-teal-50 border border-teal-200 text-xs flex items-start gap-2.5 animate-fadeIn">
+            <RefreshCw className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-teal-800 block">Updated from your recent visit</span>
+              <span className="text-teal-700 leading-relaxed">
+                Dr. Sana Malik updated your prescription on {new Date().toLocaleDateString()} — Lisinopril dosage changed to 20mg. Synced from City General Hospital's FHIR record.
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
           {/* Active Conditions */}
           <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/70 space-y-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
               {t.activeConditions}
             </span>
-            <div className="font-semibold text-navy-800 space-y-1">
+            <div className="font-semibold text-navy-800 space-y-1.5">
               {profile.conditions.map((cond, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-teal-600 shrink-0" />
-                  <span>{cond}</span>
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-teal-600 shrink-0" />
+                    <span>{cond}</span>
+                  </div>
+                  {connectionMode === "fhir" && <FhirSourceBadge />}
                 </div>
               ))}
             </div>
@@ -214,13 +267,30 @@ export const HomeScreen = () => {
               <Pill className="w-4 h-4 text-teal-700" />
               <span>{t.trackedMeds}</span>
             </span>
-            <div className="font-medium text-navy-800 space-y-1">
-              {profile.medications.map((med, i) => (
-                <div key={i} className="truncate">
-                  • {med}
+            <div className="font-medium text-navy-800 space-y-1.5">
+              {displayedMedications.map((med, i) => (
+                <div key={i} className="flex items-center justify-between text-xs sm:text-sm">
+                  <span className="truncate">• {med}</span>
+                  {connectionMode === "fhir" && <FhirSourceBadge />}
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Next Dose Reminder (Item 2) */}
+          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/70 flex items-center justify-between text-xs sm:col-span-2 shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-800 shrink-0">
+                <Clock className="w-4 h-4 text-amber-700" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">
+                  Next Dose Reminder
+                </span>
+                <span className="font-semibold text-navy-800">Metformin 500mg</span>
+              </div>
+            </div>
+            <span className="font-bold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded-lg">in 3h 20m</span>
           </div>
         </div>
 

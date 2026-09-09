@@ -2,21 +2,107 @@
 
 import React from "react";
 import { useApp } from "../../context/AppContext";
-import { Shield, Users, Stethoscope, User, Activity, Clock, Key, ArrowLeft, CheckCircle2, AlertOctagon, ShieldCheck } from "lucide-react";
+import {
+  Shield,
+  Users,
+  Stethoscope,
+  User,
+  Activity,
+  Clock,
+  Key,
+  ArrowLeft,
+  CheckCircle2,
+  AlertOctagon,
+  ShieldCheck,
+  Calendar,
+  Building2,
+  Hospital,
+} from "lucide-react";
 
 export const AdminDashboardScreen = () => {
-  const { setPortal, demoScenario, resolvedCases, t, isUrdu } = useApp();
+  const { setPortal, demoScenario, resolvedCases, appointment, t, isUrdu } = useApp();
 
   // Active alerts mirrors Provider urgent cases count
   const isAliResolved = resolvedCases.includes("Ali Khan");
   const activeAlertsCount = demoScenario === "emergency" && !isAliResolved ? 1 : 0;
 
-  const users = [
-    { name: "Dr. Sana Malik", role: "Clinical Provider", status: "Active", email: "dr.sanamalik@citygeneral.org" },
-    { name: "Ali Khan", role: "Patient (T2D)", status: "Active", email: "ali.khan@demo.care" },
-    { name: "Sara Ahmed", role: "Patient (HTN)", status: "Active", email: "sara.ahmed@demo.care" },
-    { name: "Ahmed", role: "Patient (T2D/HTN)", status: "Active", email: "ahmed@demo.care" },
-    { name: "Admin Lead", role: "System Administrator", status: "Active", email: "admin@citygeneral.org" },
+  // Supervisor Requirement (Items 5, 6, 7): Explicit Doctors & Patients with assignment IDs and Clinics
+  const doctors = [
+    {
+      id: "PRV-002",
+      name: "Dr. Sana Malik",
+      role: "Lead Endocrinologist",
+      clinic: "City General Hospital",
+      assignedPatientIds: ["PAT-014", "PAT-021", "PAT-033"],
+    },
+    {
+      id: "PRV-007",
+      name: "Dr. Tariq Mahmood",
+      role: "Cardiologist",
+      clinic: "Northside Community Clinic",
+      assignedPatientIds: ["PAT-033"],
+    },
+  ];
+
+  const patients = [
+    {
+      id: "PAT-014",
+      name: "Ali Khan",
+      condition: "Type 2 Diabetes",
+      clinic: "City General Hospital",
+      assignedDoctorId: "PRV-002",
+    },
+    {
+      id: "PAT-021",
+      name: "Sara Ahmed",
+      condition: "Hypertension",
+      clinic: "City General Hospital",
+      assignedDoctorId: "PRV-002",
+    },
+    {
+      id: "PAT-033",
+      name: "Ahmed",
+      condition: "T2D & Hypertension",
+      clinic: "Northside Community Clinic",
+      assignedDoctorId: "PRV-002",
+    },
+  ];
+
+  // Supervisor Requirement (Item 8): Admin Schedule View synced with shared appointment context
+  const scheduleEntries = [
+    {
+      id: "SCH-101",
+      patient: "Ali Khan",
+      patientId: "PAT-014",
+      provider: appointment.provider || "Dr. Sana Malik",
+      clinic: "City General Hospital",
+      slot: appointment.isBooked ? appointment.slot : "Not yet booked",
+      reason: appointment.isBooked ? appointment.reason : "Pending Follow-up Triage",
+      isLive: appointment.isBooked,
+      status: appointment.isBooked ? (appointment.status || "Confirmed") : "Pending",
+    },
+    {
+      id: "SCH-102",
+      patient: "Sara Ahmed",
+      patientId: "PAT-021",
+      provider: "Dr. Sana Malik",
+      clinic: "City General Hospital",
+      slot: "Thu, 10:30 AM",
+      reason: "Routine quarterly follow-up",
+      isLive: false,
+      status: "Confirmed",
+    },
+    {
+      id: "SCH-103",
+      patient: "Ahmed",
+      patientId: "PAT-033",
+      provider: "Dr. Tariq Mahmood",
+      clinic: "Northside Community Clinic",
+      slot: "Fri, 02:00 PM",
+      reason: "Blood pressure telemetry review",
+      isLive: false,
+      status: "Confirmed",
+    },
   ];
 
   const auditLogs = [
@@ -112,31 +198,177 @@ export const AdminDashboardScreen = () => {
         </div>
       </div>
 
-      {/* 2-Column Section: User Management & Audit Log */}
+      {/* Section A: Clinical Staff & Enrolled Patients (Explicit Assignment Relationships & Clinics) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
-        {/* User Management */}
+        {/* Doctors Directory */}
+        <div className="glass-resting rounded-3xl p-6 sm:p-7 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
+            <h2 className="font-heading text-lg font-bold text-navy-800 flex items-center gap-2.5">
+              <Stethoscope className="w-5 h-5 text-teal-700" />
+              <span>Attending Clinical Providers</span>
+            </h2>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 font-bold">
+              {doctors.length} Attending
+            </span>
+          </div>
+
+          <div className="divide-y divide-slate-100 text-sm space-y-3">
+            {doctors.map((doc) => {
+              const assigned = patients.filter((p) => doc.assignedPatientIds.includes(p.id));
+              return (
+                <div key={doc.id} className="pt-3 first:pt-0 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-navy-800">{doc.name}</span>
+                        <span className="text-[10px] text-teal-700 font-mono font-bold bg-teal-50 px-2 py-0.5 rounded">
+                          {doc.id}
+                        </span>
+                      </div>
+                      <span className="text-xs text-slate-500 font-medium block mt-0.5">
+                        {doc.role}
+                      </span>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold flex items-center gap-1">
+                      <Building2 className="w-3 h-3 text-slate-500" />
+                      {doc.clinic}
+                    </span>
+                  </div>
+
+                  {/* Explicit Assigned Patients Roster */}
+                  <div className="p-2.5 rounded-xl bg-slate-50/90 border border-slate-200/80 text-xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+                      Assigned Patients ({assigned.length})
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {assigned.map((p) => (
+                        <span
+                          key={p.id}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-800 text-[11px] font-medium"
+                        >
+                          <User className="w-3 h-3 text-teal-700" />
+                          <span>{p.name}</span>
+                          <span className="text-[10px] text-slate-400">({p.id})</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Patients Directory */}
         <div className="glass-resting rounded-3xl p-6 sm:p-7 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
             <h2 className="font-heading text-lg font-bold text-navy-800 flex items-center gap-2.5">
               <Users className="w-5 h-5 text-teal-700" />
-              <span>{t.userManagementTitle}</span>
+              <span>Enrolled Patient Cohort</span>
             </h2>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
-              Directory
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-bold">
+              {patients.length} Tracked
             </span>
           </div>
 
-          <div className="divide-y divide-slate-100 text-sm">
-            {users.map((user, idx) => (
-              <div key={idx} className="py-3.5 flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-navy-800">{user.name}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">{user.role} • {user.email}</div>
+          <div className="divide-y divide-slate-100 text-sm space-y-3">
+            {patients.map((p) => {
+              const doc = doctors.find((d) => d.id === p.assignedDoctorId);
+              return (
+                <div key={p.id} className="pt-3 first:pt-0 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-navy-800">{p.name}</span>
+                        <span className="text-[10px] text-slate-500 font-mono font-bold bg-slate-100 px-2 py-0.5 rounded">
+                          {p.id}
+                        </span>
+                      </div>
+                      <span className="text-xs text-teal-800 font-semibold block mt-0.5">
+                        {p.condition}
+                      </span>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold flex items-center gap-1">
+                      <Building2 className="w-3 h-3 text-slate-500" />
+                      {p.clinic}
+                    </span>
+                  </div>
+
+                  {/* Explicit Assigned Attending Doctor */}
+                  <div className="p-2.5 rounded-xl bg-slate-50/90 border border-slate-200/80 text-xs flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Attending Doctor
+                    </span>
+                    <span className="font-semibold text-navy-800 flex items-center gap-1.5">
+                      <Stethoscope className="w-3.5 h-3.5 text-teal-700" />
+                      <span>{doc ? doc.name : "Unassigned"}</span>
+                      {doc && <span className="text-[10px] text-slate-400 font-mono">({doc.id})</span>}
+                    </span>
+                  </div>
                 </div>
-                <span className="px-2.5 py-1 rounded-full bg-mutedGreen-100 text-mutedGreen-800 font-bold text-xs flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>{user.status}</span>
-                </span>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Section B: Clinical Schedule & System Audit Log */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
+        {/* Schedule View (Synced with shared AppContext appointment state) */}
+        <div className="glass-resting rounded-3xl p-6 sm:p-7 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
+            <h2 className="font-heading text-lg font-bold text-navy-800 flex items-center gap-2.5">
+              <Calendar className="w-5 h-5 text-teal-700" />
+              <span>Clinical Consultation Schedule</span>
+            </h2>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 font-bold">
+              Multi-Clinic Sync
+            </span>
+          </div>
+
+          <div className="space-y-3 text-sm">
+            {scheduleEntries.map((sch) => (
+              <div
+                key={sch.id}
+                className={`p-4 rounded-2xl border transition-all ${
+                  sch.isLive
+                    ? "bg-teal-50/70 border-teal-300 ring-2 ring-teal-400/30"
+                    : "bg-white/80 border-slate-200/70"
+                }`}
+              >
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-navy-800">{sch.patient}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">({sch.patientId})</span>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      sch.status === "Confirmed"
+                        ? "bg-mutedGreen-100 text-mutedGreen-800"
+                        : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {sch.status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mt-2 pt-2 border-t border-slate-100">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Attending</span>
+                    <span className="font-medium text-navy-800">{sch.provider}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Slot</span>
+                    <span className={`font-medium ${sch.isLive ? "text-teal-800 font-bold" : "text-slate-800"}`}>
+                      {sch.slot}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-xs text-slate-500 mt-1.5 flex items-center justify-between">
+                  <span className="truncate">{sch.reason}</span>
+                  <span className="text-[10px] text-slate-400 shrink-0">{sch.clinic}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -149,7 +381,7 @@ export const AdminDashboardScreen = () => {
               <Clock className="w-5 h-5 text-slate-700" />
               <span>{t.auditLogTitle}</span>
             </h2>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-bold">
               Immutable Log
             </span>
           </div>

@@ -34,7 +34,7 @@ export type AdminScreenType = "login" | "dashboard";
 export type ConnectionMode = "fhir" | "offline" | null;
 export type MissedMedsOption = "yes" | "no" | "prefer_not_to_answer" | null;
 export type RiskLevel = "low" | "moderate" | "high";
-export type DemoScenario = "normal" | "conflict" | "emergency";
+export type DemoScenario = "normal" | "conflict" | "emergency" | "ehr_update";
 
 export interface HealthProfile {
   conditions: string[];
@@ -155,7 +155,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // Patient Baseline Profile
   const [profile, setProfile] = useState<HealthProfile>({
     conditions: ["Type 2 Diabetes"],
-    medications: ["Metformin 500mg (Daily)"],
+    medications: [
+      "Metformin 500mg (Twice daily)",
+      "Lisinopril 10mg (Once daily)",
+      "Atorvastatin 20mg (Once daily, evening)",
+      "Aspirin 81mg (Once daily)",
+    ],
     age: "58",
   });
 

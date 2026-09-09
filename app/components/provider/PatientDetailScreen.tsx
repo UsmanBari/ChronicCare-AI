@@ -26,6 +26,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
+import { FhirSourceBadge } from "../FhirSourceBadge";
 
 const ahmedGlucoseData = [
   { day: "Day 1", value: 108 },
@@ -56,6 +57,8 @@ export const PatientDetailScreen = () => {
     acknowledgePatient,
     acknowledgedPatients,
     resolveCase,
+    connectionMode,
+    profile,
     t,
     isUrdu,
   } = useApp();
@@ -176,6 +179,78 @@ export const PatientDetailScreen = () => {
               </span>
             </li>
           </ul>
+        </div>
+
+        {/* Clinical Regimen & EHR Diagnoses Card */}
+        <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-navy-800 uppercase tracking-wider">
+              <Pill className="w-4 h-4 text-teal-700" />
+              <span>Prescription Regimen & Sourced Diagnoses</span>
+            </div>
+            {connectionMode === "fhir" && <FhirSourceBadge />}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm">
+            {/* Conditions */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                Confirmed Diagnoses
+              </span>
+              <div className="space-y-1 font-semibold text-navy-800">
+                {patientName === "Sara Ahmed" ? (
+                  <div className="flex items-center justify-between">
+                    <span>• Essential Hypertension</span>
+                    {connectionMode === "fhir" && <FhirSourceBadge />}
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span>• Type 2 Diabetes Mellitus</span>
+                      {connectionMode === "fhir" && <FhirSourceBadge />}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>• Essential Hypertension</span>
+                      {connectionMode === "fhir" && <FhirSourceBadge />}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Medications */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                Active Medications
+              </span>
+              <div className="space-y-1 text-slate-700">
+                {patientName === "Sara Ahmed" ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span>• Amlodipine 5mg (Daily)</span>
+                      {connectionMode === "fhir" && <FhirSourceBadge />}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>• Hydrochlorothiazide 12.5mg</span>
+                      {connectionMode === "fhir" && <FhirSourceBadge />}
+                    </div>
+                  </>
+                ) : (
+                  (patientName === "Ali Khan" ? profile.medications : [
+                    "Metformin 500mg (Twice daily)",
+                    "Lisinopril 10mg (Once daily)",
+                    "Atorvastatin 20mg (Once daily, evening)",
+                    "Aspirin 81mg (Once daily)",
+                  ]).map((med, i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <span>• {med}</span>
+                      {connectionMode === "fhir" && <FhirSourceBadge />}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Multi-Day Observation Charts */}
