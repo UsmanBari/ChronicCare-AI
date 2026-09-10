@@ -227,20 +227,20 @@ export const PatientDetailScreen = () => {
                 {patientName === "Sara Ahmed" ? (
                   <>
                     <div className="flex items-center justify-between">
-                      <span>• Amlodipine 5mg (Daily)</span>
+                      <span>• Amlodipine 5mg (1+0)</span>
                       {connectionMode === "fhir" && <FhirSourceBadge />}
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>• Hydrochlorothiazide 12.5mg</span>
+                      <span>• Hydrochlorothiazide 12.5mg (1+0)</span>
                       {connectionMode === "fhir" && <FhirSourceBadge />}
                     </div>
                   </>
                 ) : (
                   (patientName === "Ali Khan" ? profile.medications : [
-                    "Metformin 500mg (Twice daily)",
-                    "Lisinopril 10mg (Once daily)",
-                    "Atorvastatin 20mg (Once daily, evening)",
-                    "Aspirin 81mg (Once daily)",
+                    "Metformin 500mg (1+1)",
+                    "Lisinopril 10mg (1+0)",
+                    "Atorvastatin 20mg (0+1)",
+                    "Aspirin 81mg (1+0)",
                   ]).map((med, i) => (
                     <div key={i} className="flex items-center justify-between">
                       <span>• {med}</span>

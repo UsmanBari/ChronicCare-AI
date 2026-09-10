@@ -9,7 +9,7 @@ export const HealthProfileScreen = () => {
 
   const [conditions, setConditions] = useState<string[]>(profile.conditions || ["Type 2 Diabetes"]);
   const [medications, setMedications] = useState<string[]>(
-    profile.medications.length > 0 ? profile.medications : ["Metformin 500mg"]
+    profile.medications.length > 0 ? profile.medications : ["Metformin 500mg (1+1)"]
   );
   const [age, setAge] = useState<string>(profile.age || "58");
 
@@ -54,7 +54,7 @@ export const HealthProfileScreen = () => {
     const cleanMeds = medications.filter((m) => m.trim().length > 0);
     setProfile({
       conditions: conditions.length > 0 ? conditions : ["Type 2 Diabetes"],
-      medications: cleanMeds.length > 0 ? cleanMeds : ["Metformin 500mg"],
+      medications: cleanMeds.length > 0 ? cleanMeds : ["Metformin 500mg (1+1)"],
       age: age || "58",
     });
     setScreen("home");

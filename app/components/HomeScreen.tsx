@@ -38,7 +38,7 @@ export const HomeScreen = () => {
   const displayedMedications =
     demoScenario === "ehr_update"
       ? profile.medications.map((m) =>
-          m.includes("Lisinopril") ? "Lisinopril 20mg (Once daily)" : m
+          m.includes("Lisinopril") ? "Lisinopril 20mg (1+0)" : m
         )
       : profile.medications;
 
@@ -236,7 +236,7 @@ export const HomeScreen = () => {
             <div>
               <span className="font-bold text-teal-800 block">Updated from your recent visit</span>
               <span className="text-teal-700 leading-relaxed">
-                Dr. Sana Malik updated your prescription on {new Date().toLocaleDateString()} — Lisinopril dosage changed to 20mg. Synced from City General Hospital's FHIR record.
+                Dr. Sana Malik updated your prescription on {new Date().toLocaleDateString()} — Lisinopril dosage changed to 20mg (1+0). Synced from City General Hospital's FHIR record.
               </span>
             </div>
           </div>
@@ -287,7 +287,7 @@ export const HomeScreen = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">
                   Next Dose Reminder
                 </span>
-                <span className="font-semibold text-navy-800">Metformin 500mg</span>
+                <span className="font-semibold text-navy-800">Metformin 500mg (1+1)</span>
               </div>
             </div>
             <span className="font-bold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded-lg">in 3h 20m</span>
