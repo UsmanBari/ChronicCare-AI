@@ -25,13 +25,23 @@ This directory contains the original **backend technical proof of concept (PoC)*
 
 ---
 
+## FastAPI Backend Service
+
+> **Note**: The FastAPI backend application (`main.py`) exposing `/api/reconcile`, `/api/verify`, and `/api/health` was introduced as part of the backend API scaffolding sprint. The core algorithmic reconciliation and verification agents (`reconciliation_agent.py` and `verification_agent.py`) remain completely unchanged from the validated technical proof-of-concept.
+
+---
+
 ## Directory Structure
 
 ```text
 backend-poc-technical/
+├── main.py                          # FastAPI backend application exposing REST API endpoints
+├── test_main.py                     # API test suite for FastAPI endpoints
+├── init_local_db.py                 # SQLite database initialization script
+├── test_fhir.py                     # FHIR server connectivity validation script
 ├── agents/
-│   ├── reconciliation_agent.py      # Core data reconciliation and conflict detection logic
-│   └── verification_agent.py        # Clinical consistency and safety threshold verification
+│   ├── reconciliation_agent.py      # Core data reconciliation and conflict detection logic (unchanged)
+│   └── verification_agent.py        # Clinical consistency and safety threshold verification (unchanged)
 ├── data_sources/
 │   ├── data_source.py               # Abstract DataSource interface definition
 │   ├── fhir_adapter.py              # FHIR R4 resource adapter (Patient, Observation, Condition)
@@ -50,8 +60,8 @@ backend-poc-technical/
 │   ├── scenario_evidence.json       # JSON execution log of all scenario outcomes
 │   └── scenario_evidence_readable.md# Formatted clinical report of reconciliation runs
 ├── POC_RESULTS.md                   # Detailed validation summary and benchmark results
-├── requirements.txt                 # Python dependencies (requests, pydantic, sqlite3)
-└── init_local_db.py                 # SQLite database initialization script
+├── requirements.txt                 # Python dependencies (fastapi, uvicorn, requests, pydantic, pytest)
+└── README.md                        # Technical PoC documentation
 ```
 
 ---

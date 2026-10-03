@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+  push:
+    branches:
+      - dev
+      - main
+
+jobs:
+  backend-and-frontend-ci:
+    name: Test Backend & Lint Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend-poc-technical/requirements.txt
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend-poc-technical/requirements.txt
+
+      - name: Initialize Local SQLite Store
+        run: |
+          python backend-poc-technical/init_local_db.py
+
+      - name: Run Backend Pytest Suite
+        run: |
+          pytest backend-poc-technical/scenarios/ backend-poc-technical/test_main.py -v
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install Frontend Dependencies
+        run: |
+          npm ci || npm install
+
+      - name: Lint Frontend
+        run: |
+          npm run lint
