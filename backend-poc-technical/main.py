@@ -12,6 +12,7 @@ from the validated technical proof-of-concept.
 
 from typing import Dict, Any, List, Optional
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from data_sources.models import (
@@ -34,6 +35,15 @@ app = FastAPI(
     title="ChronicCare AI - Clinical Reconciliation & Verification API",
     version="0.1.0",
     description="FastAPI service wrapping deterministic multi-source reconciliation and clinical consistency verification.",
+)
+
+# Enable CORS for frontend integration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
