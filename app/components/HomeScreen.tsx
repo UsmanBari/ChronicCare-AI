@@ -236,7 +236,7 @@ export const HomeScreen = () => {
             <div>
               <span className="font-bold text-teal-800 block">Updated from your recent visit</span>
               <span className="text-teal-700 leading-relaxed">
-                Dr. Sana Malik updated your prescription on {new Date().toLocaleDateString()} — Lisinopril dosage changed to 20mg (1+0). Synced from City General Hospital's FHIR record.
+                Dr. Sana Malik updated your prescription on {new Date().toLocaleDateString()} — Lisinopril dosage changed to 20mg (1+0). Synced from City General Hospital&apos;s FHIR record.
               </span>
             </div>
           </div>
