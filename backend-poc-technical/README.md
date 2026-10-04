@@ -31,6 +31,12 @@ This directory contains the original **backend technical proof of concept (PoC)*
 
 ---
 
+## Dual Database Backend Support (SQLite & MySQL)
+
+> **Note**: In addition to the default isolated SQLite local store (`local_store.db`), the local store adapter supports cloud MySQL instances (e.g. Aiven MySQL with SSL encryption) via `DB_BACKEND=mysql`, `MYSQL_URL`, and `MYSQL_SSL_CA`. Both backends share identical schemas and deterministic domain adapters without altering agent contracts.
+
+---
+
 ## Directory Structure
 
 ```text
