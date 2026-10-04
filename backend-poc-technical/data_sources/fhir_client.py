@@ -44,14 +44,14 @@ def search_fhir_patients(count: int = 10, base_url: Optional[str] = None) -> Lis
     entries = bundle.get("entry", [])
     return [entry["resource"] for entry in entries if "resource" in entry]
 
-def get_fhir_patient(patient_id: str, base_url: Optional[str] = None) -> Dict[str, Any]:
+def get_fhir_patient(patient_id: str, base_url: Optional[str] = None, timeout: int = 10) -> Dict[str, Any]:
     """
     Retrieves a Patient resource by patient ID.
     Returns Patient resource dictionary.
     """
     url = f"{_get_base_url(base_url)}/Patient/{patient_id}"
     headers = {"Accept": "application/fhir+json, application/json"}
-    response = requests.get(url, headers=headers, timeout=15)
+    response = requests.get(url, headers=headers, timeout=timeout)
     response.raise_for_status()
     return response.json()
 

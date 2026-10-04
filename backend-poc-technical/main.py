@@ -16,14 +16,17 @@ from the validated technical proof-of-concept.
 """
 
 import os
+import re
+import uuid
 import time
 import logging
 from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 
+import requests
 from fastapi import FastAPI, HTTPException, status, Header, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from data_sources.models import (
     NormalizedPatient,
@@ -42,6 +45,7 @@ from agents.verification_agent import (
 )
 from llm.groq_client import is_configured, get_configured_model, chat
 from auth.firebase_verify import verify_firebase_token, AuthError, get_firebase_project_id
+from data_sources.fhir_client import get_fhir_patient
 from data_sources.app_store import (
     migrate,
     get_user_by_id,
@@ -50,6 +54,18 @@ from data_sources.app_store import (
     update_user_last_login,
     append_audit,
     get_audit_logs,
+    get_patient_profile,
+    upsert_patient_profile,
+    set_patient_consent,
+    get_enabled_ehr_systems,
+    get_ehr_system_by_id,
+    get_active_ehr_connection,
+    get_active_connection_by_external_id,
+    record_ehr_connection,
+    revoke_ehr_connection,
+    ALLOWED_CONDITIONS,
+    ALLOWED_LANGUAGES,
+    _utc_now_iso,
 )
 
 logger = logging.getLogger(__name__)
@@ -166,7 +182,7 @@ class VerifyRequest(BaseModel):
     origins: Optional[Dict[str, str]] = None
 
 
-# --- Auth Schemas ---
+# --- Auth & Profile Schemas ---
 
 class RoleUpdateRequest(BaseModel):
     model_config = {"extra": "forbid"}
@@ -189,6 +205,7 @@ class UserResponse(BaseModel):
     status: str
     created_at: Optional[str] = None
     last_login_at: Optional[str] = None
+    mode: Optional[str] = None
 
 
 class AuditLogRow(BaseModel):
@@ -199,6 +216,86 @@ class AuditLogRow(BaseModel):
     target: Optional[str] = None
     outcome: str
     detail: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ProfileUpdateRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    conditions: List[str]
+    on_insulin_or_sulfonylurea: bool
+    language: str = "en"
+
+    @field_validator("conditions")
+    @classmethod
+    def validate_conditions(cls, v: List[str]) -> List[str]:
+        if not v:
+            raise ValueError("conditions must contain at least one condition.")
+        cleaned = []
+        for c in v:
+            c_str = str(c).strip().lower()
+            if c_str not in ALLOWED_CONDITIONS:
+                raise ValueError(f"Invalid condition '{c}'. Allowed conditions: {sorted(list(ALLOWED_CONDITIONS))}")
+            if c_str not in cleaned:
+                cleaned.append(c_str)
+        return cleaned
+
+    @field_validator("language")
+    @classmethod
+    def validate_language(cls, v: str) -> str:
+        clean = str(v).strip().lower()
+        if clean not in ALLOWED_LANGUAGES:
+            raise ValueError(f"Invalid language '{v}'. Allowed languages: {sorted(list(ALLOWED_LANGUAGES))}")
+        return clean
+
+
+class ProfileResponse(BaseModel):
+    user_id: str
+    conditions: List[str]
+    on_insulin_or_sulfonylurea: bool
+    language: str
+    consent_granted_at: Optional[str] = None
+    consent_revoked_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class ConsentRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    granted: bool
+
+
+class EHRSystemResponse(BaseModel):
+    ehr_system_id: str
+    display_name: str
+
+
+PATIENT_ID_REGEX = re.compile(r"^[A-Za-z0-9\-.]{1,64}$")
+
+
+class EHRConnectRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    ehr_system_id: str
+    external_patient_id: str
+
+    @field_validator("external_patient_id")
+    @classmethod
+    def validate_external_patient_id(cls, v: str) -> str:
+        clean = str(v).strip()
+        if not PATIENT_ID_REGEX.match(clean):
+            raise ValueError("external_patient_id must match pattern ^[A-Za-z0-9\\-.]{1,64}$")
+        return clean
+
+
+class EHRConnectionInfo(BaseModel):
+    ehr_system_id: str
+    display_name: str
+    masked_patient_id: str
+    linked_at: str
+    last_verified_at: Optional[str] = None
+
+
+class EHRConnectionResponse(BaseModel):
+    mode: str
+    connection: Optional[EHRConnectionInfo] = None
+    message: Optional[str] = None
 
 
 # =============================================================================
@@ -513,7 +610,12 @@ def auth_session_endpoint(token: str = Depends(extract_bearer_token)):
 
 @app.get("/api/me", response_model=UserResponse, tags=["Auth"])
 def get_me_endpoint(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Returns the authenticated user profile."""
+    """Returns the authenticated user profile with derived mode for patients."""
+    mode = None
+    if current_user.get("role") == "patient":
+        active_conn = get_active_ehr_connection(current_user["user_id"])
+        mode = "connected" if active_conn else "isolated"
+
     return UserResponse(
         user_id=current_user["user_id"],
         email=current_user["email"],
@@ -522,6 +624,302 @@ def get_me_endpoint(current_user: Dict[str, Any] = Depends(get_current_user)):
         status=current_user.get("status", "active"),
         created_at=current_user.get("created_at"),
         last_login_at=current_user.get("last_login_at"),
+        mode=mode,
+    )
+
+
+# =============================================================================
+# PATIENT PROFILE & CONSENT ENDPOINTS
+# =============================================================================
+
+@app.get("/api/me/profile", response_model=ProfileResponse, tags=["Patient Profile"])
+def get_profile_endpoint(current_user: Dict[str, Any] = Depends(require_role("patient"))):
+    """Retrieves patient clinical profile and consent status (patient only)."""
+    user_id = current_user["user_id"]
+    profile = get_patient_profile(user_id)
+    if not profile:
+        return ProfileResponse(
+            user_id=user_id,
+            conditions=[],
+            on_insulin_or_sulfonylurea=False,
+            language="en",
+            consent_granted_at=None,
+            consent_revoked_at=None,
+            updated_at=None,
+        )
+    return ProfileResponse(
+        user_id=profile["user_id"],
+        conditions=profile["conditions"],
+        on_insulin_or_sulfonylurea=profile["on_insulin_or_sulfonylurea"],
+        language=profile["language"],
+        consent_granted_at=profile.get("consent_granted_at"),
+        consent_revoked_at=profile.get("consent_revoked_at"),
+        updated_at=profile.get("updated_at"),
+    )
+
+
+@app.put("/api/me/profile", response_model=ProfileResponse, tags=["Patient Profile"])
+def update_profile_endpoint(
+    body: ProfileUpdateRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Updates patient profile conditions, insulin/sulfonylurea flag, and language (patient only)."""
+    user_id = current_user["user_id"]
+    updated = upsert_patient_profile(
+        user_id=user_id,
+        conditions=body.conditions,
+        on_insulin_or_sulfonylurea=body.on_insulin_or_sulfonylurea,
+        language=body.language,
+    )
+    append_audit(
+        actor_user_id=user_id,
+        action="profile_updated",
+        target=user_id,
+        outcome="ok",
+        detail={
+            "conditions": updated["conditions"],
+            "language": updated["language"],
+            "on_insulin_or_sulfonylurea": updated["on_insulin_or_sulfonylurea"],
+        },
+    )
+    return ProfileResponse(
+        user_id=updated["user_id"],
+        conditions=updated["conditions"],
+        on_insulin_or_sulfonylurea=updated["on_insulin_or_sulfonylurea"],
+        language=updated["language"],
+        consent_granted_at=updated.get("consent_granted_at"),
+        consent_revoked_at=updated.get("consent_revoked_at"),
+        updated_at=updated.get("updated_at"),
+    )
+
+
+@app.post("/api/me/consent", response_model=ProfileResponse, tags=["Patient Profile"])
+def set_consent_endpoint(
+    body: ConsentRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Explicitly grants or revokes patient consent (patient only)."""
+    user_id = current_user["user_id"]
+    updated = set_patient_consent(user_id=user_id, granted=body.granted)
+    action = "consent_granted" if body.granted else "consent_revoked"
+    append_audit(
+        actor_user_id=user_id,
+        action=action,
+        target=user_id,
+        outcome="ok",
+        detail={},
+    )
+    return ProfileResponse(
+        user_id=updated["user_id"],
+        conditions=updated["conditions"],
+        on_insulin_or_sulfonylurea=updated["on_insulin_or_sulfonylurea"],
+        language=updated["language"],
+        consent_granted_at=updated.get("consent_granted_at"),
+        consent_revoked_at=updated.get("consent_revoked_at"),
+        updated_at=updated.get("updated_at"),
+    )
+
+
+# =============================================================================
+# EHR REGISTRY & CONNECTION ENDPOINTS
+# =============================================================================
+
+@app.get("/api/ehr/systems", response_model=List[EHRSystemResponse], tags=["EHR Connection"])
+def get_ehr_systems_endpoint():
+    """Returns enabled EHR systems (id and display name only, never URLs)."""
+    systems = get_enabled_ehr_systems()
+    return [
+        EHRSystemResponse(
+            ehr_system_id=s["ehr_system_id"],
+            display_name=s["display_name"],
+        )
+        for s in systems
+    ]
+
+
+@app.post("/api/ehr/connect", response_model=EHRConnectionResponse, tags=["EHR Connection"])
+def connect_ehr_endpoint(
+    body: EHRConnectRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """
+    Connects patient account to an external patient record in a registered EHR system.
+    Requires active consent. Checks live FHIR patient record deterministically.
+    """
+    user_id = current_user["user_id"]
+    masked_id = "..." + body.external_patient_id[-4:]
+
+    # 1. Consent check: patient must have granted consent and not revoked it
+    profile = get_patient_profile(user_id)
+    if not profile or not profile.get("consent_granted_at") or profile.get("consent_revoked_at"):
+        append_audit(
+            actor_user_id=user_id,
+            action="ehr_connect_denied",
+            target=body.ehr_system_id,
+            outcome="denied",
+            detail={"reason": "consent_required", "masked_patient_id": masked_id},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Consent is required before connecting an EHR system",
+        )
+
+    # 2. EHR System verification from database (SSRF prevention: URL is never client-supplied)
+    ehr_system = get_ehr_system_by_id(body.ehr_system_id)
+    if not ehr_system or not ehr_system.get("enabled"):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="EHR system not found or disabled",
+        )
+
+    # 3. Invariant: external_patient_id may be active for at most one user
+    conflict = get_active_connection_by_external_id(body.ehr_system_id, body.external_patient_id)
+    if conflict and conflict.get("user_id") != user_id:
+        append_audit(
+            actor_user_id=user_id,
+            action="ehr_connect_conflict",
+            target=body.ehr_system_id,
+            outcome="denied",
+            detail={"ehr_system_id": body.ehr_system_id, "masked_patient_id": masked_id},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This EHR patient is already linked to another account",
+        )
+
+    # 4. Live FHIR verification with timeout <= 10s
+    base_url = ehr_system["fhir_base_url"]
+    try:
+        get_fhir_patient(patient_id=body.external_patient_id, base_url=base_url, timeout=10)
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
+            record_ehr_connection(
+                connection_id=str(uuid.uuid4()),
+                user_id=user_id,
+                ehr_system_id=body.ehr_system_id,
+                external_patient_id=body.external_patient_id,
+                status="failed",
+                last_error_code="not_found",
+            )
+            append_audit(
+                actor_user_id=user_id,
+                action="ehr_connect_failed",
+                target=body.ehr_system_id,
+                outcome="error",
+                detail={"ehr_system_id": body.ehr_system_id, "error_code": "not_found", "masked_patient_id": masked_id},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Patient not found in this EHR",
+            )
+        else:
+            record_ehr_connection(
+                connection_id=str(uuid.uuid4()),
+                user_id=user_id,
+                ehr_system_id=body.ehr_system_id,
+                external_patient_id=body.external_patient_id,
+                status="failed",
+                last_error_code="unavailable",
+            )
+            append_audit(
+                actor_user_id=user_id,
+                action="ehr_connect_failed",
+                target=body.ehr_system_id,
+                outcome="error",
+                detail={"ehr_system_id": body.ehr_system_id, "error_code": "unavailable", "masked_patient_id": masked_id},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="EHR unavailable",
+            )
+    except requests.exceptions.RequestException:
+        record_ehr_connection(
+            connection_id=str(uuid.uuid4()),
+            user_id=user_id,
+            ehr_system_id=body.ehr_system_id,
+            external_patient_id=body.external_patient_id,
+            status="failed",
+            last_error_code="unavailable",
+        )
+        append_audit(
+            actor_user_id=user_id,
+            action="ehr_connect_failed",
+            target=body.ehr_system_id,
+            outcome="error",
+            detail={"ehr_system_id": body.ehr_system_id, "error_code": "unavailable", "masked_patient_id": masked_id},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="EHR unavailable",
+        )
+
+    # 5. Connect Success: store active connection (replaces previous active connection)
+    now_iso = _utc_now_iso()
+    conn_id = str(uuid.uuid4())
+    record = record_ehr_connection(
+        connection_id=conn_id,
+        user_id=user_id,
+        ehr_system_id=body.ehr_system_id,
+        external_patient_id=body.external_patient_id,
+        status="active",
+        last_verified_at=now_iso,
+    )
+    append_audit(
+        actor_user_id=user_id,
+        action="ehr_connected",
+        target=body.ehr_system_id,
+        outcome="ok",
+        detail={"ehr_system_id": body.ehr_system_id, "masked_patient_id": masked_id},
+    )
+
+    return EHRConnectionResponse(
+        mode="connected",
+        connection=EHRConnectionInfo(
+            ehr_system_id=body.ehr_system_id,
+            display_name=ehr_system["display_name"],
+            masked_patient_id=masked_id,
+            linked_at=record["linked_at"],
+            last_verified_at=now_iso,
+        ),
+    )
+
+
+@app.get("/api/ehr/connection", response_model=EHRConnectionResponse, tags=["EHR Connection"])
+def get_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Retrieves current patient EHR connection status and masked identifiers."""
+    active = get_active_ehr_connection(current_user["user_id"])
+    if not active:
+        return EHRConnectionResponse(mode="isolated", connection=None)
+
+    masked_id = "..." + active["external_patient_id"][-4:]
+    return EHRConnectionResponse(
+        mode="connected",
+        connection=EHRConnectionInfo(
+            ehr_system_id=active["ehr_system_id"],
+            display_name=active.get("display_name") or "",
+            masked_patient_id=masked_id,
+            linked_at=active["linked_at"],
+            last_verified_at=active.get("last_verified_at"),
+        ),
+    )
+
+
+@app.delete("/api/ehr/connection", response_model=EHRConnectionResponse, tags=["EHR Connection"])
+def delete_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(require_role("patient"))):
+    """Revokes active EHR connection and switches patient mode to isolated (patient only)."""
+    user_id = current_user["user_id"]
+    revoke_ehr_connection(user_id)
+    append_audit(
+        actor_user_id=user_id,
+        action="ehr_disconnected",
+        target=user_id,
+        outcome="ok",
+        detail={},
+    )
+    return EHRConnectionResponse(
+        mode="isolated",
+        connection=None,
+        message="EHR connection revoked",
     )
 
 
