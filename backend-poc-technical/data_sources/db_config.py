@@ -3,7 +3,7 @@ Database Configuration & Backend Selector for Isolated Mode Local Store.
 
 Supports SQLite (default) and MySQL backends via environment variables:
 - DB_BACKEND: "sqlite" (default) or "mysql"
-- MYSQL_URL: MySQL connection URI (e.g. mysql://user:pass@host:port/dbname?ssl-mode=REQUIRED)
+- MYSQL_URL: MySQL connection URI (e.g. mysql://<user>:<password>@<host>:<port>/<dbname>?ssl-mode=REQUIRED)
 - MYSQL_SSL_CA: Path to SSL CA certificate (relative to backend-poc-technical/ or absolute)
 """
 
