@@ -5,13 +5,23 @@ Wraps the core deterministic Reconciliation and Verification agents in HTTP endp
 - POST /api/reconcile: Wraps reconcile_bundles() from agents/reconciliation_agent.py
 - POST /api/verify: Wraps verify_reconciliation() from agents/verification_agent.py
 - GET /api/health: Health check endpoint
+- GET /api/llm/health: LLM connectivity check
+- POST /api/auth/session: Authenticate and session init for Firebase users
+- GET /api/me: Retrieve current authenticated user profile
+- POST /api/admin/users/{user_id}/role: Update user role (admin only)
+- GET /api/admin/audit: Retrieve immutable audit logs (admin only)
 
 Note: The underlying algorithmic reconciliation and verification agents remain unchanged
 from the validated technical proof-of-concept.
 """
 
+import os
+import time
+import logging
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, HTTPException, status
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException, status, Header, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -31,12 +41,35 @@ from agents.verification_agent import (
     VerificationResult,
 )
 from llm.groq_client import is_configured, get_configured_model, chat
-import time
+from auth.firebase_verify import verify_firebase_token, AuthError, get_firebase_project_id
+from data_sources.app_store import (
+    migrate,
+    get_user_by_id,
+    create_user,
+    update_user_role,
+    update_user_last_login,
+    append_audit,
+    get_audit_logs,
+)
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initializes app database schema on startup if configured."""
+    try:
+        migrate()
+    except Exception as e:
+        logger.warning("Database migration skipped on startup: %s", str(e))
+    yield
+
 
 app = FastAPI(
     title="ChronicCare AI - Clinical Reconciliation & Verification API",
     version="0.1.0",
     description="FastAPI service wrapping deterministic multi-source reconciliation and clinical consistency verification.",
+    lifespan=lifespan,
 )
 
 # Enable CORS for frontend integration
@@ -133,9 +166,145 @@ class VerifyRequest(BaseModel):
     origins: Optional[Dict[str, str]] = None
 
 
+# --- Auth Schemas ---
+
+class RoleUpdateRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    role: str
+
+
+class SessionResponse(BaseModel):
+    user_id: str
+    email: str
+    role: str
+    display_name: Optional[str] = None
+    status: str
+
+
+class UserResponse(BaseModel):
+    user_id: str
+    email: str
+    role: str
+    display_name: Optional[str] = None
+    status: str
+    created_at: Optional[str] = None
+    last_login_at: Optional[str] = None
+
+
+class AuditLogRow(BaseModel):
+    id: int
+    ts: str
+    actor_user_id: Optional[str] = None
+    action: str
+    target: Optional[str] = None
+    outcome: str
+    detail: Dict[str, Any] = Field(default_factory=dict)
+
+
 # =============================================================================
-# HELPER PARSING FUNCTIONS
+# HELPER PARSING & AUTH FUNCTIONS
 # =============================================================================
+
+def get_demo_role_map() -> Dict[str, str]:
+    """
+    Parses DEMO_ROLE_MAP environment variable (format: email:role,email:role).
+    Ignores malformed entries and logs a safe warning without revealing emails or values.
+    """
+    raw = os.environ.get("DEMO_ROLE_MAP", "").strip()
+    if not raw:
+        return {}
+
+    role_map: Dict[str, str] = {}
+    for entry in raw.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        parts = entry.split(":")
+        if len(parts) != 2:
+            logger.warning("Malformed entry encountered in DEMO_ROLE_MAP configuration (ignored).")
+            continue
+        email = parts[0].strip().lower()
+        role = parts[1].strip().lower()
+        if role in ("patient", "provider", "admin") and email:
+            role_map[email] = role
+        else:
+            logger.warning("Invalid role or email format in DEMO_ROLE_MAP configuration (ignored).")
+    return role_map
+
+
+def extract_bearer_token(authorization: Optional[str] = Header(None)) -> str:
+    """Extracts and validates Bearer token from Authorization header (rejects > 4 KB)."""
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+    if len(authorization) > 4096:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+    token = authorization[7:].strip()
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+    return token
+
+
+def get_current_user(token: str = Depends(extract_bearer_token)) -> Dict[str, Any]:
+    """
+    Dependency that verifies Firebase token and retrieves active user profile from DB.
+    Raises:
+    - 503 if FIREBASE_PROJECT_ID is not configured or cert service is down.
+    - 401 if token is missing/invalid/expired.
+    - 403 if user is not found or is disabled.
+    """
+    try:
+        claims = verify_firebase_token(token)
+    except AuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+    user_id = claims["uid"]
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account not found or not registered",
+        )
+    if user.get("status") != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is disabled",
+        )
+    return user
+
+
+def require_role(*allowed_roles: str):
+    """Dependency factory ensuring user has one of the required roles."""
+    def role_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+        user_role = current_user.get("role")
+        if user_role not in allowed_roles:
+            append_audit(
+                actor_user_id=current_user.get("user_id"),
+                action="role_denied",
+                target=None,
+                outcome="denied",
+                detail={"user_role": user_role, "required_roles": list(allowed_roles)},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: Insufficient privileges",
+            )
+        return current_user
+    return role_checker
+
 
 def _bundle_model_to_domain(bundle: PatientBundleModel) -> Dict[str, Any]:
     """Converts Pydantic PatientBundleModel into dataclass models expected by reconcile_bundles."""
@@ -274,6 +443,145 @@ def llm_health_check(ping: bool = False):
             detail=f"Groq ping failed: {str(e)}",
         )
 
+
+@app.post("/api/auth/session", response_model=SessionResponse, tags=["Auth"])
+def auth_session_endpoint(token: str = Depends(extract_bearer_token)):
+    """
+    Verifies Firebase token and initializes user session.
+    - If user does not exist: creates a new user row (role seeded from DEMO_ROLE_MAP, otherwise 'patient').
+    - If user exists: updates last_login_at and records login audit.
+    - Idempotent.
+    """
+    try:
+        claims = verify_firebase_token(token)
+    except AuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+    user_id = claims["uid"]
+    raw_email = claims.get("email", "")
+    email = str(raw_email).strip().lower() if raw_email else f"{user_id}@anonymous.local"
+    display_name = claims.get("name")
+
+    user = get_user_by_id(user_id)
+    if not user:
+        role_map = get_demo_role_map()
+        assigned_role = role_map.get(email, "patient")
+        user = create_user(
+            user_id=user_id,
+            email=email,
+            role=assigned_role,
+            display_name=display_name,
+            status="active",
+        )
+        append_audit(
+            actor_user_id=user_id,
+            action="user_registered",
+            target=user_id,
+            outcome="ok",
+            detail={"role": assigned_role},
+        )
+    else:
+        if user.get("status") != "active":
+            append_audit(
+                actor_user_id=user_id,
+                action="login_blocked",
+                target=user_id,
+                outcome="denied",
+                detail={"reason": "disabled_account"},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is disabled",
+            )
+        user = update_user_last_login(user_id)
+        append_audit(
+            actor_user_id=user_id,
+            action="login",
+            target=user_id,
+            outcome="ok",
+            detail={},
+        )
+
+    return SessionResponse(
+        user_id=user["user_id"],
+        email=user["email"],
+        role=user["role"],
+        display_name=user.get("display_name"),
+        status=user.get("status", "active"),
+    )
+
+
+@app.get("/api/me", response_model=UserResponse, tags=["Auth"])
+def get_me_endpoint(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Returns the authenticated user profile."""
+    return UserResponse(
+        user_id=current_user["user_id"],
+        email=current_user["email"],
+        role=current_user["role"],
+        display_name=current_user.get("display_name"),
+        status=current_user.get("status", "active"),
+        created_at=current_user.get("created_at"),
+        last_login_at=current_user.get("last_login_at"),
+    )
+
+
+@app.post("/api/admin/users/{user_id}/role", response_model=UserResponse, tags=["Admin"])
+def update_user_role_endpoint(
+    user_id: str,
+    body: RoleUpdateRequest,
+    current_user: Dict[str, Any] = Depends(require_role("admin")),
+):
+    """
+    Updates the role of a target user (Admin only).
+    Admin cannot change their own role.
+    """
+    if user_id == current_user["user_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Admin cannot change their own role",
+        )
+
+    clean_role = body.role.strip().lower()
+    if clean_role not in ("patient", "provider", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid role. Must be 'patient', 'provider', or 'admin'.",
+        )
+
+    target_user = get_user_by_id(user_id)
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    updated_user = update_user_role(user_id, clean_role)
+    append_audit(
+        actor_user_id=current_user["user_id"],
+        action="role_updated",
+        target=user_id,
+        outcome="ok",
+        detail={"new_role": clean_role},
+    )
+    return UserResponse(
+        user_id=updated_user["user_id"],
+        email=updated_user["email"],
+        role=updated_user["role"],
+        display_name=updated_user.get("display_name"),
+        status=updated_user.get("status", "active"),
+        created_at=updated_user.get("created_at"),
+        last_login_at=updated_user.get("last_login_at"),
+    )
+
+
+@app.get("/api/admin/audit", response_model=List[AuditLogRow], tags=["Admin"])
+def get_audit_endpoint(
+    limit: int = Query(50, ge=1, le=200),
+    current_user: Dict[str, Any] = Depends(require_role("admin")),
+):
+    """Retrieves newest audit log records (Admin only)."""
+    logs = get_audit_logs(limit=limit)
+    return logs
 
 
 @app.post("/api/reconcile", tags=["Reconciliation"])
