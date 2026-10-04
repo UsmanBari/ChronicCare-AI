@@ -58,6 +58,15 @@ export interface Translations {
   adminLoginTitle: string;
   adminLoginSubtitle: string;
 
+  // Auth / Firebase Errors
+  authInvalidApiKey: string;
+  authUserNotFound: string;
+  authWrongPassword: string;
+  authInvalidCredentials: string;
+  authRoleMismatch: string;
+  authGeneralError: string;
+  authSigningIn: string;
+
   // Screen 2: Connection Choice
   connectionTitle: string;
   connectionSubtitle: string;
@@ -284,6 +293,15 @@ export const translations: Record<Language, Translations> = {
     adminLoginTitle: "System Administration Portal",
     adminLoginSubtitle: "Manage platform users, system parameters, and audit trails.",
 
+    // Auth / Firebase Errors
+    authInvalidApiKey: "Invalid Firebase API configuration. Please check your system settings.",
+    authUserNotFound: "No registered account found with this email address.",
+    authWrongPassword: "Incorrect password. Please verify and try again.",
+    authInvalidCredentials: "Invalid credentials. Please check your email and password.",
+    authRoleMismatch: "Access denied: this account does not have permission for this portal.",
+    authGeneralError: "Authentication failed. Please check your network and try again.",
+    authSigningIn: "Signing in...",
+
     connectionTitle: "Select Connection Mode",
     connectionSubtitle: "Choose how ChronicCare AI should access and synchronize your clinical profile.",
     fhirCardTitle: "Connect to your hospital's EHR",
@@ -503,6 +521,15 @@ export const translations: Record<Language, Translations> = {
     providerIdPlaceholder: "مثلاً dr.sanamalik@citygeneral.org",
     adminLoginTitle: "سسٹم ایڈمنسٹریشن پورٹل",
     adminLoginSubtitle: "سسٹم کے صارفین اور آڈٹ لاگ کا انتظام کریں۔",
+
+    // Auth / Firebase Errors
+    authInvalidApiKey: "فائر بیس API کی ترتیب درست نہیں ہے۔ براہ کرم سسٹم سیٹنگز چیک کریں۔",
+    authUserNotFound: "اس ای میل سے کوئی رجسٹرڈ اکاؤنٹ موجود نہیں ہے۔",
+    authWrongPassword: "پاس ورڈ غلط ہے۔ براہ کرم دوبارہ کوشش کریں۔",
+    authInvalidCredentials: "ای میل یا پاس ورڈ غلط ہے۔ براہ کرم دوبارہ تصدیق کریں۔",
+    authRoleMismatch: "رسائی مسترد: اس اکاؤنٹ کے پاس اس پورٹل کے لیے اجازت نہیں ہے۔",
+    authGeneralError: "لاگ ان تصدیق ناکام ہو گئی۔ براہ کرم نیٹ ورک چیک کریں اور دوبارہ کوشش کریں۔",
+    authSigningIn: "سائن ان ہو رہا ہے...",
 
     connectionTitle: "کنکشن کا طریقہ منتخب کریں",
     connectionSubtitle: "منتخب کریں کہ کرونک کیئر اے آئی آپ کی طبی معلومات کیسے حاصل کرے۔",

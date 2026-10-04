@@ -2,20 +2,65 @@
 
 import React, { useState } from "react";
 import { useApp } from "../../context/AppContext";
-import { Shield, Lock, Mail, ArrowRight, ArrowLeft } from "lucide-react";
+import { Shield, Lock, Mail, ArrowRight, ArrowLeft, Loader2 } from "lucide-react";
+import { isFirebaseEnabled, getFirebaseAuth, getAuthErrorMessage } from "../../lib/firebase";
+import { getRoleFromEmail } from "../../lib/roles";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 export const AdminLoginScreen = () => {
   const { setAdminScreen, setPortal, adminIdentifier, setAdminIdentifier, t, isUrdu } = useApp();
   const [password, setPassword] = useState("••••••••");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminIdentifier.trim() || !password.trim()) {
+    const cleanId = adminIdentifier.trim();
+    const cleanPass = password.trim();
+
+    if (!cleanId || !cleanPass) {
       setError(isUrdu ? "براہ کرم تمام خانے پُر کریں۔" : "Please enter administrator credentials.");
       return;
     }
-    setAdminScreen("dashboard");
+
+    if (!isFirebaseEnabled()) {
+      // Mock Demo Mode
+      setError("");
+      setAdminScreen("dashboard");
+      return;
+    }
+
+    // Firebase Auth Mode
+    setIsLoading(true);
+    setError("");
+
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      setError(t.authInvalidApiKey);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, cleanId, cleanPass);
+      const email = userCredential.user.email || cleanId;
+      const role = getRoleFromEmail(email);
+
+      if (role !== "admin") {
+        await signOut(auth);
+        setError(t.authRoleMismatch);
+        setIsLoading(false);
+        return;
+      }
+
+      setAdminIdentifier(email);
+      setAdminScreen("dashboard");
+    } catch (err: any) {
+      const errorCode = err?.code || "";
+      setError(getAuthErrorMessage(errorCode, t));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -82,10 +127,20 @@ export const AdminLoginScreen = () => {
         <button
           type="submit"
           id="admin-login-btn"
-          className="w-full mt-2 py-3 px-4 bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+          disabled={isLoading}
+          className="w-full mt-2 py-3 px-4 bg-slate-900 hover:bg-slate-800 active:scale-[0.99] disabled:opacity-75 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
         >
-          <span>{t.signInBtn}</span>
-          <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>{t.authSigningIn}</span>
+            </>
+          ) : (
+            <>
+              <span>{t.signInBtn}</span>
+              <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+            </>
+          )}
         </button>
 
         <div className="text-center pt-2">

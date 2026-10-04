@@ -2,24 +2,70 @@
 
 import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
-import { Lock, Mail, UserCheck, ArrowRight, Activity, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Lock, Mail, UserCheck, ArrowRight, Activity, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
+import { isFirebaseEnabled, getFirebaseAuth, getAuthErrorMessage } from "../lib/firebase";
+import { getRoleFromEmail } from "../lib/roles";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 export const LoginScreen = () => {
   const { setScreen, setUserIdentifier, t, isUrdu } = useApp();
   const [isSignUp, setIsSignUp] = useState(false);
-  const [identifier, setIdentifier] = useState("patient@demo.care");
+  const [identifier, setIdentifier] = useState(
+    process.env.NEXT_PUBLIC_DEMO_PATIENT_EMAIL || "patient@demo.care"
+  );
   const [password, setPassword] = useState("••••••••");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!identifier.trim() || !password.trim()) {
+    const cleanId = identifier.trim();
+    const cleanPass = password.trim();
+
+    if (!cleanId || !cleanPass) {
       setError(isUrdu ? "براہ کرم تمام خانے پُر کریں۔" : "Please enter both fields to proceed.");
       return;
     }
+
+    if (!isFirebaseEnabled()) {
+      // Mock / Offline Demo Mode (Exact current behavior)
+      setError("");
+      setUserIdentifier(cleanId);
+      setScreen("connection");
+      return;
+    }
+
+    // Firebase Auth Mode
+    setIsLoading(true);
     setError("");
-    setUserIdentifier(identifier.trim());
-    setScreen("connection");
+
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      setError(t.authInvalidApiKey);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, cleanId, cleanPass);
+      const email = userCredential.user.email || cleanId;
+      const role = getRoleFromEmail(email);
+
+      if (role !== "patient") {
+        await signOut(auth);
+        setError(t.authRoleMismatch);
+        setIsLoading(false);
+        return;
+      }
+
+      setUserIdentifier(email);
+      setScreen("connection");
+    } catch (err: any) {
+      const errorCode = err?.code || "";
+      setError(getAuthErrorMessage(errorCode, t));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -91,10 +137,20 @@ export const LoginScreen = () => {
         <button
           type="submit"
           id="login-submit-btn"
-          className="w-full h-12 mt-2 bg-navy-800 hover:bg-navy-900 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+          disabled={isLoading}
+          className="w-full h-12 mt-2 bg-navy-800 hover:bg-navy-900 active:scale-[0.99] disabled:opacity-75 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
         >
-          <span>{isSignUp ? t.signUpBtn : t.signInBtn}</span>
-          <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>{t.authSigningIn}</span>
+            </>
+          ) : (
+            <>
+              <span>{isSignUp ? t.signUpBtn : t.signInBtn}</span>
+              <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+            </>
+          )}
         </button>
 
         {/* Toggle Mode Button */}
