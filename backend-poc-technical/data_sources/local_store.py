@@ -54,9 +54,16 @@ def init_db(db_path: Optional[str] = None) -> None:
                 unit TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
                 source TEXT NOT NULL,
+                origin TEXT,
                 FOREIGN KEY (patient_id) REFERENCES patients(id)
             )
         """)
+        
+        # Migration: ensure origin column exists on observations table
+        cursor.execute("PRAGMA table_info(observations)")
+        cols = [r[1] for r in cursor.fetchall()]
+        if "origin" not in cols:
+            cursor.execute("ALTER TABLE observations ADD COLUMN origin TEXT")
         
         # Medications table
         cursor.execute("""
@@ -185,3 +192,63 @@ def get_local_medications(patient_id: str, db_path: Optional[str] = None) -> Lis
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+def add_local_patient_if_missing(patient_id: str, name: str, date_of_birth: Optional[str] = None, db_path: Optional[str] = None) -> None:
+    """Inserts a patient into local store if they do not already exist."""
+    path = _get_db_path(db_path)
+    init_db(path)
+    with sqlite3.connect(path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR IGNORE INTO patients (id, name, date_of_birth) VALUES (?, ?, ?)",
+            (patient_id, name, date_of_birth or "1970-01-01")
+        )
+        conn.commit()
+
+
+def add_local_observation(
+    id: str,
+    patient_id: str,
+    observation_type: str,
+    value: float,
+    unit: str,
+    timestamp: str,
+    source: str = "local",
+    origin: Optional[str] = "self_reported",
+    db_path: Optional[str] = None,
+) -> None:
+    """Inserts or updates an observation with optional provenance origin in local SQLite store."""
+    path = _get_db_path(db_path)
+    init_db(path)
+    with sqlite3.connect(path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO observations (id, patient_id, type, value, unit, timestamp, source, origin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                value = excluded.value,
+                unit = excluded.unit,
+                timestamp = excluded.timestamp,
+                origin = excluded.origin
+            """,
+            (id, patient_id, observation_type, value, unit, timestamp, source, origin)
+        )
+        conn.commit()
+
+
+def get_local_observation_origins(patient_id: str, db_path: Optional[str] = None) -> Dict[str, str]:
+    """Retrieves {source_record_id: origin} mapping for a patient where origin is not null."""
+    conn = get_connection(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, origin FROM observations WHERE patient_id = ? AND origin IS NOT NULL",
+            (patient_id,)
+        )
+        rows = cursor.fetchall()
+        return {r["id"]: r["origin"] for r in rows if r["origin"]}
+    finally:
+        conn.close()
+

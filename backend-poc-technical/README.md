@@ -66,6 +66,87 @@ backend-poc-technical/
 
 ---
 
+## API Endpoints & Usage
+
+### 1. Patient Profile, Consent & EHR Connection
+
+```bash
+# Register or authenticate session
+curl -X POST http://localhost:8000/api/auth/session \
+  -H "Authorization: Bearer <FIREBASE_ID_TOKEN>"
+
+# Grant patient consent (required before check-ins or EHR connection)
+curl -X POST http://localhost:8000/api/me/consent \
+  -H "Authorization: Bearer <PATIENT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"granted": true}'
+
+# Update patient clinical profile
+curl -X PUT http://localhost:8000/api/me/profile \
+  -H "Authorization: Bearer <PATIENT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"conditions": ["diabetes", "hypertension"], "on_insulin_or_sulfonylurea": false, "language": "en"}'
+
+# Connect external EHR system (transitions from Isolated to Connected mode)
+curl -X POST http://localhost:8000/api/ehr/connect \
+  -H "Authorization: Bearer <PATIENT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"ehr_system_id": "smart-sandbox", "external_patient_id": "smart-1088792"}'
+```
+
+### 2. Authenticated Patient Check-In Pipeline
+
+All check-in sessions live on the server; patient identity and connection mode are derived server-side.
+
+```bash
+# Start a new check-in session (auto-abandons any prior in-progress session)
+curl -X POST http://localhost:8000/api/checkins/start \
+  -H "Authorization: Bearer <PATIENT_TOKEN>"
+
+# Advance interview state with patient response (max 1000 characters)
+curl -X POST http://localhost:8000/api/checkins/<CHECKIN_ID>/answer \
+  -H "Authorization: Bearer <PATIENT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"answer": "142 mg/dL fasting"}'
+
+# Complete check-in, execute deterministic reconciliation & verification
+curl -X POST http://localhost:8000/api/checkins/<CHECKIN_ID>/complete \
+  -H "Authorization: Bearer <PATIENT_TOKEN>"
+
+# List authenticated patient's historical check-ins (limit 20, newest first)
+curl -X GET http://localhost:8000/api/checkins \
+  -H "Authorization: Bearer <PATIENT_TOKEN>"
+
+# Get detailed result and conversation state for a specific check-in
+curl -X GET http://localhost:8000/api/checkins/<CHECKIN_ID> \
+  -H "Authorization: Bearer <PATIENT_TOKEN>"
+```
+
+### 3. Provider Clinical Review Queue & Actions
+
+```bash
+# Query provider review queue (ordered: emergency desc -> severity desc -> created_at asc)
+curl -X GET "http://localhost:8000/api/provider/review-queue?status=open" \
+  -H "Authorization: Bearer <PROVIDER_TOKEN>"
+
+# View complete clinical intake, reconciliation comparisons, and verification details
+curl -X GET http://localhost:8000/api/provider/review/<CHECKIN_ID> \
+  -H "Authorization: Bearer <PROVIDER_TOKEN>"
+
+# Record clinical action (acknowledge | resolve | escalate) with optional note (max 500 chars)
+curl -X POST http://localhost:8000/api/provider/review/<CHECKIN_ID>/action \
+  -H "Authorization: Bearer <PROVIDER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "resolve", "note": "Contacted patient; confirmed insulin dosage adjustment."}'
+```
+
+### Prototype Limitations & Future Work
+- **Care-Team Assignment**: In this prototype, any authenticated provider can view and act on all patient review queue items. Production deployments require fine-grained patient panel assignment and care-team routing.
+- **Secondary Notifications**: Critical alerts (emergencies and overdue high-severity reviews) are flagged in the queue dynamically (items older than 2 hours marked `overdue=true`). Out-of-band notifications (e.g. SMS, pager integration) represent future roadmap work.
+- **No Risk Scoring**: As per clinical decision-support safety requirements, the system produces no probabilistic risk scores or unsolicited clinical recommendations; responses contain only deterministic computational reconciliations.
+
+---
+
 ## Running the PoC Verification Tests
 
 ### Prerequisites
@@ -75,11 +156,11 @@ backend-poc-technical/
 ### Execution
 ```bash
 # 1. Install dependencies
-pip install -r requirements.txt
+pip install -r backend-poc-technical/requirements.txt
 
 # 2. Initialize local test database
-python init_local_db.py
+python backend-poc-technical/init_local_db.py
 
-# 3. Execute all technical scenarios and verification suites
-python scenarios/run_all_scenarios.py
+# 3. Execute hermetic test suite
+pytest backend-poc-technical/ -v -k "not run_source_blind_test"
 ```
