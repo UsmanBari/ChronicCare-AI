@@ -521,9 +521,9 @@ export const PortalLandingScreen = () => {
             <div className="w-9 h-9 rounded-xl bg-mutedGreen-100 text-mutedGreen-800 flex items-center justify-center">
               <ShieldCheck className="w-5 h-5" />
             </div>
-            <h3 className="font-heading font-bold text-sm text-navy-800">HIPAA-Inspired Security</h3>
+            <h3 className="font-heading font-bold text-sm text-navy-800">Role-Based Access Control</h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Zero plain-text patient telemetry exposure, role-separated portals, and client-side memory safety.
+              Role-separated access, explicit patient consent, and structured audit logs for check-in events.
             </p>
           </div>
 

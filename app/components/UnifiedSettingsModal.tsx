@@ -104,7 +104,7 @@ export const UnifiedSettingsModal = () => {
               <p className="text-[11px] text-slate-500 mt-1">
                 {connectionMode === "fhir"
                   ? "Live HL7® FHIR® bridge active with City General Hospital."
-                  : "Isolated device storage mode with AES-256 local encrypted store."}
+                  : "Isolated device storage mode using the local store."}
               </p>
             </div>
           </div>

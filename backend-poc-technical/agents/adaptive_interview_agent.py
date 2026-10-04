@@ -375,7 +375,7 @@ def _hypertension_advance(state: InterviewState, answer: str) -> InterviewState:
         answers["bp_reading"] = reading
         if reading is None:
             answers["symptom_only_note"] = answer
-        state.step = HypertensionStep.ASSOCIATED_SYONOM_ONLY_NOTE if False else HypertensionStep.ASSOCIATED_SYMPTOMS.value
+        state.step = HypertensionStep.ASSOCIATED_SYMPTOMS.value
     elif step == HypertensionStep.ASSOCIATED_SYMPTOMS:
         answers["associated_symptoms"] = answer
         state.step = HypertensionStep.ADHERENCE.value

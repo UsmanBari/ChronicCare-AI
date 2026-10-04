@@ -254,7 +254,7 @@ export const LoginScreen = () => {
         {/* Trust Signal Badge */}
         <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200/70 flex items-center justify-center gap-2 text-xs font-medium text-teal-900">
           <ShieldCheck className="w-4 h-4 text-teal-700 shrink-0" />
-          <span>Your health data is kept private • HIPAA Compliant</span>
+          <span>Research Prototype • Role-Based Access & Audit Logging</span>
         </div>
 
         {/* Note */}

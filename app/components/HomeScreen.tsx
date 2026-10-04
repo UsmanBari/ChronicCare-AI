@@ -281,7 +281,7 @@ export const HomeScreen = () => {
             <span>{t.statusTitle}</span>
           </h3>
           <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700">
-            {connectionMode === "fhir" ? "FHIR Live Synced" : "Local Encrypted"}
+            {connectionMode === "fhir" ? "FHIR Live Synced" : "Local Mode"}
           </span>
         </div>
 

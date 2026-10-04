@@ -187,6 +187,19 @@ def test_wrong_audience_rejected(rsa_key_pair):
     assert response.json()["detail"] == "Invalid or expired token"
 
 
+def test_wrong_audience_only_rejected(rsa_key_pair):
+    """Verifies that token with correct issuer but mismatched audience receives 401."""
+    token = create_test_token(
+        rsa_key_pair,
+        aud="wrong-project-id",
+        iss=f"https://securetoken.google.com/{TEST_PROJECT_ID}",
+    )
+    client = TestClient(app)
+    response = client.post("/api/auth/session", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid or expired token"
+
+
 def test_wrong_issuer_rejected(rsa_key_pair):
     """Verifies that mismatched issuer receives 401."""
     token = create_test_token(rsa_key_pair, iss="https://securetoken.google.com/other-project")
@@ -194,6 +207,39 @@ def test_wrong_issuer_rejected(rsa_key_pair):
     response = client.post("/api/auth/session", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid or expired token"
+
+
+def test_wrong_issuer_only_rejected(rsa_key_pair):
+    """Verifies that token with correct audience but mismatched issuer receives 401."""
+    token = create_test_token(
+        rsa_key_pair,
+        aud=TEST_PROJECT_ID,
+        iss="https://securetoken.google.com/other-project",
+    )
+    client = TestClient(app)
+    response = client.post("/api/auth/session", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid or expired token"
+
+
+def test_algorithm_pin_rs256_only(rsa_key_pair, monkeypatch):
+    """Verifies that jwt.decode is called with algorithms strictly pinned to ['RS256']."""
+    recorded_algorithms = []
+    real_decode = jwt.decode
+
+    def spy_decode(*args, **kwargs):
+        recorded_algorithms.append(kwargs.get("algorithms"))
+        return real_decode(*args, **kwargs)
+
+    monkeypatch.setattr(jwt, "decode", spy_decode)
+
+    token = create_test_token(rsa_key_pair)
+    client = TestClient(app)
+    response = client.post("/api/auth/session", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert len(recorded_algorithms) >= 1
+    for alg_list in recorded_algorithms:
+        assert alg_list == ["RS256"], f"Expected algorithms to be strictly ['RS256'], got {alg_list}"
 
 
 def test_tampered_signature_rejected(rsa_key_pair):
