@@ -164,3 +164,35 @@ python backend-poc-technical/init_local_db.py
 # 3. Execute hermetic test suite
 pytest backend-poc-technical/ -v -k "not run_source_blind_test"
 ```
+
+---
+
+## MySQL (Aiven)
+
+The backend supports dual database backends: SQLite (default for local development and hermetic CI testing) and Aiven MySQL for cloud persistence across the Local Store and Application Store.
+
+### Environment Variables
+- `DB_BACKEND`: Set to `mysql` to use MySQL. If unset or set to `sqlite`, SQLite is used.
+- `MYSQL_URL`: Connection string in the format `mysql://<user>:<password>@<host>:<port>/<dbname>?ssl-mode=REQUIRED`.
+- `MYSQL_SSL_CA`: (Optional) Absolute or relative path to the CA bundle. Defaults to `certs/aiven-ca.pem`.
+
+### Safety Rules & Guardrails
+- **Database Safety Guardrail (`_dev` suffix)**: Destructive schema resets (`--reset` via `init_local_db.py`) and live integration test suites strictly refuse execution unless the target database name ends with `_dev` (e.g., `chroniccare_dev`). This prevents accidental mutation or truncation of staging or production databases.
+- **Connection Checks**: The connection script `scripts/check_mysql_connection.py` prints only the server version and connected database name, never exposing credentials or hostnames.
+
+### Running Live Opt-in MySQL Tests
+Live database tests are gated and opt-in:
+```bash
+# Verify connection
+python backend-poc-technical/scripts/check_mysql_connection.py
+
+# Initialize and seed MySQL database
+python backend-poc-technical/init_local_db.py --backend mysql --reset
+
+# Run opt-in MySQL test suite (requires RUN_MYSQL_TESTS=1 and a _dev database)
+RUN_MYSQL_TESTS=1 pytest backend-poc-technical/test_mysql_store.py backend-poc-technical/test_mysql_app_store.py -v
+```
+
+> **Note on PR #2 (`feat/mysql-local-store`)**:
+> PR #2 introduced the original MySQL Local Store integration. This work has now been fully reconciled across both the Local Store and the complete App Store (`app_store.py`) with unified migrations, TLS support, and safety guardrails. PR #2 can now be closed as superseded.
+
