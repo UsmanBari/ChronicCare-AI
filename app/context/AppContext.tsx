@@ -5,11 +5,20 @@ import { Language, translations, Translations } from "../translations";
 import { isFirebaseEnabled, getFirebaseAuth } from "../lib/firebase";
 import { getRoleFromEmail } from "../lib/roles";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import {
+  api,
+  subscribeServerWaking,
+  ProfileResponse,
+  EHRConnectionResponse,
+  CheckinStartResponse,
+  CheckinCompleteResponse,
+} from "../lib/api";
 
 export type PortalType = "landing" | "patient" | "provider" | "admin";
 
 export type PatientScreenType =
   | "login"
+  | "consent"
   | "connection"
   | "profile"
   | "home"
@@ -98,13 +107,28 @@ interface AppContextType {
   t: Translations;
   isUrdu: boolean;
 
-  // Auth identifiers
+  // Auth identifiers & roles
   userIdentifier: string;
   setUserIdentifier: (id: string) => void;
   providerIdentifier: string;
   setProviderIdentifier: (id: string) => void;
   adminIdentifier: string;
   setAdminIdentifier: (id: string) => void;
+  userRole: string | null;
+  setUserRole: (role: string | null) => void;
+
+  // Live Mode & Cloud states
+  isLiveMode: boolean;
+  serverWaking: boolean;
+  liveProfile: ProfileResponse | null;
+  setLiveProfile: React.Dispatch<React.SetStateAction<ProfileResponse | null>>;
+  liveEhrConnection: EHRConnectionResponse | null;
+  setLiveEhrConnection: React.Dispatch<React.SetStateAction<EHRConnectionResponse | null>>;
+  activeLiveCheckin: CheckinStartResponse | null;
+  setActiveLiveCheckin: React.Dispatch<React.SetStateAction<CheckinStartResponse | null>>;
+  liveCheckinResult: CheckinCompleteResponse | null;
+  setLiveCheckinResult: React.Dispatch<React.SetStateAction<CheckinCompleteResponse | null>>;
+  refreshLiveState: () => Promise<void>;
 
   // Connection mode
   connectionMode: ConnectionMode;
@@ -151,12 +175,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [userIdentifier, setUserIdentifier] = useState<string>("ali.khan@demo.care");
   const [providerIdentifier, setProviderIdentifier] = useState<string>("dr.sanamalik@citygeneral.org");
   const [adminIdentifier, setAdminIdentifier] = useState<string>("admin@citygeneral.org");
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>("fhir");
+
+  // Live Mode states
+  const isLiveMode = isFirebaseEnabled();
+  const [serverWaking, setServerWaking] = useState<boolean>(false);
+  const [liveProfile, setLiveProfile] = useState<ProfileResponse | null>(null);
+  const [liveEhrConnection, setLiveEhrConnection] = useState<EHRConnectionResponse | null>(null);
+  const [activeLiveCheckin, setActiveLiveCheckin] = useState<CheckinStartResponse | null>(null);
+  const [liveCheckinResult, setLiveCheckinResult] = useState<CheckinCompleteResponse | null>(null);
 
   // Presenter controls
   const [demoScenario, setDemoScenario] = useState<DemoScenario>("normal");
 
-  // Patient Baseline Profile
+  // Patient Baseline Profile (Mock mode fallback)
   const [profile, setProfile] = useState<HealthProfile>({
     conditions: ["Type 2 Diabetes"],
     medications: [
@@ -192,11 +225,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [resolvedCases, setResolvedCases] = useState<string[]>([]);
   const [acknowledgedPatients, setAcknowledgedPatients] = useState<string[]>([]);
 
+  // Server Waking Subscription
+  useEffect(() => {
+    const unsubscribe = subscribeServerWaking((isWaking) => {
+      setServerWaking(isWaking);
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Browser History & Back/Forward Button Navigation Synchronization
-  React.useEffect(() => {
+  useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // Initialize root history state if empty
     if (!window.history.state) {
       window.history.replaceState(
         { portal: "landing", screen: "home", providerScreen: "dashboard", adminScreen: "dashboard" },
@@ -240,75 +280,118 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Synchronize Firebase Auth State across browser refreshes with fail-closed role verification
+  const refreshLiveState = async () => {
+    if (!isLiveMode) return;
+    try {
+      const prof = await api.getProfile();
+      setLiveProfile(prof);
+      if (prof.language && (prof.language === "en" || prof.language === "ur")) {
+        setLanguage(prof.language as Language);
+      }
+    } catch {
+      // Ignore if not initialized
+    }
+
+    try {
+      const conn = await api.getEHRConnection();
+      setLiveEhrConnection(conn);
+      if (conn.mode === "fhir" || conn.mode === "isolated") {
+        setConnectionMode(conn.mode === "fhir" ? "fhir" : "offline");
+      }
+    } catch {
+      // Ignore if not initialized
+    }
+  };
+
+  // Synchronize Firebase Auth State across browser refreshes
   useEffect(() => {
-    if (typeof window === "undefined" || !isFirebaseEnabled()) return;
+    if (typeof window === "undefined") return;
+
+    if (!isLiveMode) {
+      // Mock mode: Keep default demo state
+      return;
+    }
+
     const auth = getFirebaseAuth();
     if (!auth) return;
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && user.email) {
         const email = user.email;
-        const role = getRoleFromEmail(email);
 
-        // Unknown role or unmapped email: immediately revoke session
-        if (!role) {
+        // In LIVE mode: role comes strictly from /api/auth/session or /api/me
+        try {
+          const session = await api.authSession();
+          const role = session.role;
+          setUserRole(role);
+
+          // Role gating against the active portal:
+          if (portal === "patient") {
+            if (role !== "patient") {
+              await signOut(auth);
+              setUserRole(null);
+              setScreenState("login");
+              return;
+            }
+            setUserIdentifier(email);
+            // Check consent status for patient
+            try {
+              const prof = await api.getProfile();
+              setLiveProfile(prof);
+              if (!prof.consent_granted_at) {
+                setScreenState("consent");
+              }
+            } catch {
+              setScreenState("consent");
+            }
+          } else if (portal === "provider") {
+            if (role !== "provider" && role !== "admin") {
+              await signOut(auth);
+              setUserRole(null);
+              setProviderScreenState("login");
+              return;
+            }
+            setProviderIdentifier(email);
+          } else if (portal === "admin") {
+            if (role !== "admin") {
+              await signOut(auth);
+              setUserRole(null);
+              setAdminScreenState("login");
+              return;
+            }
+            setAdminIdentifier(email);
+          }
+        } catch (err) {
+          // Backend communication error or invalid token: fail-closed
           try {
             await signOut(auth);
           } catch {}
-          return;
+          setUserRole(null);
         }
-
-        // If currently in a specific portal, verify role matches that portal
-        if (portal === "patient" && role !== "patient") {
-          try {
-            await signOut(auth);
-            setScreenState("login");
-          } catch {}
-          return;
-        }
-
-        if (portal === "provider" && role !== "provider") {
-          try {
-            await signOut(auth);
-            setProviderScreenState("login");
-          } catch {}
-          return;
-        }
-
-        if (portal === "admin" && role !== "admin") {
-          try {
-            await signOut(auth);
-            setAdminScreenState("login");
-          } catch {}
-          return;
-        }
-
-        // Set matching role identifier
-        if (role === "patient") {
-          setUserIdentifier(email);
-        } else if (role === "provider") {
-          setProviderIdentifier(email);
-        } else if (role === "admin") {
-          setAdminIdentifier(email);
-        }
+      } else {
+        setUserRole(null);
       }
     });
 
     return () => unsubscribe();
-  }, [portal]);
+  }, [portal, isLiveMode]);
 
   const signOutUser = async () => {
-    if (isFirebaseEnabled()) {
+    if (isLiveMode) {
       const auth = getFirebaseAuth();
       if (auth) {
         try {
           await signOut(auth);
         } catch {
-          // Silent catch on unmount or network disconnect
+          // Silent catch
         }
       }
     }
+    setUserRole(null);
+    setLiveProfile(null);
+    setLiveEhrConnection(null);
+    setActiveLiveCheckin(null);
+    setLiveCheckinResult(null);
   };
 
   const setPortal = (p: PortalType) => {
@@ -360,6 +443,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       lowConfidence: false,
       submittedAt: null,
     });
+    setActiveLiveCheckin(null);
+    setLiveCheckinResult(null);
   };
 
   const resetDemo = () => {
@@ -385,6 +470,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       status: "Confirmed",
       bookedAt: "",
     });
+    setActiveLiveCheckin(null);
+    setLiveCheckinResult(null);
   };
 
   return (
@@ -414,6 +501,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setProviderIdentifier,
         adminIdentifier,
         setAdminIdentifier,
+        userRole,
+        setUserRole,
+        isLiveMode,
+        serverWaking,
+        liveProfile,
+        setLiveProfile,
+        liveEhrConnection,
+        setLiveEhrConnection,
+        activeLiveCheckin,
+        setActiveLiveCheckin,
+        liveCheckinResult,
+        setLiveCheckinResult,
+        refreshLiveState,
         connectionMode,
         setConnectionMode,
         profile,
@@ -434,6 +534,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }}
     >
       <div dir={isUrdu ? "rtl" : "ltr"} className={isUrdu ? "font-urdu" : "font-sans"}>
+        {/* Server Waking Notification Bar (Live Mode Only) */}
+        {serverWaking && (
+          <div className="fixed top-0 left-0 right-0 z-50 bg-amber-600 text-white px-4 py-2.5 text-center text-xs sm:text-sm font-semibold shadow-lg flex items-center justify-center gap-2 animate-fadeIn">
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-200 animate-ping" />
+            <span>{t.serverWakingTitle}</span>
+          </div>
+        )}
         {children}
       </div>
     </AppContext.Provider>

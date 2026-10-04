@@ -2,31 +2,53 @@
 
 import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
-import { Lock, Mail, ArrowRight, Activity, ShieldCheck, ShieldAlert, Loader2, KeyRound } from "lucide-react";
+import { Lock, Mail, ArrowRight, Activity, ShieldCheck, ShieldAlert, Loader2, KeyRound, CheckCircle2 } from "lucide-react";
 import { isFirebaseEnabled, isFirebaseConfigured, getFirebaseAuth, getAuthErrorMessage } from "../lib/firebase";
-import { getRoleFromEmail } from "../lib/roles";
-import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { api, ApiError } from "../lib/api";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
 export const LoginScreen = () => {
-  const { setScreen, setUserIdentifier, t, isUrdu } = useApp();
+  const { setScreen, setUserIdentifier, setUserRole, setLiveProfile, t, isUrdu } = useApp();
   const [isSignUp, setIsSignUp] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const validateEmail = (email: string) => {
+    return /\S+@\S+\.\S+/.test(email);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanId = identifier.trim();
     const cleanPass = password.trim();
+    const cleanConfirm = confirmPassword.trim();
 
-    // 1. Strict Empty Field Validation across both modes
-    if (!cleanId || !cleanPass) {
+    // 1. Strict Empty Field Validation
+    if (!cleanId || !cleanPass || (isSignUp && !cleanConfirm)) {
       setError(t.authEmptyFields);
       return;
     }
 
-    // 2. Firebase Auth Mode
+    // 2. Client-side Validation for Sign-Up
+    if (isSignUp) {
+      if (!validateEmail(cleanId)) {
+        setError(t.authInvalidEmail);
+        return;
+      }
+      if (cleanPass.length < 8) {
+        setError(t.authPasswordTooShort);
+        return;
+      }
+      if (cleanPass !== cleanConfirm) {
+        setError(t.authPasswordMismatch);
+        return;
+      }
+    }
+
+    // 3. Firebase Auth Mode
     if (isFirebaseEnabled()) {
       setIsLoading(true);
       setError("");
@@ -45,12 +67,18 @@ export const LoginScreen = () => {
       }
 
       try {
-        const userCredential = await signInWithEmailAndPassword(auth, cleanId, cleanPass);
-        const email = userCredential.user.email || cleanId;
-        const role = getRoleFromEmail(email);
+        let userCredential;
+        if (isSignUp) {
+          userCredential = await createUserWithEmailAndPassword(auth, cleanId, cleanPass);
+        } else {
+          userCredential = await signInWithEmailAndPassword(auth, cleanId, cleanPass);
+        }
 
-        // Fail-closed role check: must explicitly be "patient"
-        if (role !== "patient") {
+        const email = userCredential.user.email || cleanId;
+
+        // In Live Mode: establish session with backend
+        const session = await api.authSession();
+        if (session.role !== "patient") {
           await signOut(auth);
           setError(t.authRoleMismatch);
           setIsLoading(false);
@@ -58,17 +86,34 @@ export const LoginScreen = () => {
         }
 
         setUserIdentifier(email);
-        setScreen("connection");
+        setUserRole(session.role);
+
+        // Check if patient has completed consent and onboarding
+        try {
+          const prof = await api.getProfile();
+          setLiveProfile(prof);
+          if (!prof.consent_granted_at) {
+            setScreen("consent");
+          } else {
+            setScreen("connection");
+          }
+        } catch {
+          setScreen("consent");
+        }
       } catch (err: any) {
-        const errorCode = err?.code || "";
-        setError(getAuthErrorMessage(errorCode, t));
+        if (err instanceof ApiError) {
+          setError(err.getFriendlyMessage(isUrdu));
+        } else {
+          const errorCode = err?.code || "";
+          setError(getAuthErrorMessage(errorCode, t));
+        }
       } finally {
         setIsLoading(false);
       }
       return;
     }
 
-    // 3. Mock / Offline Demo Mode (Strictly when AUTH_MODE is unset or mock)
+    // 4. Mock / Offline Demo Mode (Strictly when AUTH_MODE is unset or mock)
     setError("");
     setUserIdentifier(cleanId);
     setScreen("connection");
@@ -79,7 +124,7 @@ export const LoginScreen = () => {
       {/* Soft Navy-to-Teal Gradient Hero Header */}
       <div className="bg-gradient-to-br from-navy-800 via-navy-800 to-teal-800 p-7 text-white text-center relative overflow-hidden">
         <div className="absolute -top-10 -right-10 w-36 h-36 bg-teal-400/15 rounded-full blur-2xl pointer-events-none" />
-        
+
         {/* Unobtrusive Mode Indicator Badge */}
         <div className="mb-3 flex justify-center">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-navy-900/60 border border-teal-400/30 text-[11px] font-medium text-teal-200 tracking-wide backdrop-blur-xs">
@@ -100,7 +145,7 @@ export const LoginScreen = () => {
       </div>
 
       {/* Form Area */}
-      <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-5" dir={isUrdu ? "rtl" : "ltr"}>
+      <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4" dir={isUrdu ? "rtl" : "ltr"}>
         {error && (
           <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
@@ -108,9 +153,9 @@ export const LoginScreen = () => {
           </div>
         )}
 
-        {/* Email Input (48px Touch Target) */}
+        {/* Email Input */}
         <div>
-          <label className="block text-sm font-semibold text-navy-800 mb-2" htmlFor="login-identifier">
+          <label className="block text-sm font-semibold text-navy-800 mb-1.5" htmlFor="login-identifier">
             {t.emailOrPhoneLabel}
           </label>
           <div className="relative">
@@ -128,9 +173,9 @@ export const LoginScreen = () => {
           </div>
         </div>
 
-        {/* Password Input (48px Touch Target) */}
+        {/* Password Input */}
         <div>
-          <label className="block text-sm font-semibold text-navy-800 mb-2" htmlFor="login-password">
+          <label className="block text-sm font-semibold text-navy-800 mb-1.5" htmlFor="login-password">
             {t.passwordLabel}
           </label>
           <div className="relative">
@@ -148,7 +193,29 @@ export const LoginScreen = () => {
           </div>
         </div>
 
-        {/* Primary Action Button (48px Touch Target) */}
+        {/* Confirm Password (Only during Sign-Up) */}
+        {isSignUp && (
+          <div className="animate-fadeIn">
+            <label className="block text-sm font-semibold text-navy-800 mb-1.5" htmlFor="login-confirm-password">
+              {t.confirmPasswordLabel}
+            </label>
+            <div className="relative">
+              <div className={`absolute inset-y-0 ${isUrdu ? "right-0 pr-3.5" : "left-0 pl-3.5"} flex items-center pointer-events-none text-slate-400`}>
+                <Lock className="w-5 h-5" />
+              </div>
+              <input
+                id="login-confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder={t.confirmPasswordPlaceholder}
+                className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white/90 ${isUrdu ? "pr-11 pl-4" : "pl-11 pr-4"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all shadow-xs`}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Primary Action Button */}
         <button
           type="submit"
           id="login-submit-btn"
@@ -168,13 +235,14 @@ export const LoginScreen = () => {
           )}
         </button>
 
-        {/* Toggle Mode Button */}
+        {/* Toggle Sign-In / Sign-Up */}
         <div className="text-center pt-1">
           <button
             type="button"
             onClick={() => {
               setIsSignUp(!isSignUp);
               setError("");
+              setConfirmPassword("");
             }}
             id="toggle-auth-mode-btn"
             className="text-sm font-medium text-teal-700 hover:text-teal-800 underline underline-offset-4 transition-colors py-1"
@@ -183,14 +251,14 @@ export const LoginScreen = () => {
           </button>
         </div>
 
-        {/* Visible Trust Signal Badge */}
+        {/* Trust Signal Badge */}
         <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200/70 flex items-center justify-center gap-2 text-xs font-medium text-teal-900">
           <ShieldCheck className="w-4 h-4 text-teal-700 shrink-0" />
           <span>Your health data is kept private • HIPAA Compliant</span>
         </div>
 
-        {/* Non-functional Auth Note */}
-        <div className="pt-2 text-center text-xs text-slate-400">
+        {/* Note */}
+        <div className="pt-1 text-center text-xs text-slate-400">
           {t.loginHelpText}
         </div>
       </form>

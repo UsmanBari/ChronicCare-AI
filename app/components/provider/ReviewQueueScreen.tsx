@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
 import {
   ClipboardList,
@@ -13,12 +13,16 @@ import {
   Clock,
   ShieldCheck,
   Calendar,
+  Loader2,
+  Flame,
 } from "lucide-react";
+import { api, ReviewQueueItemResponse } from "../../lib/api";
 
 export const ReviewQueueScreen = () => {
   const {
     setProviderScreen,
     setSelectedPatient,
+    isLiveMode,
     demoScenario,
     resolvedCases,
     appointment,
@@ -26,6 +30,34 @@ export const ReviewQueueScreen = () => {
     t,
     isUrdu,
   } = useApp();
+
+  const [liveQueue, setLiveQueue] = useState<ReviewQueueItemResponse[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
+
+  useEffect(() => {
+    if (!isLiveMode) return;
+    let isMounted = true;
+    api
+      .getProviderReviewQueue("open")
+      .then((items) => {
+        if (isMounted) {
+          // Sort emergency first, then overdue, then created_at desc
+          const sorted = [...items].sort((a, b) => {
+            if (a.emergency !== b.emergency) return a.emergency ? -1 : 1;
+            if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          });
+          setLiveQueue(sorted);
+          setIsLoading(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [isLiveMode]);
 
   const isAliResolved = resolvedCases.includes("Ali Khan");
   const isSaraResolved = resolvedCases.includes("Sara Ahmed");
@@ -61,7 +93,7 @@ export const ReviewQueueScreen = () => {
         </span>
       </div>
 
-      {/* Patient-Requested Follow-Up Alert Banner (Fix 2) */}
+      {/* Patient-Requested Follow-Up Alert Banner */}
       {appointment.isBooked && appointment.status === "Requested" && (
         <div className="p-5 rounded-3xl bg-amber-50 border-2 border-amber-300 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fadeIn">
           <div className="flex items-start gap-3.5">
@@ -96,7 +128,7 @@ export const ReviewQueueScreen = () => {
         </div>
       )}
 
-      {/* Queue Table (Soft Glass Elevation) */}
+      {/* Queue Table */}
       <div className="glass-resting rounded-3xl shadow-sm overflow-hidden border border-slate-200/80">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
@@ -110,156 +142,255 @@ export const ReviewQueueScreen = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {/* Row 1: Ali Khan (Present if Scenario is conflict) */}
-              {demoScenario === "conflict" && (
-                <tr
-                  onClick={() => {
-                    setSelectedPatient("Ali Khan");
-                    setProviderScreen("reconciliation_alert");
-                  }}
-                  id="queue-row-ali-khan-conflict"
-                  className="hover:bg-amber-50/60 bg-white/70 cursor-pointer transition-colors"
-                >
-                  <td className="py-4.5 px-5">
-                    <div className="font-bold text-navy-800 text-sm">Ali Khan</div>
-                    <div className="text-xs text-slate-500">ID: PT-04821 • 58y M</div>
-                  </td>
-                  <td className="py-4.5 px-5">
-                    <div className="inline-flex items-center gap-1.5 font-semibold text-amber-800 text-sm">
-                      <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
-                      <span>Conflicting Glucose (180 vs 140 mg/dL)</span>
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      Patient Check-in vs. FHIR EHR Record
-                    </div>
-                  </td>
-                  <td className="py-4.5 px-5">
-                    <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 font-bold text-xs">
-                      Low
-                    </span>
-                  </td>
-                  <td className="py-4.5 px-5">
-                    {isAliResolved ? (
-                      <span className="inline-flex items-center gap-1.5 text-mutedGreen-800 font-bold text-xs">
-                        <CheckCircle2 className="w-4 h-4 text-mutedGreen-800" /> Resolved
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-amber-800 font-bold text-xs">
-                        <Clock className="w-4 h-4 text-amber-800" /> Pending Review
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-4.5 px-5 text-right">
-                    <button
-                      type="button"
-                      className="min-h-[40px] px-4 py-2 rounded-xl bg-navy-800 hover:bg-navy-900 text-white font-semibold text-xs shadow-xs inline-flex items-center gap-1.5"
+              {/* LIVE QUEUE ROWS */}
+              {isLiveMode ? (
+                isLoading ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-500">
+                      <div className="inline-flex items-center gap-2 text-xs font-semibold">
+                        <Loader2 className="w-4 h-4 animate-spin text-teal-700" />
+                        <span>Loading active review queue...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : liveQueue.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-500 text-xs">
+                      No open cases in clinical review queue.
+                    </td>
+                  </tr>
+                ) : (
+                  liveQueue.map((item) => (
+                    <tr
+                      key={item.checkin_id}
+                      onClick={() => {
+                        setSelectedPatient(item.checkin_id);
+                        setProviderScreen("reconciliation_alert");
+                      }}
+                      id={`queue-row-${item.checkin_id}`}
+                      className={`cursor-pointer transition-colors ${
+                        item.emergency
+                          ? "bg-emergencyRed-50/30 hover:bg-emergencyRed-50/60"
+                          : item.overdue
+                          ? "bg-amber-50/30 hover:bg-amber-50/60"
+                          : "bg-white/70 hover:bg-slate-50"
+                      }`}
                     >
-                      <span>Review Discrepancy</span>
-                      <ChevronRight className={`w-3.5 h-3.5 ${isUrdu ? "rotate-180" : ""}`} />
-                    </button>
-                  </td>
-                </tr>
-              )}
-
-              {/* Row 1 Alternative: Ali Khan Emergency */}
-              {demoScenario === "emergency" && (
-                <tr
-                  onClick={() => {
-                    setSelectedPatient("Ali Khan");
-                    setProviderScreen("reconciliation_alert");
-                  }}
-                  id="queue-row-ali-khan-emergency"
-                  className="hover:bg-emergencyRed-50/60 bg-emergencyRed-50/30 cursor-pointer transition-colors"
-                >
-                  <td className="py-4.5 px-5">
-                    <div className="font-bold text-navy-800 text-sm">Ali Khan</div>
-                    <div className="text-xs text-slate-500">ID: PT-04821 • 58y M</div>
-                  </td>
-                  <td className="py-4.5 px-5">
-                    <div className="inline-flex items-center gap-1.5 font-bold text-emergencyRed-800 text-sm">
-                      <AlertOctagon className="w-4 h-4 text-emergencyRed-800 shrink-0 animate-pulse" />
-                      <span>Acute Escalation & Critical Pattern</span>
-                    </div>
-                    <div className="text-xs text-emergencyRed-800/80 mt-0.5">
-                      Emergency Alert Dispatched to Care Team
-                    </div>
-                  </td>
-                  <td className="py-4.5 px-5">
-                    <span className="px-2.5 py-1 rounded-full bg-emergencyRed-100 text-emergencyRed-800 font-bold text-xs">
-                      High Urgency
-                    </span>
-                  </td>
-                  <td className="py-4.5 px-5">
-                    {isAliResolved ? (
-                      <span className="inline-flex items-center gap-1.5 text-mutedGreen-800 font-bold text-xs">
-                        <CheckCircle2 className="w-4 h-4 text-mutedGreen-800" /> Resolved
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-emergencyRed-800 font-bold text-xs animate-pulse">
-                        <Clock className="w-4 h-4" /> Urgent Action Required
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-4.5 px-5 text-right">
-                    <button
-                      type="button"
-                      className="min-h-[40px] px-4 py-2 rounded-xl bg-emergencyRed-800 hover:bg-emergencyRed-700 text-white font-semibold text-xs shadow-xs inline-flex items-center gap-1.5"
+                      <td className="py-4.5 px-5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-navy-800 text-sm">{item.patient_display}</span>
+                          {item.emergency && (
+                            <span className="px-2 py-0.5 rounded bg-emergencyRed-100 text-emergencyRed-800 text-[10px] font-bold uppercase tracking-wider">
+                              {t.emergencyPriority}
+                            </span>
+                          )}
+                          {item.overdue && (
+                            <span className="px-2 py-0.5 rounded bg-amber-200 text-amber-950 text-[10px] font-bold uppercase tracking-wider">
+                              {t.overdueBadge}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-500 font-mono">
+                          ID: {item.checkin_id.slice(0, 8)}... • Mode: {item.mode}
+                        </div>
+                      </td>
+                      <td className="py-4.5 px-5">
+                        <div className="inline-flex items-center gap-1.5 font-semibold text-slate-800 text-sm">
+                          {item.emergency ? (
+                            <AlertOctagon className="w-4 h-4 text-emergencyRed-700 shrink-0" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                          )}
+                          <span>
+                            {item.emergency
+                              ? "Emergency Clinical Escalation"
+                              : `Discrepancy: ${item.counts?.conflict || item.counts?.flagged || 1} flagged items`}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          Received: {new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      </td>
+                      <td className="py-4.5 px-5">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${
+                          item.max_severity === "critical"
+                            ? "bg-emergencyRed-100 text-emergencyRed-800"
+                            : item.max_severity === "high"
+                            ? "bg-amber-100 text-amber-900"
+                            : "bg-slate-100 text-slate-700"
+                        }`}>
+                          {item.max_severity || "Review"}
+                        </span>
+                      </td>
+                      <td className="py-4.5 px-5">
+                        <span className="inline-flex items-center gap-1.5 text-amber-800 font-bold text-xs">
+                          <Clock className="w-4 h-4 text-amber-800" /> Pending Review
+                        </span>
+                      </td>
+                      <td className="py-4.5 px-5 text-right">
+                        <button
+                          type="button"
+                          className="min-h-[40px] px-4 py-2 rounded-xl bg-navy-800 hover:bg-navy-900 text-white font-semibold text-xs shadow-xs inline-flex items-center gap-1.5"
+                        >
+                          <span>Review</span>
+                          <ChevronRight className={`w-3.5 h-3.5 ${isUrdu ? "rotate-180" : ""}`} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )
+              ) : (
+                /* MOCK QUEUE ROWS */
+                <>
+                  {demoScenario === "conflict" && (
+                    <tr
+                      onClick={() => {
+                        setSelectedPatient("Ali Khan");
+                        setProviderScreen("reconciliation_alert");
+                      }}
+                      id="queue-row-ali-khan-conflict"
+                      className="hover:bg-amber-50/60 bg-white/70 cursor-pointer transition-colors"
                     >
-                      <span>Emergency Triage</span>
-                      <ChevronRight className={`w-3.5 h-3.5 ${isUrdu ? "rotate-180" : ""}`} />
-                    </button>
-                  </td>
-                </tr>
-              )}
-
-              {/* Row 2: Sara Ahmed (Always present static baseline) */}
-              <tr
-                onClick={() => {
-                  setSelectedPatient("Sara Ahmed");
-                  setProviderScreen("patient_detail");
-                }}
-                id="queue-row-sara-ahmed"
-                className="hover:bg-slate-50 bg-white/70 cursor-pointer transition-colors"
-              >
-                <td className="py-4.5 px-5">
-                  <div className="font-bold text-navy-800 text-sm">Sara Ahmed</div>
-                  <div className="text-xs text-slate-500">ID: PT-01934 • 62y F</div>
-                </td>
-                <td className="py-4.5 px-5">
-                  <div className="inline-flex items-center gap-1.5 font-semibold text-slate-800 text-sm">
-                    <Clock className="w-4 h-4 text-amber-700 shrink-0" />
-                    <span>Incomplete check-in — skipped questions</span>
-                  </div>
-                  <div className="text-xs text-slate-500 mt-0.5">
-                    Medication adherence response omitted
-                  </div>
-                </td>
-                <td className="py-4.5 px-5">
-                  <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold text-xs">
-                    Low
-                  </span>
-                </td>
-                <td className="py-4.5 px-5">
-                  {isSaraResolved ? (
-                    <span className="inline-flex items-center gap-1.5 text-mutedGreen-800 font-bold text-xs">
-                      <CheckCircle2 className="w-4 h-4 text-mutedGreen-800" /> Followed up
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 text-amber-800 font-semibold text-xs">
-                      <Clock className="w-4 h-4 text-amber-800" /> Pending Check
-                    </span>
+                      <td className="py-4.5 px-5">
+                        <div className="font-bold text-navy-800 text-sm">Ali Khan</div>
+                        <div className="text-xs text-slate-500">ID: PT-04821 • 58y M</div>
+                      </td>
+                      <td className="py-4.5 px-5">
+                        <div className="inline-flex items-center gap-1.5 font-semibold text-amber-800 text-sm">
+                          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                          <span>Conflicting Glucose (180 vs 140 mg/dL)</span>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          Patient Check-in vs. FHIR EHR Record
+                        </div>
+                      </td>
+                      <td className="py-4.5 px-5">
+                        <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 font-bold text-xs">
+                          Low
+                        </span>
+                      </td>
+                      <td className="py-4.5 px-5">
+                        {isAliResolved ? (
+                          <span className="inline-flex items-center gap-1.5 text-mutedGreen-800 font-bold text-xs">
+                            <CheckCircle2 className="w-4 h-4 text-mutedGreen-800" /> Resolved
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-amber-800 font-bold text-xs">
+                            <Clock className="w-4 h-4 text-amber-800" /> Pending Review
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-4.5 px-5 text-right">
+                        <button
+                          type="button"
+                          className="min-h-[40px] px-4 py-2 rounded-xl bg-navy-800 hover:bg-navy-900 text-white font-semibold text-xs shadow-xs inline-flex items-center gap-1.5"
+                        >
+                          <span>Review Discrepancy</span>
+                          <ChevronRight className={`w-3.5 h-3.5 ${isUrdu ? "rotate-180" : ""}`} />
+                        </button>
+                      </td>
+                    </tr>
                   )}
-                </td>
-                <td className="py-4.5 px-5 text-right">
-                  <button
-                    type="button"
-                    className="min-h-[40px] px-4 py-2 rounded-xl bg-white hover:bg-slate-100 text-navy-800 font-semibold text-xs border border-slate-300 inline-flex items-center gap-1.5 shadow-xs"
+
+                  {demoScenario === "emergency" && (
+                    <tr
+                      onClick={() => {
+                        setSelectedPatient("Ali Khan");
+                        setProviderScreen("reconciliation_alert");
+                      }}
+                      id="queue-row-ali-khan-emergency"
+                      className="hover:bg-emergencyRed-50/60 bg-emergencyRed-50/30 cursor-pointer transition-colors"
+                    >
+                      <td className="py-4.5 px-5">
+                        <div className="font-bold text-navy-800 text-sm">Ali Khan</div>
+                        <div className="text-xs text-slate-500">ID: PT-04821 • 58y M</div>
+                      </td>
+                      <td className="py-4.5 px-5">
+                        <div className="inline-flex items-center gap-1.5 font-bold text-emergencyRed-800 text-sm">
+                          <AlertOctagon className="w-4 h-4 text-emergencyRed-800 shrink-0 animate-pulse" />
+                          <span>Acute Escalation & Critical Pattern</span>
+                        </div>
+                        <div className="text-xs text-emergencyRed-800/80 mt-0.5">
+                          Emergency Alert Dispatched to Care Team
+                        </div>
+                      </td>
+                      <td className="py-4.5 px-5">
+                        <span className="px-2.5 py-1 rounded-full bg-emergencyRed-100 text-emergencyRed-800 font-bold text-xs">
+                          High Urgency
+                        </span>
+                      </td>
+                      <td className="py-4.5 px-5">
+                        {isAliResolved ? (
+                          <span className="inline-flex items-center gap-1.5 text-mutedGreen-800 font-bold text-xs">
+                            <CheckCircle2 className="w-4 h-4 text-mutedGreen-800" /> Resolved
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-emergencyRed-800 font-bold text-xs animate-pulse">
+                            <Clock className="w-4 h-4" /> Urgent Action Required
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-4.5 px-5 text-right">
+                        <button
+                          type="button"
+                          className="min-h-[40px] px-4 py-2 rounded-xl bg-emergencyRed-800 hover:bg-emergencyRed-700 text-white font-semibold text-xs shadow-xs inline-flex items-center gap-1.5"
+                        >
+                          <span>Emergency Triage</span>
+                          <ChevronRight className={`w-3.5 h-3.5 ${isUrdu ? "rotate-180" : ""}`} />
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+
+                  <tr
+                    onClick={() => {
+                      setSelectedPatient("Sara Ahmed");
+                      setProviderScreen("patient_detail");
+                    }}
+                    id="queue-row-sara-ahmed"
+                    className="hover:bg-slate-50 bg-white/70 cursor-pointer transition-colors"
                   >
-                    <span>View Case</span>
-                    <ChevronRight className={`w-3.5 h-3.5 ${isUrdu ? "rotate-180" : ""}`} />
-                  </button>
-                </td>
-              </tr>
+                    <td className="py-4.5 px-5">
+                      <div className="font-bold text-navy-800 text-sm">Sara Ahmed</div>
+                      <div className="text-xs text-slate-500">ID: PT-01934 • 62y F</div>
+                    </td>
+                    <td className="py-4.5 px-5">
+                      <div className="inline-flex items-center gap-1.5 font-semibold text-slate-800 text-sm">
+                        <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                        <span>Incomplete check-in — skipped questions</span>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        Medication adherence response omitted
+                      </div>
+                    </td>
+                    <td className="py-4.5 px-5">
+                      <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold text-xs">
+                        Low
+                      </span>
+                    </td>
+                    <td className="py-4.5 px-5">
+                      {isSaraResolved ? (
+                        <span className="inline-flex items-center gap-1.5 text-mutedGreen-800 font-bold text-xs">
+                          <CheckCircle2 className="w-4 h-4 text-mutedGreen-800" /> Followed up
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-amber-800 font-semibold text-xs">
+                          <Clock className="w-4 h-4 text-amber-800" /> Pending Check
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-4.5 px-5 text-right">
+                      <button
+                        type="button"
+                        className="min-h-[40px] px-4 py-2 rounded-xl bg-white hover:bg-slate-100 text-navy-800 font-semibold text-xs border border-slate-300 inline-flex items-center gap-1.5 shadow-xs"
+                      >
+                        <span>View Case</span>
+                        <ChevronRight className={`w-3.5 h-3.5 ${isUrdu ? "rotate-180" : ""}`} />
+                      </button>
+                    </td>
+                  </tr>
+                </>
+              )}
             </tbody>
           </table>
         </div>

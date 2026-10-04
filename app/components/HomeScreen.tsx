@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
 import {
   Calendar,
@@ -18,21 +18,32 @@ import {
   ChevronRight,
   AlertTriangle,
   RefreshCw,
+  Loader2,
+  ShieldAlert,
 } from "lucide-react";
 import { FhirSourceBadge } from "./FhirSourceBadge";
+import { api, ApiError } from "../lib/api";
 
 export const HomeScreen = () => {
   const {
     setScreen,
     profile,
+    liveProfile,
+    liveEhrConnection,
     connectionMode,
+    isLiveMode,
+    userIdentifier,
     t,
     isUrdu,
     demoScenario,
     setDemoScenario,
     resetDemo,
     appointment,
+    setActiveLiveCheckin,
   } = useApp();
+
+  const [isStarting, setIsStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Dynamic medication dosage update for Scenario D (EHR update)
   const displayedMedications =
@@ -42,102 +53,137 @@ export const HomeScreen = () => {
         )
       : profile.medications;
 
+  const handleStartCheckIn = async () => {
+    setError(null);
+    if (isLiveMode) {
+      setIsStarting(true);
+      try {
+        const startRes = await api.startCheckin();
+        setActiveLiveCheckin(startRes);
+        setScreen("checkin_entry");
+      } catch (err: any) {
+        if (err instanceof ApiError) {
+          setError(err.getFriendlyMessage(isUrdu));
+        } else {
+          setError(err?.message || "Failed to start check-in session");
+        }
+      } finally {
+        setIsStarting(false);
+      }
+      return;
+    }
+
+    setScreen("checkin_entry");
+  };
+
+  const activeConditions =
+    isLiveMode && liveProfile?.conditions && liveProfile.conditions.length > 0
+      ? liveProfile.conditions.map((c) =>
+          c === "diabetes" ? "Type 2 Diabetes" : c === "hypertension" ? "Hypertension" : c
+        )
+      : profile.conditions;
+
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
-      {/* Demo / Evaluation Mode Bar (Clearly demarcated for FYP defense) */}
-      <div className="p-4 sm:p-5 rounded-2xl border border-slate-300/80 bg-white/95 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-teal-600 animate-pulse" />
-            <span className="text-xs font-bold tracking-wider uppercase text-slate-700">
-              {t.presenterControlsLabel} (Interactive Prototype)
-            </span>
+      {/* Demo / Presenter Controls Bar (HIDDEN in Live Mode per Design Decision 2) */}
+      {!isLiveMode && (
+        <div className="p-4 sm:p-5 rounded-2xl border border-slate-300/80 bg-white/95 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-teal-600 animate-pulse" />
+              <span className="text-xs font-bold tracking-wider uppercase text-slate-700">
+                {t.presenterControlsLabel} (Interactive Prototype)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={resetDemo}
+              id="presenter-reset-demo-btn"
+              title="Reset demo state and return to Normal"
+              className="min-h-[38px] inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 transition-colors shadow-2xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+              <span>{t.resetDemoBtn}</span>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={resetDemo}
-            id="presenter-reset-demo-btn"
-            title="Reset demo state and return to Normal"
-            className="min-h-[38px] inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 transition-colors shadow-2xs"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
-            <span>{t.resetDemoBtn}</span>
-          </button>
+
+          {/* 4 Scenario Selector Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <button
+              type="button"
+              id="scenario-normal-btn"
+              onClick={() => setDemoScenario("normal")}
+              className={`min-h-[44px] py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border transition-all text-center flex items-center justify-center gap-2 ${
+                demoScenario === "normal"
+                  ? "bg-navy-800 text-white border-navy-800 shadow-sm font-bold"
+                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+              }`}
+            >
+              {demoScenario === "normal" && <Check className="w-4 h-4 text-teal-400 shrink-0" />}
+              <span>{t.scenarioNormalBtn}</span>
+            </button>
+
+            <button
+              type="button"
+              id="scenario-conflict-btn"
+              onClick={() => setDemoScenario("conflict")}
+              className={`min-h-[44px] py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border transition-all text-center flex items-center justify-center gap-2 ${
+                demoScenario === "conflict"
+                  ? "bg-amber-800 text-white border-amber-800 shadow-sm font-bold"
+                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+              }`}
+            >
+              {demoScenario === "conflict" && <Check className="w-4 h-4 text-amber-300 shrink-0" />}
+              <span>{t.scenarioConflictBtn}</span>
+            </button>
+
+            <button
+              type="button"
+              id="scenario-emergency-btn"
+              onClick={() => setDemoScenario("emergency")}
+              className={`min-h-[44px] py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border transition-all text-center flex items-center justify-center gap-2 ${
+                demoScenario === "emergency"
+                  ? "bg-emergencyRed-800 text-white border-emergencyRed-800 shadow-sm font-bold"
+                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+              }`}
+            >
+              {demoScenario === "emergency" && <Check className="w-4 h-4 text-red-200 shrink-0" />}
+              <span>{t.scenarioEmergencyBtn}</span>
+            </button>
+
+            <button
+              type="button"
+              id="scenario-ehr-update-btn"
+              onClick={() => setDemoScenario("ehr_update")}
+              className={`min-h-[44px] py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border transition-all text-center flex items-center justify-center gap-2 ${
+                demoScenario === "ehr_update"
+                  ? "bg-teal-700 text-white border-teal-700 shadow-sm font-bold"
+                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+              }`}
+            >
+              {demoScenario === "ehr_update" && <Check className="w-4 h-4 text-teal-200 shrink-0" />}
+              <span>Scenario D: EHR Update</span>
+            </button>
+          </div>
         </div>
+      )}
 
-        {/* 4 Scenario Radio-style Selector Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-          {/* Scenario A: Normal */}
-          <button
-            type="button"
-            id="scenario-normal-btn"
-            onClick={() => setDemoScenario("normal")}
-            className={`min-h-[44px] py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border transition-all text-center flex items-center justify-center gap-2 ${
-              demoScenario === "normal"
-                ? "bg-navy-800 text-white border-navy-800 shadow-sm font-bold"
-                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
-            }`}
-          >
-            {demoScenario === "normal" && <Check className="w-4 h-4 text-teal-400 shrink-0" />}
-            <span>{t.scenarioNormalBtn}</span>
-          </button>
-
-          {/* Scenario B: Conflict */}
-          <button
-            type="button"
-            id="scenario-conflict-btn"
-            onClick={() => setDemoScenario("conflict")}
-            className={`min-h-[44px] py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border transition-all text-center flex items-center justify-center gap-2 ${
-              demoScenario === "conflict"
-                ? "bg-amber-800 text-white border-amber-800 shadow-sm font-bold"
-                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
-            }`}
-          >
-            {demoScenario === "conflict" && <Check className="w-4 h-4 text-amber-300 shrink-0" />}
-            <span>{t.scenarioConflictBtn}</span>
-          </button>
-
-          {/* Scenario C: Emergency */}
-          <button
-            type="button"
-            id="scenario-emergency-btn"
-            onClick={() => setDemoScenario("emergency")}
-            className={`min-h-[44px] py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border transition-all text-center flex items-center justify-center gap-2 ${
-              demoScenario === "emergency"
-                ? "bg-emergencyRed-800 text-white border-emergencyRed-800 shadow-sm font-bold"
-                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
-            }`}
-          >
-            {demoScenario === "emergency" && <Check className="w-4 h-4 text-red-200 shrink-0" />}
-            <span>{t.scenarioEmergencyBtn}</span>
-          </button>
-
-          {/* Scenario D: EHR Update */}
-          <button
-            type="button"
-            id="scenario-ehr-update-btn"
-            onClick={() => setDemoScenario("ehr_update")}
-            className={`min-h-[44px] py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-semibold border transition-all text-center flex items-center justify-center gap-2 ${
-              demoScenario === "ehr_update"
-                ? "bg-teal-700 text-white border-teal-700 shadow-sm font-bold"
-                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
-            }`}
-          >
-            {demoScenario === "ehr_update" && <Check className="w-4 h-4 text-teal-200 shrink-0" />}
-            <span>Scenario D: EHR Update</span>
-          </button>
+      {error && (
+        <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
+          <span>{error}</span>
         </div>
-      </div>
+      )}
 
       {/* Visible Isolated Offline Mode Banner */}
       {connectionMode === "offline" && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-800/30 text-amber-900 text-sm flex items-center justify-between animate-fadeIn shadow-xs">
           <div className="flex items-center gap-2.5 font-semibold">
             <Database className="w-5 h-5 text-amber-800 shrink-0" />
-            <span>{isUrdu ? "آئسولیٹڈ موڈ — لوکل اسٹور استعمال ہو رہا ہے" : "Isolated Offline Mode — Operating from Local Encrypted Store"}</span>
+            <span>{isUrdu ? "آئسولیٹڈ موڈ — لوکل اسٹور استعمال ہو رہا ہے" : "Isolated Mode — Operating from Local Private Record"}</span>
           </div>
           <span className="text-xs px-3 py-1 rounded-full bg-amber-200/80 text-amber-900 font-bold uppercase tracking-wider">
-            Local Store
+            {t.isolatedBadgeTitle}
           </span>
         </div>
       )}
@@ -149,7 +195,7 @@ export const HomeScreen = () => {
             {isUrdu ? "روزانہ صحت کا جائزہ" : "Daily Care Companion"}
           </span>
           <h1 className="font-heading text-2xl sm:text-3xl font-bold text-navy-800 tracking-tight">
-            {t.homeGreeting}
+            {isLiveMode ? `Good day, ${userIdentifier.split("@")[0]}` : t.homeGreeting}
           </h1>
           <p className="text-sm text-slate-600 mt-1 max-w-lg">
             {t.homeSubtitle}
@@ -194,12 +240,22 @@ export const HomeScreen = () => {
             <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <button
                 type="button"
-                onClick={() => setScreen("checkin_entry")}
+                onClick={handleStartCheckIn}
+                disabled={isStarting}
                 id="start-checkin-btn"
-                className="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2.5 px-8 py-3.5 bg-teal-600 hover:bg-teal-500 active:scale-[0.98] text-white font-bold text-sm sm:text-base rounded-xl shadow-lg transition-all"
+                className="w-full sm:w-auto min-h-[48px] inline-flex items-center justify-center gap-2.5 px-8 py-3.5 bg-teal-600 hover:bg-teal-500 active:scale-[0.98] disabled:opacity-75 text-white font-bold text-sm sm:text-base rounded-xl shadow-lg transition-all"
               >
-                <span>{t.startCheckInBtn}</span>
-                <ArrowRight className={`w-5 h-5 ${isUrdu ? "rotate-180" : ""}`} />
+                {isStarting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Starting Session...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{t.startCheckInBtn}</span>
+                    <ArrowRight className={`w-5 h-5 ${isUrdu ? "rotate-180" : ""}`} />
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -217,7 +273,7 @@ export const HomeScreen = () => {
         <span>Report Urgent Symptoms Now</span>
       </button>
 
-      {/* Health Snapshot (Resting Surface) */}
+      {/* Health Snapshot */}
       <div className="surface-card rounded-3xl p-6 sm:p-7 space-y-5">
         <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
           <h3 className="font-heading text-lg font-bold text-navy-800 flex items-center gap-2.5">
@@ -229,8 +285,8 @@ export const HomeScreen = () => {
           </span>
         </div>
 
-        {/* Scenario D: EHR Update Notification Banner */}
-        {demoScenario === "ehr_update" && (
+        {/* Scenario D: EHR Update Notification Banner (Mock only) */}
+        {!isLiveMode && demoScenario === "ehr_update" && (
           <div className="p-3.5 rounded-2xl bg-teal-50 border border-teal-200 text-xs flex items-start gap-2.5 animate-fadeIn">
             <RefreshCw className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
             <div>
@@ -249,7 +305,7 @@ export const HomeScreen = () => {
               {t.activeConditions}
             </span>
             <div className="font-semibold text-navy-800 space-y-1.5">
-              {profile.conditions.map((cond, i) => (
+              {activeConditions.map((cond, i) => (
                 <div key={i} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-teal-600 shrink-0" />
@@ -276,25 +332,9 @@ export const HomeScreen = () => {
               ))}
             </div>
           </div>
-
-          {/* Next Dose Reminder (Item 2) */}
-          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/70 flex items-center justify-between text-xs sm:col-span-2 shadow-2xs">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-800 shrink-0">
-                <Clock className="w-4 h-4 text-amber-700" />
-              </div>
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">
-                  Next Dose Reminder
-                </span>
-                <span className="font-semibold text-navy-800">Metformin 500mg (1+1)</span>
-              </div>
-            </div>
-            <span className="font-bold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded-lg">in 3h 20m</span>
-          </div>
         </div>
 
-        {/* Previous Check-in Status (Color + Icon + Label) */}
+        {/* Previous Check-in Status */}
         <div className="p-4 rounded-2xl bg-mutedGreen-50 border border-mutedGreen-800/20 flex items-center justify-between text-sm">
           <span className="font-medium text-mutedGreen-800 flex items-center gap-2">
             <Clock className="w-4 h-4" />

@@ -5,10 +5,11 @@ import { useApp } from "../../context/AppContext";
 import { Shield, Lock, Mail, ArrowRight, ArrowLeft, Loader2, KeyRound } from "lucide-react";
 import { isFirebaseEnabled, isFirebaseConfigured, getFirebaseAuth, getAuthErrorMessage } from "../../lib/firebase";
 import { getRoleFromEmail } from "../../lib/roles";
+import { api, ApiError } from "../../lib/api";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 export const AdminLoginScreen = () => {
-  const { setAdminScreen, setPortal, adminIdentifier, setAdminIdentifier, t, isUrdu } = useApp();
+  const { setAdminScreen, setPortal, setAdminIdentifier, setUserRole, t, isUrdu } = useApp();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,7 +20,7 @@ export const AdminLoginScreen = () => {
     const cleanId = identifier.trim();
     const cleanPass = password.trim();
 
-    // 1. Strict Empty Field Validation across both modes
+    // 1. Strict Empty Field Validation
     if (!cleanId || !cleanPass) {
       setError(t.authEmptyFields);
       return;
@@ -46,10 +47,10 @@ export const AdminLoginScreen = () => {
       try {
         const userCredential = await signInWithEmailAndPassword(auth, cleanId, cleanPass);
         const email = userCredential.user.email || cleanId;
-        const role = getRoleFromEmail(email);
 
-        // Fail-closed role check: must explicitly be "admin"
-        if (role !== "admin") {
+        // In Live Mode: Validate strictly from backend session
+        const session = await api.authSession();
+        if (session.role !== "admin") {
           await signOut(auth);
           setError(t.authRoleMismatch);
           setIsLoading(false);
@@ -57,10 +58,15 @@ export const AdminLoginScreen = () => {
         }
 
         setAdminIdentifier(email);
+        setUserRole(session.role);
         setAdminScreen("dashboard");
       } catch (err: any) {
-        const errorCode = err?.code || "";
-        setError(getAuthErrorMessage(errorCode, t));
+        if (err instanceof ApiError) {
+          setError(err.getFriendlyMessage(isUrdu));
+        } else {
+          const errorCode = err?.code || "";
+          setError(getAuthErrorMessage(errorCode, t));
+        }
       } finally {
         setIsLoading(false);
       }
@@ -68,6 +74,11 @@ export const AdminLoginScreen = () => {
     }
 
     // 3. Mock / Offline Demo Mode (Strictly when AUTH_MODE is unset or mock)
+    const mockRole = getRoleFromEmail(cleanId);
+    if (mockRole && mockRole !== "admin") {
+      setError(t.authRoleMismatch);
+      return;
+    }
     setError("");
     setAdminIdentifier(cleanId);
     setAdminScreen("dashboard");

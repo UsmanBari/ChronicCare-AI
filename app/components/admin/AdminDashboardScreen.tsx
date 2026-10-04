@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
+import { api } from "../../lib/api";
 import {
   Shield,
   Users,
@@ -22,11 +23,29 @@ import {
 } from "lucide-react";
 
 export const AdminDashboardScreen = () => {
-  const { setPortal, demoScenario, resolvedCases, appointment, setAppointment, t, isUrdu } = useApp();
+  const { setPortal, isLiveMode, demoScenario, resolvedCases, appointment, setAppointment, t, isUrdu } = useApp();
 
   // Active alerts mirrors Provider urgent cases count
   const isAliResolved = resolvedCases.includes("Ali Khan");
   const activeAlertsCount = demoScenario === "emergency" && !isAliResolved ? 1 : 0;
+
+  const [liveAuditLogs, setLiveAuditLogs] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isLiveMode) return;
+    let isMounted = true;
+    api
+      .getAdminAudit()
+      .then((rows) => {
+        if (isMounted && rows && rows.length > 0) {
+          setLiveAuditLogs(rows);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [isLiveMode]);
 
   // 1a. State-driven Clinics, Doctors, and Patients
   const [clinics, setClinics] = useState<string[]>([
@@ -670,19 +689,35 @@ export const AdminDashboardScreen = () => {
           </div>
 
           <div className="space-y-3 text-sm">
-            {auditLogs.map((log, idx) => (
-              <div key={idx} className="p-4 rounded-2xl bg-white/80 border border-slate-200/70 space-y-1 shadow-xs">
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span className="font-bold uppercase tracking-wider text-teal-800">
-                    {log.type}
-                  </span>
-                  <span>{log.time}</span>
+            {isLiveMode && liveAuditLogs.length > 0 ? (
+              liveAuditLogs.map((log) => (
+                <div key={log.id} className="p-4 rounded-2xl bg-white/80 border border-slate-200/70 space-y-1 shadow-xs">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="font-bold uppercase tracking-wider text-teal-800">
+                      {log.action}
+                    </span>
+                    <span className="font-mono">{new Date(log.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                  <p className="text-navy-800 font-medium text-sm leading-relaxed">
+                    Outcome: <span className="font-bold">{log.outcome}</span> • Target: {log.target || "system"}
+                  </p>
                 </div>
-                <p className="text-navy-800 font-medium text-sm leading-relaxed">
-                  {log.action}
-                </p>
-              </div>
-            ))}
+              ))
+            ) : (
+              auditLogs.map((log, idx) => (
+                <div key={idx} className="p-4 rounded-2xl bg-white/80 border border-slate-200/70 space-y-1 shadow-xs">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span className="font-bold uppercase tracking-wider text-teal-800">
+                      {log.type}
+                    </span>
+                    <span>{log.time}</span>
+                  </div>
+                  <p className="text-navy-800 font-medium text-sm leading-relaxed">
+                    {log.action}
+                  </p>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

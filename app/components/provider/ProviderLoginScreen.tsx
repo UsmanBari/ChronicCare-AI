@@ -5,10 +5,11 @@ import { useApp } from "../../context/AppContext";
 import { Stethoscope, Lock, Mail, ArrowRight, ArrowLeft, Loader2, KeyRound } from "lucide-react";
 import { isFirebaseEnabled, isFirebaseConfigured, getFirebaseAuth, getAuthErrorMessage } from "../../lib/firebase";
 import { getRoleFromEmail } from "../../lib/roles";
+import { api, ApiError } from "../../lib/api";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 export const ProviderLoginScreen = () => {
-  const { setProviderScreen, setPortal, providerIdentifier, setProviderIdentifier, t, isUrdu } = useApp();
+  const { setProviderScreen, setPortal, setProviderIdentifier, setUserRole, t, isUrdu } = useApp();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,7 +20,7 @@ export const ProviderLoginScreen = () => {
     const cleanId = identifier.trim();
     const cleanPass = password.trim();
 
-    // 1. Strict Empty Field Validation across both modes
+    // 1. Strict Empty Field Validation
     if (!cleanId || !cleanPass) {
       setError(t.authEmptyFields);
       return;
@@ -46,10 +47,10 @@ export const ProviderLoginScreen = () => {
       try {
         const userCredential = await signInWithEmailAndPassword(auth, cleanId, cleanPass);
         const email = userCredential.user.email || cleanId;
-        const role = getRoleFromEmail(email);
 
-        // Fail-closed role check: must explicitly be "provider"
-        if (role !== "provider") {
+        // In Live Mode: Role is strictly validated against backend session
+        const session = await api.authSession();
+        if (session.role !== "provider" && session.role !== "admin") {
           await signOut(auth);
           setError(t.authRoleMismatch);
           setIsLoading(false);
@@ -57,10 +58,15 @@ export const ProviderLoginScreen = () => {
         }
 
         setProviderIdentifier(email);
+        setUserRole(session.role);
         setProviderScreen("dashboard");
       } catch (err: any) {
-        const errorCode = err?.code || "";
-        setError(getAuthErrorMessage(errorCode, t));
+        if (err instanceof ApiError) {
+          setError(err.getFriendlyMessage(isUrdu));
+        } else {
+          const errorCode = err?.code || "";
+          setError(getAuthErrorMessage(errorCode, t));
+        }
       } finally {
         setIsLoading(false);
       }
@@ -68,6 +74,11 @@ export const ProviderLoginScreen = () => {
     }
 
     // 3. Mock / Offline Demo Mode (Strictly when AUTH_MODE is unset or mock)
+    const mockRole = getRoleFromEmail(cleanId);
+    if (mockRole && mockRole !== "provider" && mockRole !== "admin") {
+      setError(t.authRoleMismatch);
+      return;
+    }
     setError("");
     setProviderIdentifier(cleanId);
     setProviderScreen("dashboard");
