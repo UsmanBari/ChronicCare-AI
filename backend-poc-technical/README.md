@@ -96,18 +96,37 @@ curl -X POST http://localhost:8000/api/ehr/connect \
 
 ### 2. Authenticated Patient Check-In Pipeline
 
-All check-in sessions live on the server; patient identity and connection mode are derived server-side.
+All check-in sessions live on the server; patient identity, consent, and connection mode are derived server-side.
+
+#### Request & Response Enhancements (Stage 7A Hardening)
+- **State & Optimistic Locking**:
+  - `POST /api/checkins/start` returns `step` (current interview step string, e.g. `"greeting"`) and `version` (integer starting at 0).
+  - **Start Idempotency**: If a patient repeats or double-clicks start within 15 minutes and has given 0 answers, the server re-uses the existing in-progress check-in rather than abandoning it.
+  - `POST /api/checkins/<CHECKIN_ID>/answer` accepts an optional `step: str`.
+  - **409 Conflict Semantics**:
+    - `{"detail": "stale_step", "step": <current_step>, "question": <current_question>}`: returned if client submits an answer with a `step` that does not match the server's current state step.
+    - `{"detail": "concurrent_update"}`: returned if concurrent requests attempt to mutate the same check-in version (optimistic lock rejection).
+  - **Atomic Emergency Persistence**:
+    - When an emergency trigger (red-flag keyword or Stage 1 dangerous BP reading) is detected during `/answer`, the session status is immediately set to `emergency`, the `checkin_results` row is created, and an immutable `emergency_escalated` audit row is written within the same database transaction.
+    - Response contains `complete: true`, `emergency: true`, `emergency_reason: "<category>"`, and `escalation_recorded: true`.
+    - `POST /api/checkins/<CHECKIN_ID>/complete` is completely idempotent if called after an emergency.
+
+#### Stage 1 Dangerous Blood Pressure Screening Rule
+Under Proposal Section 27 and the AHA hypertensive-crisis benchmark, blood pressure readings at or above crisis range immediately halt the interview:
+- `DANGEROUS_BP_SYSTOLIC_MMHG = 180` (systolic >= 180 mmHg)
+- `DANGEROUS_BP_DIASTOLIC_MMHG = 120` (diastolic >= 120 mmHg)
+- Trigger category: `bp_crisis_range` with `trigger_reading: {"systolic": ..., "diastolic": ..., "unit": "mmHg"}` exposed directly in the provider review queue.
 
 ```bash
-# Start a new check-in session (auto-abandons any prior in-progress session)
+# Start a new check-in session (idempotent for un-answered sessions <= 15m)
 curl -X POST http://localhost:8000/api/checkins/start \
   -H "Authorization: Bearer <PATIENT_TOKEN>"
 
-# Advance interview state with patient response (max 1000 characters)
+# Advance interview state with patient response and optional step (max 1000 characters)
 curl -X POST http://localhost:8000/api/checkins/<CHECKIN_ID>/answer \
   -H "Authorization: Bearer <PATIENT_TOKEN>" \
   -H "Content-Type: application/json" \
-  -d '{"answer": "142 mg/dL fasting"}'
+  -d '{"answer": "142 mg/dL fasting", "step": "glucose_reading"}'
 
 # Complete check-in, execute deterministic reconciliation & verification
 curl -X POST http://localhost:8000/api/checkins/<CHECKIN_ID>/complete \

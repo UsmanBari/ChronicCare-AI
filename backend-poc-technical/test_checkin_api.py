@@ -774,6 +774,13 @@ def test_starting_new_checkin_abandons_older_in_progress(rsa_key_pair):
     start_1 = client.post("/api/checkins/start", headers={"Authorization": f"Bearer {token}"}).json()
     chk_1_id = start_1["checkin_id"]
 
+    # Provide an answer so checkin 1 is in progress with answers
+    client.post(
+        f"/api/checkins/{chk_1_id}/answer",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"answer": "Normal reading"},
+    )
+
     # Start check-in 2 without completing check-in 1
     start_2 = client.post("/api/checkins/start", headers={"Authorization": f"Bearer {token}"}).json()
     chk_2_id = start_2["checkin_id"]

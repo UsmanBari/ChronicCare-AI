@@ -68,7 +68,9 @@ def get_db_cursor(backend: Optional[str] = None, db_path: Optional[str] = None,
         db_dir = os.path.dirname(path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
-        conn = sqlite3.connect(path)
+        conn = sqlite3.connect(path, timeout=30.0)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=30000")
         conn.row_factory = sqlite3.Row
         try:
             cursor = conn.cursor()
@@ -85,7 +87,7 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
             mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> None:
     """
     Idempotent schema migration for Users, Roles, Audit Log, Patient Profiles,
-    EHR Systems, and EHR Connections tables.
+    EHR Systems, EHR Connections, Check-ins, and Review tables.
     Safe to run repeatedly.
     """
     now = _utc_now_iso()
@@ -178,6 +180,7 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                         record_patient_id TEXT NOT NULL,
                         status TEXT NOT NULL CHECK(status IN ('in_progress','complete','emergency','abandoned')),
                         state_json TEXT NOT NULL,
+                        version INTEGER NOT NULL DEFAULT 0,
                         started_at TEXT NOT NULL,
                         completed_at TEXT,
                         FOREIGN KEY(user_id) REFERENCES users(user_id)
@@ -193,6 +196,9 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                         requires_review INTEGER NOT NULL,
                         max_severity TEXT CHECK(max_severity IN ('none','low','moderate','high') OR max_severity IS NULL),
                         review_status TEXT NOT NULL CHECK(review_status IN ('open','acknowledged','resolved','escalated')),
+                        trigger_category TEXT,
+                        trigger_text TEXT,
+                        escalated_at TEXT,
                         created_at TEXT NOT NULL,
                         FOREIGN KEY(checkin_id) REFERENCES checkins(checkin_id)
                     )
@@ -210,6 +216,24 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     )
                 """)
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (3, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 4")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(checkins)")
+                c_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "version" not in c_cols:
+                    cursor.execute("ALTER TABLE checkins ADD COLUMN version INTEGER NOT NULL DEFAULT 0")
+
+                cursor.execute("PRAGMA table_info(checkin_results)")
+                cr_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "trigger_category" not in cr_cols:
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN trigger_category TEXT")
+                if "trigger_text" not in cr_cols:
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN trigger_text TEXT")
+                if "escalated_at" not in cr_cols:
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN escalated_at TEXT")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (4, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -299,6 +323,7 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                         record_patient_id VARCHAR(128) NOT NULL,
                         status VARCHAR(32) NOT NULL,
                         state_json MEDIUMTEXT NOT NULL,
+                        version INT NOT NULL DEFAULT 0,
                         started_at VARCHAR(64) NOT NULL,
                         completed_at VARCHAR(64),
                         INDEX idx_user_checkin (user_id, status),
@@ -315,6 +340,9 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                         requires_review TINYINT(1) NOT NULL,
                         max_severity VARCHAR(16),
                         review_status VARCHAR(32) NOT NULL,
+                        trigger_category VARCHAR(64),
+                        trigger_text VARCHAR(500),
+                        escalated_at VARCHAR(64),
                         created_at VARCHAR(64) NOT NULL,
                         INDEX idx_review_status (review_status),
                         FOREIGN KEY (checkin_id) REFERENCES checkins(checkin_id) ON DELETE CASCADE
@@ -334,6 +362,38 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 """)
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (3, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 4")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkins' AND COLUMN_NAME = 'version'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE checkins ADD COLUMN version INT NOT NULL DEFAULT 0")
+
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkin_results' AND COLUMN_NAME = 'trigger_category'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN trigger_category VARCHAR(64) NULL")
+
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkin_results' AND COLUMN_NAME = 'trigger_text'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN trigger_text VARCHAR(500) NULL")
+
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkin_results' AND COLUMN_NAME = 'escalated_at'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN escalated_at VARCHAR(64) NULL")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (4, %s)", (now,))
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -358,7 +418,7 @@ def get_user_by_email(email: str, backend: Optional[str] = None, db_path: Option
 def create_user(user_id: str, email: str, role: str, display_name: Optional[str] = None,
                 status: str = "active", backend: Optional[str] = None, db_path: Optional[str] = None,
                 mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
-    """Creates a new user row."""
+    """Creates a new user row, or returns existing user if already registered concurrently."""
     clean_id = str(user_id).strip()
     clean_email = str(email).strip().lower()
     clean_role = str(role).strip().lower()
@@ -374,20 +434,39 @@ def create_user(user_id: str, email: str, role: str, display_name: Optional[str]
         raise ValueError(f"Invalid status '{clean_status}'. Must be one of {VALID_STATUSES}.")
 
     now = _utc_now_iso()
-    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
-        cursor.execute(
-            f"INSERT INTO users (user_id, email, role, display_name, status, created_at, last_login_at) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
-            (clean_id, clean_email, clean_role, display_name, clean_status, now, now)
-        )
-    return {
-        "user_id": clean_id,
-        "email": clean_email,
-        "role": clean_role,
-        "display_name": display_name,
-        "status": clean_status,
-        "created_at": now,
-        "last_login_at": now,
-    }
+    try:
+        with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+            cursor.execute(
+                f"INSERT INTO users (user_id, email, role, display_name, status, created_at, last_login_at) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+                (clean_id, clean_email, clean_role, display_name, clean_status, now, now)
+            )
+        return {
+            "user_id": clean_id,
+            "email": clean_email,
+            "role": clean_role,
+            "display_name": display_name,
+            "status": clean_status,
+            "created_at": now,
+            "last_login_at": now,
+            "_is_new": True,
+        }
+    except Exception as e:
+        is_unique_violation = False
+        if isinstance(e, sqlite3.IntegrityError):
+            is_unique_violation = True
+        elif pymysql and isinstance(e, pymysql.MySQLError) and len(e.args) > 0 and e.args[0] == 1062:
+            is_unique_violation = True
+        elif "UNIQUE constraint failed" in str(e) or "Duplicate entry" in str(e):
+            is_unique_violation = True
+
+        if is_unique_violation:
+            existing = get_user_by_id(clean_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+            if not existing:
+                existing = get_user_by_email(clean_email, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+            if existing:
+                existing["_is_new"] = False
+                return existing
+        raise
 
 
 def update_user_role(user_id: str, role: str, backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -705,8 +784,8 @@ def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: 
         )
         cursor.execute(
             f"""
-            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, status, state_json, started_at, completed_at)
-            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, NULL)
+            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, status, state_json, version, started_at, completed_at)
+            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph}, NULL)
             """,
             (checkin_id, user_id, mode, record_patient_id, status, state_str, now)
         )
@@ -717,6 +796,7 @@ def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: 
         "record_patient_id": record_patient_id,
         "status": status,
         "state": state_dict,
+        "version": 0,
         "started_at": now,
         "completed_at": None,
     }
@@ -727,7 +807,7 @@ def get_checkin_by_id(checkin_id: str, backend: Optional[str] = None, db_path: O
     """Retrieves check-in row and parsed state dictionary by checkin_id."""
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
-            f"SELECT checkin_id, user_id, mode, record_patient_id, status, state_json, started_at, completed_at FROM checkins WHERE checkin_id = {ph}",
+            f"SELECT checkin_id, user_id, mode, record_patient_id, status, state_json, version, started_at, completed_at FROM checkins WHERE checkin_id = {ph}",
             (checkin_id,)
         )
         row = cursor.fetchone()
@@ -738,6 +818,7 @@ def get_checkin_by_id(checkin_id: str, backend: Optional[str] = None, db_path: O
             d["state"] = json.loads(d.pop("state_json", "{}"))
         except Exception:
             d["state"] = {}
+        d["version"] = int(d.get("version", 0)) if d.get("version") is not None else 0
         return d
 
 
@@ -748,10 +829,84 @@ def update_checkin_state(checkin_id: str, state_dict: Dict[str, Any], status: st
     state_str = json.dumps(state_dict)
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
-            f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph} WHERE checkin_id = {ph}",
+            f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph}",
             (state_str, status, completed_at, checkin_id)
         )
     return get_checkin_by_id(checkin_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+
+
+def apply_checkin_answer_atomic(
+    checkin_id: str,
+    expected_version: int,
+    state_dict: Dict[str, Any],
+    status: str = "in_progress",
+    completed_at: Optional[str] = None,
+    emergency: bool = False,
+    trigger_category: Optional[str] = None,
+    trigger_text: Optional[str] = None,
+    actor_user_id: Optional[str] = None,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> bool:
+    """
+    Atomically updates check-in state with optimistic locking (version match + increment).
+    When emergency=True:
+      - Sets status='emergency'
+      - Creates checkin_results row if not exists
+      - Appends emergency_escalated audit row if not exists (category only)
+    Returns True on success, False on concurrent update version mismatch.
+    """
+    now = _utc_now_iso()
+    state_str = json.dumps(state_dict)
+    clean_trigger_text = trigger_text[:500] if trigger_text else None
+
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph} AND version = {ph}",
+            (state_str, status, completed_at, checkin_id, expected_version)
+        )
+        if cursor.rowcount == 0:
+            return False
+
+        if emergency:
+            # Check if checkin_results already exists
+            cursor.execute(f"SELECT checkin_id FROM checkin_results WHERE checkin_id = {ph}", (checkin_id,))
+            if not cursor.fetchone():
+                intakes_list = state_dict.get("intakes", [])
+                if not intakes_list and state_dict.get("intake"):
+                    intakes_list = [state_dict["intake"]]
+                intakes_str = json.dumps(intakes_list)
+                emg_val = 1
+                req_rev_val = 1
+                max_sev = "high"
+                rev_status = "open"
+
+                cursor.execute(
+                    f"""
+                    INSERT INTO checkin_results (
+                        checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
+                        requires_review, max_severity, review_status, trigger_category, trigger_text,
+                        escalated_at, created_at
+                    ) VALUES ({ph}, {ph}, {ph}, NULL, NULL, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                    """,
+                    (checkin_id, emg_val, intakes_str, req_rev_val, max_sev, rev_status, trigger_category, clean_trigger_text, now, now)
+                )
+
+            # Check if audit row exists
+            cursor.execute(
+                f"SELECT id FROM audit_log WHERE action = 'emergency_escalated' AND target = {ph}",
+                (checkin_id,)
+            )
+            if not cursor.fetchone():
+                audit_detail = json.dumps({"category": trigger_category or "unknown"}, separators=(",", ":"))
+                cursor.execute(
+                    f"INSERT INTO audit_log (ts, actor_user_id, action, target, outcome, detail_json) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+                    (now, actor_user_id, "emergency_escalated", checkin_id, "ok", audit_detail)
+                )
+
+        return True
 
 
 def create_checkin_result(
@@ -763,6 +918,9 @@ def create_checkin_result(
     requires_review: bool = False,
     max_severity: Optional[str] = "none",
     review_status: str = "open",
+    trigger_category: Optional[str] = None,
+    trigger_text: Optional[str] = None,
+    escalated_at: Optional[str] = None,
     created_at: Optional[str] = None,
     backend: Optional[str] = None,
     db_path: Optional[str] = None,
@@ -776,13 +934,18 @@ def create_checkin_result(
     verif_str = json.dumps(verification) if verification else None
     emg_val = 1 if emergency else 0
     req_rev_val = 1 if requires_review else 0
+    clean_trigger_text = trigger_text[:500] if trigger_text else None
 
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         if be == "sqlite":
             cursor.execute(
                 f"""
-                INSERT INTO checkin_results (checkin_id, emergency, intakes_json, reconciliation_json, verification_json, requires_review, max_severity, review_status, created_at)
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                INSERT INTO checkin_results (
+                    checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
+                    requires_review, max_severity, review_status, trigger_category, trigger_text,
+                    escalated_at, created_at
+                )
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON CONFLICT(checkin_id) DO UPDATE SET
                     emergency = excluded.emergency,
                     intakes_json = excluded.intakes_json,
@@ -790,15 +953,22 @@ def create_checkin_result(
                     verification_json = excluded.verification_json,
                     requires_review = excluded.requires_review,
                     max_severity = excluded.max_severity,
-                    review_status = excluded.review_status
+                    review_status = excluded.review_status,
+                    trigger_category = excluded.trigger_category,
+                    trigger_text = excluded.trigger_text,
+                    escalated_at = excluded.escalated_at
                 """,
-                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, now)
+                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, now)
             )
         else:
             cursor.execute(
                 f"""
-                INSERT INTO checkin_results (checkin_id, emergency, intakes_json, reconciliation_json, verification_json, requires_review, max_severity, review_status, created_at)
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                INSERT INTO checkin_results (
+                    checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
+                    requires_review, max_severity, review_status, trigger_category, trigger_text,
+                    escalated_at, created_at
+                )
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON DUPLICATE KEY UPDATE
                     emergency = VALUES(emergency),
                     intakes_json = VALUES(intakes_json),
@@ -806,9 +976,12 @@ def create_checkin_result(
                     verification_json = VALUES(verification_json),
                     requires_review = VALUES(requires_review),
                     max_severity = VALUES(max_severity),
-                    review_status = VALUES(review_status)
+                    review_status = VALUES(review_status),
+                    trigger_category = VALUES(trigger_category),
+                    trigger_text = VALUES(trigger_text),
+                    escalated_at = VALUES(escalated_at)
                 """,
-                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, now)
+                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, now)
             )
     return get_checkin_result(checkin_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
@@ -820,7 +993,8 @@ def get_checkin_result(checkin_id: str, backend: Optional[str] = None, db_path: 
         cursor.execute(
             f"""
             SELECT checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
-                   requires_review, max_severity, review_status, created_at
+                   requires_review, max_severity, review_status, trigger_category, trigger_text,
+                   escalated_at, created_at
             FROM checkin_results
             WHERE checkin_id = {ph}
             """,
@@ -847,7 +1021,7 @@ def get_user_checkins(user_id: str, limit: int = 20, backend: Optional[str] = No
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
             f"""
-            SELECT c.checkin_id, c.user_id, c.mode, c.record_patient_id, c.status, c.started_at, c.completed_at,
+            SELECT c.checkin_id, c.user_id, c.mode, c.record_patient_id, c.status, c.version, c.started_at, c.completed_at,
                    r.emergency, r.requires_review, r.max_severity, r.review_status
             FROM checkins c
             LEFT JOIN checkin_results r ON c.checkin_id = r.checkin_id
@@ -863,6 +1037,7 @@ def get_user_checkins(user_id: str, limit: int = 20, backend: Optional[str] = No
             d = dict(r)
             d["emergency"] = bool(d["emergency"]) if d.get("emergency") is not None else False
             d["requires_review"] = bool(d["requires_review"]) if d.get("requires_review") is not None else False
+            d["version"] = int(d.get("version", 0)) if d.get("version") is not None else 0
             results.append(d)
         return results
 
@@ -880,6 +1055,7 @@ def get_provider_review_queue(review_status: str = "open", backend: Optional[str
             f"""
             SELECT r.checkin_id, r.emergency, r.max_severity, r.review_status, r.created_at,
                    r.intakes_json, r.reconciliation_json, r.verification_json,
+                   r.trigger_category, r.trigger_text, r.escalated_at,
                    c.mode, c.user_id,
                    u.display_name, u.email
             FROM checkin_results r
@@ -927,6 +1103,17 @@ def get_provider_review_queue(review_status: str = "open", backend: Optional[str
             except Exception:
                 pass
 
+            # Extract trigger_reading if present in intakes
+            trigger_reading = None
+            try:
+                intakes = json.loads(d.get("intakes_json") or "[]")
+                for intake in intakes:
+                    if intake.get("trigger_reading"):
+                        trigger_reading = intake["trigger_reading"]
+                        break
+            except Exception:
+                pass
+
             patient_display = d.get("display_name") or d.get("email") or "Patient"
 
             items.append({
@@ -938,6 +1125,10 @@ def get_provider_review_queue(review_status: str = "open", backend: Optional[str
                 "emergency": emergency,
                 "overdue": overdue,
                 "counts": counts,
+                "trigger_category": d.get("trigger_category"),
+                "trigger_text": d.get("trigger_text"),
+                "trigger_reading": trigger_reading,
+                "escalated_at": d.get("escalated_at"),
             })
         return items
 
