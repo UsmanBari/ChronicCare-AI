@@ -30,6 +30,8 @@ from agents.verification_agent import (
     verify_reconciliation,
     VerificationResult,
 )
+from llm.groq_client import is_configured, get_configured_model, chat
+import time
 
 app = FastAPI(
     title="ChronicCare AI - Clinical Reconciliation & Verification API",
@@ -228,6 +230,50 @@ def health_check():
         "service": "chroniccare-backend",
         "version": "0.1.0",
     }
+
+
+@app.get("/api/llm/health", tags=["LLM"])
+def llm_health_check(ping: bool = False):
+    """
+    Checks LLM integration health.
+    - Default (ping=False): Returns {configured: bool, model: str|null} without calling Groq.
+    - With ping=True: Makes a minimal completion and returns {ok: bool, latency_ms: int}.
+    Never reveals API keys.
+    """
+    configured = is_configured()
+    model = get_configured_model()
+
+    if not ping:
+        return {
+            "configured": configured,
+            "model": model,
+        }
+
+    if not configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM is not configured (missing GROQ_API_KEY or GROQ_MODEL).",
+        )
+
+    start_time = time.perf_counter()
+    try:
+        chat(
+            messages=[{"role": "user", "content": "ping"}],
+            max_tokens=5,
+            timeout=10.0,
+        )
+        latency_ms = int((time.perf_counter() - start_time) * 1000)
+        return {
+            "ok": True,
+            "latency_ms": latency_ms,
+        }
+    except Exception as e:
+        latency_ms = int((time.perf_counter() - start_time) * 1000)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Groq ping failed: {str(e)}",
+        )
+
 
 
 @app.post("/api/reconcile", tags=["Reconciliation"])
