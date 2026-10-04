@@ -47,7 +47,7 @@ export const ConfirmationScreen = () => {
               <span>Status</span>
             </span>
             <span className="font-bold text-mutedGreen-800 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Logged & Encrypted
+              <CheckCircle2 className="w-3.5 h-3.5" /> Logged & Recorded
             </span>
           </div>
         </div>

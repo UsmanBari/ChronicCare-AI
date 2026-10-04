@@ -2,10 +2,10 @@
 FastAPI Backend Application for ChronicCare AI
 
 Wraps the core deterministic Reconciliation and Verification agents in HTTP endpoints:
-- POST /api/reconcile: Wraps reconcile_bundles() from agents/reconciliation_agent.py
-- POST /api/verify: Wraps verify_reconciliation() from agents/verification_agent.py
-- GET /api/health: Health check endpoint
-- GET /api/llm/health: LLM connectivity check
+- POST /api/reconcile: Wraps reconcile_bundles() from agents/reconciliation_agent.py (provider/admin)
+- POST /api/verify: Wraps verify_reconciliation() from agents/verification_agent.py (provider/admin)
+- GET /api/health: Health check endpoint (public)
+- GET /api/llm/health: LLM connectivity check (admin)
 - POST /api/auth/session: Authenticate and session init for Firebase users
 - GET /api/me: Retrieve current authenticated user profile
 - POST /api/admin/users/{user_id}/role: Update user role (admin only)
@@ -627,7 +627,10 @@ def health_check():
 
 
 @app.get("/api/llm/health", tags=["LLM"])
-def llm_health_check(ping: bool = False):
+def llm_health_check(
+    ping: bool = False,
+    current_user: Dict[str, Any] = Depends(require_role("admin")),
+):
     """
     Checks LLM integration health.
     - Default (ping=False): Returns {configured: bool, model: str|null} without calling Groq.
@@ -1577,7 +1580,10 @@ def get_audit_endpoint(
 
 
 @app.post("/api/reconcile", tags=["Reconciliation"])
-def reconcile_endpoint(request: ReconcileRequest):
+def reconcile_endpoint(
+    request: ReconcileRequest,
+    current_user: Dict[str, Any] = Depends(require_role("provider", "admin")),
+):
     """
     Reconciles two patient bundles (prior history vs incoming check-in).
     Wraps deterministic reconcile_bundles() agent.
@@ -1600,7 +1606,10 @@ def reconcile_endpoint(request: ReconcileRequest):
 
 
 @app.post("/api/verify", tags=["Verification"])
-def verify_endpoint(request: VerifyRequest):
+def verify_endpoint(
+    request: VerifyRequest,
+    current_user: Dict[str, Any] = Depends(require_role("provider", "admin")),
+):
     """
     Evaluates trust levels, severity, and review necessity on reconciled clinical data.
     Wraps deterministic verify_reconciliation() agent.

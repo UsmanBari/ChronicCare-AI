@@ -86,7 +86,7 @@ export const ConsentScreen = () => {
         <div className="space-y-2.5 text-xs text-slate-600">
           <div className="flex items-start gap-2">
             <CheckCircle2 className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
-            <span>Encrypted transmission & secure patient identity verification.</span>
+            <span>Role-based access & patient identity verification.</span>
           </div>
           <div className="flex items-start gap-2">
             <CheckCircle2 className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />

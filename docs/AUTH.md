@@ -47,6 +47,35 @@ Roles are stored in the `users` table and enforced via the backend `require_role
 
 ---
 
+## Route Authorization Matrix
+
+| Endpoint | Method | Required Role | Public / Auth |
+| :--- | :--- | :--- | :--- |
+| `/api/health` | GET | None | **Public** |
+| `/api/ehr/systems` | GET | None | **Public** |
+| `/api/auth/session` | POST | Any valid token | Authenticated |
+| `/api/me` | GET | Any active user | Authenticated |
+| `/api/profile` | GET / PUT | `patient` | Authenticated |
+| `/api/consent` | GET / POST | `patient` | Authenticated |
+| `/api/ehr/connect` | POST | `patient` | Authenticated |
+| `/api/ehr/connection` | GET | Any active user | Authenticated |
+| `/api/ehr/connection` | DELETE | `patient` | Authenticated |
+| `/api/checkin/start` | POST | `patient` | Authenticated |
+| `/api/checkin/{session_id}/step` | POST | `patient` | Authenticated |
+| `/api/checkin/{session_id}/complete` | POST | `patient` | Authenticated |
+| `/api/checkin/history` | GET | `patient` | Authenticated |
+| `/api/checkin/{checkin_id}` | GET | `patient` | Authenticated |
+| `/api/reviews/queue` | GET | `provider` | Authenticated |
+| `/api/reviews/{checkin_id}` | GET | `provider` | Authenticated |
+| `/api/reviews/{checkin_id}/action` | POST | `provider` | Authenticated |
+| `/api/reconcile` | POST | `provider` or `admin` | Authenticated |
+| `/api/verify` | POST | `provider` or `admin` | Authenticated |
+| `/api/llm/health` | GET | `admin` | Authenticated |
+| `/api/admin/users/{user_id}/role` | POST | `admin` | Authenticated |
+| `/api/admin/audit` | GET | `admin` | Authenticated |
+
+---
+
 ## Configuration Variables
 
 | Variable Name | Required | Description |
