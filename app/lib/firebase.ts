@@ -8,6 +8,11 @@ export function isFirebaseEnabled(): boolean {
   return process.env.NEXT_PUBLIC_AUTH_MODE === "firebase";
 }
 
+export function isFirebaseConfigured(): boolean {
+  const config = getFirebaseConfig();
+  return Boolean(config.apiKey && config.projectId);
+}
+
 export function getFirebaseConfig() {
   return {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",

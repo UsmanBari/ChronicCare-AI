@@ -240,16 +240,51 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Synchronize Firebase Auth State across browser refreshes
+  // Synchronize Firebase Auth State across browser refreshes with fail-closed role verification
   useEffect(() => {
     if (typeof window === "undefined" || !isFirebaseEnabled()) return;
     const auth = getFirebaseAuth();
     if (!auth) return;
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && user.email) {
         const email = user.email;
         const role = getRoleFromEmail(email);
+
+        // Unknown role or unmapped email: immediately revoke session
+        if (!role) {
+          try {
+            await signOut(auth);
+          } catch {}
+          return;
+        }
+
+        // If currently in a specific portal, verify role matches that portal
+        if (portal === "patient" && role !== "patient") {
+          try {
+            await signOut(auth);
+            setScreenState("login");
+          } catch {}
+          return;
+        }
+
+        if (portal === "provider" && role !== "provider") {
+          try {
+            await signOut(auth);
+            setProviderScreenState("login");
+          } catch {}
+          return;
+        }
+
+        if (portal === "admin" && role !== "admin") {
+          try {
+            await signOut(auth);
+            setAdminScreenState("login");
+          } catch {}
+          return;
+        }
+
+        // Set matching role identifier
         if (role === "patient") {
           setUserIdentifier(email);
         } else if (role === "provider") {
@@ -261,7 +296,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [portal]);
 
   const signOutUser = async () => {
     if (isFirebaseEnabled()) {

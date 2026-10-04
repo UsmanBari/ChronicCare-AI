@@ -2,18 +2,16 @@
 
 import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
-import { Lock, Mail, UserCheck, ArrowRight, Activity, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
-import { isFirebaseEnabled, getFirebaseAuth, getAuthErrorMessage } from "../lib/firebase";
+import { Lock, Mail, ArrowRight, Activity, ShieldCheck, ShieldAlert, Loader2, KeyRound } from "lucide-react";
+import { isFirebaseEnabled, isFirebaseConfigured, getFirebaseAuth, getAuthErrorMessage } from "../lib/firebase";
 import { getRoleFromEmail } from "../lib/roles";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 export const LoginScreen = () => {
   const { setScreen, setUserIdentifier, t, isUrdu } = useApp();
   const [isSignUp, setIsSignUp] = useState(false);
-  const [identifier, setIdentifier] = useState(
-    process.env.NEXT_PUBLIC_DEMO_PATIENT_EMAIL || "patient@demo.care"
-  );
-  const [password, setPassword] = useState("••••••••");
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -22,50 +20,58 @@ export const LoginScreen = () => {
     const cleanId = identifier.trim();
     const cleanPass = password.trim();
 
+    // 1. Strict Empty Field Validation across both modes
     if (!cleanId || !cleanPass) {
-      setError(isUrdu ? "براہ کرم تمام خانے پُر کریں۔" : "Please enter both fields to proceed.");
+      setError(t.authEmptyFields);
       return;
     }
 
-    if (!isFirebaseEnabled()) {
-      // Mock / Offline Demo Mode (Exact current behavior)
+    // 2. Firebase Auth Mode
+    if (isFirebaseEnabled()) {
+      setIsLoading(true);
       setError("");
-      setUserIdentifier(cleanId);
-      setScreen("connection");
-      return;
-    }
 
-    // Firebase Auth Mode
-    setIsLoading(true);
-    setError("");
-
-    const auth = getFirebaseAuth();
-    if (!auth) {
-      setError(t.authInvalidApiKey);
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, cleanId, cleanPass);
-      const email = userCredential.user.email || cleanId;
-      const role = getRoleFromEmail(email);
-
-      if (role !== "patient") {
-        await signOut(auth);
-        setError(t.authRoleMismatch);
+      if (!isFirebaseConfigured()) {
+        setError(t.authConfigError);
         setIsLoading(false);
         return;
       }
 
-      setUserIdentifier(email);
-      setScreen("connection");
-    } catch (err: any) {
-      const errorCode = err?.code || "";
-      setError(getAuthErrorMessage(errorCode, t));
-    } finally {
-      setIsLoading(false);
+      const auth = getFirebaseAuth();
+      if (!auth) {
+        setError(t.authInvalidApiKey);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, cleanId, cleanPass);
+        const email = userCredential.user.email || cleanId;
+        const role = getRoleFromEmail(email);
+
+        // Fail-closed role check: must explicitly be "patient"
+        if (role !== "patient") {
+          await signOut(auth);
+          setError(t.authRoleMismatch);
+          setIsLoading(false);
+          return;
+        }
+
+        setUserIdentifier(email);
+        setScreen("connection");
+      } catch (err: any) {
+        const errorCode = err?.code || "";
+        setError(getAuthErrorMessage(errorCode, t));
+      } finally {
+        setIsLoading(false);
+      }
+      return;
     }
+
+    // 3. Mock / Offline Demo Mode (Strictly when AUTH_MODE is unset or mock)
+    setError("");
+    setUserIdentifier(cleanId);
+    setScreen("connection");
   };
 
   return (
@@ -73,6 +79,15 @@ export const LoginScreen = () => {
       {/* Soft Navy-to-Teal Gradient Hero Header */}
       <div className="bg-gradient-to-br from-navy-800 via-navy-800 to-teal-800 p-7 text-white text-center relative overflow-hidden">
         <div className="absolute -top-10 -right-10 w-36 h-36 bg-teal-400/15 rounded-full blur-2xl pointer-events-none" />
+        
+        {/* Unobtrusive Mode Indicator Badge */}
+        <div className="mb-3 flex justify-center">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-navy-900/60 border border-teal-400/30 text-[11px] font-medium text-teal-200 tracking-wide backdrop-blur-xs">
+            <KeyRound className="w-3 h-3 text-teal-300" />
+            <span>{isFirebaseEnabled() ? t.authModeFirebase : t.authModeMock}</span>
+          </span>
+        </div>
+
         <div className="w-14 h-14 rounded-2xl bg-navy-700/80 border border-teal-400/40 flex items-center justify-center mx-auto mb-3.5 shadow-inner text-teal-300">
           <Activity className="w-7 h-7" />
         </div>
@@ -93,7 +108,7 @@ export const LoginScreen = () => {
           </div>
         )}
 
-        {/* Email or Phone Input (48px Touch Target) */}
+        {/* Email Input (48px Touch Target) */}
         <div>
           <label className="block text-sm font-semibold text-navy-800 mb-2" htmlFor="login-identifier">
             {t.emailOrPhoneLabel}
@@ -107,7 +122,7 @@ export const LoginScreen = () => {
               type="text"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              placeholder={t.emailOrPhonePlaceholder}
+              placeholder={process.env.NEXT_PUBLIC_DEMO_PATIENT_EMAIL || "patient@example.com"}
               className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white/90 ${isUrdu ? "pr-11 pl-4" : "pl-11 pr-4"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all shadow-xs`}
             />
           </div>

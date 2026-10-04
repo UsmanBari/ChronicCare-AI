@@ -2,71 +2,89 @@
 
 import React, { useState } from "react";
 import { useApp } from "../../context/AppContext";
-import { Stethoscope, Lock, Mail, ArrowRight, ShieldCheck, ArrowLeft, Loader2 } from "lucide-react";
-import { isFirebaseEnabled, getFirebaseAuth, getAuthErrorMessage } from "../../lib/firebase";
+import { Stethoscope, Lock, Mail, ArrowRight, ArrowLeft, Loader2, KeyRound } from "lucide-react";
+import { isFirebaseEnabled, isFirebaseConfigured, getFirebaseAuth, getAuthErrorMessage } from "../../lib/firebase";
 import { getRoleFromEmail } from "../../lib/roles";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 export const ProviderLoginScreen = () => {
   const { setProviderScreen, setPortal, providerIdentifier, setProviderIdentifier, t, isUrdu } = useApp();
-  const [password, setPassword] = useState("••••••••");
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanId = providerIdentifier.trim();
+    const cleanId = identifier.trim();
     const cleanPass = password.trim();
 
+    // 1. Strict Empty Field Validation across both modes
     if (!cleanId || !cleanPass) {
-      setError(isUrdu ? "براہ کرم تمام خانے پُر کریں۔" : "Please enter your provider credentials.");
+      setError(t.authEmptyFields);
       return;
     }
 
-    if (!isFirebaseEnabled()) {
-      // Mock Demo Mode
+    // 2. Firebase Auth Mode
+    if (isFirebaseEnabled()) {
+      setIsLoading(true);
       setError("");
-      setProviderScreen("dashboard");
-      return;
-    }
 
-    // Firebase Auth Mode
-    setIsLoading(true);
-    setError("");
-
-    const auth = getFirebaseAuth();
-    if (!auth) {
-      setError(t.authInvalidApiKey);
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, cleanId, cleanPass);
-      const email = userCredential.user.email || cleanId;
-      const role = getRoleFromEmail(email);
-
-      if (role !== "provider") {
-        await signOut(auth);
-        setError(t.authRoleMismatch);
+      if (!isFirebaseConfigured()) {
+        setError(t.authConfigError);
         setIsLoading(false);
         return;
       }
 
-      setProviderIdentifier(email);
-      setProviderScreen("dashboard");
-    } catch (err: any) {
-      const errorCode = err?.code || "";
-      setError(getAuthErrorMessage(errorCode, t));
-    } finally {
-      setIsLoading(false);
+      const auth = getFirebaseAuth();
+      if (!auth) {
+        setError(t.authInvalidApiKey);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, cleanId, cleanPass);
+        const email = userCredential.user.email || cleanId;
+        const role = getRoleFromEmail(email);
+
+        // Fail-closed role check: must explicitly be "provider"
+        if (role !== "provider") {
+          await signOut(auth);
+          setError(t.authRoleMismatch);
+          setIsLoading(false);
+          return;
+        }
+
+        setProviderIdentifier(email);
+        setProviderScreen("dashboard");
+      } catch (err: any) {
+        const errorCode = err?.code || "";
+        setError(getAuthErrorMessage(errorCode, t));
+      } finally {
+        setIsLoading(false);
+      }
+      return;
     }
+
+    // 3. Mock / Offline Demo Mode (Strictly when AUTH_MODE is unset or mock)
+    setError("");
+    setProviderIdentifier(cleanId);
+    setProviderScreen("dashboard");
   };
 
   return (
     <div className="w-full max-w-md mx-auto bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-fadeIn">
       {/* Hero Header */}
       <div className="bg-navy-800 p-6 text-white text-center relative overflow-hidden">
+        {/* Unobtrusive Mode Indicator Badge */}
+        <div className="mb-2.5 flex justify-center">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-navy-900/80 border border-teal-400/30 text-[11px] font-medium text-teal-200 tracking-wide">
+            <KeyRound className="w-3 h-3 text-teal-300" />
+            <span>{isFirebaseEnabled() ? t.authModeFirebase : t.authModeMock}</span>
+          </span>
+        </div>
+
         <div className="w-12 h-12 rounded-xl bg-navy-700/80 border border-teal-500/30 flex items-center justify-center mx-auto mb-3 shadow-inner">
           <Stethoscope className="w-6 h-6 text-teal-400" />
         </div>
@@ -79,7 +97,7 @@ export const ProviderLoginScreen = () => {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4" dir={isUrdu ? "rtl" : "ltr"}>
         {error && (
           <div className="p-3 text-xs bg-amber-50 border border-amber-800/30 text-amber-800 rounded-lg">
             {error}
@@ -97,9 +115,9 @@ export const ProviderLoginScreen = () => {
             <input
               id="provider-identifier"
               type="text"
-              value={providerIdentifier}
-              onChange={(e) => setProviderIdentifier(e.target.value)}
-              placeholder={t.providerIdPlaceholder}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder={process.env.NEXT_PUBLIC_DEMO_PROVIDER_EMAIL || "dr.sanamalik@citygeneral.org"}
               className={`w-full text-sm rounded-xl border border-slate-300 bg-slate-50/50 py-2.5 ${isUrdu ? "pr-9 pl-3" : "pl-9 pr-3"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy-800 transition-all`}
             />
           </div>

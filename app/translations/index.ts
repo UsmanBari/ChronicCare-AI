@@ -66,6 +66,10 @@ export interface Translations {
   authRoleMismatch: string;
   authGeneralError: string;
   authSigningIn: string;
+  authModeFirebase: string;
+  authModeMock: string;
+  authConfigError: string;
+  authEmptyFields: string;
 
   // Screen 2: Connection Choice
   connectionTitle: string;
@@ -301,6 +305,10 @@ export const translations: Record<Language, Translations> = {
     authRoleMismatch: "Access denied: this account does not have permission for this portal.",
     authGeneralError: "Authentication failed. Please check your network and try again.",
     authSigningIn: "Signing in...",
+    authModeFirebase: "Auth: Firebase",
+    authModeMock: "Auth: Demo (mock)",
+    authConfigError: "Firebase authentication is not properly configured. Please check your configuration.",
+    authEmptyFields: "Please enter both your email and password to proceed.",
 
     connectionTitle: "Select Connection Mode",
     connectionSubtitle: "Choose how ChronicCare AI should access and synchronize your clinical profile.",
@@ -530,6 +538,10 @@ export const translations: Record<Language, Translations> = {
     authRoleMismatch: "رسائی مسترد: اس اکاؤنٹ کے پاس اس پورٹل کے لیے اجازت نہیں ہے۔",
     authGeneralError: "لاگ ان تصدیق ناکام ہو گئی۔ براہ کرم نیٹ ورک چیک کریں اور دوبارہ کوشش کریں۔",
     authSigningIn: "سائن ان ہو رہا ہے...",
+    authModeFirebase: "تصدیق: فائر بیس",
+    authModeMock: "تصدیق: ڈیمو (فرضی)",
+    authConfigError: "فائر بیس کی ترتیب نامکمل ہے۔ لاگ ان سروس دستیاب نہیں ہے۔",
+    authEmptyFields: "براہ کرم آگے بڑھنے کے لیے ای میل اور پاس ورڈ درج کریں۔",
 
     connectionTitle: "کنکشن کا طریقہ منتخب کریں",
     connectionSubtitle: "منتخب کریں کہ کرونک کیئر اے آئی آپ کی طبی معلومات کیسے حاصل کرے۔",
