@@ -1,7 +1,10 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { Language, translations, Translations } from "../translations";
+import { isFirebaseEnabled, getFirebaseAuth } from "../lib/firebase";
+import { getRoleFromEmail } from "../lib/roles";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 
 export type PortalType = "landing" | "patient" | "provider" | "admin";
 
@@ -130,6 +133,7 @@ interface AppContextType {
   // Clean navigation helpers
   returnToHomeAndClearRun: () => void;
   resetDemo: () => void;
+  signOutUser: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -236,7 +240,81 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Synchronize Firebase Auth State across browser refreshes with fail-closed role verification
+  useEffect(() => {
+    if (typeof window === "undefined" || !isFirebaseEnabled()) return;
+    const auth = getFirebaseAuth();
+    if (!auth) return;
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user && user.email) {
+        const email = user.email;
+        const role = getRoleFromEmail(email);
+
+        // Unknown role or unmapped email: immediately revoke session
+        if (!role) {
+          try {
+            await signOut(auth);
+          } catch {}
+          return;
+        }
+
+        // If currently in a specific portal, verify role matches that portal
+        if (portal === "patient" && role !== "patient") {
+          try {
+            await signOut(auth);
+            setScreenState("login");
+          } catch {}
+          return;
+        }
+
+        if (portal === "provider" && role !== "provider") {
+          try {
+            await signOut(auth);
+            setProviderScreenState("login");
+          } catch {}
+          return;
+        }
+
+        if (portal === "admin" && role !== "admin") {
+          try {
+            await signOut(auth);
+            setAdminScreenState("login");
+          } catch {}
+          return;
+        }
+
+        // Set matching role identifier
+        if (role === "patient") {
+          setUserIdentifier(email);
+        } else if (role === "provider") {
+          setProviderIdentifier(email);
+        } else if (role === "admin") {
+          setAdminIdentifier(email);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [portal]);
+
+  const signOutUser = async () => {
+    if (isFirebaseEnabled()) {
+      const auth = getFirebaseAuth();
+      if (auth) {
+        try {
+          await signOut(auth);
+        } catch {
+          // Silent catch on unmount or network disconnect
+        }
+      }
+    }
+  };
+
   const setPortal = (p: PortalType) => {
+    if (p === "landing") {
+      signOutUser().catch(() => {});
+    }
     setPortalState(p);
     pushNavState(p, screen, providerScreen, adminScreen);
   };
@@ -285,6 +363,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const resetDemo = () => {
+    signOutUser().catch(() => {});
     setDemoScenario("normal");
     setScreenState("home");
     pushNavState("patient", "home", "dashboard", "dashboard");
@@ -351,6 +430,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setDemoScenario,
         returnToHomeAndClearRun,
         resetDemo,
+        signOutUser,
       }}
     >
       <div dir={isUrdu ? "rtl" : "ltr"} className={isUrdu ? "font-urdu" : "font-sans"}>
