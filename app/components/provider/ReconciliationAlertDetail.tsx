@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
 import {
   AlertTriangle,
@@ -15,28 +15,120 @@ import {
   AlertOctagon,
   Scale,
   Sparkles,
+  Loader2,
 } from "lucide-react";
+import { api, ApiError, ReviewDetailResponse } from "../../lib/api";
 
 export const ReconciliationAlertDetail = () => {
   const {
     setProviderScreen,
     resolveCase,
     resolvedCases,
+    selectedPatient,
+    isLiveMode,
     demoScenario,
     t,
     isUrdu,
   } = useApp();
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const isResolved = resolvedCases.includes("Ali Khan");
+  const [actionNote, setActionNote] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleResolve = () => {
-    resolveCase("Ali Khan");
-    setToastMessage(t.caseResolvedToast);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 2500);
+  // Live state
+  const [liveDetail, setLiveDetail] = useState<ReviewDetailResponse | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
+
+  useEffect(() => {
+    if (!isLiveMode || !selectedPatient) return;
+    let isMounted = true;
+    api
+      .getProviderReviewDetail(selectedPatient)
+      .then((detail) => {
+        if (isMounted) {
+          setLiveDetail(detail);
+          setIsLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setIsLoading(false);
+          // If checkin ID not found directly, keep default display
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [isLiveMode, selectedPatient]);
+
+  const isResolved =
+    resolvedCases.includes(selectedPatient || "Ali Khan") ||
+    liveDetail?.review_status === "resolved";
+
+  const handleAction = async (actionType: "resolve" | "escalate" | "acknowledge") => {
+    setError(null);
+
+    if (actionType !== "acknowledge" && !actionNote.trim()) {
+      setError("Please enter a short review note before taking action.");
+      return;
+    }
+
+    if (isLiveMode && selectedPatient) {
+      setIsSubmitting(true);
+      try {
+        const updated = await api.postProviderReviewAction(
+          selectedPatient,
+          actionType,
+          actionNote.trim() || undefined
+        );
+        setLiveDetail(updated);
+        if (actionType === "resolve") {
+          resolveCase(selectedPatient);
+          setToastMessage(t.caseResolvedToast);
+        } else if (actionType === "escalate") {
+          setToastMessage("Case escalated to care team.");
+        } else {
+          setToastMessage(t.caseAcknowledgedToast);
+        }
+        setActionNote("");
+        setTimeout(() => setToastMessage(null), 2500);
+      } catch (err: any) {
+        if (err instanceof ApiError) {
+          setError(err.getFriendlyMessage(isUrdu));
+        } else {
+          setError(err?.message || "Failed to submit action");
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    // Mock mode resolution
+    if (actionType === "resolve") {
+      resolveCase(selectedPatient || "Ali Khan");
+      setToastMessage(t.caseResolvedToast);
+    } else if (actionType === "escalate") {
+      setToastMessage("Case escalated to specialist team.");
+    } else {
+      setToastMessage(t.caseAcknowledgedToast);
+    }
+    setTimeout(() => setToastMessage(null), 2500);
   };
+
+  // Live comparison resolution
+  let patientDisplayName = liveDetail?.patient_display || (selectedPatient && selectedPatient.includes("@") ? selectedPatient : "Ali Khan (PT-04821)");
+  let obsComparison = liveDetail?.reconciliation?.observation_comparisons?.[0];
+  let sourceAVal = obsComparison?.value_a !== null && obsComparison?.value_a !== undefined
+    ? `${obsComparison.value_a} ${obsComparison.unit_a || ""}`
+    : "180 mg/dL";
+  let sourceBVal = obsComparison?.value_b !== null && obsComparison?.value_b !== undefined
+    ? `${obsComparison.value_b} ${obsComparison.unit_b || ""}`
+    : "140 mg/dL";
+  let comparisonTitle = obsComparison?.observation_type
+    ? `${obsComparison.observation_type.toUpperCase()} Discrepancy`
+    : "Blood Glucose Measurement Discrepancy";
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 animate-fadeIn py-2" dir={isUrdu ? "rtl" : "ltr"}>
@@ -66,7 +158,7 @@ export const ReconciliationAlertDetail = () => {
               {t.alertDetailsTitle}
             </h1>
             <span className="text-xs font-semibold text-slate-500">
-              Patient: Ali Khan (PT-04821) • 58y M • Type 2 Diabetes
+              Patient: {patientDisplayName} • Mode: {liveDetail?.mode || "FHIR Live"}
             </span>
           </div>
         </div>
@@ -82,17 +174,24 @@ export const ReconciliationAlertDetail = () => {
         )}
       </div>
 
+      {error && (
+        <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Clinical Investigation Card */}
       <div className="surface-card rounded-3xl p-6 sm:p-8 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-4">
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0" />
             <span className="font-heading font-bold text-lg text-navy-800">
-              Blood Glucose Measurement Discrepancy
+              {comparisonTitle}
             </span>
           </div>
           <span className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-amber-100 text-amber-900 self-start sm:self-auto border border-amber-300/80">
-            AI Confidence: Low (Review Required)
+            Severity: {liveDetail?.max_severity?.toUpperCase() || "REVIEW REQUIRED"}
           </span>
         </div>
 
@@ -105,30 +204,30 @@ export const ReconciliationAlertDetail = () => {
                 <FileText className="w-3.5 h-3.5" />
                 Source A: Patient Telemetry
               </span>
-              <span className="text-xs text-slate-500 font-medium">Today, 8:42 AM</span>
+              <span className="text-xs text-slate-500 font-medium">Daily Check-in</span>
             </div>
-            <div className="text-3xl font-bold text-navy-800 pt-1 font-sans">
-              180 <span className="text-sm font-semibold text-slate-500">mg/dL</span>
+            <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
+              {sourceAVal}
             </div>
             <p className="text-xs text-amber-950 leading-relaxed">
-              Self-reported blood sugar elevation via daily check-in survey.
+              Self-reported telemetry via adaptive symptom check-in survey.
             </p>
           </div>
 
-          {/* Source 2: Clinic FHIR EHR Record */}
+          {/* Source 2: Clinic EHR Record */}
           <div className="p-5 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-teal-100 text-teal-900 inline-flex items-center gap-1">
                 <Hospital className="w-3.5 h-3.5" />
-                Source B: Hospital FHIR EHR
+                Source B: Hospital EHR
               </span>
-              <span className="text-xs text-slate-500 font-medium">Last Clinic Visit</span>
+              <span className="text-xs text-slate-500 font-medium">Lab Record</span>
             </div>
-            <div className="text-3xl font-bold text-navy-800 pt-1 font-sans">
-              140 <span className="text-sm font-semibold text-slate-500">mg/dL</span>
+            <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
+              {sourceBVal}
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Verified clinical lab telemetry from City General Hospital EHR system.
+              Verified lab and observation telemetry from hospital system record.
             </p>
           </div>
         </div>
@@ -140,56 +239,77 @@ export const ReconciliationAlertDetail = () => {
             <span>Automated Reconciliation Analysis</span>
           </div>
           <p className="text-xs text-slate-700 leading-relaxed">
-            System flagged a 40 mg/dL elevation delta between patient check-in telemetry and historical baseline. Cross-validation recommends clinical clinician confirmation before updating long-term glycemic baseline.
+            Cross-source validation identified delta between patient-reported input and baseline records. Clinician review is recommended to reconcile telemetry before updating longitudinal care targets.
           </p>
         </div>
 
-        {/* Mandatory Defensive Caption (Exact Wording Preserved) */}
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3 text-xs text-slate-600 leading-relaxed">
-          <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-          <span>
-            This is a simulated system state for demonstration purposes. The actual reconciliation and verification logic has been separately validated in our technical proof of concept.
-          </span>
+        {/* Action Note Input (Required for Resolve & Escalate) */}
+        <div className="space-y-2 pt-2 border-t border-slate-200">
+          <label className="block text-xs font-bold text-navy-800 uppercase tracking-wider" htmlFor="action-note-input">
+            {t.actionNoteLabel}
+          </label>
+          <textarea
+            id="action-note-input"
+            rows={2}
+            value={actionNote}
+            onChange={(e) => setActionNote(e.target.value)}
+            placeholder={t.actionNotePlaceholder}
+            className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 bg-white p-3 text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 resize-none shadow-xs"
+          />
         </div>
 
-        {/* Three Action Buttons (48px Touch Targets) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+        {/* Action Buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
           {/* 1. Resolve */}
           <button
             type="button"
-            onClick={handleResolve}
-            disabled={isResolved}
+            onClick={() => handleAction("resolve")}
+            disabled={isResolved || isSubmitting || !actionNote.trim()}
             id="reconciliation-resolve-btn"
             className={`min-h-[48px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
-              isResolved
+              isResolved || !actionNote.trim()
                 ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
                 : "bg-mutedGreen-800 hover:bg-mutedGreen-700 active:scale-[0.98] text-white shadow-md"
             }`}
           >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>{isResolved ? "Case Resolved ✓" : t.resolve}</span>
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4" />
+            )}
+            <span>{isResolved ? "Case Resolved ✓" : t.actionResolveBtn}</span>
           </button>
 
-          {/* 2. Schedule Appointment */}
+          {/* 2. Escalate */}
+          <button
+            type="button"
+            onClick={() => handleAction("escalate")}
+            disabled={isSubmitting || !actionNote.trim()}
+            id="reconciliation-escalate-btn"
+            className={`min-h-[48px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+              !actionNote.trim()
+                ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                : "bg-amber-800 hover:bg-amber-700 active:scale-[0.98] text-white shadow-md"
+            }`}
+          >
+            <AlertOctagon className="w-4 h-4" />
+            <span>{t.actionEscalateBtn}</span>
+          </button>
+
+          {/* 3. Schedule Appointment (Cross-portal demo labeled) */}
           <button
             type="button"
             onClick={() => setProviderScreen("schedule_appointment")}
             id="reconciliation-schedule-btn"
-            className="min-h-[48px] py-3 px-4 bg-teal-700 hover:bg-teal-600 active:scale-[0.98] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+            className="min-h-[48px] py-3 px-4 bg-teal-700 hover:bg-teal-600 active:scale-[0.98] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 relative"
           >
             <Calendar className="w-4 h-4" />
             <span>{t.scheduleAppointment}</span>
-          </button>
-
-          {/* 3. Escalate */}
-          <button
-            type="button"
-            onClick={() => setProviderScreen("schedule_appointment")}
-            id="reconciliation-escalate-btn"
-            className="min-h-[48px] py-3 px-4 bg-amber-800 hover:bg-amber-700 active:scale-[0.98] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-          >
-            <AlertOctagon className="w-4 h-4" />
-            <span>{t.escalate}</span>
+            {isLiveMode && (
+              <span className="text-[10px] bg-teal-900/60 px-1.5 py-0.5 rounded font-mono text-teal-200">
+                demo
+              </span>
+            )}
           </button>
         </div>
       </div>

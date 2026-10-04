@@ -16,7 +16,46 @@ import {
 } from "lucide-react";
 
 export const ConflictScreen = () => {
-  const { setScreen, checkIn, t, isUrdu } = useApp();
+  const { setScreen, checkIn, liveCheckinResult, isLiveMode, t, isUrdu } = useApp();
+
+  // In live mode, extract first conflicting comparison from reconciliation result if available
+  let sourceAName = "Source A: Patient Check-in";
+  let sourceBName = "Source B: Hospital EHR";
+  let sourceAValue = "180 mg/dL";
+  let sourceBValue = "140 mg/dL";
+  let sourceADesc = t.conflictPatientReported;
+  let sourceBDesc = t.conflictEhrRecord;
+  let severity = liveCheckinResult?.max_severity || "medium";
+
+  if (isLiveMode && liveCheckinResult?.reconciliation) {
+    const obsComparisons = liveCheckinResult.reconciliation.observation_comparisons || [];
+    const medComparisons = liveCheckinResult.reconciliation.medication_comparisons || [];
+
+    const conflictObs = obsComparisons.find(
+      (c: any) => c.status === "conflict" || c.status === "flagged" || c.status === "source_a_only" || c.status === "source_b_only"
+    ) || obsComparisons[0];
+
+    if (conflictObs) {
+      sourceAName = conflictObs.source_a || "Patient Check-in";
+      sourceBName = conflictObs.source_b || "Hospital EHR";
+      sourceAValue = conflictObs.value_a !== null && conflictObs.value_a !== undefined
+        ? `${conflictObs.value_a} ${conflictObs.unit_a || ""}`.trim()
+        : "Not reported";
+      sourceBValue = conflictObs.value_b !== null && conflictObs.value_b !== undefined
+        ? `${conflictObs.value_b} ${conflictObs.unit_b || ""}`.trim()
+        : "Not on file";
+      sourceADesc = `${conflictObs.observation_type || "Observation"}: ${sourceAValue}`;
+      sourceBDesc = `${conflictObs.observation_type || "Observation"}: ${sourceBValue}`;
+    } else if (medComparisons.length > 0) {
+      const conflictMed = medComparisons[0];
+      sourceAName = conflictMed.source_a || "Patient Check-in";
+      sourceBName = conflictMed.source_b || "Hospital EHR";
+      sourceAValue = conflictMed.dosage_a || conflictMed.status_a || "Reported";
+      sourceBValue = conflictMed.dosage_b || conflictMed.status_b || "Recorded";
+      sourceADesc = `${conflictMed.medication_name}: ${sourceAValue}`;
+      sourceBDesc = `${conflictMed.medication_name}: ${sourceBValue}`;
+    }
+  }
 
   return (
     <div className="w-full max-w-xl mx-auto surface-raised rounded-3xl border border-slate-200 shadow-xl overflow-hidden animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
@@ -30,18 +69,17 @@ export const ConflictScreen = () => {
         </h1>
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-900/50 text-amber-100 text-xs font-semibold border border-amber-600/40">
           <ShieldAlert className="w-4 h-4 text-amber-300" />
-          <span>{t.confidenceLowTag}</span>
+          <span>{severity ? `Severity: ${severity.toUpperCase()}` : t.confidenceLowTag}</span>
         </div>
       </div>
 
       <div className="p-6 sm:p-7 space-y-6">
-        
         {/* Context Narrative */}
         <div className="text-center space-y-1">
           <p className="text-sm font-semibold text-navy-800">
             {isUrdu
               ? "مریض کی درج کردہ معلومات اور اسپتال کے ریکارڈ کے درمیان تضاد پایا گیا ہے۔"
-              : "A discrepancy has been detected between patient-reported telemetry and hospital lab records."}
+              : "A discrepancy has been detected between patient-reported telemetry and hospital records."}
           </p>
           <p className="text-xs text-slate-500">
             {isUrdu ? "طبی معالج کے جائزے کے لیے کیس الگ کیا جا رہا ہے۔" : "Flagged for clinician-in-the-loop review to ensure safety."}
@@ -50,40 +88,40 @@ export const ConflictScreen = () => {
 
         {/* Structured Source Comparison Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Source 1: Patient Reported Telemetry */}
+          {/* Source 1: Patient Reported */}
           <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/80 border-2 border-amber-300 space-y-2 text-left">
             <div className="flex items-center justify-between">
               <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-amber-200 text-amber-900 inline-flex items-center gap-1">
                 <FileText className="w-3.5 h-3.5" />
-                Source A: Patient Check-in
+                {sourceAName}
               </span>
             </div>
-            <div className="text-2xl font-bold text-navy-800 pt-1">
-              180 <span className="text-xs font-semibold text-slate-500">mg/dL</span>
+            <div className="text-2xl font-bold text-navy-800 pt-1 font-mono">
+              {sourceAValue}
             </div>
             <p className="text-xs text-amber-950 leading-relaxed">
-              {t.conflictPatientReported}
+              {sourceADesc}
             </p>
           </div>
 
-          {/* Source 2: Hospital FHIR EHR Record */}
+          {/* Source 2: Hospital EHR */}
           <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-2 text-left">
             <div className="flex items-center justify-between">
               <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-teal-100 text-teal-900 inline-flex items-center gap-1">
                 <Hospital className="w-3.5 h-3.5" />
-                Source B: Hospital EHR
+                {sourceBName}
               </span>
             </div>
-            <div className="text-2xl font-bold text-navy-800 pt-1">
-              140 <span className="text-xs font-semibold text-slate-500">mg/dL</span>
+            <div className="text-2xl font-bold text-navy-800 pt-1 font-mono">
+              {sourceBValue}
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              {t.conflictEhrRecord}
+              {sourceBDesc}
             </p>
           </div>
         </div>
 
-        {/* Realism Detail: Low Confidence from M1 interview unanswered question */}
+        {/* Low Confidence Tag */}
         {checkIn.lowConfidence && (
           <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-300/80 flex items-start gap-2.5 text-xs text-slate-700 animate-fadeIn">
             <HelpCircle className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
@@ -93,7 +131,7 @@ export const ConflictScreen = () => {
           </div>
         )}
 
-        {/* Mandatory Exact Protective Defensive Caption */}
+        {/* Mandatory Caption */}
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3 text-xs text-slate-600 leading-relaxed">
           <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
           <span>{t.conflictSimulationCaption}</span>

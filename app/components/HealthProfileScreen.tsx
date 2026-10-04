@@ -1,17 +1,59 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
-import { Plus, Trash2, ArrowRight, Activity, Pill, User } from "lucide-react";
+import { Plus, Trash2, ArrowRight, Activity, Pill, User, ShieldCheck, ShieldAlert, Loader2, Globe } from "lucide-react";
+import { api, ApiError, ProfileUpdateRequest } from "../lib/api";
+import { Language } from "../translations";
 
 export const HealthProfileScreen = () => {
-  const { setScreen, profile, setProfile, t, isUrdu } = useApp();
+  const {
+    setScreen,
+    profile,
+    setProfile,
+    liveProfile,
+    setLiveProfile,
+    isLiveMode,
+    language,
+    setLanguage,
+    t,
+    isUrdu,
+  } = useApp();
 
-  const [conditions, setConditions] = useState<string[]>(profile.conditions || ["Type 2 Diabetes"]);
+  const [conditions, setConditions] = useState<string[]>(
+    liveProfile?.conditions && liveProfile.conditions.length > 0
+      ? liveProfile.conditions
+      : profile.conditions || ["Type 2 Diabetes"]
+  );
+
+  const [onInsulin, setOnInsulin] = useState<boolean>(
+    liveProfile?.on_insulin_or_sulfonylurea !== undefined
+      ? liveProfile.on_insulin_or_sulfonylurea
+      : false
+  );
+
+  const [selectedLang, setSelectedLang] = useState<string>(
+    liveProfile?.language || language || "en"
+  );
+
   const [medications, setMedications] = useState<string[]>(
     profile.medications.length > 0 ? profile.medications : ["Metformin 500mg (1+1)"]
   );
   const [age, setAge] = useState<string>(profile.age || "58");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isLiveMode && liveProfile) {
+      if (liveProfile.conditions && liveProfile.conditions.length > 0) {
+        setConditions(liveProfile.conditions);
+      }
+      setOnInsulin(Boolean(liveProfile.on_insulin_or_sulfonylurea));
+      if (liveProfile.language) {
+        setSelectedLang(liveProfile.language);
+      }
+    }
+  }, [isLiveMode, liveProfile]);
 
   const handleConditionToggle = (conditionValue: "t2d" | "htn" | "both") => {
     if (conditionValue === "both") {
@@ -49,30 +91,73 @@ export const HealthProfileScreen = () => {
     setMedications(medications.filter((_, i) => i !== index));
   };
 
-  const handleContinue = (e: React.FormEvent) => {
+  const handleContinue = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    const cleanConditions = conditions.length > 0 ? conditions : ["Type 2 Diabetes"];
     const cleanMeds = medications.filter((m) => m.trim().length > 0);
+
+    // Save mock state representation
     setProfile({
-      conditions: conditions.length > 0 ? conditions : ["Type 2 Diabetes"],
+      conditions: cleanConditions,
       medications: cleanMeds.length > 0 ? cleanMeds : ["Metformin 500mg (1+1)"],
       age: age || "58",
     });
+
+    if (isLiveMode) {
+      try {
+        const payload: ProfileUpdateRequest = {
+          conditions: cleanConditions.map((c) =>
+            c.toLowerCase().includes("diabet") ? "diabetes" : "hypertension"
+          ),
+          on_insulin_or_sulfonylurea: onInsulin,
+          language: selectedLang,
+        };
+
+        const updated = await api.updateProfile(payload);
+        setLiveProfile(updated);
+        if (selectedLang === "en" || selectedLang === "ur") {
+          setLanguage(selectedLang as Language);
+        }
+        setScreen("connection");
+      } catch (err: any) {
+        if (err instanceof ApiError) {
+          setError(err.getFriendlyMessage(isUrdu));
+        } else {
+          setError(err?.message || "Failed to update profile");
+        }
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    setIsLoading(false);
     setScreen("home");
   };
 
-  const hasT2D = conditions.includes("Type 2 Diabetes");
-  const hasHTN = conditions.includes("Hypertension");
+  const hasT2D = conditions.some((c) => c.toLowerCase().includes("diabet"));
+  const hasHTN = conditions.some((c) => c.toLowerCase().includes("hyper"));
   const hasBoth = hasT2D && hasHTN;
 
   return (
-    <div className="w-full max-w-lg mx-auto bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-fadeIn">
+    <div className="w-full max-w-lg mx-auto bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
       {/* Header */}
-      <div className="bg-navy-800 p-6 text-white text-center">
+      <div className="bg-navy-800 p-6 sm:p-7 text-white text-center">
         <h1 className="font-heading text-2xl font-bold mb-1">{t.profileTitle}</h1>
-        <p className="text-xs text-slate-300 max-w-md mx-auto">{t.profileSubtitle}</p>
+        <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto">{t.profileSubtitle}</p>
       </div>
 
-      <form onSubmit={handleContinue} className="p-6 space-y-6">
+      <form onSubmit={handleContinue} className="p-6 sm:p-7 space-y-6">
+        {error && (
+          <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
         {/* Conditions selection */}
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-navy-800 mb-3 flex items-center gap-1.5">
@@ -81,7 +166,7 @@ export const HealthProfileScreen = () => {
           </label>
           <div className="space-y-2.5">
             {/* Type 2 Diabetes */}
-            <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
+            <label className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
               <input
                 type="checkbox"
                 id="condition-t2d"
@@ -93,7 +178,7 @@ export const HealthProfileScreen = () => {
             </label>
 
             {/* Hypertension */}
-            <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
+            <label className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition-colors">
               <input
                 type="checkbox"
                 id="condition-htn"
@@ -105,7 +190,7 @@ export const HealthProfileScreen = () => {
             </label>
 
             {/* Both shortcut */}
-            <label className="flex items-center gap-3 p-3 rounded-xl border border-teal-200 bg-teal-50/50 hover:bg-teal-50 cursor-pointer transition-colors">
+            <label className="flex items-center gap-3 p-3.5 rounded-xl border border-teal-200 bg-teal-50/50 hover:bg-teal-50 cursor-pointer transition-colors">
               <input
                 type="checkbox"
                 id="condition-both"
@@ -115,6 +200,74 @@ export const HealthProfileScreen = () => {
               />
               <span className="text-sm font-semibold text-teal-900">{t.bothConditions}</span>
             </label>
+          </div>
+        </div>
+
+        {/* Insulin / Sulfonylurea Question (Stage 2B requirement) */}
+        <div className="p-4 rounded-2xl bg-teal-50/60 border border-teal-200 space-y-2.5">
+          <label className="block text-xs font-bold text-navy-800 leading-snug">
+            {t.insulinOrSulfonylureaLabel}
+          </label>
+          <p className="text-[11px] text-slate-500">{t.insulinOrSulfonylureaHint}</p>
+          <div className="grid grid-cols-2 gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={() => setOnInsulin(true)}
+              id="insulin-yes-btn"
+              className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                onInsulin
+                  ? "bg-teal-700 text-white border-teal-700 shadow-xs"
+                  : "bg-white text-navy-800 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              {t.insulinYes}
+            </button>
+            <button
+              type="button"
+              onClick={() => setOnInsulin(false)}
+              id="insulin-no-btn"
+              className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                !onInsulin
+                  ? "bg-navy-800 text-white border-navy-800 shadow-xs"
+                  : "bg-white text-navy-800 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              {t.insulinNo}
+            </button>
+          </div>
+        </div>
+
+        {/* Language Selection */}
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-navy-800 mb-2 flex items-center gap-1.5">
+            <Globe className="w-4 h-4 text-teal-700" />
+            <span>{t.languageSettingLabel}</span>
+          </label>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => setSelectedLang("en")}
+              id="lang-en-btn"
+              className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                selectedLang === "en"
+                  ? "bg-navy-800 text-white border-navy-800 shadow-xs"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              English
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedLang("ur")}
+              id="lang-ur-btn"
+              className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-semibold border transition-all font-urdu ${
+                selectedLang === "ur"
+                  ? "bg-navy-800 text-white border-navy-800 shadow-xs"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              اردو (Urdu)
+            </button>
           </div>
         </div>
 
@@ -182,10 +335,20 @@ export const HealthProfileScreen = () => {
         <button
           type="submit"
           id="profile-continue-btn"
-          className="w-full py-3 px-4 bg-navy-800 hover:bg-navy-700 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+          disabled={isLoading}
+          className="w-full min-h-[48px] py-3 px-4 bg-navy-800 hover:bg-navy-700 active:scale-[0.99] disabled:opacity-75 text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
         >
-          <span>{t.continue}</span>
-          <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>{t.saving}</span>
+            </>
+          ) : (
+            <>
+              <span>{t.continue}</span>
+              <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+            </>
+          )}
         </button>
       </form>
     </div>
