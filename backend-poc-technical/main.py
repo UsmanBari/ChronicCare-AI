@@ -43,6 +43,20 @@ from agents.verification_agent import (
     verify_reconciliation,
     VerificationResult,
 )
+from agents.adaptive_interview_agent import (
+    InterviewState,
+    adaptive_interview_node,
+    build_checkin_bundle,
+    build_checkin_origins,
+    get_current_question,
+    INTERVIEW_COMPLETE,
+)
+from data_sources.data_source import get_patient_bundle
+from data_sources.local_store import (
+    add_local_patient_if_missing,
+    add_local_observation,
+    get_local_observation_origins,
+)
 from llm.groq_client import is_configured, get_configured_model, chat
 from auth.firebase_verify import verify_firebase_token, AuthError, get_firebase_project_id
 from data_sources.fhir_client import get_fhir_patient
@@ -63,6 +77,15 @@ from data_sources.app_store import (
     get_active_connection_by_external_id,
     record_ehr_connection,
     revoke_ehr_connection,
+    create_checkin,
+    get_checkin_by_id,
+    update_checkin_state,
+    create_checkin_result,
+    get_checkin_result,
+    get_user_checkins,
+    get_provider_review_queue,
+    append_review_action,
+    get_review_actions,
     ALLOWED_CONDITIONS,
     ALLOWED_LANGUAGES,
     _utc_now_iso,
@@ -296,6 +319,111 @@ class EHRConnectionResponse(BaseModel):
     mode: str
     connection: Optional[EHRConnectionInfo] = None
     message: Optional[str] = None
+
+
+# --- Check-in & Review Schemas ---
+
+class CheckinStartResponse(BaseModel):
+    checkin_id: str
+    question: Optional[str] = None
+    mode: str
+    is_cold_start: bool
+
+
+class CheckinAnswerRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    answer: str = Field(..., max_length=1000)
+
+
+class CheckinAnswerResponse(BaseModel):
+    question: Optional[str] = None
+    complete: bool
+    emergency: bool
+    emergency_reason: Optional[str] = None
+
+
+class CheckinCompleteResponse(BaseModel):
+    emergency: bool
+    intakes: List[Dict[str, Any]]
+    reconciliation: Optional[Dict[str, Any]] = None
+    verification: Optional[Dict[str, Any]] = None
+    requires_review: bool
+    max_severity: Optional[str] = None
+
+
+class UserCheckinSummaryResponse(BaseModel):
+    checkin_id: str
+    mode: str
+    record_patient_id: str
+    status: str
+    started_at: str
+    completed_at: Optional[str] = None
+    emergency: bool
+    requires_review: bool
+    max_severity: Optional[str] = None
+    review_status: Optional[str] = None
+
+
+class UserCheckinDetailResponse(BaseModel):
+    checkin_id: str
+    user_id: str
+    mode: str
+    record_patient_id: str
+    status: str
+    started_at: str
+    completed_at: Optional[str] = None
+    state: Dict[str, Any]
+    result: Optional[Dict[str, Any]] = None
+
+
+class ReviewQueueItemResponse(BaseModel):
+    checkin_id: str
+    patient_display: str
+    mode: str
+    created_at: str
+    max_severity: Optional[str] = None
+    emergency: bool
+    overdue: bool
+    counts: Dict[str, int]
+
+
+class ReviewActionResponse(BaseModel):
+    id: int
+    checkin_id: str
+    provider_user_id: str
+    action: str
+    note: Optional[str] = None
+    ts: str
+
+
+class ReviewDetailResponse(BaseModel):
+    checkin_id: str
+    patient_id: str
+    patient_display: str
+    mode: str
+    emergency: bool
+    intakes: List[Dict[str, Any]]
+    reconciliation: Optional[Dict[str, Any]] = None
+    verification: Optional[Dict[str, Any]] = None
+    requires_review: bool
+    max_severity: Optional[str] = None
+    review_status: str
+    created_at: str
+    actions: List[ReviewActionResponse]
+
+
+class ReviewActionRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    action: str
+    note: Optional[str] = Field(None, max_length=500)
+
+    @field_validator("action")
+    @classmethod
+    def validate_action(cls, v: str) -> str:
+        clean = str(v).strip().lower()
+        if clean not in ("acknowledge", "resolve", "escalate"):
+            raise ValueError("action must be one of 'acknowledge', 'resolve', or 'escalate'")
+        return clean
 
 
 # =============================================================================
@@ -920,6 +1048,472 @@ def delete_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(requir
         mode="isolated",
         connection=None,
         message="EHR connection revoked",
+    )
+
+
+# =============================================================================
+# PATIENT CHECK-IN PIPELINE ENDPOINTS
+# =============================================================================
+
+@app.post("/api/checkins/start", response_model=CheckinStartResponse, tags=["Check-in"])
+def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("patient"))):
+    """
+    Initializes a new server-side check-in session for the authenticated patient.
+    Requires active consent and an existing clinical profile.
+    """
+    user_id = current_user["user_id"]
+
+    # 1. Consent verification
+    profile = get_patient_profile(user_id)
+    if not profile or not profile.get("consent_granted_at") or profile.get("consent_revoked_at"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Active consent is required to start a check-in",
+        )
+
+    # 2. Profile verification
+    conditions = profile.get("conditions", [])
+    if not conditions:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Complete your profile first",
+        )
+
+    # 3. Derive mode and record patient id
+    active_conn = get_active_ehr_connection(user_id)
+    if active_conn:
+        mode = "connected"
+        record_patient_id = active_conn["external_patient_id"]
+        ehr_sys = get_ehr_system_by_id(active_conn["ehr_system_id"])
+        base_url = ehr_sys["fhir_base_url"] if ehr_sys else None
+    else:
+        mode = "isolated"
+        record_patient_id = f"local-{user_id}"
+        base_url = None
+
+    # 4. In isolated mode, ensure local store patient row exists
+    if mode == "isolated":
+        patient_name = current_user.get("display_name") or "Local Patient"
+        add_local_patient_if_missing(record_patient_id, name=patient_name)
+
+    # 5. Fetch prior bundle to determine cold start
+    try:
+        prior_bundle = get_patient_bundle(record_patient_id, mode=mode, base_url=base_url)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Record source unavailable",
+        )
+
+    is_cold_start = (len(prior_bundle.get("observations", [])) == 0 and len(prior_bundle.get("medications", [])) == 0)
+
+    # 6. Initialize InterviewState and run first node
+    state = InterviewState(
+        patient_id=record_patient_id,
+        conditions_on_file=conditions,
+        on_insulin_or_sulfonylurea=profile.get("on_insulin_or_sulfonylurea", False),
+        is_cold_start=is_cold_start,
+    )
+    initial_state = adaptive_interview_node(state, patient_response=None)
+
+    # 7. Persist session
+    checkin_id = str(uuid.uuid4())
+    create_checkin(
+        checkin_id=checkin_id,
+        user_id=user_id,
+        mode=mode,
+        record_patient_id=record_patient_id,
+        state_dict=initial_state.to_dict(),
+        status="in_progress",
+    )
+    question = get_current_question(initial_state)
+
+    return CheckinStartResponse(
+        checkin_id=checkin_id,
+        question=question,
+        mode=mode,
+        is_cold_start=is_cold_start,
+    )
+
+
+@app.post("/api/checkins/{checkin_id}/answer", response_model=CheckinAnswerResponse, tags=["Check-in"])
+def answer_checkin_endpoint(
+    checkin_id: str,
+    body: CheckinAnswerRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Advances the interview state by one patient answer."""
+    checkin = get_checkin_by_id(checkin_id)
+    if not checkin or checkin["user_id"] != current_user["user_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Check-in session not found",
+        )
+
+    if checkin["status"] != "in_progress":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Check-in session is not in progress",
+        )
+
+    current_state = InterviewState.from_dict(checkin["state"])
+    try:
+        next_state = adaptive_interview_node(current_state, patient_response=body.answer)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    if next_state.stage1_red_flag:
+        update_checkin_state(checkin_id=checkin_id, state_dict=next_state.to_dict(), status="emergency")
+        return CheckinAnswerResponse(
+            question=None,
+            complete=True,
+            emergency=True,
+            emergency_reason=next_state.stage1_reason,
+        )
+    elif next_state.step == INTERVIEW_COMPLETE:
+        update_checkin_state(checkin_id=checkin_id, state_dict=next_state.to_dict(), status="complete")
+        return CheckinAnswerResponse(
+            question=None,
+            complete=True,
+            emergency=False,
+            emergency_reason=None,
+        )
+    else:
+        update_checkin_state(checkin_id=checkin_id, state_dict=next_state.to_dict(), status="in_progress")
+        question = get_current_question(next_state)
+        return CheckinAnswerResponse(
+            question=question,
+            complete=False,
+            emergency=False,
+            emergency_reason=None,
+        )
+
+
+@app.post("/api/checkins/{checkin_id}/complete", response_model=CheckinCompleteResponse, tags=["Check-in"])
+def complete_checkin_endpoint(
+    checkin_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """
+    Finalizes the check-in session, executes reconciliation and verification pipelines,
+    and records results for provider review.
+    """
+    checkin = get_checkin_by_id(checkin_id)
+    if not checkin or checkin["user_id"] != current_user["user_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Check-in session not found",
+        )
+
+    # Idempotent check
+    stored_result = get_checkin_result(checkin_id)
+    if stored_result:
+        return CheckinCompleteResponse(
+            emergency=stored_result["emergency"],
+            intakes=stored_result["intakes"],
+            reconciliation=stored_result.get("reconciliation"),
+            verification=stored_result.get("verification"),
+            requires_review=stored_result["requires_review"],
+            max_severity=stored_result.get("max_severity"),
+        )
+
+    state = InterviewState.from_dict(checkin["state"])
+    if not state.stage1_red_flag and state.step != INTERVIEW_COMPLETE and checkin["status"] not in ("complete", "emergency"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Interview is not complete",
+        )
+
+    # 1. Emergency Flow
+    if state.stage1_red_flag or checkin["status"] == "emergency":
+        intakes = state.intakes if state.intakes else ([{"condition": state.active_condition or "general", "emergency": True, "reason": state.stage1_reason}] if state.stage1_reason else [])
+        create_checkin_result(
+            checkin_id=checkin_id,
+            emergency=True,
+            intakes=intakes,
+            reconciliation=None,
+            verification=None,
+            requires_review=True,
+            max_severity="high",
+            review_status="open",
+        )
+        update_checkin_state(
+            checkin_id=checkin_id,
+            state_dict=state.to_dict(),
+            status="emergency",
+            completed_at=_utc_now_iso(),
+        )
+        return CheckinCompleteResponse(
+            emergency=True,
+            intakes=intakes,
+            reconciliation=None,
+            verification=None,
+            requires_review=True,
+            max_severity="high",
+        )
+
+    # 2. Non-Emergency Flow
+    base_url = None
+    if checkin["mode"] == "connected":
+        active_conn = get_active_ehr_connection(current_user["user_id"])
+        if active_conn:
+            ehr_sys = get_ehr_system_by_id(active_conn["ehr_system_id"])
+            base_url = ehr_sys["fhir_base_url"] if ehr_sys else None
+
+    # Fetch prior baseline
+    try:
+        prior_bundle = get_patient_bundle(checkin["record_patient_id"], mode=checkin["mode"], base_url=base_url)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Record source unavailable",
+        )
+
+    # Build check-in bundle
+    source = "fhir" if checkin["mode"] == "connected" else "local"
+    patient_name = current_user.get("display_name") or (prior_bundle["patient"].name if prior_bundle.get("patient") else "Patient")
+    try:
+        checkin_bundle = build_checkin_bundle(state, source=source, patient_name=patient_name)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    # Reconcile bundles
+    try:
+        recon_result = reconcile_bundles(prior_bundle, checkin_bundle)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    # Verify reconciliation with origins
+    checkin_origins = build_checkin_origins(checkin_bundle)
+    if checkin["mode"] == "isolated":
+        local_origins = get_local_observation_origins(checkin["record_patient_id"])
+        combined_origins = {**local_origins, **checkin_origins}
+    else:
+        combined_origins = checkin_origins
+
+    verif_result = verify_reconciliation(recon_result, origins=combined_origins)
+
+    # Isolated Mode: write check-in observations to Local Store tagged self_reported
+    if checkin["mode"] == "isolated":
+        for obs in checkin_bundle["observations"]:
+            add_local_observation(
+                id=obs.source_record_id,
+                patient_id=checkin["record_patient_id"],
+                observation_type=obs.observation_type,
+                value=obs.value,
+                unit=obs.unit,
+                timestamp=obs.timestamp,
+                source="local",
+                origin="self_reported",
+            )
+
+    # Determine severity and review necessity
+    summary = verif_result.summary
+    requires_review = bool(summary.get("requires_review", 0) > 0)
+    if summary.get("severity_high", 0) > 0:
+        max_severity = "high"
+    elif summary.get("severity_moderate", 0) > 0:
+        max_severity = "moderate"
+    elif summary.get("severity_low", 0) > 0:
+        max_severity = "low"
+    else:
+        max_severity = "none"
+
+    review_status = "open" if requires_review else "resolved"
+
+    create_checkin_result(
+        checkin_id=checkin_id,
+        emergency=False,
+        intakes=state.intakes,
+        reconciliation=recon_result.to_dict(),
+        verification=verif_result.to_dict(),
+        requires_review=requires_review,
+        max_severity=max_severity,
+        review_status=review_status,
+    )
+    update_checkin_state(
+        checkin_id=checkin_id,
+        state_dict=state.to_dict(),
+        status="complete",
+        completed_at=_utc_now_iso(),
+    )
+
+    return CheckinCompleteResponse(
+        emergency=False,
+        intakes=state.intakes,
+        reconciliation=recon_result.to_dict(),
+        verification=verif_result.to_dict(),
+        requires_review=requires_review,
+        max_severity=max_severity,
+    )
+
+
+@app.get("/api/checkins", response_model=List[UserCheckinSummaryResponse], tags=["Check-in"])
+def get_user_checkins_endpoint(current_user: Dict[str, Any] = Depends(require_role("patient"))):
+    """Retrieves list of previous check-in sessions for authenticated patient."""
+    checkins = get_user_checkins(current_user["user_id"], limit=20)
+    return [
+        UserCheckinSummaryResponse(
+            checkin_id=c["checkin_id"],
+            mode=c["mode"],
+            record_patient_id=c["record_patient_id"],
+            status=c["status"],
+            started_at=c["started_at"],
+            completed_at=c.get("completed_at"),
+            emergency=c["emergency"],
+            requires_review=c["requires_review"],
+            max_severity=c.get("max_severity"),
+            review_status=c.get("review_status"),
+        )
+        for c in checkins
+    ]
+
+
+@app.get("/api/checkins/{checkin_id}", response_model=UserCheckinDetailResponse, tags=["Check-in"])
+def get_user_checkin_detail_endpoint(
+    checkin_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Retrieves full details and computed results of a patient's own check-in."""
+    checkin = get_checkin_by_id(checkin_id)
+    if not checkin or checkin["user_id"] != current_user["user_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Check-in session not found",
+        )
+
+    result = get_checkin_result(checkin_id)
+    return UserCheckinDetailResponse(
+        checkin_id=checkin["checkin_id"],
+        user_id=checkin["user_id"],
+        mode=checkin["mode"],
+        record_patient_id=checkin["record_patient_id"],
+        status=checkin["status"],
+        started_at=checkin["started_at"],
+        completed_at=checkin.get("completed_at"),
+        state=checkin["state"],
+        result=result,
+    )
+
+
+# =============================================================================
+# PROVIDER REVIEW QUEUE & ACTION ENDPOINTS
+# =============================================================================
+
+@app.get("/api/provider/review-queue", response_model=List[ReviewQueueItemResponse], tags=["Provider Review"])
+def get_provider_review_queue_endpoint(
+    status: str = Query("open", pattern="^(open|acknowledged|resolved|escalated)$"),
+    current_user: Dict[str, Any] = Depends(require_role("provider")),
+):
+    """Retrieves prioritized clinical review queue (Provider only)."""
+    items = get_provider_review_queue(review_status=status)
+    return [ReviewQueueItemResponse(**item) for item in items]
+
+
+@app.get("/api/provider/review/{checkin_id}", response_model=ReviewDetailResponse, tags=["Provider Review"])
+def get_provider_review_detail_endpoint(
+    checkin_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("provider")),
+):
+    """Retrieves comprehensive clinical review details for a check-in item (Provider only)."""
+    checkin = get_checkin_by_id(checkin_id)
+    if not checkin:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Check-in not found",
+        )
+
+    result = get_checkin_result(checkin_id)
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Check-in result not found",
+        )
+
+    patient_user = get_user_by_id(checkin["user_id"])
+    patient_display = (patient_user.get("display_name") if patient_user else None) or (patient_user.get("email") if patient_user else None) or "Patient"
+    actions = get_review_actions(checkin_id)
+
+    return ReviewDetailResponse(
+        checkin_id=checkin_id,
+        patient_id=checkin["record_patient_id"],
+        patient_display=patient_display,
+        mode=checkin["mode"],
+        emergency=result["emergency"],
+        intakes=result["intakes"],
+        reconciliation=result.get("reconciliation"),
+        verification=result.get("verification"),
+        requires_review=result["requires_review"],
+        max_severity=result.get("max_severity"),
+        review_status=result["review_status"],
+        created_at=result["created_at"],
+        actions=[ReviewActionResponse(**a) for a in actions],
+    )
+
+
+@app.post("/api/provider/review/{checkin_id}/action", response_model=ReviewDetailResponse, tags=["Provider Review"])
+def post_provider_review_action_endpoint(
+    checkin_id: str,
+    body: ReviewActionRequest,
+    current_user: Dict[str, Any] = Depends(require_role("provider")),
+):
+    """Records an action on a clinical review item and transitions review_status (Provider only)."""
+    checkin = get_checkin_by_id(checkin_id)
+    if not checkin:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Check-in not found",
+        )
+
+    result = get_checkin_result(checkin_id)
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Check-in result not found",
+        )
+
+    append_review_action(
+        checkin_id=checkin_id,
+        provider_user_id=current_user["user_id"],
+        action=body.action,
+        note=body.note,
+    )
+    append_audit(
+        actor_user_id=current_user["user_id"],
+        action=f"review_{body.action}",
+        target=checkin_id,
+        outcome="ok",
+        detail={"action": body.action, "note_length": len(body.note or "")},
+    )
+
+    updated_result = get_checkin_result(checkin_id)
+    patient_user = get_user_by_id(checkin["user_id"])
+    patient_display = (patient_user.get("display_name") if patient_user else None) or (patient_user.get("email") if patient_user else None) or "Patient"
+    actions = get_review_actions(checkin_id)
+
+    return ReviewDetailResponse(
+        checkin_id=checkin_id,
+        patient_id=checkin["record_patient_id"],
+        patient_display=patient_display,
+        mode=checkin["mode"],
+        emergency=updated_result["emergency"],
+        intakes=updated_result["intakes"],
+        reconciliation=updated_result.get("reconciliation"),
+        verification=updated_result.get("verification"),
+        requires_review=updated_result["requires_review"],
+        max_severity=updated_result.get("max_severity"),
+        review_status=updated_result["review_status"],
+        created_at=updated_result["created_at"],
+        actions=[ReviewActionResponse(**a) for a in actions],
     )
 
 

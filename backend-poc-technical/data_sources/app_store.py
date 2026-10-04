@@ -167,6 +167,49 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     VALUES (?, ?, ?, 1)
                 """, ("smart-sandbox", "SMART Health IT Sandbox", default_fhir_url))
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (2, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 3")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS checkins (
+                        checkin_id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        mode TEXT NOT NULL CHECK(mode IN ('connected','isolated')),
+                        record_patient_id TEXT NOT NULL,
+                        status TEXT NOT NULL CHECK(status IN ('in_progress','complete','emergency','abandoned')),
+                        state_json TEXT NOT NULL,
+                        started_at TEXT NOT NULL,
+                        completed_at TEXT,
+                        FOREIGN KEY(user_id) REFERENCES users(user_id)
+                    )
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS checkin_results (
+                        checkin_id TEXT PRIMARY KEY,
+                        emergency INTEGER NOT NULL,
+                        intakes_json TEXT NOT NULL,
+                        reconciliation_json TEXT,
+                        verification_json TEXT,
+                        requires_review INTEGER NOT NULL,
+                        max_severity TEXT CHECK(max_severity IN ('none','low','moderate','high') OR max_severity IS NULL),
+                        review_status TEXT NOT NULL CHECK(review_status IN ('open','acknowledged','resolved','escalated')),
+                        created_at TEXT NOT NULL,
+                        FOREIGN KEY(checkin_id) REFERENCES checkins(checkin_id)
+                    )
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS review_actions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        checkin_id TEXT NOT NULL,
+                        provider_user_id TEXT NOT NULL,
+                        action TEXT NOT NULL CHECK(action IN ('acknowledge','resolve','escalate')),
+                        note TEXT,
+                        ts TEXT NOT NULL,
+                        FOREIGN KEY(checkin_id) REFERENCES checkins(checkin_id),
+                        FOREIGN KEY(provider_user_id) REFERENCES users(user_id)
+                    )
+                """)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (3, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -245,6 +288,52 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     ON DUPLICATE KEY UPDATE display_name = VALUES(display_name)
                 """, ("smart-sandbox", "SMART Health IT Sandbox", default_fhir_url))
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (2, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 3")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS checkins (
+                        checkin_id VARCHAR(64) PRIMARY KEY,
+                        user_id VARCHAR(128) NOT NULL,
+                        mode VARCHAR(32) NOT NULL,
+                        record_patient_id VARCHAR(128) NOT NULL,
+                        status VARCHAR(32) NOT NULL,
+                        state_json MEDIUMTEXT NOT NULL,
+                        started_at VARCHAR(64) NOT NULL,
+                        completed_at VARCHAR(64),
+                        INDEX idx_user_checkin (user_id, status),
+                        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS checkin_results (
+                        checkin_id VARCHAR(64) PRIMARY KEY,
+                        emergency TINYINT(1) NOT NULL,
+                        intakes_json MEDIUMTEXT NOT NULL,
+                        reconciliation_json MEDIUMTEXT,
+                        verification_json MEDIUMTEXT,
+                        requires_review TINYINT(1) NOT NULL,
+                        max_severity VARCHAR(16),
+                        review_status VARCHAR(32) NOT NULL,
+                        created_at VARCHAR(64) NOT NULL,
+                        INDEX idx_review_status (review_status),
+                        FOREIGN KEY (checkin_id) REFERENCES checkins(checkin_id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS review_actions (
+                        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                        checkin_id VARCHAR(64) NOT NULL,
+                        provider_user_id VARCHAR(128) NOT NULL,
+                        action VARCHAR(32) NOT NULL,
+                        note VARCHAR(500),
+                        ts VARCHAR(64) NOT NULL,
+                        INDEX idx_checkin_act (checkin_id),
+                        FOREIGN KEY (checkin_id) REFERENCES checkins(checkin_id) ON DELETE CASCADE,
+                        FOREIGN KEY (provider_user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (3, %s)", (now,))
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -595,4 +684,313 @@ def revoke_ehr_connection(user_id: str, backend: Optional[str] = None, db_path: 
             (now, user_id)
         )
         return cursor.rowcount
+
+
+# =============================================================================
+# CHECK-IN SESSION & PIPELINE HELPERS
+# =============================================================================
+
+def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: str,
+                   state_dict: Dict[str, Any], status: str = "in_progress",
+                   started_at: Optional[str] = None,
+                   backend: Optional[str] = None, db_path: Optional[str] = None,
+                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
+    """Creates a new check-in session and marks older in_progress sessions for this user as abandoned."""
+    now = started_at or _utc_now_iso()
+    state_str = json.dumps(state_dict)
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"UPDATE checkins SET status = 'abandoned', completed_at = {ph} WHERE user_id = {ph} AND status = 'in_progress'",
+            (now, user_id)
+        )
+        cursor.execute(
+            f"""
+            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, status, state_json, started_at, completed_at)
+            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, NULL)
+            """,
+            (checkin_id, user_id, mode, record_patient_id, status, state_str, now)
+        )
+    return {
+        "checkin_id": checkin_id,
+        "user_id": user_id,
+        "mode": mode,
+        "record_patient_id": record_patient_id,
+        "status": status,
+        "state": state_dict,
+        "started_at": now,
+        "completed_at": None,
+    }
+
+
+def get_checkin_by_id(checkin_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
+                      mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Retrieves check-in row and parsed state dictionary by checkin_id."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"SELECT checkin_id, user_id, mode, record_patient_id, status, state_json, started_at, completed_at FROM checkins WHERE checkin_id = {ph}",
+            (checkin_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            d["state"] = json.loads(d.pop("state_json", "{}"))
+        except Exception:
+            d["state"] = {}
+        return d
+
+
+def update_checkin_state(checkin_id: str, state_dict: Dict[str, Any], status: str = "in_progress",
+                         completed_at: Optional[str] = None, backend: Optional[str] = None,
+                         db_path: Optional[str] = None, mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Updates interview state, status, and completion timestamp."""
+    state_str = json.dumps(state_dict)
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph} WHERE checkin_id = {ph}",
+            (state_str, status, completed_at, checkin_id)
+        )
+    return get_checkin_by_id(checkin_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+
+
+def create_checkin_result(
+    checkin_id: str,
+    emergency: bool,
+    intakes: List[Dict[str, Any]],
+    reconciliation: Optional[Dict[str, Any]] = None,
+    verification: Optional[Dict[str, Any]] = None,
+    requires_review: bool = False,
+    max_severity: Optional[str] = "none",
+    review_status: str = "open",
+    created_at: Optional[str] = None,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Stores or updates clinical results for a completed check-in."""
+    now = created_at or _utc_now_iso()
+    intakes_str = json.dumps(intakes)
+    recon_str = json.dumps(reconciliation) if reconciliation else None
+    verif_str = json.dumps(verification) if verification else None
+    emg_val = 1 if emergency else 0
+    req_rev_val = 1 if requires_review else 0
+
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        if be == "sqlite":
+            cursor.execute(
+                f"""
+                INSERT INTO checkin_results (checkin_id, emergency, intakes_json, reconciliation_json, verification_json, requires_review, max_severity, review_status, created_at)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                ON CONFLICT(checkin_id) DO UPDATE SET
+                    emergency = excluded.emergency,
+                    intakes_json = excluded.intakes_json,
+                    reconciliation_json = excluded.reconciliation_json,
+                    verification_json = excluded.verification_json,
+                    requires_review = excluded.requires_review,
+                    max_severity = excluded.max_severity,
+                    review_status = excluded.review_status
+                """,
+                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, now)
+            )
+        else:
+            cursor.execute(
+                f"""
+                INSERT INTO checkin_results (checkin_id, emergency, intakes_json, reconciliation_json, verification_json, requires_review, max_severity, review_status, created_at)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                ON DUPLICATE KEY UPDATE
+                    emergency = VALUES(emergency),
+                    intakes_json = VALUES(intakes_json),
+                    reconciliation_json = VALUES(reconciliation_json),
+                    verification_json = VALUES(verification_json),
+                    requires_review = VALUES(requires_review),
+                    max_severity = VALUES(max_severity),
+                    review_status = VALUES(review_status)
+                """,
+                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, now)
+            )
+    return get_checkin_result(checkin_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+
+
+def get_checkin_result(checkin_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
+                       mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Retrieves check-in result details by checkin_id."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"""
+            SELECT checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
+                   requires_review, max_severity, review_status, created_at
+            FROM checkin_results
+            WHERE checkin_id = {ph}
+            """,
+            (checkin_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["emergency"] = bool(d["emergency"])
+        d["requires_review"] = bool(d["requires_review"])
+        d["intakes"] = json.loads(d.pop("intakes_json", "[]"))
+        recon_raw = d.pop("reconciliation_json", None)
+        d["reconciliation"] = json.loads(recon_raw) if recon_raw else None
+        verif_raw = d.pop("verification_json", None)
+        d["verification"] = json.loads(verif_raw) if verif_raw else None
+        return d
+
+
+def get_user_checkins(user_id: str, limit: int = 20, backend: Optional[str] = None, db_path: Optional[str] = None,
+                      mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieves list of user's check-ins with result summary."""
+    clamped_limit = max(1, min(limit, 100))
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"""
+            SELECT c.checkin_id, c.user_id, c.mode, c.record_patient_id, c.status, c.started_at, c.completed_at,
+                   r.emergency, r.requires_review, r.max_severity, r.review_status
+            FROM checkins c
+            LEFT JOIN checkin_results r ON c.checkin_id = r.checkin_id
+            WHERE c.user_id = {ph}
+            ORDER BY c.started_at DESC
+            LIMIT {ph}
+            """,
+            (user_id, clamped_limit)
+        )
+        rows = cursor.fetchall()
+        results = []
+        for r in rows:
+            d = dict(r)
+            d["emergency"] = bool(d["emergency"]) if d.get("emergency") is not None else False
+            d["requires_review"] = bool(d["requires_review"]) if d.get("requires_review") is not None else False
+            results.append(d)
+        return results
+
+
+# =============================================================================
+# PROVIDER REVIEW QUEUE & ACTION HELPERS
+# =============================================================================
+
+def get_provider_review_queue(review_status: str = "open", backend: Optional[str] = None, db_path: Optional[str] = None,
+                              mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieves review queue ordered by emergency (desc), max_severity (desc), and created_at (asc)."""
+    now_dt = datetime.now(timezone.utc)
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"""
+            SELECT r.checkin_id, r.emergency, r.max_severity, r.review_status, r.created_at,
+                   r.intakes_json, r.reconciliation_json, r.verification_json,
+                   c.mode, c.user_id,
+                   u.display_name, u.email
+            FROM checkin_results r
+            JOIN checkins c ON r.checkin_id = c.checkin_id
+            JOIN users u ON c.user_id = u.user_id
+            WHERE r.review_status = {ph}
+            ORDER BY r.emergency DESC,
+                     CASE r.max_severity
+                         WHEN 'high' THEN 1
+                         WHEN 'moderate' THEN 2
+                         WHEN 'low' THEN 3
+                         ELSE 4
+                     END ASC,
+                     r.created_at ASC
+            """,
+            (review_status,)
+        )
+        rows = cursor.fetchall()
+        items = []
+        for row in rows:
+            d = dict(row)
+            emergency = bool(d["emergency"])
+            max_severity = d.get("max_severity")
+            created_at_str = d["created_at"]
+            
+            # Compute overdue: emergency or high severity older than 2 hours
+            overdue = False
+            try:
+                created_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                age_seconds = (now_dt - created_dt).total_seconds()
+                if (emergency or max_severity == "high") and age_seconds > 7200:
+                    overdue = True
+            except Exception:
+                overdue = False
+
+            # Compute summary counts
+            counts = {"observations": 0, "discrepancies": 0, "medications": 0}
+            try:
+                recon = json.loads(d.get("reconciliation_json") or "{}")
+                if recon:
+                    summary = recon.get("summary", {})
+                    counts["observations"] = len(recon.get("observation_comparisons", []))
+                    counts["discrepancies"] = summary.get("conflicts", 0) + summary.get("missing", 0)
+                    counts["medications"] = len(recon.get("medication_comparisons", []))
+            except Exception:
+                pass
+
+            patient_display = d.get("display_name") or d.get("email") or "Patient"
+
+            items.append({
+                "checkin_id": d["checkin_id"],
+                "patient_display": patient_display,
+                "mode": d["mode"],
+                "created_at": created_at_str,
+                "max_severity": max_severity,
+                "emergency": emergency,
+                "overdue": overdue,
+                "counts": counts,
+            })
+        return items
+
+
+def append_review_action(checkin_id: str, provider_user_id: str, action: str,
+                         note: Optional[str] = None, backend: Optional[str] = None,
+                         db_path: Optional[str] = None, mysql_url: Optional[str] = None,
+                         ssl_ca: Optional[str] = None) -> Dict[str, Any]:
+    """Appends an immutable review action and updates review_status."""
+    now = _utc_now_iso()
+    clean_action = str(action).strip().lower()
+    clean_note = str(note).strip()[:500] if note else None
+
+    status_map = {
+        "acknowledge": "acknowledged",
+        "resolve": "resolved",
+        "escalate": "escalated",
+    }
+    new_status = status_map.get(clean_action, "open")
+
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"INSERT INTO review_actions (checkin_id, provider_user_id, action, note, ts) VALUES ({ph}, {ph}, {ph}, {ph}, {ph})",
+            (checkin_id, provider_user_id, clean_action, clean_note, now)
+        )
+        cursor.execute(
+            f"UPDATE checkin_results SET review_status = {ph} WHERE checkin_id = {ph}",
+            (new_status, checkin_id)
+        )
+
+    return {
+        "checkin_id": checkin_id,
+        "provider_user_id": provider_user_id,
+        "action": clean_action,
+        "note": clean_note,
+        "ts": now,
+        "new_review_status": new_status,
+    }
+
+
+def get_review_actions(checkin_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
+                       mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieves all review action history rows for a check-in."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"""
+            SELECT id, checkin_id, provider_user_id, action, note, ts
+            FROM review_actions
+            WHERE checkin_id = {ph}
+            ORDER BY id ASC
+            """,
+            (checkin_id,)
+        )
+        return [dict(r) for r in cursor.fetchall()]
+
 

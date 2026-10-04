@@ -37,7 +37,7 @@ jobs:
 
       - name: Run Backend Pytest Suite (Hermetic)
         run: |
-          pytest backend-poc-technical/scenarios/ backend-poc-technical/test_main.py backend-poc-technical/test_llm.py backend-poc-technical/test_auth.py backend-poc-technical/test_profile_ehr.py -v --deselect scenarios/test_source_blind.py::run_source_blind_test
+          pytest backend-poc-technical/scenarios/ backend-poc-technical/test_main.py backend-poc-technical/test_llm.py backend-poc-technical/test_auth.py backend-poc-technical/test_profile_ehr.py backend-poc-technical/test_adaptive_interview_agent.py backend-poc-technical/test_checkin_api.py -v -k "not run_source_blind_test"
 
       - name: Set up Node.js 18
         uses: actions/setup-node@v4
