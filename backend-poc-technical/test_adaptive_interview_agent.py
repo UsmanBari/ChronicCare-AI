@@ -491,3 +491,59 @@ def test_store_invariant_is_enforced_when_the_source_does_not_match_the_baseline
     state = feed(start(["diabetes"]), *DIABETES_FULL)
     with pytest.raises(ValueError, match="Store Invariant"):
         _pipeline(state, _baseline("fhir", 140), source="local")
+
+
+# ----------------------------------------------------------------------------
+# Dangerous reading (proposal section 27: BP at or above 180/120 is a Stage 1 trigger)
+# ----------------------------------------------------------------------------
+@pytest.mark.parametrize("reading", ["190/125", "180/80", "150/120", "180/120", "260/160"])
+def test_bp_crisis_range_reading_triggers_emergency(reading):
+    state = feed(start(["hypertension"]), "Feeling fine", reading)
+    assert state.stage1_red_flag is True
+    assert state.stage1_reason == "bp_crisis_range"
+    assert state.step == INTERVIEW_COMPLETE
+    assert state.intake["emergency"] is True
+    assert state.intake["trigger_reading"]["unit"] == "mmHg"
+    assert get_current_question(state) is None
+
+
+@pytest.mark.parametrize("reading", ["179/119", "170/115", "150/95", "130/85"])
+def test_bp_just_below_crisis_is_not_an_emergency(reading):
+    state = feed(start(["hypertension"]), "Feeling fine", reading)
+    assert state.stage1_red_flag is False
+    assert state.step == "associated_symptoms"
+
+
+def test_bp_crisis_given_at_the_checkpoint_also_triggers():
+    state = feed(start(["hypertension"]), "Fine", "no cuff", "Oh, I just measured 200/130")
+    assert state.stage1_red_flag is True
+    assert state.stage1_reason == "bp_crisis_range"
+    assert state.intake["trigger_reading"] == {"systolic": 200, "diastolic": 130, "unit": "mmHg"}
+
+
+def test_bp_crisis_in_second_condition_keeps_the_first_intake():
+    state = feed(start(["diabetes", "hypertension"]),
+                 "Fine", "130", "No", "Yes", "No changes", "190/125")
+    assert state.stage1_red_flag is True
+    assert [i["condition"] for i in state.intakes] == ["diabetes", "hypertension"]
+    assert state.intakes[0]["emergency"] is False
+    assert state.intakes[1]["emergency"] is True
+    assert state.dual_diagnosis_pending == []
+
+
+def test_bp_crisis_never_builds_a_checkin_bundle():
+    state = feed(start(["hypertension"]), "Fine", "190/125")
+    with pytest.raises(ValueError, match="bypass"):
+        build_checkin_bundle(state, source="local", patient_name="T")
+
+
+def test_implausible_bp_is_asked_again_not_treated_as_a_crisis():
+    state = feed(start(["hypertension"]), "Fine", "300/200")
+    assert state.stage1_red_flag is False
+    assert state.step == "missing_data_checkpoint"
+
+
+def test_chest_pain_still_wins_over_a_high_reading_in_the_same_answer():
+    state = feed(start(["hypertension"]), "Fine", "190/125 and I have chest pain")
+    assert state.stage1_reason == "chest_pain"
+

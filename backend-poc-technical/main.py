@@ -20,11 +20,13 @@ import re
 import uuid
 import time
 import logging
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 
 import requests
 from fastapi import FastAPI, HTTPException, status, Header, Depends, Query, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
@@ -63,6 +65,7 @@ from data_sources.fhir_client import get_fhir_patient
 from data_sources.app_store import (
     migrate,
     get_user_by_id,
+    get_user_by_email,
     create_user,
     update_user_role,
     update_user_last_login,
@@ -80,6 +83,7 @@ from data_sources.app_store import (
     create_checkin,
     get_checkin_by_id,
     update_checkin_state,
+    apply_checkin_answer_atomic,
     create_checkin_result,
     get_checkin_result,
     get_user_checkins,
@@ -328,11 +332,14 @@ class CheckinStartResponse(BaseModel):
     question: Optional[str] = None
     mode: str
     is_cold_start: bool
+    step: Optional[str] = None
+    version: int = 0
 
 
 class CheckinAnswerRequest(BaseModel):
     model_config = {"extra": "forbid"}
     answer: str = Field(..., max_length=1000)
+    step: Optional[str] = None
 
 
 class CheckinAnswerResponse(BaseModel):
@@ -340,6 +347,9 @@ class CheckinAnswerResponse(BaseModel):
     complete: bool
     emergency: bool
     emergency_reason: Optional[str] = None
+    step: Optional[str] = None
+    version: int = 0
+    escalation_recorded: Optional[bool] = None
 
 
 class CheckinCompleteResponse(BaseModel):
@@ -356,6 +366,7 @@ class UserCheckinSummaryResponse(BaseModel):
     mode: str
     record_patient_id: str
     status: str
+    version: int = 0
     started_at: str
     completed_at: Optional[str] = None
     emergency: bool
@@ -385,6 +396,10 @@ class ReviewQueueItemResponse(BaseModel):
     emergency: bool
     overdue: bool
     counts: Dict[str, int]
+    trigger_category: Optional[str] = None
+    trigger_text: Optional[str] = None
+    trigger_reading: Optional[Dict[str, Any]] = None
+    escalated_at: Optional[str] = None
 
 
 class ReviewActionResponse(BaseModel):
@@ -409,6 +424,10 @@ class ReviewDetailResponse(BaseModel):
     max_severity: Optional[str] = None
     review_status: str
     created_at: str
+    trigger_category: Optional[str] = None
+    trigger_text: Optional[str] = None
+    trigger_reading: Optional[Dict[str, Any]] = None
+    escalated_at: Optional[str] = None
     actions: List[ReviewActionResponse]
 
 
@@ -701,13 +720,35 @@ def auth_session_endpoint(token: str = Depends(extract_bearer_token)):
             display_name=display_name,
             status="active",
         )
-        append_audit(
-            actor_user_id=user_id,
-            action="user_registered",
-            target=user_id,
-            outcome="ok",
-            detail={"role": assigned_role},
-        )
+        if user.get("_is_new", False):
+            append_audit(
+                actor_user_id=user_id,
+                action="user_registered",
+                target=user_id,
+                outcome="ok",
+                detail={"role": assigned_role},
+            )
+        else:
+            if user.get("status") != "active":
+                append_audit(
+                    actor_user_id=user_id,
+                    action="login_blocked",
+                    target=user_id,
+                    outcome="denied",
+                    detail={"reason": "disabled_account"},
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User account is disabled",
+                )
+            user = update_user_last_login(user_id)
+            append_audit(
+                actor_user_id=user_id,
+                action="login",
+                target=user_id,
+                outcome="ok",
+                detail={},
+            )
     else:
         if user.get("status") != "active":
             append_audit(
@@ -1063,6 +1104,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
     """
     Initializes a new server-side check-in session for the authenticated patient.
     Requires active consent and an existing clinical profile.
+    Idempotent: Reuses existing un-answered in-progress check-in if started within last 15 minutes.
     """
     user_id = current_user["user_id"]
 
@@ -1082,7 +1124,33 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
             detail="Complete your profile first",
         )
 
-    # 3. Derive mode and record patient id
+    # 3. Start Idempotency Check (re-use recent in-progress checkin if no answers provided yet)
+    now_dt = datetime.now(timezone.utc)
+    recent_checkins = get_user_checkins(user_id, limit=5)
+    for c_summary in recent_checkins:
+        if c_summary.get("status") == "in_progress":
+            c_detail = get_checkin_by_id(c_summary["checkin_id"])
+            if c_detail and c_detail.get("status") == "in_progress":
+                c_state = c_detail.get("state", {})
+                answers = c_state.get("answers", {})
+                if len(answers) == 0:
+                    started_str = c_detail.get("started_at", "")
+                    try:
+                        started_dt = datetime.fromisoformat(started_str.replace("Z", "+00:00"))
+                        if (now_dt - started_dt).total_seconds() <= 900:
+                            st = InterviewState.from_dict(c_state)
+                            return CheckinStartResponse(
+                                checkin_id=c_detail["checkin_id"],
+                                question=get_current_question(st),
+                                mode=c_detail["mode"],
+                                is_cold_start=st.is_cold_start,
+                                step=st.step,
+                                version=c_detail.get("version", 0),
+                            )
+                    except Exception:
+                        pass
+
+    # 4. Derive mode and record patient id
     active_conn = get_active_ehr_connection(user_id)
     if active_conn:
         mode = "connected"
@@ -1094,12 +1162,12 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
         record_patient_id = f"local-{user_id}"
         base_url = None
 
-    # 4. In isolated mode, ensure local store patient row exists
+    # 5. In isolated mode, ensure local store patient row exists
     if mode == "isolated":
         patient_name = current_user.get("display_name") or "Local Patient"
         add_local_patient_if_missing(record_patient_id, name=patient_name)
 
-    # 5. Fetch prior bundle to determine cold start
+    # 6. Fetch prior bundle to determine cold start
     try:
         prior_bundle = get_patient_bundle(record_patient_id, mode=mode, base_url=base_url)
     except Exception:
@@ -1110,7 +1178,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
 
     is_cold_start = (len(prior_bundle.get("observations", [])) == 0 and len(prior_bundle.get("medications", [])) == 0)
 
-    # 6. Initialize InterviewState and run first node
+    # 7. Initialize InterviewState and run first node
     state = InterviewState(
         patient_id=record_patient_id,
         conditions_on_file=conditions,
@@ -1119,7 +1187,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
     )
     initial_state = adaptive_interview_node(state, patient_response=None)
 
-    # 7. Persist session
+    # 8. Persist session
     checkin_id = str(uuid.uuid4())
     create_checkin(
         checkin_id=checkin_id,
@@ -1136,6 +1204,8 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
         question=question,
         mode=mode,
         is_cold_start=is_cold_start,
+        step=initial_state.step,
+        version=0,
     )
 
 
@@ -1145,7 +1215,7 @@ def answer_checkin_endpoint(
     body: CheckinAnswerRequest,
     current_user: Dict[str, Any] = Depends(require_role("patient")),
 ):
-    """Advances the interview state by one patient answer."""
+    """Advances the interview state by one patient answer with optimistic concurrency and atomic emergency persistence."""
     checkin = get_checkin_by_id(checkin_id)
     if not checkin or checkin["user_id"] != current_user["user_id"]:
         raise HTTPException(
@@ -1160,6 +1230,20 @@ def answer_checkin_endpoint(
         )
 
     current_state = InterviewState.from_dict(checkin["state"])
+    current_version = checkin.get("version", 0)
+
+    # Step validation
+    if body.step is not None:
+        if body.step != current_state.step:
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={
+                    "detail": "stale_step",
+                    "step": current_state.step,
+                    "question": get_current_question(current_state),
+                },
+            )
+
     try:
         next_state = adaptive_interview_node(current_state, patient_response=body.answer)
     except ValueError as e:
@@ -1168,31 +1252,48 @@ def answer_checkin_endpoint(
             detail=str(e),
         )
 
-    if next_state.stage1_red_flag:
-        update_checkin_state(checkin_id=checkin_id, state_dict=next_state.to_dict(), status="emergency")
-        return CheckinAnswerResponse(
-            question=None,
-            complete=True,
-            emergency=True,
-            emergency_reason=next_state.stage1_reason,
+    is_emergency = bool(next_state.stage1_red_flag or (next_state.intake and next_state.intake.get("emergency")))
+    is_complete = bool(next_state.step == INTERVIEW_COMPLETE or is_emergency)
+    new_status = "emergency" if is_emergency else ("complete" if is_complete else "in_progress")
+    completed_at = _utc_now_iso() if is_complete else None
+
+    try:
+        success = apply_checkin_answer_atomic(
+            checkin_id=checkin_id,
+            expected_version=current_version,
+            state_dict=next_state.to_dict(),
+            status=new_status,
+            completed_at=completed_at,
+            emergency=is_emergency,
+            trigger_category=next_state.stage1_reason,
+            trigger_text=body.answer,
+            actor_user_id=current_user["user_id"],
         )
-    elif next_state.step == INTERVIEW_COMPLETE:
-        update_checkin_state(checkin_id=checkin_id, state_dict=next_state.to_dict(), status="complete")
-        return CheckinAnswerResponse(
-            question=None,
-            complete=True,
-            emergency=False,
-            emergency_reason=None,
+    except Exception as e:
+        logger.error(f"Persistence error during answer: {type(e).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save check-in answer. Please try again.",
         )
-    else:
-        update_checkin_state(checkin_id=checkin_id, state_dict=next_state.to_dict(), status="in_progress")
-        question = get_current_question(next_state)
-        return CheckinAnswerResponse(
-            question=question,
-            complete=False,
-            emergency=False,
-            emergency_reason=None,
+
+    if not success:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={"detail": "concurrent_update"},
         )
+
+    question = get_current_question(next_state) if not is_complete else None
+    next_version = current_version + 1
+
+    return CheckinAnswerResponse(
+        question=question,
+        complete=is_complete,
+        emergency=is_emergency,
+        emergency_reason=next_state.stage1_reason if is_emergency else None,
+        step=next_state.step,
+        version=next_version,
+        escalation_recorded=True if is_emergency else None,
+    )
 
 
 @app.post("/api/checkins/{checkin_id}/complete", response_model=CheckinCompleteResponse, tags=["Check-in"])
@@ -1233,6 +1334,7 @@ def complete_checkin_endpoint(
     # 1. Emergency Flow
     if state.stage1_red_flag or checkin["status"] == "emergency":
         intakes = state.intakes if state.intakes else ([{"condition": state.active_condition or "general", "emergency": True, "reason": state.stage1_reason}] if state.stage1_reason else [])
+        now_iso = _utc_now_iso()
         create_checkin_result(
             checkin_id=checkin_id,
             emergency=True,
@@ -1242,12 +1344,15 @@ def complete_checkin_endpoint(
             requires_review=True,
             max_severity="high",
             review_status="open",
+            trigger_category=state.stage1_reason,
+            trigger_text=None,
+            escalated_at=now_iso,
         )
         update_checkin_state(
             checkin_id=checkin_id,
             state_dict=state.to_dict(),
             status="emergency",
-            completed_at=_utc_now_iso(),
+            completed_at=now_iso,
         )
         return CheckinCompleteResponse(
             emergency=True,
@@ -1370,6 +1475,7 @@ def get_user_checkins_endpoint(current_user: Dict[str, Any] = Depends(require_ro
             mode=c["mode"],
             record_patient_id=c["record_patient_id"],
             status=c["status"],
+            version=c.get("version", 0),
             started_at=c["started_at"],
             completed_at=c.get("completed_at"),
             emergency=c["emergency"],
@@ -1446,6 +1552,13 @@ def get_provider_review_detail_endpoint(
     patient_display = (patient_user.get("display_name") if patient_user else None) or (patient_user.get("email") if patient_user else None) or "Patient"
     actions = get_review_actions(checkin_id)
 
+    # Extract trigger_reading if present in intakes
+    trigger_reading = None
+    for intake in result.get("intakes", []):
+        if intake.get("trigger_reading"):
+            trigger_reading = intake["trigger_reading"]
+            break
+
     return ReviewDetailResponse(
         checkin_id=checkin_id,
         patient_id=checkin["record_patient_id"],
@@ -1459,6 +1572,10 @@ def get_provider_review_detail_endpoint(
         max_severity=result.get("max_severity"),
         review_status=result["review_status"],
         created_at=result["created_at"],
+        trigger_category=result.get("trigger_category"),
+        trigger_text=result.get("trigger_text"),
+        trigger_reading=trigger_reading,
+        escalated_at=result.get("escalated_at"),
         actions=[ReviewActionResponse(**a) for a in actions],
     )
 
@@ -1503,6 +1620,12 @@ def post_provider_review_action_endpoint(
     patient_display = (patient_user.get("display_name") if patient_user else None) or (patient_user.get("email") if patient_user else None) or "Patient"
     actions = get_review_actions(checkin_id)
 
+    trigger_reading = None
+    for intake in updated_result.get("intakes", []):
+        if intake.get("trigger_reading"):
+            trigger_reading = intake["trigger_reading"]
+            break
+
     return ReviewDetailResponse(
         checkin_id=checkin_id,
         patient_id=checkin["record_patient_id"],
@@ -1516,6 +1639,10 @@ def post_provider_review_action_endpoint(
         max_severity=updated_result.get("max_severity"),
         review_status=updated_result["review_status"],
         created_at=updated_result["created_at"],
+        trigger_category=updated_result.get("trigger_category"),
+        trigger_text=updated_result.get("trigger_text"),
+        trigger_reading=trigger_reading,
+        escalated_at=updated_result.get("escalated_at"),
         actions=[ReviewActionResponse(**a) for a in actions],
     )
 
