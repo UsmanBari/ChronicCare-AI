@@ -4,3 +4,5 @@ fastapi>=0.110.0
 uvicorn>=0.28.0
 pytest>=8.0.0
 httpx>=0.24.0
+PyMySQL>=1.1.0
+cryptography>=42.0.0
