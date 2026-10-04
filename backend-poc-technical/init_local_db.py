@@ -10,12 +10,14 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from data_sources.local_store import init_db, seed_db, get_local_patient, get_local_observations, get_local_medications
+from data_sources.app_store import migrate
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(script_dir, "local_store.db")
     
     print(f"Initializing and seeding SQLite database at: {db_path}")
+    migrate(db_path=db_path)
     seed_db(db_path)
     print("Database seeded successfully.")
     
