@@ -16,7 +16,9 @@ import {
   FileCheck,
   CheckCircle2,
   AlertCircle,
+  Pill,
 } from "lucide-react";
+import { describeMedicationItem } from "../lib/presentation";
 
 export const RiskResultScreen = () => {
   const { setScreen, returnToHomeAndClearRun, isLiveMode, liveCheckinResult, t, isUrdu } = useApp();
@@ -83,11 +85,11 @@ export const RiskResultScreen = () => {
 
           {/* Plain words comparison details */}
           {(comparisons.length > 0 || medComparisons.length > 0) && (
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2.5">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-3">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
-                {isUrdu ? "موازنہ کی گئی پیمائشیں:" : "Compared Readings & Records:"}
+                {isUrdu ? "موازنہ کی گئی پیمائشیں اور ادویات:" : "Compared Readings & Medications:"}
               </span>
-              <ul className="space-y-1.5 text-xs text-slate-600">
+              <ul className="space-y-2 text-xs text-slate-600">
                 {comparisons.map((c: any, idx: number) => {
                   const type = c.observation_type ? c.observation_type.replace(/_/g, " ").replace(/\b\w/g, (ch: string) => ch.toUpperCase()) : "Observation";
                   const val = c.value_b !== null && c.value_b !== undefined ? `${c.value_b} ${c.unit_b || ""}`.trim() : "Reported";
@@ -96,18 +98,37 @@ export const RiskResultScreen = () => {
                   else if (c.status === "source_b_only") statusDesc = isUrdu ? "آج درج کیا گیا (کوئی پچھلا ریکارڈ موجود نہیں)" : "Reported today (no prior record)";
                   else if (c.status === "conflict") statusDesc = isUrdu ? "پچھلے ریکارڈ سے مختلف ہے" : "Differs from saved record";
                   return (
-                    <li key={idx} className="flex items-center justify-between py-1 border-b border-slate-200/60 last:border-none">
+                    <li key={idx} className="flex items-center justify-between py-1.5 border-b border-slate-200/60 last:border-none">
                       <span className="font-semibold text-slate-800">{type} ({val})</span>
                       <span className="text-slate-500 font-medium">{statusDesc}</span>
                     </li>
                   );
                 })}
-                {medComparisons.map((m: any, idx: number) => (
-                  <li key={`med-${idx}`} className="flex items-center justify-between py-1 border-b border-slate-200/60 last:border-none">
-                    <span className="font-semibold text-slate-800">{m.medication_name}</span>
-                    <span className="text-slate-500 font-medium">{isUrdu ? "دوائی کا جائزہ لیا گیا" : "Medication reviewed"}</span>
-                  </li>
-                ))}
+                {medComparisons.map((m: any, idx: number) => {
+                  const medVerifs = liveCheckinResult?.verification?.medication_verifications || [];
+                  const v = medVerifs.find((ver: any) => ver.medication_name === m.medication_name);
+                  const medItem = describeMedicationItem(m, v);
+                  const isHigh = medItem.severity === "high";
+                  return (
+                    <li key={`med-${idx}`} className="py-1.5 border-b border-slate-200/60 last:border-none space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <Pill className="w-3.5 h-3.5 text-teal-700" />
+                          {medItem.title}
+                        </span>
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                          isHigh ? "bg-red-100 text-red-900 border border-red-300" : "bg-slate-100 text-slate-700"
+                        }`}>
+                          {medItem.todayText}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span>{medItem.recordText}</span>
+                        <span className="font-medium text-slate-600">{medItem.reason}</span>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Bot,
   RotateCcw,
+  Pill,
 } from "lucide-react";
 import {
   api,
@@ -414,6 +415,13 @@ export const AdaptiveInterviewScreen = () => {
             }}
             className="space-y-3 pt-2 border-t border-slate-200"
           >
+            {currentStep?.startsWith("medication_check") && (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-100 text-teal-900 border border-teal-300 text-xs font-bold uppercase tracking-wider w-fit">
+                <Pill className="w-3.5 h-3.5 text-teal-700" />
+                <span>{isUrdu ? "ادویات کی تصدیق" : "Medication check"}</span>
+              </div>
+            )}
+
             <div className="relative">
               <input
                 ref={inputRef}
@@ -441,6 +449,32 @@ export const AdaptiveInterviewScreen = () => {
                 )}
               </button>
             </div>
+
+            {/* Quick-answer buttons for Medication Check Step */}
+            {currentStep?.startsWith("medication_check") && (
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleLiveSendAnswer("yes")}
+                  disabled={isSending}
+                  id="med-check-yes-btn"
+                  className="min-h-[42px] py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 border-2 border-teal-600 text-teal-900 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-teal-700" />
+                  <span>{isUrdu ? "ہاں، وہی مقدار" : "Yes, same dose"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLiveSendAnswer("no")}
+                  disabled={isSending}
+                  id="med-check-no-btn"
+                  className="min-h-[42px] py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 border-2 border-slate-300 text-slate-800 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <RotateCcw className="w-4 h-4 text-slate-600" />
+                  <span>{isUrdu ? "نہیں، میں نے بند کر دی ہے" : "No, I stopped it"}</span>
+                </button>
+              </div>
+            )}
 
             {/* "I don't have this information" helper button */}
             <div className="flex items-center justify-between gap-3 pt-1">

@@ -14,12 +14,28 @@ import {
   Activity,
   CheckCircle2,
 } from "lucide-react";
-import { describeSide } from "../lib/presentation";
+import { describeSide, describeMedicationItem } from "../lib/presentation";
+import { Pill } from "lucide-react";
 
 export const ConflictScreen = () => {
   const { setScreen, checkIn, liveCheckinResult, liveEhrConnection, isLiveMode, t, isUrdu } = useApp();
 
-  // In live mode, extract first conflicting comparison from reconciliation result if available
+  // In live mode, extract comparisons and verifications
+  const obsComparisons = liveCheckinResult?.reconciliation?.observation_comparisons || [];
+  const medComparisons = liveCheckinResult?.reconciliation?.medication_comparisons || [];
+  const medVerifications = liveCheckinResult?.verification?.medication_verifications || [];
+
+  const medicationItems = isLiveMode
+    ? medComparisons.map((c: any) => {
+        const v = medVerifications.find((ver: any) => ver.medication_name === c.medication_name);
+        return {
+          desc: describeMedicationItem(c, v),
+          comparison: c,
+          verification: v,
+        };
+      })
+    : [];
+
   let sideALabel = isLiveMode
     ? describeSide("a", "local", "low", liveEhrConnection?.mode)
     : "Source A: Patient Check-in";
@@ -34,9 +50,6 @@ export const ConflictScreen = () => {
   let isAllPlainConflicts = true;
 
   if (isLiveMode && liveCheckinResult?.reconciliation) {
-    const obsComparisons = liveCheckinResult.reconciliation.observation_comparisons || [];
-    const medComparisons = liveCheckinResult.reconciliation.medication_comparisons || [];
-
     if (obsComparisons.length > 0) {
       isAllPlainConflicts = obsComparisons.every((c: any) => c.status === "conflict");
     }
@@ -64,14 +77,6 @@ export const ConflictScreen = () => {
           : "Not reported today";
       sideADesc = `${conflictObs.observation_type || "Observation"}: ${sideAValue}`;
       sideBDesc = `${conflictObs.observation_type || "Observation"}: ${sideBValue}`;
-    } else if (medComparisons.length > 0) {
-      const conflictMed = medComparisons[0];
-      sideALabel = describeSide("a", conflictMed.source_a, null, liveEhrConnection?.mode);
-      sideBLabel = describeSide("b", conflictMed.source_b, null, liveEhrConnection?.mode);
-      sideAValue = conflictMed.dosage_a || conflictMed.status_a || "On file";
-      sideBValue = conflictMed.dosage_b || conflictMed.status_b || "Reported today";
-      sideADesc = `${conflictMed.medication_name}: ${sideAValue}`;
-      sideBDesc = `${conflictMed.medication_name}: ${sideBValue}`;
     }
   }
 
@@ -153,6 +158,69 @@ export const ConflictScreen = () => {
             </p>
           </div>
         </div>
+
+        {/* Medication Comparison Items */}
+        {isLiveMode && medicationItems.length > 0 && (
+          <div className="space-y-3 pt-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+              {isUrdu ? "ادویات کا موازنہ:" : "Medication Reconciliation:"}
+            </span>
+            <div className="space-y-3">
+              {medicationItems.map((item, idx) => {
+                const isHigh = item.desc.severity === "high";
+                return (
+                  <div
+                    key={idx}
+                    className={`p-4 rounded-2xl border-2 transition-all ${
+                      isHigh
+                        ? "bg-red-50/90 border-emergencyRed-500 shadow-xs ring-1 ring-emergencyRed-400"
+                        : "bg-amber-50/80 border-amber-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <Pill className={`w-4 h-4 ${isHigh ? "text-emergencyRed-700" : "text-amber-800"}`} />
+                        <span className="font-bold text-sm text-navy-900">{item.desc.title}</span>
+                      </div>
+                      <span
+                        className={`text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                          isHigh
+                            ? "bg-emergencyRed-100 text-emergencyRed-900 border border-emergencyRed-300 font-extrabold"
+                            : "bg-amber-100 text-amber-900 border border-amber-300"
+                        }`}
+                      >
+                        {isHigh ? (
+                          <AlertTriangle className="w-3.5 h-3.5 text-emergencyRed-700" />
+                        ) : (
+                          <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />
+                        )}
+                        <span>{item.desc.severity.toUpperCase()} SEVERITY</span>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs py-1">
+                      <div className="p-2.5 rounded-xl bg-white/90 border border-slate-200">
+                        <span className="text-slate-500 font-semibold block">{item.desc.recordText}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-white/90 border border-slate-200">
+                        <span className="text-navy-900 font-bold block">{item.desc.todayText}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-between text-xs">
+                      <p className={`font-semibold ${isHigh ? "text-emergencyRed-950 font-bold" : "text-amber-950"}`}>
+                        {item.desc.reason}
+                      </p>
+                      <span className="text-[11px] font-bold text-slate-500 shrink-0 ml-2">
+                        Needs clinician review
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Low Confidence Tag */}
         {checkIn.lowConfidence && (

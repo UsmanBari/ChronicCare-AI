@@ -16,9 +16,10 @@ import {
   Scale,
   Sparkles,
   Loader2,
+  Pill,
 } from "lucide-react";
 import { api, ApiError, ReviewDetailResponse } from "../../lib/api";
-import { describeSide, describeReviewReason } from "../../lib/presentation";
+import { describeSide, describeReviewReason, describeMedicationItem } from "../../lib/presentation";
 
 export const ReconciliationAlertDetail = () => {
   const {
@@ -414,6 +415,90 @@ export const ReconciliationAlertDetail = () => {
                 : "Cross-source validation identified delta between patient-reported input and baseline records. Clinician review is recommended to reconcile telemetry before updating longitudinal care targets."}
             </p>
           </div>
+
+          {/* Medication Reconciliation Items (if present) */}
+          {isLiveMode && liveDetail?.reconciliation?.medication_comparisons && liveDetail.reconciliation.medication_comparisons.length > 0 && (
+            <div className="space-y-4 pt-2 border-t border-slate-200">
+              <div className="flex items-center gap-2 text-xs font-bold text-navy-800 uppercase tracking-wider">
+                <Pill className="w-4 h-4 text-teal-700" />
+                <span>Medication Discrepancies & Reconciliation ({liveDetail.reconciliation.medication_comparisons.length})</span>
+              </div>
+              <div className="space-y-3">
+                {liveDetail.reconciliation.medication_comparisons.map((m: any, idx: number) => {
+                  const v = (liveDetail?.verification?.medication_verifications || []).find(
+                    (ver: any) => ver.medication_name === m.medication_name
+                  );
+                  const medDesc = describeMedicationItem(m, v);
+                  const isHigh = medDesc.severity === "high";
+                  const sideALbl = describeSide("a", m.source_a, v?.trust_level_a, liveDetail?.mode);
+                  const sideBLbl = describeSide("b", m.source_b, v?.trust_level_b, liveDetail?.mode);
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-4 rounded-2xl border-2 space-y-3 ${
+                        isHigh
+                          ? "bg-red-50/50 border-emergencyRed-400"
+                          : "bg-slate-50 border-slate-200"
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
+                        <div className="flex items-center gap-2">
+                          <Pill className={`w-4 h-4 ${isHigh ? "text-emergencyRed-700" : "text-slate-700"}`} />
+                          <span className="font-bold text-sm text-navy-900">{medDesc.title}</span>
+                        </div>
+                        <span
+                          className={`text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                            isHigh
+                              ? "bg-emergencyRed-100 text-emergencyRed-900 border border-emergencyRed-300"
+                              : "bg-amber-100 text-amber-900 border border-amber-300"
+                          }`}
+                        >
+                          {isHigh ? <AlertTriangle className="w-3.5 h-3.5 text-emergencyRed-700" /> : <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />}
+                          <span>Severity: {medDesc.severity.toUpperCase()}</span>
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold uppercase text-[10px] text-slate-500">{sideALbl}</span>
+                            {v?.trust_level_a && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                                Trust: {v.trust_level_a.toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-semibold text-navy-900">{medDesc.recordText}</p>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold uppercase text-[10px] text-teal-800">{sideBLbl}</span>
+                            {v?.trust_level_b && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-teal-50 text-teal-900">
+                                Trust: {v.trust_level_b.toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-semibold text-navy-900">{medDesc.todayText}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs pt-1 text-slate-600">
+                        <span className="font-semibold">{medDesc.reason}</span>
+                        {liveDetail?.created_at && (
+                          <span className="text-[11px] text-slate-400">
+                            Logged: {new Date(liveDetail.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Action Note Input (Required for Resolve & Escalate) */}
           <div className="space-y-2 pt-2 border-t border-slate-200">

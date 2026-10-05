@@ -8,6 +8,121 @@ export interface DeltaInfo {
   unit?: string | null;
 }
 
+export interface MedicationComparison {
+  medication_name?: string | null;
+  status_a?: string | null;
+  status_b?: string | null;
+  dosage_a?: string | null;
+  dosage_b?: string | null;
+  source_a?: string | null;
+  source_b?: string | null;
+  comparison_status?: string | null;
+}
+
+export interface MedicationVerification {
+  medication_name?: string | null;
+  reconciliation_status?: string | null;
+  trust_level_a?: string | null;
+  trust_level_b?: string | null;
+  severity?: string | null;
+  requires_human_review?: boolean | null;
+  review_reason?: string | null;
+}
+
+export interface MedicationItemDescription {
+  title: string;
+  recordText: string;
+  todayText: string;
+  reason: string;
+  severity: string;
+}
+
+/**
+ * Describes a medication comparison & verification item in honest, plain language.
+ * Follows clinical rules: never uses the word "hospital" unless source is "fhir".
+ */
+export function describeMedicationItem(
+  comparison?: MedicationComparison | null,
+  verification?: MedicationVerification | null
+): MedicationItemDescription {
+  const medName =
+    comparison?.medication_name || verification?.medication_name || "Medication";
+  const title = medName;
+
+  const statusA = (comparison?.status_a || "active").toLowerCase();
+  const dosageA = comparison?.dosage_a ? comparison.dosage_a.trim() : null;
+
+  const statusB = comparison?.status_b ? comparison.status_b.toLowerCase() : null;
+  const dosageB = comparison?.dosage_b ? comparison.dosage_b.trim() : null;
+
+  const compStatus = (
+    comparison?.comparison_status ||
+    verification?.reconciliation_status ||
+    ""
+  ).toLowerCase();
+
+  // 1. Record Text (Side A)
+  let recordDetails = "";
+  if (dosageA) {
+    recordDetails = `${dosageA} (${statusA})`;
+  } else {
+    recordDetails = `(${statusA})`;
+  }
+  const recordText = `Record: ${medName}, ${recordDetails}`;
+
+  // 2. Today's Text (Side B)
+  let todayText = "Not reported today";
+  if (compStatus === "missing_in_b" || (!statusB && !dosageB)) {
+    todayText = "Not reported today";
+  } else if (statusB === "stopped") {
+    todayText = "Today: stopped";
+  } else if (statusB === "active") {
+    if (dosageB && dosageA && dosageB.toLowerCase() !== dosageA.toLowerCase()) {
+      todayText = `Today: active, new dose: ${dosageB}`;
+    } else if (dosageB) {
+      todayText = `Today: active, ${dosageB}`;
+    } else if (dosageA) {
+      todayText = `Today: active, ${dosageA}`;
+    } else {
+      todayText = "Today: active";
+    }
+  } else if (dosageB) {
+    todayText = `Today: ${dosageB}`;
+  }
+
+  // 3. Reason
+  let reason = "Requires clinician review.";
+  if (compStatus === "conflict") {
+    if (statusA === "active" && statusB === "stopped") {
+      reason = "The record says you take this medication; you said you stopped it.";
+    } else if (dosageA && dosageB && dosageA.toLowerCase() !== dosageB.toLowerCase()) {
+      reason = "You reported a different dose from the record.";
+    } else {
+      reason = "The record says you take this medication; you said you stopped it.";
+    }
+  } else if (compStatus === "missing_in_b") {
+    reason = "Not reported today.";
+  } else if (compStatus === "agree" || compStatus === "agreement") {
+    reason = "Matches the record.";
+  } else if (verification?.review_reason && verification.review_reason.trim()) {
+    reason = verification.review_reason.trim();
+  }
+
+  // 4. Severity
+  const severity = (
+    verification?.severity ||
+    (compStatus === "conflict" ? "high" : "low")
+  ).toLowerCase();
+
+  return {
+    title,
+    recordText,
+    todayText,
+    reason,
+    severity,
+  };
+}
+
 /**
  * Returns a truthful, clinical source description for side A (prior baseline) or side B (today's check-in).
  * Rule: The word "hospital" appears ONLY when source is explicitly "fhir".

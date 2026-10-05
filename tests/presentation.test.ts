@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   describeSide,
   describeReviewReason,
+  describeMedicationItem,
   titleCaseName,
   mapApiError,
 } from "../app/lib/presentation";
@@ -163,6 +164,136 @@ describe("presentation logic unit tests", () => {
 
     it("maps generic 500 errors", () => {
       expect(mapApiError(500)).toBe("An unexpected error occurred. Please try again.");
+    });
+  });
+
+  describe("describeMedicationItem", () => {
+    it("handles active against stopped conflict (severity high)", () => {
+      const comp = {
+        medication_name: "Metformin 500mg",
+        dosage_a: "1 tablet twice daily",
+        status_a: "active",
+        status_b: "stopped",
+        dosage_b: null,
+        source_a: "local",
+        source_b: "local",
+        comparison_status: "conflict",
+      };
+      const verif = {
+        medication_name: "Metformin 500mg",
+        reconciliation_status: "conflict",
+        trust_level_a: "low",
+        trust_level_b: "low",
+        severity: "high",
+        requires_human_review: true,
+        review_reason: "Patient reported stopping active medication.",
+      };
+
+      const result = describeMedicationItem(comp, verif);
+      expect(result.title).toBe("Metformin 500mg");
+      expect(result.recordText).toBe("Record: Metformin 500mg, 1 tablet twice daily (active)");
+      expect(result.todayText).toBe("Today: stopped");
+      expect(result.reason).toBe("The record says you take this medication; you said you stopped it.");
+      expect(result.severity).toBe("high");
+    });
+
+    it("handles dose change conflict with different dosage reported", () => {
+      const comp = {
+        medication_name: "Lisinopril 10mg",
+        dosage_a: "1 tablet daily",
+        status_a: "active",
+        status_b: "active",
+        dosage_b: "2 tablets daily",
+        source_a: "fhir",
+        source_b: "local",
+        comparison_status: "conflict",
+      };
+      const verif = {
+        medication_name: "Lisinopril 10mg",
+        reconciliation_status: "conflict",
+        severity: "moderate",
+        requires_human_review: true,
+      };
+
+      const result = describeMedicationItem(comp, verif);
+      expect(result.title).toBe("Lisinopril 10mg");
+      expect(result.recordText).toBe("Record: Lisinopril 10mg, 1 tablet daily (active)");
+      expect(result.todayText).toBe("Today: active, new dose: 2 tablets daily");
+      expect(result.reason).toBe("You reported a different dose from the record.");
+      expect(result.severity).toBe("moderate");
+    });
+
+    it("handles missing_in_b where medication was not reported today", () => {
+      const comp = {
+        medication_name: "Atorvastatin 20mg",
+        dosage_a: "1 tablet at bedtime",
+        status_a: "active",
+        status_b: null,
+        dosage_b: null,
+        source_a: "local",
+        source_b: null,
+        comparison_status: "missing_in_b",
+      };
+      const verif = {
+        medication_name: "Atorvastatin 20mg",
+        reconciliation_status: "missing_in_b",
+        severity: "low",
+      };
+
+      const result = describeMedicationItem(comp, verif);
+      expect(result.title).toBe("Atorvastatin 20mg");
+      expect(result.recordText).toBe("Record: Atorvastatin 20mg, 1 tablet at bedtime (active)");
+      expect(result.todayText).toBe("Not reported today");
+      expect(result.reason).toBe("Not reported today.");
+      expect(result.severity).toBe("low");
+    });
+
+    it("handles agreement where patient confirmed same dose", () => {
+      const comp = {
+        medication_name: "Amlodipine 5mg",
+        dosage_a: "1 tablet daily",
+        status_a: "active",
+        status_b: "active",
+        dosage_b: "1 tablet daily",
+        source_a: "local",
+        source_b: "local",
+        comparison_status: "agree",
+      };
+      const verif = {
+        medication_name: "Amlodipine 5mg",
+        reconciliation_status: "agree",
+        severity: "low",
+      };
+
+      const result = describeMedicationItem(comp, verif);
+      expect(result.title).toBe("Amlodipine 5mg");
+      expect(result.recordText).toBe("Record: Amlodipine 5mg, 1 tablet daily (active)");
+      expect(result.todayText).toBe("Today: active, 1 tablet daily");
+      expect(result.reason).toBe("Matches the record.");
+      expect(result.severity).toBe("low");
+    });
+
+    it("verifies source side descriptions for fhir vs local self-reported medications", () => {
+      const fhirSideA = describeSide("a", "fhir", "high", "fhir");
+      expect(fhirSideA).toBe("Hospital EHR (FHIR)");
+      expect(fhirSideA.toLowerCase()).toContain("hospital");
+
+      const localSideA = describeSide("a", "local", "low", "isolated");
+      expect(localSideA).toBe("Your earlier self-reported record");
+      expect(localSideA.toLowerCase()).not.toContain("hospital");
+
+      const patientSideB = describeSide("b", "local", "low", "isolated");
+      expect(patientSideB).toBe("Today's check-in (reported by you)");
+      expect(patientSideB.toLowerCase()).not.toContain("hospital");
+    });
+
+    it("handles fallback defaults when comparison or verification fields are missing", () => {
+      const result = describeMedicationItem(null, null);
+      expect(result.title).toBe("Medication");
+      expect(result.recordText).toBe("Record: Medication, (active)");
+      expect(result.todayText).toBe("Not reported today");
+      expect(result.reason).toBe("Requires clinician review.");
+      expect(result.severity).toBe("low");
     });
   });
 });
