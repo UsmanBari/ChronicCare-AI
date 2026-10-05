@@ -39,3 +39,9 @@ next-env.d.ts
 *.db-shm
 *.sqlite
 *.sqlite3
+
+# FHIR diagnostic probe reports and test outputs
+fhir_probe_report.json
+backend-poc-technical/output/fhir_connectivity.json
+backend-poc-technical/output/
+
