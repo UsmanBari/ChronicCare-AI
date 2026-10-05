@@ -1411,78 +1411,6 @@ def get_user_checkins(user_id: str, limit: int = 20, backend: Optional[str] = No
         return results
 
 
-def get_user_baseline_history(user_id: str, exclude_checkin_id: Optional[str] = None,
-                              now: Optional[str] = None, backend: Optional[str] = None,
-                              db_path: Optional[str] = None, mysql_url: Optional[str] = None,
-                              ssl_ca: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Returns readings from earlier completed, non-emergency check-ins within the last 14 days
-    for this user, plus local store baseline observations in isolated mode.
-    Items: {"observation_type": str, "value": float, "timestamp": str}.
-    """
-    current_dt = datetime.fromisoformat(now.replace("Z", "+00:00")) if now else datetime.now(timezone.utc)
-    earliest_dt = current_dt - timedelta(days=14)
-    earliest_iso = earliest_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    history: List[Dict[str, Any]] = []
-
-    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
-        query = f"""
-            SELECT c.checkin_id, c.completed_at, r.intakes_json
-            FROM checkins c
-            JOIN checkin_results r ON c.checkin_id = r.checkin_id
-            WHERE c.user_id = {ph}
-              AND c.status = 'complete'
-              AND (r.emergency = 0 OR r.emergency IS FALSE)
-              AND c.completed_at IS NOT NULL
-              AND c.completed_at >= {ph}
-        """
-        params = [user_id, earliest_iso]
-        if exclude_checkin_id:
-            query += f" AND c.checkin_id != {ph}"
-            params.append(exclude_checkin_id)
-
-        cursor.execute(query, tuple(params))
-        rows = cursor.fetchall()
-        for row in rows:
-            d = dict(row)
-            completed_at = d.get("completed_at")
-            try:
-                intakes = json.loads(d.get("intakes_json") or "[]")
-            except Exception:
-                intakes = []
-            for intake in intakes:
-                for reading in intake.get("readings", []):
-                    obs_type = reading.get("observation_type")
-                    val = reading.get("value")
-                    if obs_type and val is not None and isinstance(val, (int, float)):
-                        history.append({
-                            "observation_type": obs_type,
-                            "value": float(val),
-                            "timestamp": completed_at,
-                        })
-
-    # Isolated mode local store baseline observations
-    try:
-        active_ehr = get_active_ehr_connection(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
-        if not active_ehr:
-            from data_sources.local_store import get_local_observations
-            local_obs = get_local_observations(user_id)
-            for obs in local_obs:
-                obs_type = obs.get("observation_type")
-                val = obs.get("value")
-                measured_at = obs.get("measured_at")
-                if obs_type and val is not None and isinstance(val, (int, float)) and measured_at:
-                    history.append({
-                        "observation_type": obs_type,
-                        "value": float(val),
-                        "timestamp": measured_at,
-                    })
-    except Exception as e:
-        logger.debug("Error retrieving local observations for baseline: %s", str(e))
-
-    return history
-
 
 # =============================================================================
 # PROVIDER REVIEW QUEUE & ACTION HELPERS
@@ -1694,12 +1622,15 @@ def get_user_baseline_history(user_id: str, exclude_checkin_id: Optional[str] = 
                         except (ValueError, TypeError):
                             pass
 
-    # In isolated mode, include baseline observations from local_store
+    # In isolated mode, include baseline observations from local_store (excluding checkin copies)
     try:
         from data_sources import local_store
         local_obs = local_store.get_local_observations(f"local-{user_id}")
         for obs in local_obs:
-            obs_type = obs.get("observation_type")
+            source_rec_id = str(obs.get("id") or obs.get("source_record_id") or "")
+            if source_rec_id.startswith("CHECKIN-"):
+                continue
+            obs_type = obs.get("type") or obs.get("observation_type")
             val = obs.get("value")
             measured_at = obs.get("measured_at") or obs.get("timestamp")
             if obs_type in ("blood_pressure_systolic", "blood_pressure_diastolic", "glucose") and val is not None and measured_at:

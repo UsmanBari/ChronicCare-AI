@@ -359,3 +359,101 @@ def test_baseline_history_scoping_and_filters(rsa_key_pair):
     hist_a_inprog = app_store.get_user_baseline_history("u-base-a")
     values_inprog = [r["value"] for r in hist_a_inprog]
     assert 160.0 not in values_inprog
+
+
+def test_baseline_two_checkins_no_double_counting(rsa_key_pair):
+    """Verifies that two check-ins in isolated mode produce exactly two systolic readings in baseline history."""
+    client = TestClient(app)
+    tok_user = create_test_token(rsa_key_pair, sub="u-base-dbl", email="basedbl@demo.com")
+
+    client.post("/api/auth/session", headers={"Authorization": f"Bearer {tok_user}"})
+    client.post("/api/me/consent", headers={"Authorization": f"Bearer {tok_user}"}, json={"granted": True})
+    client.put("/api/me/profile", headers={"Authorization": f"Bearer {tok_user}"}, json={
+        "conditions": ["hypertension"],
+        "on_insulin_or_sulfonylurea": False,
+        "date_of_birth": "1985-05-15",
+        "inclusion_confirmed": True,
+    })
+
+    # Check-in 1 with 110/70
+    cid1 = client.post("/api/checkins/start", headers={"Authorization": f"Bearer {tok_user}"}).json()["checkin_id"]
+    client.post(f"/api/checkins/{cid1}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "fine", "step": "greeting"})
+    client.post(f"/api/checkins/{cid1}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "110/70", "step": "bp_reading"})
+    client.post(f"/api/checkins/{cid1}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "none", "step": "associated_symptoms"})
+    client.post(f"/api/checkins/{cid1}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "yes", "step": "adherence"})
+    client.post(f"/api/checkins/{cid1}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "none", "step": "lifestyle"})
+    client.post(f"/api/checkins/{cid1}/complete", headers={"Authorization": f"Bearer {tok_user}"})
+
+    # Check-in 2 with 120/80
+    cid2 = client.post("/api/checkins/start", headers={"Authorization": f"Bearer {tok_user}"}).json()["checkin_id"]
+    client.post(f"/api/checkins/{cid2}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "fine", "step": "greeting"})
+    client.post(f"/api/checkins/{cid2}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "120/80", "step": "bp_reading"})
+    client.post(f"/api/checkins/{cid2}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "none", "step": "associated_symptoms"})
+    client.post(f"/api/checkins/{cid2}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "yes", "step": "adherence"})
+    client.post(f"/api/checkins/{cid2}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "none", "step": "lifestyle"})
+    client.post(f"/api/checkins/{cid2}/complete", headers={"Authorization": f"Bearer {tok_user}"})
+
+    hist = app_store.get_user_baseline_history("u-base-dbl")
+    sys_readings = [r["value"] for r in hist if r["observation_type"] == "blood_pressure_systolic"]
+    assert len(sys_readings) == 2
+    assert sorted(sys_readings) == [110.0, 120.0]
+
+
+def test_baseline_two_checkins_plus_user_observation_creates_baseline(rsa_key_pair):
+    """Verifies two check-ins alone give 2 readings (no baseline), but + 1 user-entered observation gives 3 (valid baseline)."""
+    from agents.triage_protocol import compute_baseline
+    client = TestClient(app)
+    tok_user = create_test_token(rsa_key_pair, sub="u-base-three", email="basethree@demo.com")
+
+    client.post("/api/auth/session", headers={"Authorization": f"Bearer {tok_user}"})
+    client.post("/api/me/consent", headers={"Authorization": f"Bearer {tok_user}"}, json={"granted": True})
+    client.put("/api/me/profile", headers={"Authorization": f"Bearer {tok_user}"}, json={
+        "conditions": ["hypertension"],
+        "on_insulin_or_sulfonylurea": False,
+        "date_of_birth": "1985-05-15",
+        "inclusion_confirmed": True,
+    })
+
+    # Check-in 1: 110/70
+    cid1 = client.post("/api/checkins/start", headers={"Authorization": f"Bearer {tok_user}"}).json()["checkin_id"]
+    client.post(f"/api/checkins/{cid1}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "fine", "step": "greeting"})
+    client.post(f"/api/checkins/{cid1}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "110/70", "step": "bp_reading"})
+    client.post(f"/api/checkins/{cid1}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "none", "step": "associated_symptoms"})
+    client.post(f"/api/checkins/{cid1}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "yes", "step": "adherence"})
+    client.post(f"/api/checkins/{cid1}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "none", "step": "lifestyle"})
+    client.post(f"/api/checkins/{cid1}/complete", headers={"Authorization": f"Bearer {tok_user}"})
+
+    # Check-in 2: 114/74
+    cid2 = client.post("/api/checkins/start", headers={"Authorization": f"Bearer {tok_user}"}).json()["checkin_id"]
+    client.post(f"/api/checkins/{cid2}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "fine", "step": "greeting"})
+    client.post(f"/api/checkins/{cid2}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "114/74", "step": "bp_reading"})
+    client.post(f"/api/checkins/{cid2}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "none", "step": "associated_symptoms"})
+    client.post(f"/api/checkins/{cid2}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "yes", "step": "adherence"})
+    client.post(f"/api/checkins/{cid2}/answer", headers={"Authorization": f"Bearer {tok_user}"}, json={"answer": "none", "step": "lifestyle"})
+    client.post(f"/api/checkins/{cid2}/complete", headers={"Authorization": f"Bearer {tok_user}"})
+
+    # 2 check-ins alone: exactly 2 readings -> compute_baseline returns None
+    hist_2 = app_store.get_user_baseline_history("u-base-three")
+    sys_2 = [r for r in hist_2 if r["observation_type"] == "blood_pressure_systolic"]
+    assert len(sys_2) == 2
+    assert compute_baseline(hist_2) is None
+
+    # Add 1 user-entered baseline observation in Isolated Mode record
+    now_iso = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    obs_resp = client.post("/api/me/record/observations", headers={"Authorization": f"Bearer {tok_user}"}, json={
+        "observation_type": "blood_pressure_systolic",
+        "value": 112.0,
+        "measured_at": now_iso,
+    })
+    assert obs_resp.status_code == 200
+
+    # Now 3 readings: compute_baseline returns a baseline with n=3 and median 112
+    hist_3 = app_store.get_user_baseline_history("u-base-three")
+    sys_3 = [r for r in hist_3 if r["observation_type"] == "blood_pressure_systolic"]
+    assert len(sys_3) == 3
+    base = compute_baseline(hist_3)
+    assert base is not None
+    assert base.n == 3
+    assert base.systolic == 112.0
+
+
