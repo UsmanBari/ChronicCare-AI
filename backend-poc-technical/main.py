@@ -1763,12 +1763,12 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
     if not profile or not profile.get("consent_granted_at") or profile.get("consent_revoked_at"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="consent_required",
+            detail="Active consent is required to start a check-in (consent_required)",
         )
     if not profile.get("provider_notification_consent_at") or profile.get("provider_notification_revoked_at"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="provider_notification_consent_required",
+            detail="Provider notification consent is required to start a check-in (provider_notification_consent_required)",
         )
 
     # 2. Profile verification
