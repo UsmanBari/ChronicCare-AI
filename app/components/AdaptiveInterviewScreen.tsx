@@ -15,6 +15,8 @@ import {
   AlertTriangle,
   Bot,
   RotateCcw,
+  Pill,
+  ShieldCheck,
 } from "lucide-react";
 import {
   api,
@@ -39,6 +41,7 @@ export const AdaptiveInterviewScreen = () => {
     setActiveLiveCheckin,
     setLiveCheckinResult,
     setEscalationRecorded,
+    setShowSettings,
     t,
     isUrdu,
   } = useApp();
@@ -48,6 +51,7 @@ export const AdaptiveInterviewScreen = () => {
   const [liveAnswerInput, setLiveAnswerInput] = useState<string>("");
   const [isSending, setIsSending] = useState<boolean>(false);
   const [liveError, setLiveError] = useState<string | null>(null);
+  const [isConsentError, setIsConsentError] = useState<boolean>(false);
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([]);
   const [currentStep, setCurrentStep] = useState<string | null>(activeLiveCheckin?.step || null);
   const [lastFailedAnswer, setLastFailedAnswer] = useState<string | null>(null);
@@ -117,11 +121,11 @@ export const AdaptiveInterviewScreen = () => {
         setIsSending(false);
         isSendingRef.current = false;
         if (err instanceof ApiError) {
-          setLiveError(
-            isUrdu
-              ? "ہم آپ کا سیشن شروع نہیں کر سکے۔ اگر یہ ہنگامی صورتحال ہے تو فوراً اپنے مقامی ایمرجنسی نمبر پر کال کریں۔"
-              : "We could not start your check-in session. If this is an emergency, call your local emergency number now."
-          );
+          const detailStr = (err.detail || "").toLowerCase();
+          if (err.status === 403 || detailStr.includes("consent")) {
+            setIsConsentError(true);
+          }
+          setLiveError(err.getFriendlyMessage(isUrdu));
         } else {
           setLiveError(
             isUrdu
@@ -354,6 +358,17 @@ export const AdaptiveInterviewScreen = () => {
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>{isUrdu ? "دوبارہ کوشش کریں" : "Retry"}</span>
                 </button>
+                {isConsentError && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSettings(true)}
+                    id="interview-consent-settings-btn"
+                    className="px-3.5 py-1.5 bg-teal-700 hover:bg-teal-600 text-white font-bold text-xs rounded-xl transition-colors inline-flex items-center gap-1.5 shadow-xs"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>{isUrdu ? "اجازت نامہ کی ترتیبات کھولیں" : "Open Consent Settings"}</span>
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -414,6 +429,13 @@ export const AdaptiveInterviewScreen = () => {
             }}
             className="space-y-3 pt-2 border-t border-slate-200"
           >
+            {currentStep?.startsWith("medication_check") && (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-100 text-teal-900 border border-teal-300 text-xs font-bold uppercase tracking-wider w-fit">
+                <Pill className="w-3.5 h-3.5 text-teal-700" />
+                <span>{isUrdu ? "ادویات کی تصدیق" : "Medication check"}</span>
+              </div>
+            )}
+
             <div className="relative">
               <input
                 ref={inputRef}
@@ -441,6 +463,32 @@ export const AdaptiveInterviewScreen = () => {
                 )}
               </button>
             </div>
+
+            {/* Quick-answer buttons for Medication Check Step */}
+            {currentStep?.startsWith("medication_check") && (
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleLiveSendAnswer("yes")}
+                  disabled={isSending}
+                  id="med-check-yes-btn"
+                  className="min-h-[42px] py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 border-2 border-teal-600 text-teal-900 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-teal-700" />
+                  <span>{isUrdu ? "ہاں، وہی مقدار" : "Yes, same dose"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLiveSendAnswer("no")}
+                  disabled={isSending}
+                  id="med-check-no-btn"
+                  className="min-h-[42px] py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 border-2 border-slate-300 text-slate-800 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <RotateCcw className="w-4 h-4 text-slate-600" />
+                  <span>{isUrdu ? "نہیں، میں نے بند کر دی ہے" : "No, I stopped it"}</span>
+                </button>
+              </div>
+            )}
 
             {/* "I don't have this information" helper button */}
             <div className="flex items-center justify-between gap-3 pt-1">
