@@ -125,13 +125,14 @@ export function describeMedicationItem(
 
 /**
  * Returns a truthful, clinical source description for side A (prior baseline) or side B (today's check-in).
- * Rule: The word "hospital" appears ONLY when source is explicitly "fhir".
+ * Rule: The word "hospital" appears ONLY when source is explicitly "fhir" or from server record_source_label.
  */
 export function describeSide(
   side: "a" | "b" | string,
   source?: string | null,
   trustLevel?: "high" | "medium" | "low" | string | null,
-  mode?: string | null
+  mode?: string | null,
+  recordSourceLabel?: string | null
 ): string {
   const normSide = (side || "").toLowerCase();
   const normSource = (source || "").toLowerCase();
@@ -141,7 +142,11 @@ export function describeSide(
     return "Today's check-in (reported by you)";
   }
 
-  // Side A (earlier record)
+  // Side A: prioritize server-provided recordSourceLabel if available
+  if (recordSourceLabel && recordSourceLabel.trim()) {
+    return recordSourceLabel.trim();
+  }
+
   if (normSource === "fhir") {
     return "Hospital EHR (FHIR)";
   }
@@ -165,6 +170,65 @@ export function describeSide(
   }
 
   return "Saved record (unverified)";
+}
+
+/**
+ * Returns UI description and badges for an EHR system based on its kind.
+ */
+export function describeEhrSystem(system?: { kind?: string; display_name?: string; description?: string } | null): {
+  badge: string;
+  badgeColor: string;
+  description: string;
+  isSimulated: boolean;
+} {
+  const kind = (system?.kind || "public_sandbox").toLowerCase();
+  if (kind === "simulated") {
+    return {
+      badge: "In-Process Simulator",
+      badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
+      description: system?.description || "Simulated hospital with deterministic clinical test profiles (synthetic data).",
+      isSimulated: true,
+    };
+  }
+  if (kind === "public_sandbox") {
+    return {
+      badge: "Public FHIR Sandbox",
+      badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
+      description: system?.description || "Public FHIR R4 sandbox server (synthetic test data only).",
+      isSimulated: false,
+    };
+  }
+  return {
+    badge: "Connected EHR",
+    badgeColor: "bg-teal-100 text-teal-800 border-teal-200",
+    description: system?.description || "Clinical HL7 FHIR EHR system.",
+    isSimulated: false,
+  };
+}
+
+/**
+ * Maps standard EHR error codes to truthful, user-facing explanations.
+ */
+export function mapEhrError(code?: string | null): string {
+  const norm = (code || "").toLowerCase().trim();
+  switch (norm) {
+    case "ehr_unreachable":
+      return "The EHR server is unreachable or timed out. Please check your connection or test the server.";
+    case "ehr_patient_not_found":
+      return "Patient record was not found in this EHR system. Please verify the Patient ID.";
+    case "ehr_forbidden":
+      return "Access was forbidden by the EHR server.";
+    case "ehr_bad_response":
+      return "The EHR server returned an invalid or unreadable response.";
+    case "ehr_patient_not_adult":
+      return "This record belongs to a patient under 18. ChronicCare AI is designed for adults (18 and over).";
+    case "ehr_empty_record":
+      return "Connected, but this record has no recent observations or active medications.";
+    case "ehr_birthdate_missing":
+      return "Connected, but birth date is missing in the EHR record.";
+    default:
+      return "An error occurred while communicating with the EHR server.";
+  }
 }
 
 /**
@@ -279,14 +343,26 @@ export function mapApiError(status?: number | null, detail?: string | null): str
   }
 
   if (status === 422) {
+    if (normDetail.includes("ehr_patient_not_adult") || normDetail.includes("under 18")) {
+      return "This record belongs to a patient under 18. ChronicCare AI is for adults (18 and over) in this release.";
+    }
     return "Invalid information provided. Please verify your input.";
   }
 
   if (status === 502) {
+    if (normDetail.includes("ehr_patient_not_found")) {
+      return "Patient record was not found in this EHR system.";
+    }
+    if (normDetail.includes("ehr_unreachable")) {
+      return "The EHR server is unreachable or timed out. Please try again in a moment.";
+    }
     return "The clinical service is temporarily unavailable. Please try again in a moment.";
   }
 
   if (status === 503 || status === 504) {
+    if (normDetail.includes("authentication not configured") || normDetail.includes("firebase") || normDetail.includes("auth")) {
+      return "Authentication not configured on the backend. Please contact the administrator to verify Firebase setup.";
+    }
     return "The clinical service is currently waking up or busy. Please try again in a moment.";
   }
 

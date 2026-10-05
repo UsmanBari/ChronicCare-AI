@@ -95,9 +95,26 @@ export interface CreateObservationRequest {
   measured_at?: string | null;
 }
 
+export interface SamplePatient {
+  id: string;
+  label: string;
+  description: string;
+}
+
 export interface EHRSystemResponse {
   ehr_system_id: string;
   display_name: string;
+  kind?: "simulated" | "public_sandbox" | "live_hospital" | string;
+  description?: string;
+  sample_patients?: SamplePatient[] | null;
+  suggested_patient_ids?: string[] | null;
+}
+
+export interface EHRTestResponse {
+  ok: boolean;
+  latency_ms: number;
+  kind: string;
+  error_code?: string | null;
 }
 
 export interface EHRConnectionInfo {
@@ -111,6 +128,14 @@ export interface EHRConnectionInfo {
 export interface EHRConnectionResponse {
   mode: string;
   connection: EHRConnectionInfo | null;
+  system_id?: string | null;
+  kind?: string | null;
+  record_source_label?: string | null;
+  warning?: string | null;
+  summary?: {
+    recent_observations: number;
+    active_medications: number;
+  } | null;
   message?: string | null;
 }
 
@@ -121,6 +146,7 @@ export interface CheckinStartResponse {
   is_cold_start: boolean;
   step?: string | null;
   version?: number;
+  record_source_label?: string | null;
 }
 
 export interface CheckinAnswerResponse {
@@ -131,6 +157,8 @@ export interface CheckinAnswerResponse {
   step?: string | null;
   version?: number;
   escalation_recorded?: boolean | null;
+  phase?: string | null;
+  triage?: Record<string, any> | null;
 }
 
 export interface CheckinCompleteResponse {
@@ -140,6 +168,8 @@ export interface CheckinCompleteResponse {
   verification: Record<string, any> | null;
   requires_review: boolean;
   max_severity: string | null;
+  triage?: Record<string, any> | null;
+  record_source_label?: string | null;
 }
 
 export interface UserCheckinSummaryResponse {
@@ -524,6 +554,13 @@ export const api = {
   getEHRSystems: async (): Promise<EHRSystemResponse[]> => {
     return request<EHRSystemResponse[]>("/api/ehr/systems", {
       method: "GET",
+    });
+  },
+
+  testEHRConnection: async (ehr_system_id: string): Promise<EHRTestResponse> => {
+    return request<EHRTestResponse>("/api/ehr/test", {
+      method: "POST",
+      body: JSON.stringify({ ehr_system_id }),
     });
   },
 
