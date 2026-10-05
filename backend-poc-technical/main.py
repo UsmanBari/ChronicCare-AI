@@ -64,6 +64,16 @@ from agents.medication_confirmation import (
     MedicationCheckState,
     _norm,
 )
+from agents.triage_protocol import (
+    evaluate_triggers,
+    start_protocol,
+    advance_protocol,
+    current_protocol_question,
+    current_protocol_step,
+    compute_baseline,
+    TriageProtocolState,
+    _raise_level,
+)
 from data_sources.data_source import get_patient_bundle
 from data_sources.local_store import (
     add_local_patient_if_missing,
@@ -113,6 +123,7 @@ from data_sources.app_store import (
     create_checkin_result,
     get_checkin_result,
     get_user_checkins,
+    get_user_baseline_history,
     get_provider_review_queue,
     append_review_action,
     get_review_actions,
@@ -525,6 +536,8 @@ class CheckinAnswerResponse(BaseModel):
     step: Optional[str] = None
     version: int = 0
     escalation_recorded: Optional[bool] = None
+    phase: Optional[str] = None
+    triage: Optional[Dict[str, Any]] = None
 
 
 class CheckinCompleteResponse(BaseModel):
@@ -534,6 +547,7 @@ class CheckinCompleteResponse(BaseModel):
     verification: Optional[Dict[str, Any]] = None
     requires_review: bool
     max_severity: Optional[str] = None
+    triage: Optional[Dict[str, Any]] = None
 
 
 class UserCheckinSummaryResponse(BaseModel):
@@ -575,6 +589,7 @@ class ReviewQueueItemResponse(BaseModel):
     trigger_text: Optional[str] = None
     trigger_reading: Optional[Dict[str, Any]] = None
     escalated_at: Optional[str] = None
+    triage_level: Optional[str] = None
 
 
 class ReviewActionResponse(BaseModel):
@@ -603,6 +618,7 @@ class ReviewDetailResponse(BaseModel):
     trigger_text: Optional[str] = None
     trigger_reading: Optional[Dict[str, Any]] = None
     escalated_at: Optional[str] = None
+    triage: Optional[Dict[str, Any]] = None
     actions: List[ReviewActionResponse]
 
 
@@ -1745,6 +1761,18 @@ def delete_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(requir
     )
 
 
+def _compute_age_years(dob_str: Optional[str]) -> Optional[float]:
+    if not dob_str:
+        return None
+    try:
+        dob_dt = datetime.strptime(dob_str.strip(), "%Y-%m-%d").date()
+        today = datetime.now(timezone.utc).date()
+        age = today.year - dob_dt.year - ((today.month, today.day) < (dob_dt.month, dob_dt.day))
+        return float(age)
+    except Exception:
+        return None
+
+
 # =============================================================================
 # PATIENT CHECK-IN PIPELINE ENDPOINTS
 # =============================================================================
@@ -1875,13 +1903,24 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
     )
 
 
+def _compute_age_years(dob_str: Optional[str]) -> Optional[int]:
+    if not dob_str:
+        return None
+    try:
+        dob = datetime.strptime(dob_str[:10], "%Y-%m-%d").date()
+        today = datetime.now(timezone.utc).date()
+        return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    except Exception:
+        return None
+
+
 @app.post("/api/checkins/{checkin_id}/answer", response_model=CheckinAnswerResponse, tags=["Check-in"])
 def answer_checkin_endpoint(
     checkin_id: str,
     body: CheckinAnswerRequest,
     current_user: Dict[str, Any] = Depends(require_role("patient")),
 ):
-    """Advances the interview state by one patient answer with optimistic concurrency and atomic emergency persistence."""
+    """Advances the checkin state (interview, triage protocol, or medication check) with optimistic concurrency and atomic emergency persistence."""
     checkin = get_checkin_by_id(checkin_id)
     if not checkin or checkin["user_id"] != current_user["user_id"]:
         raise HTTPException(
@@ -1897,10 +1936,176 @@ def answer_checkin_endpoint(
 
     current_state = InterviewState.from_dict(checkin["state"])
     current_version = checkin.get("version", 0)
+    protocol_state_dict = checkin.get("protocol_state")
+    protocol_state = TriageProtocolState.from_dict(protocol_state_dict) if protocol_state_dict else None
     med_state_dict = checkin.get("med_state")
     med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
 
-    in_med_phase = (current_state.step == INTERVIEW_COMPLETE and med_state is not None and not med_state.complete)
+    # 1. TRIAGE PROTOCOL PHASE
+    if protocol_state is not None and not protocol_state.complete:
+        expected_step = current_protocol_step(protocol_state)
+        if body.step is not None and body.step != expected_step:
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={
+                    "detail": "stale_step",
+                    "step": expected_step,
+                    "question": current_protocol_question(protocol_state),
+                },
+            )
+
+        answer_text = (body.answer or "").strip()
+        if not answer_text:
+            return CheckinAnswerResponse(
+                question=current_protocol_question(protocol_state),
+                complete=False,
+                emergency=False,
+                emergency_reason=None,
+                step=expected_step,
+                version=current_version,
+                phase="triage",
+            )
+
+        next_protocol_state = advance_protocol(protocol_state, body.answer)
+        if next_protocol_state.complete:
+            res = next_protocol_state.result
+            level = res.get("level")
+            if level == "emergency":
+                completed_at = _utc_now_iso()
+                try:
+                    success = apply_checkin_answer_atomic(
+                        checkin_id=checkin_id,
+                        expected_version=current_version,
+                        state_dict=current_state.to_dict(),
+                        status="emergency",
+                        completed_at=completed_at,
+                        emergency=True,
+                        trigger_category=f"triage:{next_protocol_state.protocol}",
+                        trigger_text=res.get("summary"),
+                        actor_user_id=current_user["user_id"],
+                        med_state_dict=med_state.to_dict() if med_state else None,
+                        protocol_state_dict=next_protocol_state.to_dict(),
+                        triage_level="emergency",
+                        triage_dict=res,
+                    )
+                except Exception as e:
+                    logger.error(f"Persistence error during answer: {type(e).__name__}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to save check-in answer. Please try again.",
+                    )
+
+                if not success:
+                    return JSONResponse(
+                        status_code=status.HTTP_409_CONFLICT,
+                        content={"detail": "concurrent_update"},
+                    )
+
+                return CheckinAnswerResponse(
+                    question=None,
+                    complete=True,
+                    emergency=True,
+                    emergency_reason=res.get("summary"),
+                    step=expected_step,
+                    version=current_version + 1,
+                    escalation_recorded=True,
+                    phase="triage",
+                    triage=res,
+                )
+            else:
+                # Non-emergency protocol completion (urgent, review, routine)
+                has_med_items = bool(med_state and len(med_state.items) > 0 and not med_state.complete)
+                if has_med_items:
+                    new_status = "in_progress"
+                    completed_at = None
+                    is_complete = False
+                    next_step_str = f"medication_check:{med_state.index}:{med_state.attempts}"
+                    next_question_str = current_medication_question(med_state)
+                    next_phase = "medication"
+                else:
+                    new_status = "complete"
+                    completed_at = _utc_now_iso()
+                    is_complete = True
+                    next_step_str = expected_step
+                    next_question_str = None
+                    next_phase = "triage"
+
+                try:
+                    success = apply_checkin_answer_atomic(
+                        checkin_id=checkin_id,
+                        expected_version=current_version,
+                        state_dict=current_state.to_dict(),
+                        status=new_status,
+                        completed_at=completed_at,
+                        emergency=False,
+                        actor_user_id=current_user["user_id"],
+                        med_state_dict=med_state.to_dict() if med_state else None,
+                        protocol_state_dict=next_protocol_state.to_dict(),
+                    )
+                except Exception as e:
+                    logger.error(f"Persistence error during answer: {type(e).__name__}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to save check-in answer. Please try again.",
+                    )
+
+                if not success:
+                    return JSONResponse(
+                        status_code=status.HTTP_409_CONFLICT,
+                        content={"detail": "concurrent_update"},
+                    )
+
+                return CheckinAnswerResponse(
+                    question=next_question_str,
+                    complete=is_complete,
+                    emergency=False,
+                    emergency_reason=None,
+                    step=next_step_str,
+                    version=current_version + 1,
+                    phase=next_phase,
+                    triage=res,
+                )
+        else:
+            # Protocol in progress
+            next_step_str = current_protocol_step(next_protocol_state)
+            next_question_str = current_protocol_question(next_protocol_state)
+            try:
+                success = apply_checkin_answer_atomic(
+                    checkin_id=checkin_id,
+                    expected_version=current_version,
+                    state_dict=current_state.to_dict(),
+                    status="in_progress",
+                    completed_at=None,
+                    emergency=False,
+                    actor_user_id=current_user["user_id"],
+                    med_state_dict=med_state.to_dict() if med_state else None,
+                    protocol_state_dict=next_protocol_state.to_dict(),
+                )
+            except Exception as e:
+                logger.error(f"Persistence error during answer: {type(e).__name__}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to save check-in answer. Please try again.",
+                )
+
+            if not success:
+                return JSONResponse(
+                    status_code=status.HTTP_409_CONFLICT,
+                    content={"detail": "concurrent_update"},
+                )
+
+            return CheckinAnswerResponse(
+                question=next_question_str,
+                complete=False,
+                emergency=False,
+                emergency_reason=None,
+                step=next_step_str,
+                version=current_version + 1,
+                phase="triage",
+            )
+
+    # 2. MEDICATION CHECK PHASE
+    in_med_phase = (current_state.step == INTERVIEW_COMPLETE and (protocol_state is None or protocol_state.complete) and med_state is not None and not med_state.complete)
 
     if in_med_phase:
         expected_step = f"medication_check:{med_state.index}:{med_state.attempts}"
@@ -1923,6 +2128,8 @@ def answer_checkin_endpoint(
                 emergency_reason=None,
                 step=expected_step,
                 version=current_version,
+                phase="medication",
+                triage=protocol_state.result if protocol_state else None,
             )
 
         # Stage-1 red-flag screen on medication answer
@@ -1943,6 +2150,7 @@ def answer_checkin_endpoint(
                     trigger_text=body.answer,
                     actor_user_id=current_user["user_id"],
                     med_state_dict=med_state.to_dict(),
+                    protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
                 )
             except Exception as e:
                 logger.error(f"Persistence error during answer: {type(e).__name__}")
@@ -1965,6 +2173,8 @@ def answer_checkin_endpoint(
                 step=expected_step,
                 version=current_version + 1,
                 escalation_recorded=True,
+                phase="medication",
+                triage=protocol_state.result if protocol_state else None,
             )
 
         next_med_state = advance_medication_check(med_state, body.answer)
@@ -1982,6 +2192,7 @@ def answer_checkin_endpoint(
                 emergency=False,
                 actor_user_id=current_user["user_id"],
                 med_state_dict=next_med_state.to_dict(),
+                protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
             )
         except Exception as e:
             logger.error(f"Persistence error during answer: {type(e).__name__}")
@@ -2005,6 +2216,8 @@ def answer_checkin_endpoint(
                 emergency_reason=None,
                 step=f"medication_check:{next_med_state.index}:{next_med_state.attempts}",
                 version=next_version,
+                phase="medication",
+                triage=protocol_state.result if protocol_state else None,
             )
         else:
             return CheckinAnswerResponse(
@@ -2014,9 +2227,11 @@ def answer_checkin_endpoint(
                 emergency_reason=None,
                 step=f"medication_check:{next_med_state.index}:{next_med_state.attempts}",
                 version=next_version,
+                phase="medication",
+                triage=protocol_state.result if protocol_state else None,
             )
 
-    # In interview phase
+    # 3. INTERVIEW PHASE
     if body.step is not None:
         if body.step != current_state.step:
             return JSONResponse(
@@ -2037,20 +2252,70 @@ def answer_checkin_endpoint(
         )
 
     is_emergency = bool(next_state.stage1_red_flag or (next_state.intake and next_state.intake.get("emergency")))
-    has_med_items = bool(med_state and len(med_state.items) > 0 and not med_state.complete)
 
-    if not is_emergency and next_state.step == INTERVIEW_COMPLETE and has_med_items:
+    if is_emergency:
+        new_status = "emergency"
+        completed_at = _utc_now_iso()
+        is_complete = True
+        next_step_str = next_state.step
+        next_question_str = None
+        next_phase = None
+        new_protocol_state_dict = None
+    elif next_state.step == INTERVIEW_COMPLETE:
+        # Build readings and evaluate triage triggers
+        readings = {}
+        for intake in next_state.intakes:
+            for r in intake.get("readings", []):
+                obs_type = r.get("observation_type")
+                val = r.get("value")
+                if obs_type in ("glucose", "blood_pressure_systolic", "blood_pressure_diastolic") and val is not None:
+                    readings[obs_type] = float(val)
+
+        history = get_user_baseline_history(user_id=current_user["user_id"], exclude_checkin_id=checkin_id)
+        baseline = compute_baseline(history)
+        triggers = evaluate_triggers(readings, baseline)
+
+        if triggers:
+            trigger = triggers[0]
+            profile = get_patient_profile(current_user["user_id"]) or {}
+            dob = profile.get("date_of_birth")
+            age_years = _compute_age_years(dob)
+            if age_years is None:
+                age_years = 40
+
+            new_proto = start_protocol(trigger, readings, age_years, baseline)
+            new_protocol_state_dict = new_proto.to_dict()
+            new_status = "in_progress"
+            completed_at = None
+            is_complete = False
+            next_step_str = current_protocol_step(new_proto)
+            next_question_str = current_protocol_question(new_proto)
+            next_phase = "triage"
+        else:
+            new_protocol_state_dict = None
+            has_med_items = bool(med_state and len(med_state.items) > 0 and not med_state.complete)
+            if has_med_items:
+                new_status = "in_progress"
+                completed_at = None
+                is_complete = False
+                next_step_str = f"medication_check:{med_state.index}:{med_state.attempts}"
+                next_question_str = current_medication_question(med_state)
+                next_phase = "medication"
+            else:
+                new_status = "complete"
+                completed_at = _utc_now_iso()
+                is_complete = True
+                next_step_str = next_state.step
+                next_question_str = None
+                next_phase = None
+    else:
+        new_protocol_state_dict = None
         new_status = "in_progress"
         completed_at = None
         is_complete = False
-        next_step_str = f"medication_check:{med_state.index}:{med_state.attempts}"
-        next_question_str = current_medication_question(med_state)
-    else:
-        is_complete = bool(next_state.step == INTERVIEW_COMPLETE or is_emergency)
-        new_status = "emergency" if is_emergency else ("complete" if is_complete else "in_progress")
-        completed_at = _utc_now_iso() if is_complete else None
         next_step_str = next_state.step
-        next_question_str = get_current_question(next_state) if not is_complete else None
+        next_question_str = get_current_question(next_state)
+        next_phase = None
 
     try:
         success = apply_checkin_answer_atomic(
@@ -2064,6 +2329,7 @@ def answer_checkin_endpoint(
             trigger_text=body.answer,
             actor_user_id=current_user["user_id"],
             med_state_dict=med_state.to_dict() if med_state else None,
+            protocol_state_dict=new_protocol_state_dict,
         )
     except Exception as e:
         logger.error(f"Persistence error during answer: {type(e).__name__}")
@@ -2088,6 +2354,7 @@ def answer_checkin_endpoint(
         step=next_step_str,
         version=next_version,
         escalation_recorded=True if is_emergency else None,
+        phase=next_phase,
     )
 
 
@@ -2117,9 +2384,12 @@ def complete_checkin_endpoint(
             verification=stored_result.get("verification"),
             requires_review=stored_result["requires_review"],
             max_severity=stored_result.get("max_severity"),
+            triage=stored_result.get("triage"),
         )
 
     state = InterviewState.from_dict(checkin["state"])
+    protocol_state_dict = checkin.get("protocol_state")
+    protocol_state = TriageProtocolState.from_dict(protocol_state_dict) if protocol_state_dict else None
     med_state_dict = checkin.get("med_state")
     med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
 
@@ -2129,6 +2399,11 @@ def complete_checkin_endpoint(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Interview is not complete",
+            )
+        if protocol_state and not protocol_state.complete:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="triage_incomplete",
             )
         if med_state and not med_state.complete:
             raise HTTPException(
@@ -2140,6 +2415,7 @@ def complete_checkin_endpoint(
     if state.stage1_red_flag or checkin["status"] == "emergency":
         intakes = state.intakes if state.intakes else ([{"condition": state.active_condition or "general", "emergency": True, "reason": state.stage1_reason}] if state.stage1_reason else [])
         now_iso = _utc_now_iso()
+        triage_dict = protocol_state.result if (protocol_state and protocol_state.complete) else None
         create_checkin_result(
             checkin_id=checkin_id,
             emergency=True,
@@ -2149,9 +2425,11 @@ def complete_checkin_endpoint(
             requires_review=True,
             max_severity="high",
             review_status="open",
-            trigger_category=state.stage1_reason,
-            trigger_text=None,
+            trigger_category=state.stage1_reason or (f"triage:{protocol_state.protocol}" if protocol_state else None),
+            trigger_text=triage_dict.get("summary") if triage_dict else None,
             escalated_at=now_iso,
+            triage_level="emergency" if triage_dict else None,
+            triage=triage_dict,
         )
         update_checkin_state(
             checkin_id=checkin_id,
@@ -2159,6 +2437,7 @@ def complete_checkin_endpoint(
             status="emergency",
             completed_at=now_iso,
             med_state_dict=med_state.to_dict() if med_state else None,
+            protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
         )
         return CheckinCompleteResponse(
             emergency=True,
@@ -2167,6 +2446,7 @@ def complete_checkin_endpoint(
             verification=None,
             requires_review=True,
             max_severity="high",
+            triage=triage_dict,
         )
 
     # 2. Non-Emergency Flow
@@ -2246,44 +2526,103 @@ def complete_checkin_endpoint(
 
     # Determine severity and review necessity
     summary = verif_result.summary
-    requires_review = bool(summary.get("requires_review", 0) > 0)
+    verif_requires_review = bool(summary.get("requires_review", 0) > 0)
     if summary.get("severity_high", 0) > 0:
-        max_severity = "high"
+        verif_max_severity = "high"
     elif summary.get("severity_moderate", 0) > 0:
-        max_severity = "moderate"
+        verif_max_severity = "moderate"
     elif summary.get("severity_low", 0) > 0:
-        max_severity = "low"
+        verif_max_severity = "low"
     else:
-        max_severity = "none"
+        verif_max_severity = "none"
 
-    review_status = "open" if requires_review else "resolved"
+    if protocol_state and protocol_state.complete:
+        triage_res = dict(protocol_state.result)
+        profile = get_patient_profile(current_user["user_id"]) or {}
+        if not profile.get("date_of_birth"):
+            triage_res["age_assumed"] = True
 
-    create_checkin_result(
-        checkin_id=checkin_id,
-        emergency=False,
-        intakes=state.intakes,
-        reconciliation=recon_result.to_dict(),
-        verification=verif_result.to_dict(),
-        requires_review=requires_review,
-        max_severity=max_severity,
-        review_status=review_status,
-    )
-    update_checkin_state(
-        checkin_id=checkin_id,
-        state_dict=state.to_dict(),
-        status="complete",
-        completed_at=_utc_now_iso(),
-        med_state_dict=med_state.to_dict() if med_state else None,
-    )
+        proto_level = triage_res.get("level", "routine")
+        if verif_requires_review:
+            final_triage_level = _raise_level(proto_level, "review")
+        else:
+            final_triage_level = proto_level
 
-    return CheckinCompleteResponse(
-        emergency=False,
-        intakes=state.intakes,
-        reconciliation=recon_result.to_dict(),
-        verification=verif_result.to_dict(),
-        requires_review=requires_review,
-        max_severity=max_severity,
-    )
+        final_requires_review = (final_triage_level in ("review", "urgent", "emergency") or verif_requires_review)
+
+        SEV_ORDER = {"none": 0, "low": 1, "moderate": 2, "high": 3}
+        if final_triage_level == "urgent":
+            final_max_sev = "high"
+        elif final_triage_level == "review":
+            if SEV_ORDER.get(verif_max_severity, 0) < SEV_ORDER["moderate"]:
+                final_max_sev = "moderate"
+            else:
+                final_max_sev = verif_max_severity
+        else:
+            final_max_sev = verif_max_severity
+
+        review_status = "open" if final_requires_review else "resolved"
+
+        create_checkin_result(
+            checkin_id=checkin_id,
+            emergency=False,
+            intakes=state.intakes,
+            reconciliation=recon_result.to_dict(),
+            verification=verif_result.to_dict(),
+            requires_review=final_requires_review,
+            max_severity=final_max_sev,
+            review_status=review_status,
+            triage_level=final_triage_level,
+            triage=triage_res,
+        )
+        update_checkin_state(
+            checkin_id=checkin_id,
+            state_dict=state.to_dict(),
+            status="complete",
+            completed_at=_utc_now_iso(),
+            med_state_dict=med_state.to_dict() if med_state else None,
+            protocol_state_dict=protocol_state.to_dict(),
+        )
+
+        return CheckinCompleteResponse(
+            emergency=False,
+            intakes=state.intakes,
+            reconciliation=recon_result.to_dict(),
+            verification=verif_result.to_dict(),
+            requires_review=final_requires_review,
+            max_severity=final_max_sev,
+            triage=triage_res,
+        )
+    else:
+        review_status = "open" if verif_requires_review else "resolved"
+        create_checkin_result(
+            checkin_id=checkin_id,
+            emergency=False,
+            intakes=state.intakes,
+            reconciliation=recon_result.to_dict(),
+            verification=verif_result.to_dict(),
+            requires_review=verif_requires_review,
+            max_severity=verif_max_severity,
+            review_status=review_status,
+        )
+        update_checkin_state(
+            checkin_id=checkin_id,
+            state_dict=state.to_dict(),
+            status="complete",
+            completed_at=_utc_now_iso(),
+            med_state_dict=med_state.to_dict() if med_state else None,
+            protocol_state_dict=None,
+        )
+
+        return CheckinCompleteResponse(
+            emergency=False,
+            intakes=state.intakes,
+            reconciliation=recon_result.to_dict(),
+            verification=verif_result.to_dict(),
+            requires_review=verif_requires_review,
+            max_severity=verif_max_severity,
+        )
+
 
 
 @app.get("/api/checkins", response_model=List[UserCheckinSummaryResponse], tags=["Check-in"])
@@ -2397,6 +2736,7 @@ def get_provider_review_detail_endpoint(
         trigger_text=result.get("trigger_text"),
         trigger_reading=trigger_reading,
         escalated_at=result.get("escalated_at"),
+        triage=result.get("triage"),
         actions=[ReviewActionResponse(**a) for a in actions],
     )
 
@@ -2464,6 +2804,7 @@ def post_provider_review_action_endpoint(
         trigger_text=updated_result.get("trigger_text"),
         trigger_reading=trigger_reading,
         escalated_at=updated_result.get("escalated_at"),
+        triage=updated_result.get("triage"),
         actions=[ReviewActionResponse(**a) for a in actions],
     )
 

@@ -29,12 +29,13 @@ RULES
 4. Dual diagnosis (FR-7): when the first condition finishes, the second condition's
    reading is asked next (greeting is not repeated). Every finished condition is kept
    in InterviewState.intakes; InterviewState.intake is the most recent one.
-5. Dangerous reading (Stage 1, proposal section 27): a blood pressure with systolic >= 180 or
-   diastolic >= 120 (AHA hypertensive-crisis benchmark cited in the proposal) ends the
-   interview exactly like a red-flag phrase, with reason "bp_crisis_range". Either component
-   at or above its limit counts, because a missed emergency costs more than a false alarm.
-   The limits are configuration constants (DANGEROUS_BP_*), illustrative and NOT clinical
-   guidance; a clinician must confirm them before anyone relies on them.
+5. Dangerous reading (proposal section 27): check_dangerous_bp() reports a blood pressure with
+   systolic >= 180 or diastolic >= 120 (AHA hypertensive-crisis benchmark cited in the proposal).
+   A single number never ends the interview and never decides an emergency by itself: the
+   reading is kept and the Triage Protocol (agents/triage_protocol.py) confirms it with a
+   re-measure, a symptom check and the circumstances before any level is assigned. The limits
+   are configuration constants (DANGEROUS_BP_*), illustrative and NOT clinical guidance; a
+   clinician must confirm them before anyone relies on them.
 6. Confidence is a COMPLETENESS label only: Low if the reading is missing, otherwise
    Medium on a first-ever check-in (cold start), otherwise High. Source trust is NOT
    decided here: build_checkin_origins() tags every reading "self_reported" so the
@@ -52,9 +53,7 @@ Intake schema (one per finished condition):
      "lifestyle_notes": str | None,
      "confidence": "High" | "Medium" | "Low",
      "missing_data": bool}
-An emergency intake is {"condition": ..., "emergency": True, "reason": <category>}, plus
-"trigger_reading": {"systolic": .., "diastolic": .., "unit": "mmHg"} when the reason is
-"bp_crisis_range".
+An emergency intake is {"condition": ..., "emergency": True, "reason": <category>}.
 =============================================================================
 """
 
@@ -383,13 +382,6 @@ def _hypertension_advance(state: InterviewState, answer: str) -> InterviewState:
         state.step = HypertensionStep.BP_READING.value
     elif step == HypertensionStep.BP_READING:
         reading = _try_parse_bp(answer)
-        danger = check_dangerous_bp(reading)
-        if danger:
-            answers["bp_reading"] = reading
-            state.stage1_red_flag = True
-            state.stage1_reason = danger
-            state.step = HypertensionStep.COMPLETE.value
-            return state
         if reading is None and not state.missing_data_asked_once:
             state.missing_data_asked_once = True
             state.step = HypertensionStep.MISSING_DATA_CHECKPOINT.value
@@ -398,13 +390,6 @@ def _hypertension_advance(state: InterviewState, answer: str) -> InterviewState:
             state.step = HypertensionStep.ASSOCIATED_SYMPTOMS.value
     elif step == HypertensionStep.MISSING_DATA_CHECKPOINT:
         reading = _try_parse_bp(answer)
-        danger = check_dangerous_bp(reading)
-        if danger:
-            answers["bp_reading"] = reading
-            state.stage1_red_flag = True
-            state.stage1_reason = danger
-            state.step = HypertensionStep.COMPLETE.value
-            return state
         answers["bp_reading"] = reading
         if reading is None:
             answers["symptom_only_note"] = answer
@@ -460,9 +445,6 @@ def _finalize_intake(state: InterviewState) -> InterviewState:
     if state.stage1_red_flag:
         intake: Dict[str, Any] = {"condition": condition, "emergency": True,
                                   "reason": state.stage1_reason}
-        if state.stage1_reason == "bp_crisis_range" and answers.get("bp_reading"):
-            intake["trigger_reading"] = {"systolic": answers["bp_reading"][0],
-                                         "diastolic": answers["bp_reading"][1], "unit": "mmHg"}
     else:
         if condition == "diabetes":
             value = answers.get("glucose_reading")
