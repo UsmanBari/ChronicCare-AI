@@ -121,7 +121,7 @@ export const HealthProfileScreen = () => {
         if (selectedLang === "en" || selectedLang === "ur") {
           setLanguage(selectedLang as Language);
         }
-        setScreen("connection");
+        setScreen("inclusion");
       } catch (err: any) {
         if (err instanceof ApiError) {
           setError(err.getFriendlyMessage(isUrdu));

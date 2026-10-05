@@ -228,6 +228,94 @@ export function titleCaseName(name?: string | null): string {
 }
 
 /**
+ * Returns descriptive clinical presentation metadata for a triage level.
+ * Never computes or alters the level; strictly presents server-provided data.
+ */
+export interface TriageLevelDescription {
+  label: string;
+  tone: "danger" | "warning" | "info" | "neutral";
+  icon: string;
+  headline: string;
+  patientText: string;
+}
+
+export function describeTriageLevel(
+  level?: string | null,
+  serverGuidance?: string | null
+): TriageLevelDescription {
+  const norm = (level || "").toLowerCase().trim();
+
+  if (norm === "emergency") {
+    return {
+      label: "Emergency",
+      tone: "danger",
+      icon: "AlertOctagon",
+      headline: "Emergency",
+      patientText: serverGuidance && serverGuidance.trim()
+        ? serverGuidance.trim()
+        : "Call your local emergency number now.",
+    };
+  }
+
+  if (norm === "urgent") {
+    return {
+      label: "Needs a clinician today",
+      tone: "warning",
+      icon: "AlertTriangle",
+      headline: "Needs a clinician today",
+      patientText: serverGuidance && serverGuidance.trim()
+        ? serverGuidance.trim()
+        : "Please contact your clinician today. If you feel worse, call your local emergency number.",
+    };
+  }
+
+  if (norm === "review") {
+    return {
+      label: "A clinician will review this",
+      tone: "info",
+      icon: "Info",
+      headline: "A clinician will review this",
+      patientText: serverGuidance && serverGuidance.trim()
+        ? serverGuidance.trim()
+        : "A clinician will review this. Please measure again later today and at the same time tomorrow.",
+    };
+  }
+
+  return {
+    label: "Routine",
+    tone: "neutral",
+    icon: "CheckCircle2",
+    headline: "Routine check-in",
+    patientText: serverGuidance && serverGuidance.trim()
+      ? serverGuidance.trim()
+      : "",
+  };
+}
+
+/**
+ * Returns plain-word descriptions for protocol names.
+ */
+export function describeProtocol(protocol?: string | null): string {
+  const norm = (protocol || "").toLowerCase().trim();
+  if (norm === "bp_severe") {
+    return "Blood pressure in the crisis range";
+  }
+  if (norm === "bp_change") {
+    return "Blood pressure above the patient's usual";
+  }
+  if (norm === "bp_low") {
+    return "Low blood pressure";
+  }
+  if (norm === "glucose_high") {
+    return "High glucose";
+  }
+  if (norm === "glucose_low") {
+    return "Low glucose";
+  }
+  return protocol ? protocol.replace(/_/g, " ") : "Protocol";
+}
+
+/**
  * Maps raw API status codes and detail strings to user-safe English message keys.
  */
 export function mapApiError(status?: number | null, detail?: string | null): string {
@@ -253,6 +341,9 @@ export function mapApiError(status?: number | null, detail?: string | null): str
   }
 
   if (status === 403) {
+    if (normDetail.includes("profile_incomplete")) {
+      return "Please complete your date of birth and inclusion confirmation.";
+    }
     if (normDetail.includes("provider_notification_consent_required")) {
       return "Provider notification consent is required before starting a check-in.";
     }
@@ -263,6 +354,9 @@ export function mapApiError(status?: number | null, detail?: string | null): str
   }
 
   if (status === 409) {
+    if (normDetail.includes("triage_incomplete")) {
+      return "Please finish answering all safety questions.";
+    }
     if (normDetail.includes("record_managed_by_ehr")) {
       return "Your record is managed by your hospital EHR.";
     }
@@ -279,6 +373,12 @@ export function mapApiError(status?: number | null, detail?: string | null): str
   }
 
   if (status === 422) {
+    if (normDetail.includes("adults_only")) {
+      return "ChronicCare AI is for adults (18 and over) in this release.";
+    }
+    if (normDetail.includes("invalid_date_of_birth")) {
+      return "Please enter a valid date of birth (age 18 to 120).";
+    }
     return "Invalid information provided. Please verify your input.";
   }
 
@@ -296,3 +396,4 @@ export function mapApiError(status?: number | null, detail?: string | null): str
 
   return detail && detail.trim() ? detail.trim() : "An unexpected error occurred. Please try again.";
 }
+
