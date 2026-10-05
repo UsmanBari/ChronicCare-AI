@@ -25,7 +25,11 @@ export const ConflictScreen = () => {
   const medComparisons = liveCheckinResult?.reconciliation?.medication_comparisons || [];
   const medVerifications = liveCheckinResult?.verification?.medication_verifications || [];
 
-  const medicationItems = isLiveMode
+  const medicationItems: Array<{
+    desc: ReturnType<typeof describeMedicationItem>;
+    comparison: any;
+    verification: any;
+  }> = isLiveMode
     ? medComparisons.map((c: any) => {
         const v = medVerifications.find((ver: any) => ver.medication_name === c.medication_name);
         return {

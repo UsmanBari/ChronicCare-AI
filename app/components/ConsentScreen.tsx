@@ -7,15 +7,20 @@ import { api, ApiError } from "../lib/api";
 
 export const ConsentScreen = () => {
   const { setScreen, setLiveProfile, signOutUser, isLiveMode, t, isUrdu } = useApp();
+  const [dataConsent, setDataConsent] = useState(false);
+  const [providerConsent, setProviderConsent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const canContinue = dataConsent && providerConsent;
+
   const handleAccept = async () => {
+    if (!canContinue) return;
     setIsLoading(true);
     setError(null);
     try {
       if (isLiveMode) {
-        const updated = await api.setConsent(true);
+        const updated = await api.setConsent(true, providerConsent);
         setLiveProfile(updated);
       }
       setScreen("profile");
@@ -98,14 +103,55 @@ export const ConsentScreen = () => {
           </div>
         </div>
 
+        {/* Two Required Consent Checkboxes */}
+        <div className="p-4 rounded-2xl bg-teal-50/70 border-2 border-teal-200 space-y-3.5">
+          <label className="flex items-start gap-3 cursor-pointer text-xs sm:text-sm font-semibold text-navy-900">
+            <input
+              type="checkbox"
+              id="consent-data-processing-chk"
+              checked={dataConsent}
+              onChange={(e) => setDataConsent(e.target.checked)}
+              className="w-4 h-4 text-teal-700 rounded border-slate-300 mt-0.5"
+            />
+            <span className="leading-snug">
+              {isUrdu
+                ? "میں اس بات سے اتفاق کرتا ہوں کہ ChronicCare AI میرے چیک ان کے جوابات اور ریکارڈ کا اندراج پراسیس اور محفوظ کر سکتا ہے۔"
+                : "I agree that ChronicCare AI may process and store my check-in answers and record entries."}
+            </span>
+          </label>
+
+          <label className="flex items-start gap-3 cursor-pointer text-xs sm:text-sm font-semibold text-navy-900 border-t border-teal-200/80 pt-3">
+            <input
+              type="checkbox"
+              id="consent-provider-notification-chk"
+              checked={providerConsent}
+              onChange={(e) => setProviderConsent(e.target.checked)}
+              className="w-4 h-4 text-teal-700 rounded border-slate-300 mt-0.5"
+            />
+            <span className="leading-snug">
+              {isUrdu
+                ? "میں اس بات سے اتفاق کرتا ہوں کہ جائزے کی ضرورت والے چیک ان اس پروٹوٹائپ کے معالجین کے کھاتوں کو دکھائے جا سکتے ہیں۔"
+                : "I agree that check-ins needing review may be shown to clinician accounts of this prototype."}
+            </span>
+          </label>
+
+          {!canContinue && (
+            <p className="text-[11px] font-bold text-teal-900 pt-1">
+              {isUrdu
+                ? "اس پروٹوٹائپ میں چیک ان استعمال کرنے کے لیے دونوں ضروری ہیں۔"
+                : "Both are needed to use check-ins in this prototype."}
+            </p>
+          )}
+        </div>
+
         {/* Action Buttons */}
         <div className="space-y-3 pt-2">
           <button
             type="button"
             onClick={handleAccept}
-            disabled={isLoading}
+            disabled={isLoading || !canContinue}
             id="consent-accept-btn"
-            className="w-full min-h-[48px] py-3.5 px-5 bg-teal-700 hover:bg-teal-600 active:scale-[0.99] disabled:opacity-75 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 shadow-teal-700/20"
+            className="w-full min-h-[48px] py-3.5 px-5 bg-teal-700 hover:bg-teal-600 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 shadow-teal-700/20"
           >
             {isLoading ? (
               <>
@@ -115,7 +161,7 @@ export const ConsentScreen = () => {
             ) : (
               <>
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{t.consentAcceptBtn}</span>
+                <span>{t.continue || "Continue"}</span>
               </>
             )}
           </button>

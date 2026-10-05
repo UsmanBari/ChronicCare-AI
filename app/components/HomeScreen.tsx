@@ -43,10 +43,12 @@ export const HomeScreen = () => {
     resetDemo,
     appointment,
     setActiveLiveCheckin,
+    setShowSettings,
   } = useApp();
 
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isConsentError, setIsConsentError] = useState(false);
   const [showUrgentGuidance, setShowUrgentGuidance] = useState<boolean>(false);
   const [lastCheckinTime, setLastCheckinTime] = useState<string | null>(null);
   const [liveRecord, setLiveRecord] = useState<PatientRecordResponse | null>(null);
@@ -81,6 +83,7 @@ export const HomeScreen = () => {
 
   const handleStartCheckIn = async () => {
     setError(null);
+    setIsConsentError(false);
     if (isLiveMode) {
       setIsStarting(true);
       try {
@@ -90,6 +93,10 @@ export const HomeScreen = () => {
       } catch (err: any) {
         if (err instanceof ApiError) {
           setError(err.getFriendlyMessage(isUrdu));
+          const detailStr = (err.detail || "").toLowerCase();
+          if (err.status === 403 || detailStr.includes("consent")) {
+            setIsConsentError(true);
+          }
         } else {
           setError(err?.message || "Failed to start check-in session");
         }
@@ -195,9 +202,25 @@ export const HomeScreen = () => {
       )}
 
       {error && (
-        <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
-          <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
-          <span>{error}</span>
+        <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
+            <span>{error}</span>
+          </div>
+          {isConsentError && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowSettings(true);
+                setError(null);
+                setIsConsentError(false);
+              }}
+              id="home-consent-settings-btn"
+              className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-800 hover:bg-amber-900 text-white transition-colors shrink-0 shadow-xs self-start sm:self-auto"
+            >
+              {isUrdu ? "اجازت نامہ کی ترتیبات کھولیں" : "Open Consent Settings"}
+            </button>
+          )}
         </div>
       )}
 
