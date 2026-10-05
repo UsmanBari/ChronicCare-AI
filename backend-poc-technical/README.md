@@ -160,6 +160,8 @@ curl -X POST http://localhost:8000/api/provider/review/<CHECKIN_ID>/action \
 ```
 
 ### Prototype Limitations & Future Work
+- **Observation Comparison Window:** Reconciliation matches observations only if they occur within 48 hours of each other. Older baseline readings are stored for longitudinal history/trends, but will not pair with today's observations. Medications have no temporal cutoff.
+- **Allergies Invariant:** Allergies are persisted and retrieved in isolated mode, but are not yet evaluated by the algorithmic reconciliation engine.
 - **Care-Team Assignment**: In this prototype, any authenticated provider can view and act on all patient review queue items. Production deployments require fine-grained patient panel assignment and care-team routing.
 - **Secondary Notifications**: Critical alerts (emergencies and overdue high-severity reviews) are flagged in the queue dynamically (items older than 2 hours marked `overdue=true`). Out-of-band notifications (e.g. SMS, pager integration) represent future roadmap work.
 - **No Risk Scoring**: As per clinical decision-support safety requirements, the system produces no probabilistic risk scores or unsolicited clinical recommendations; responses contain only deterministic computational reconciliations.

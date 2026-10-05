@@ -30,6 +30,8 @@ This document formalizes the data ownership, synchronization boundaries, mode de
   - All observations, measurements, and medication entries recorded directly by the patient are explicitly tagged with provenance `source = 'local'` and `status = 'self_reported'`.
 
 ### 1.4 Prototype Limitations & Future Security Roadmaps
+- **Observation Comparison Window:** Algorithmic reconciliation compares clinical observations only within a 48-hour window of each other. Older baseline readings are preserved as historical records for long-term multi-day trend analysis, but will not be matched against today's check-in observations.
+- **Allergies Invariant:** Patient allergies can be recorded, edited, and retrieved via the patient record API; however, allergies are not yet evaluated by the algorithmic reconciliation engine in this phase.
 - **Prototype Limitation:** In this technical prototype, entering an EHR external patient ID verifies that the record exists on the FHIR server, but does not cryptographically prove that the authenticated user *is* that specific patient.
 - **Production Roadmap:** A clinical production deployment requires **SMART on FHIR OAuth 2.0 Patient Launch** (or Provider EHR Launch) with PKCE and OpenID Connect identity assertion tokens. The current prototype is validated strictly against synthetic patients (e.g., SMART Health IT Sandbox).
 

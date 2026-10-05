@@ -234,6 +234,46 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     cursor.execute("ALTER TABLE checkin_results ADD COLUMN escalated_at TEXT")
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (4, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 5")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(checkins)")
+                c_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "med_state_json" not in c_cols:
+                    cursor.execute("ALTER TABLE checkins ADD COLUMN med_state_json TEXT")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (5, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 6")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS allergies (
+                        allergy_id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        substance TEXT NOT NULL,
+                        reaction TEXT,
+                        confirmed INTEGER NOT NULL,
+                        created_at TEXT NOT NULL,
+                        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                    )
+                """)
+                cursor.execute("PRAGMA table_info(patient_profiles)")
+                pp_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "conditions_basis_json" not in pp_cols:
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN conditions_basis_json TEXT")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (6, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 7")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(patient_profiles)")
+                pp_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "provider_notification_consent_at" not in pp_cols:
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN provider_notification_consent_at TEXT")
+                if "provider_notification_revoked_at" not in pp_cols:
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN provider_notification_revoked_at TEXT")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (7, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -395,6 +435,58 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (4, %s)", (now,))
 
+            cursor.execute("SELECT version FROM schema_version WHERE version = 5")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkins' AND COLUMN_NAME = 'med_state_json'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE checkins ADD COLUMN med_state_json MEDIUMTEXT NULL")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (5, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 6")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS allergies (
+                        allergy_id VARCHAR(64) PRIMARY KEY,
+                        user_id VARCHAR(128) NOT NULL,
+                        substance VARCHAR(80) NOT NULL,
+                        reaction VARCHAR(120),
+                        confirmed TINYINT(1) NOT NULL,
+                        created_at VARCHAR(64) NOT NULL,
+                        INDEX idx_user_allergy (user_id),
+                        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """)
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patient_profiles' AND COLUMN_NAME = 'conditions_basis_json'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN conditions_basis_json TEXT NULL")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (6, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 7")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patient_profiles' AND COLUMN_NAME = 'provider_notification_consent_at'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN provider_notification_consent_at VARCHAR(64) NULL")
+
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patient_profiles' AND COLUMN_NAME = 'provider_notification_revoked_at'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN provider_notification_revoked_at VARCHAR(64) NULL")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (7, %s)", (now,))
+
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
                    mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -552,7 +644,9 @@ def get_patient_profile(user_id: str, backend: Optional[str] = None, db_path: Op
         cursor.execute(
             f"""
             SELECT user_id, conditions_json, on_insulin_or_sulfonylurea, language,
-                   consent_granted_at, consent_revoked_at, updated_at
+                   consent_granted_at, consent_revoked_at,
+                   conditions_basis_json, provider_notification_consent_at, provider_notification_revoked_at,
+                   updated_at
             FROM patient_profiles
             WHERE user_id = {ph}
             """,
@@ -566,6 +660,10 @@ def get_patient_profile(user_id: str, backend: Optional[str] = None, db_path: Op
             d["conditions"] = json.loads(d.pop("conditions_json", "[]"))
         except Exception:
             d["conditions"] = []
+        try:
+            d["conditions_basis"] = json.loads(d.pop("conditions_basis_json", "{}") or "{}")
+        except Exception:
+            d["conditions_basis"] = {}
         d["on_insulin_or_sulfonylurea"] = bool(d["on_insulin_or_sulfonylurea"])
         return d
 
@@ -612,6 +710,20 @@ def upsert_patient_profile(user_id: str, conditions: List[str], on_insulin_or_su
     return get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
 
+def update_patient_conditions_basis(user_id: str, conditions_basis: Dict[str, Optional[str]],
+                                   backend: Optional[str] = None, db_path: Optional[str] = None,
+                                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
+    """Updates conditions basis mapping in patient profile."""
+    basis_json = json.dumps(conditions_basis)
+    now = _utc_now_iso()
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"UPDATE patient_profiles SET conditions_basis_json = {ph}, updated_at = {ph} WHERE user_id = {ph}",
+            (basis_json, now, user_id)
+        )
+    return get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+
+
 def set_patient_consent(user_id: str, granted: bool, backend: Optional[str] = None, db_path: Optional[str] = None,
                         mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
     """Records explicit consent grant or revocation."""
@@ -649,6 +761,137 @@ def set_patient_consent(user_id: str, granted: bool, backend: Optional[str] = No
                     (now, now, user_id)
                 )
     return get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+
+
+def set_patient_provider_notification_consent(user_id: str, granted: bool, backend: Optional[str] = None,
+                                             db_path: Optional[str] = None, mysql_url: Optional[str] = None,
+                                             ssl_ca: Optional[str] = None) -> Dict[str, Any]:
+    """Records explicit provider notification consent grant or revocation."""
+    now = _utc_now_iso()
+    existing = get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        if not existing:
+            cond_json = json.dumps([])
+            if granted:
+                cursor.execute(
+                    f"""
+                    INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language,
+                                                  provider_notification_consent_at, provider_notification_revoked_at, updated_at)
+                    VALUES ({ph}, {ph}, 0, 'en', {ph}, NULL, {ph})
+                    """,
+                    (user_id, cond_json, now, now)
+                )
+            else:
+                cursor.execute(
+                    f"""
+                    INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language,
+                                                  provider_notification_consent_at, provider_notification_revoked_at, updated_at)
+                    VALUES ({ph}, {ph}, 0, 'en', NULL, {ph}, {ph})
+                    """,
+                    (user_id, cond_json, now, now)
+                )
+        else:
+            if granted:
+                cursor.execute(
+                    f"UPDATE patient_profiles SET provider_notification_consent_at = {ph}, provider_notification_revoked_at = NULL, updated_at = {ph} WHERE user_id = {ph}",
+                    (now, now, user_id)
+                )
+            else:
+                cursor.execute(
+                    f"UPDATE patient_profiles SET provider_notification_revoked_at = {ph}, updated_at = {ph} WHERE user_id = {ph}",
+                    (now, now, user_id)
+                )
+    return get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+
+
+# =============================================================================
+# ALLERGY HELPERS (ISOLATED MODE PATIENT RECORD)
+# =============================================================================
+
+def create_allergy(allergy_id: str, user_id: str, substance: str, reaction: Optional[str],
+                   confirmed: bool, created_at: Optional[str] = None,
+                   backend: Optional[str] = None, db_path: Optional[str] = None,
+                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
+    """Inserts a new allergy record for a patient."""
+    clean_id = str(allergy_id).strip()
+    clean_uid = str(user_id).strip()
+    clean_sub = str(substance).strip()
+    clean_rx = str(reaction).strip() if reaction else None
+    conf_val = 1 if confirmed else 0
+    now = created_at or _utc_now_iso()
+
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"INSERT INTO allergies (allergy_id, user_id, substance, reaction, confirmed, created_at) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+            (clean_id, clean_uid, clean_sub, clean_rx, conf_val, now)
+        )
+    return {
+        "allergy_id": clean_id,
+        "user_id": clean_uid,
+        "substance": clean_sub,
+        "reaction": clean_rx,
+        "confirmed": bool(confirmed),
+        "created_at": now,
+    }
+
+
+def get_allergies(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
+                  mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieves all allergy records for a patient ordered by creation time."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"SELECT allergy_id, user_id, substance, reaction, confirmed, created_at FROM allergies WHERE user_id = {ph} ORDER BY created_at ASC",
+            (user_id,)
+        )
+        rows = cursor.fetchall()
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["confirmed"] = bool(d["confirmed"])
+            result.append(d)
+        return result
+
+
+def get_allergy_by_id(allergy_id: str, user_id: Optional[str] = None,
+                      backend: Optional[str] = None, db_path: Optional[str] = None,
+                      mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Retrieves an allergy record by id (and user_id if provided)."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        if user_id:
+            cursor.execute(
+                f"SELECT allergy_id, user_id, substance, reaction, confirmed, created_at FROM allergies WHERE allergy_id = {ph} AND user_id = {ph}",
+                (allergy_id, user_id)
+            )
+        else:
+            cursor.execute(
+                f"SELECT allergy_id, user_id, substance, reaction, confirmed, created_at FROM allergies WHERE allergy_id = {ph}",
+                (allergy_id,)
+            )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["confirmed"] = bool(d["confirmed"])
+        return d
+
+
+def delete_allergy(allergy_id: str, user_id: Optional[str] = None,
+                   backend: Optional[str] = None, db_path: Optional[str] = None,
+                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> bool:
+    """Deletes an allergy record. Returns True if deleted."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        if user_id:
+            cursor.execute(
+                f"DELETE FROM allergies WHERE allergy_id = {ph} AND user_id = {ph}",
+                (allergy_id, user_id)
+            )
+        else:
+            cursor.execute(
+                f"DELETE FROM allergies WHERE allergy_id = {ph}",
+                (allergy_id,)
+            )
+        return (cursor.rowcount or 0) > 0
 
 
 # =============================================================================
@@ -772,11 +1015,13 @@ def revoke_ehr_connection(user_id: str, backend: Optional[str] = None, db_path: 
 def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: str,
                    state_dict: Dict[str, Any], status: str = "in_progress",
                    started_at: Optional[str] = None,
+                   med_state_dict: Optional[Dict[str, Any]] = None,
                    backend: Optional[str] = None, db_path: Optional[str] = None,
                    mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
     """Creates a new check-in session and marks older in_progress sessions for this user as abandoned."""
     now = started_at or _utc_now_iso()
     state_str = json.dumps(state_dict)
+    med_state_str = json.dumps(med_state_dict) if med_state_dict is not None else None
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
             f"UPDATE checkins SET status = 'abandoned', completed_at = {ph} WHERE user_id = {ph} AND status = 'in_progress'",
@@ -784,10 +1029,10 @@ def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: 
         )
         cursor.execute(
             f"""
-            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, status, state_json, version, started_at, completed_at)
-            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph}, NULL)
+            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, status, state_json, med_state_json, version, started_at, completed_at)
+            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph}, NULL)
             """,
-            (checkin_id, user_id, mode, record_patient_id, status, state_str, now)
+            (checkin_id, user_id, mode, record_patient_id, status, state_str, med_state_str, now)
         )
     return {
         "checkin_id": checkin_id,
@@ -796,6 +1041,7 @@ def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: 
         "record_patient_id": record_patient_id,
         "status": status,
         "state": state_dict,
+        "med_state": med_state_dict,
         "version": 0,
         "started_at": now,
         "completed_at": None,
@@ -807,7 +1053,7 @@ def get_checkin_by_id(checkin_id: str, backend: Optional[str] = None, db_path: O
     """Retrieves check-in row and parsed state dictionary by checkin_id."""
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
-            f"SELECT checkin_id, user_id, mode, record_patient_id, status, state_json, version, started_at, completed_at FROM checkins WHERE checkin_id = {ph}",
+            f"SELECT checkin_id, user_id, mode, record_patient_id, status, state_json, med_state_json, version, started_at, completed_at FROM checkins WHERE checkin_id = {ph}",
             (checkin_id,)
         )
         row = cursor.fetchone()
@@ -818,20 +1064,36 @@ def get_checkin_by_id(checkin_id: str, backend: Optional[str] = None, db_path: O
             d["state"] = json.loads(d.pop("state_json", "{}"))
         except Exception:
             d["state"] = {}
+        raw_med = d.pop("med_state_json", None)
+        if raw_med:
+            try:
+                d["med_state"] = json.loads(raw_med)
+            except Exception:
+                d["med_state"] = None
+        else:
+            d["med_state"] = None
         d["version"] = int(d.get("version", 0)) if d.get("version") is not None else 0
         return d
 
 
 def update_checkin_state(checkin_id: str, state_dict: Dict[str, Any], status: str = "in_progress",
-                         completed_at: Optional[str] = None, backend: Optional[str] = None,
-                         db_path: Optional[str] = None, mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Updates interview state, status, and completion timestamp."""
+                         completed_at: Optional[str] = None, med_state_dict: Optional[Dict[str, Any]] = None,
+                         backend: Optional[str] = None, db_path: Optional[str] = None,
+                         mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Updates interview state, med state, status, and completion timestamp."""
     state_str = json.dumps(state_dict)
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
-        cursor.execute(
-            f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph}",
-            (state_str, status, completed_at, checkin_id)
-        )
+        if med_state_dict is not None:
+            med_state_str = json.dumps(med_state_dict)
+            cursor.execute(
+                f"UPDATE checkins SET state_json = {ph}, med_state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph}",
+                (state_str, med_state_str, status, completed_at, checkin_id)
+            )
+        else:
+            cursor.execute(
+                f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph}",
+                (state_str, status, completed_at, checkin_id)
+            )
     return get_checkin_by_id(checkin_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
 
@@ -845,6 +1107,7 @@ def apply_checkin_answer_atomic(
     trigger_category: Optional[str] = None,
     trigger_text: Optional[str] = None,
     actor_user_id: Optional[str] = None,
+    med_state_dict: Optional[Dict[str, Any]] = None,
     backend: Optional[str] = None,
     db_path: Optional[str] = None,
     mysql_url: Optional[str] = None,
@@ -863,10 +1126,17 @@ def apply_checkin_answer_atomic(
     clean_trigger_text = trigger_text[:500] if trigger_text else None
 
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
-        cursor.execute(
-            f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph} AND version = {ph}",
-            (state_str, status, completed_at, checkin_id, expected_version)
-        )
+        if med_state_dict is not None:
+            med_state_str = json.dumps(med_state_dict)
+            cursor.execute(
+                f"UPDATE checkins SET state_json = {ph}, med_state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph} AND version = {ph}",
+                (state_str, med_state_str, status, completed_at, checkin_id, expected_version)
+            )
+        else:
+            cursor.execute(
+                f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph} AND version = {ph}",
+                (state_str, status, completed_at, checkin_id, expected_version)
+            )
         if cursor.rowcount == 0:
             return False
 
