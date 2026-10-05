@@ -53,6 +53,10 @@ jobs:
         run: |
           npm run lint
 
+      - name: Test Frontend
+        run: |
+          npm test
+
       - name: No unsupported compliance claims in the UI
         run: |
           if git grep -n -i -E "hipaa[ -]?(compliant|grade|certified)|gdpr[ -]?compliant|fda[ -]?(approved|cleared)|clinically validated" -- app; then echo "Unsupported compliance claim found"; exit 1; fi
