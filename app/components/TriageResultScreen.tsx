@@ -24,6 +24,7 @@ export const TriageResultScreen = () => {
     liveCheckinResult,
     liveEhrConnection,
     isLiveMode,
+    t,
     isUrdu,
   } = useApp();
 
@@ -125,7 +126,7 @@ export const TriageResultScreen = () => {
               id="triage-why-toggle-btn"
               className="w-full p-4 text-left flex items-center justify-between gap-2 text-sm font-bold text-navy-800 hover:bg-slate-100/80 transition-colors"
             >
-              <span>{isUrdu ? "مجھے یہ کیوں دکھایا جا رہا ہے؟" : "Why am I seeing this?"}</span>
+              <span>{t.triageWhyTitle}</span>
               {isWhyOpen ? (
                 <ChevronUp className="w-4 h-4 text-slate-500" />
               ) : (
@@ -193,9 +194,7 @@ export const TriageResultScreen = () => {
         {/* Not a diagnosis disclaimer */}
         <div className="p-3 text-center text-xs font-semibold text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
           <span>
-            {isUrdu
-              ? "یہ کوئی حتمی طبی تشخیص نہیں ہے۔"
-              : "This is not a diagnosis."}
+            {t.notADiagnosisDisclaimer}
           </span>
         </div>
 

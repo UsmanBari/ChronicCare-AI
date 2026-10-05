@@ -299,6 +299,30 @@ export interface Translations {
   isolatedModeLabel: string;
   needsClinicianReviewTitle: string;
   readingDiffersTitle: string;
+
+  // Stage 7D-2 Triage & Inclusion
+  inclusionTitle: string;
+  inclusionSubtitle: string;
+  dateOfBirthLabel: string;
+  dateOfBirthHint: string;
+  inclusionExplanation: string;
+  inclusionCheckboxLabel: string;
+  safetyQuestionsChip: string;
+  englishQuestionsNote: string;
+  cantMeasureAgainBtn: string;
+  measureHintPlaceholder: string;
+  triageWhyTitle: string;
+  notADiagnosisDisclaimer: string;
+  triageEmergencyLabel: string;
+  triageUrgentLabel: string;
+  triageReviewLabel: string;
+  triageRoutineLabel: string;
+  protocolBpSevere: string;
+  protocolBpChange: string;
+  protocolBpLow: string;
+  protocolGlucoseHigh: string;
+  protocolGlucoseLow: string;
+  thresholdsIllustrativeDisclaimer: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -593,6 +617,30 @@ export const translations: Record<Language, Translations> = {
     isolatedModeLabel: "Isolated Mode (Local Store)",
     needsClinicianReviewTitle: "Needs clinician review",
     readingDiffersTitle: "Your reading differs from the record",
+
+    // Stage 7D-2 Triage & Inclusion
+    inclusionTitle: "Inclusion & Safety Criteria",
+    inclusionSubtitle: "Please verify your eligibility for clinically safe decision-support.",
+    dateOfBirthLabel: "Date of Birth",
+    dateOfBirthHint: "Age must be between 18 and 120 years.",
+    inclusionExplanation: "ChronicCare AI is a research prototype for adults. Blood pressure limits are different in pregnancy and for children, so it cannot be used in those cases.",
+    inclusionCheckboxLabel: "I am 18 or older and I am not pregnant.",
+    safetyQuestionsChip: "Safety questions",
+    englishQuestionsNote: "These questions are shown in English.",
+    cantMeasureAgainBtn: "I can't measure again",
+    measureHintPlaceholder: "for example 150/90",
+    triageWhyTitle: "Why am I seeing this?",
+    notADiagnosisDisclaimer: "This is not a diagnosis.",
+    triageEmergencyLabel: "Emergency",
+    triageUrgentLabel: "Needs a clinician today",
+    triageReviewLabel: "A clinician will review this",
+    triageRoutineLabel: "Routine",
+    protocolBpSevere: "Blood pressure in the crisis range",
+    protocolBpChange: "Blood pressure above the patient's usual",
+    protocolBpLow: "Low blood pressure",
+    protocolGlucoseHigh: "High glucose",
+    protocolGlucoseLow: "Low glucose",
+    thresholdsIllustrativeDisclaimer: "Thresholds are illustrative and not clinically validated.",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -887,5 +935,29 @@ export const translations: Record<Language, Translations> = {
     isolatedModeLabel: "آئسولیٹڈ موڈ (مقامی اسٹور)",
     needsClinicianReviewTitle: "طبی معالج کے جائزے کی ضرورت ہے",
     readingDiffersTitle: "آپ کی ریڈنگ ریکارڈ سے مختلف ہے",
+
+    // Stage 7D-2 Triage & Inclusion (UNREVIEWED)
+    inclusionTitle: "شمولیت اور حفاظتی معیار",
+    inclusionSubtitle: "محفوظ طبی مانیٹرنگ کے لیے براہ کرم اپنی معلومات کی تصدیق کریں۔",
+    dateOfBirthLabel: "تاریخ پیدائش",
+    dateOfBirthHint: "عمر 18 سے 120 سال کے درمیان ہونی چاہیے۔",
+    inclusionExplanation: "ChronicCare AI بالغوں کے لیے ایک تحقیقی پروٹو ٹائپ ہے۔ حمل اور بچوں کے لیے بلڈ پریشر کی حدود مختلف ہوتی ہیں، اس لیے یہ ان صورتوں میں استعمال نہیں کیا جا سکتا۔",
+    inclusionCheckboxLabel: "میری عمر 18 سال یا اس سے زیادہ ہے اور میں حاملہ نہیں ہوں۔",
+    safetyQuestionsChip: "حفاظتی سوالات",
+    englishQuestionsNote: "یہ سوالات انگریزی میں دکھائے گئے ہیں۔",
+    cantMeasureAgainBtn: "میں دوبارہ ناپ نہیں سکتا",
+    measureHintPlaceholder: "مثال کے طور پر 150/90",
+    triageWhyTitle: "مجھے یہ کیوں دکھایا جا رہا ہے؟",
+    notADiagnosisDisclaimer: "یہ کوئی حتمی طبی تشخیص نہیں ہے۔",
+    triageEmergencyLabel: "ایمرجنسی",
+    triageUrgentLabel: "طبی معالج سے آج رابطہ ضروری ہے",
+    triageReviewLabel: "طبی معالج اس کا جائزہ لیں گے",
+    triageRoutineLabel: "معمول",
+    protocolBpSevere: "بحرانی حدود میں بلڈ پریشر",
+    protocolBpChange: "مریض کے معمول سے زیادہ بلڈ پریشر",
+    protocolBpLow: "کم بلڈ پریشر",
+    protocolGlucoseHigh: "زیادہ شوگر",
+    protocolGlucoseLow: "کم شوگر",
+    thresholdsIllustrativeDisclaimer: "حدود صرف وضاحتی ہیں اور طبی طور پر توثیق شدہ نہیں ہیں۔",
   }
 };

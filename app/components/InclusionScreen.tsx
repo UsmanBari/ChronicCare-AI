@@ -147,12 +147,10 @@ export const InclusionScreen = () => {
           <ShieldCheck className="w-7 h-7" />
         </div>
         <h1 className="font-heading text-2xl sm:text-[26px] font-bold tracking-tight text-white mb-1.5">
-          {isUrdu ? "شمولیت اور حفاظتی معیار" : "Inclusion & Safety Criteria"}
+          {t.inclusionTitle}
         </h1>
         <p className="text-slate-200 text-xs sm:text-sm leading-relaxed max-w-sm mx-auto">
-          {isUrdu
-            ? "محفوظ طبی مانیٹرنگ کے لیے براہ کرم اپنی معلومات کی تصدیق کریں۔"
-            : "Please verify your eligibility for clinically safe decision-support."}
+          {t.inclusionSubtitle}
         </p>
       </div>
 
@@ -171,7 +169,7 @@ export const InclusionScreen = () => {
             htmlFor="date-of-birth-input"
             className="block text-xs font-bold text-navy-800 uppercase tracking-wider"
           >
-            {isUrdu ? "تاریخ پیدائش" : "Date of Birth"}
+            {t.dateOfBirthLabel}
           </label>
           <div className="relative">
             <input
@@ -185,9 +183,7 @@ export const InclusionScreen = () => {
             />
           </div>
           <p className="text-xs text-slate-500">
-            {isUrdu
-              ? "عمر 18 سے 120 سال کے درمیان ہونی چاہیے۔"
-              : "Age must be between 18 and 120 years."}
+            {t.dateOfBirthHint}
           </p>
         </div>
 
@@ -196,9 +192,7 @@ export const InclusionScreen = () => {
           <div className="flex items-start gap-2 text-xs text-slate-700 leading-relaxed">
             <Info className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
             <span>
-              {isUrdu
-                ? "ChronicCare AI بالغوں کے لیے ایک تحقیقی پروٹو ٹائپ ہے۔ حمل اور بچوں کے لیے بلڈ پریشر کی حدود مختلف ہوتی ہیں، اس لیے یہ ان صورتوں میں استعمال نہیں کیا جا سکتا۔"
-                : "ChronicCare AI is a research prototype for adults. Blood pressure limits are different in pregnancy and for children, so it cannot be used in those cases."}
+              {t.inclusionExplanation}
             </span>
           </div>
         </div>
@@ -213,9 +207,7 @@ export const InclusionScreen = () => {
             className="w-5 h-5 rounded border-slate-300 text-teal-700 focus:ring-teal-700 mt-0.5"
           />
           <div className="text-xs sm:text-sm text-navy-900 font-semibold leading-relaxed">
-            {isUrdu
-              ? "میری عمر 18 سال یا اس سے زیادہ ہے اور میں حاملہ نہیں ہوں۔"
-              : "I am 18 or older and I am not pregnant."}
+            {t.inclusionCheckboxLabel}
           </div>
         </label>
 

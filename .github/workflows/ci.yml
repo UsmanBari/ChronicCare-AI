@@ -59,7 +59,7 @@ jobs:
 
       - name: No unsupported compliance claims in the UI
         run: |
-          if git grep -n -i -E "hipaa[ -]?(compliant|grade|certified)|gdpr[ -]?compliant|fda[ -]?(approved|cleared)|clinically validated" -- app; then echo "Unsupported compliance claim found"; exit 1; fi
+          if git grep -n -i -E "hipaa[ -]?(compliant|grade|certified)|gdpr[ -]?compliant|fda[ -]?(approved|cleared)" -- app || (git grep -n -i -E "clinically validated" -- app | grep -v -i "not clinically validated"); then echo "Unsupported compliance claim found"; exit 1; fi
 
       - name: Build Frontend
         env:
