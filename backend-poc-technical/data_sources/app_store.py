@@ -301,6 +301,54 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN inclusion_confirmed_at TEXT")
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (9, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 10")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(ehr_systems)")
+                es_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "kind" not in es_cols:
+                    cursor.execute("ALTER TABLE ehr_systems ADD COLUMN kind TEXT DEFAULT 'public_sandbox'")
+                if "description" not in es_cols:
+                    cursor.execute("ALTER TABLE ehr_systems ADD COLUMN description TEXT")
+
+                cursor.execute("PRAGMA table_info(checkins)")
+                c_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "ehr_system_id" not in c_cols:
+                    cursor.execute("ALTER TABLE checkins ADD COLUMN ehr_system_id TEXT")
+
+                # Upsert demo-hospital, public-sandbox, and smart-sandbox
+                cursor.execute("""
+                    INSERT INTO ehr_systems (ehr_system_id, display_name, fhir_base_url, kind, description, enabled)
+                    VALUES ('demo-hospital', 'Demo hospital (simulated, synthetic data)', 'sim://demo', 'simulated', 'In-process FHIR server with recent synthetic observations and medications', 1)
+                    ON CONFLICT(ehr_system_id) DO UPDATE SET
+                        display_name = 'Demo hospital (simulated, synthetic data)',
+                        fhir_base_url = 'sim://demo',
+                        kind = 'simulated',
+                        description = 'In-process FHIR server with recent synthetic observations and medications',
+                        enabled = 1
+                """)
+                cursor.execute("""
+                    INSERT INTO ehr_systems (ehr_system_id, display_name, fhir_base_url, kind, description, enabled)
+                    VALUES ('public-sandbox', 'Public FHIR test server (live, may be unavailable)', ?, 'public_sandbox', 'Live open SMART Health IT R4 sandbox', 1)
+                    ON CONFLICT(ehr_system_id) DO UPDATE SET
+                        display_name = 'Public FHIR test server (live, may be unavailable)',
+                        fhir_base_url = ?,
+                        kind = 'public_sandbox',
+                        description = 'Live open SMART Health IT R4 sandbox',
+                        enabled = 1
+                """, (default_fhir_url, default_fhir_url))
+                cursor.execute("""
+                    INSERT INTO ehr_systems (ehr_system_id, display_name, fhir_base_url, kind, description, enabled)
+                    VALUES ('smart-sandbox', 'SMART Health IT Sandbox', ?, 'public_sandbox', 'Live open SMART Health IT R4 sandbox', 1)
+                    ON CONFLICT(ehr_system_id) DO UPDATE SET
+                        display_name = 'SMART Health IT Sandbox',
+                        fhir_base_url = ?,
+                        kind = 'public_sandbox',
+                        description = 'Live open SMART Health IT R4 sandbox',
+                        enabled = 1
+                """, (default_fhir_url, default_fhir_url))
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (10, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -556,6 +604,62 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN inclusion_confirmed_at VARCHAR(64) NULL")
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (9, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 10")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ehr_systems' AND COLUMN_NAME = 'kind'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE ehr_systems ADD COLUMN kind VARCHAR(32) DEFAULT 'public_sandbox'")
+
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ehr_systems' AND COLUMN_NAME = 'description'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE ehr_systems ADD COLUMN description TEXT NULL")
+
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkins' AND COLUMN_NAME = 'ehr_system_id'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE checkins ADD COLUMN ehr_system_id VARCHAR(64) NULL")
+
+                cursor.execute("""
+                    INSERT INTO ehr_systems (ehr_system_id, display_name, fhir_base_url, kind, description, enabled)
+                    VALUES ('demo-hospital', 'Demo hospital (simulated, synthetic data)', 'sim://demo', 'simulated', 'In-process FHIR server with recent synthetic observations and medications', 1)
+                    ON DUPLICATE KEY UPDATE
+                        display_name = 'Demo hospital (simulated, synthetic data)',
+                        fhir_base_url = 'sim://demo',
+                        kind = 'simulated',
+                        description = 'In-process FHIR server with recent synthetic observations and medications',
+                        enabled = 1
+                """)
+                cursor.execute("""
+                    INSERT INTO ehr_systems (ehr_system_id, display_name, fhir_base_url, kind, description, enabled)
+                    VALUES ('public-sandbox', 'Public FHIR test server (live, may be unavailable)', %s, 'public_sandbox', 'Live open SMART Health IT R4 sandbox', 1)
+                    ON DUPLICATE KEY UPDATE
+                        display_name = 'Public FHIR test server (live, may be unavailable)',
+                        fhir_base_url = %s,
+                        kind = 'public_sandbox',
+                        description = 'Live open SMART Health IT R4 sandbox',
+                        enabled = 1
+                """, (default_fhir_url, default_fhir_url))
+                cursor.execute("""
+                    INSERT INTO ehr_systems (ehr_system_id, display_name, fhir_base_url, kind, description, enabled)
+                    VALUES ('smart-sandbox', 'SMART Health IT Sandbox', %s, 'public_sandbox', 'Live open SMART Health IT R4 sandbox', 1)
+                    ON DUPLICATE KEY UPDATE
+                        display_name = 'SMART Health IT Sandbox',
+                        fhir_base_url = %s,
+                        kind = 'public_sandbox',
+                        description = 'Live open SMART Health IT R4 sandbox',
+                        enabled = 1
+                """, (default_fhir_url, default_fhir_url))
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (10, %s)", (now,))
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -982,13 +1086,63 @@ def delete_allergy(allergy_id: str, user_id: Optional[str] = None,
 # EHR REGISTRY & CONNECTION HELPERS
 # =============================================================================
 
+SIMULATED_SAMPLE_PATIENTS = [
+    {
+        "id": "sim-ayesha",
+        "label": "Ayesha K. (Age 52)",
+        "description": "Type 2 diabetes & hypertension. Daily BP ~128/82 and fasting glucose 140-150 mg/dL for 7 days. Active Metformin & Lisinopril."
+    },
+    {
+        "id": "sim-bilal",
+        "label": "Bilal A. (Age 67)",
+        "description": "Hypertension. Low, stable personal baseline BP 110-116/70-74 for 10 days. Active Amlodipine."
+    },
+    {
+        "id": "sim-sana",
+        "label": "Sana M. (Age 45)",
+        "description": "Type 2 diabetes on insulin. Fasting glucose 150-175 mg/dL for 7 days. Active Insulin glargine & Metformin."
+    },
+    {
+        "id": "sim-imran",
+        "label": "Imran Q. (Age 71)",
+        "description": "Type 2 diabetes & hypertension. Rising BP 148-156/92-98 and elevated glucose 180-210 mg/dL. Active Metformin, Lisinopril, Atorvastatin."
+    },
+    {
+        "id": "sim-newpatient",
+        "label": "Nadia R. (Age 38)",
+        "description": "Hypertension. No recent observations in EHR (empty record test). Active Lisinopril."
+    }
+]
+
+PUBLIC_SANDBOX_SUGGESTED_PATIENT_IDS = [
+    "d48ac962-78c6-46cf-ba33-a24771bfa0e4",
+    "b85d7e00-3690-4e2a-87a0-f3d2dfc908b3",
+    "4551370c-c3eb-4164-a2ff-b528f73a4e0f",
+]
+
+
 def get_enabled_ehr_systems(backend: Optional[str] = None, db_path: Optional[str] = None,
                             mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Retrieves all active registered EHR systems (id and display name only, never URLs)."""
+    """Retrieves all active registered EHR systems (id, display name, kind, description, sample patients, never URLs)."""
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
-        cursor.execute("SELECT ehr_system_id, display_name FROM ehr_systems WHERE enabled = 1")
+        cursor.execute("SELECT ehr_system_id, display_name, kind, description FROM ehr_systems WHERE enabled = 1")
         rows = cursor.fetchall()
-        return [dict(r) for r in rows]
+        results = []
+        for r in rows:
+            d = dict(r)
+            kind = d.get("kind") or "public_sandbox"
+            item: Dict[str, Any] = {
+                "ehr_system_id": d["ehr_system_id"],
+                "display_name": d["display_name"],
+                "kind": kind,
+                "description": d.get("description") or ("In-process synthetic FHIR server" if kind == "simulated" else "Live open SMART Health IT R4 sandbox"),
+            }
+            if kind == "simulated":
+                item["sample_patients"] = SIMULATED_SAMPLE_PATIENTS
+            elif kind == "public_sandbox":
+                item["suggested_patient_ids"] = PUBLIC_SANDBOX_SUGGESTED_PATIENT_IDS
+            results.append(item)
+        return results
 
 
 def get_ehr_system_by_id(ehr_system_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -996,7 +1150,7 @@ def get_ehr_system_by_id(ehr_system_id: str, backend: Optional[str] = None, db_p
     """Retrieves full EHR system config (internal use only for resolving FHIR base URL)."""
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
-            f"SELECT ehr_system_id, display_name, fhir_base_url, enabled FROM ehr_systems WHERE ehr_system_id = {ph}",
+            f"SELECT ehr_system_id, display_name, fhir_base_url, kind, description, enabled FROM ehr_systems WHERE ehr_system_id = {ph}",
             (ehr_system_id,)
         )
         row = cursor.fetchone()
@@ -1004,6 +1158,8 @@ def get_ehr_system_by_id(ehr_system_id: str, backend: Optional[str] = None, db_p
             return None
         d = dict(row)
         d["enabled"] = bool(d["enabled"])
+        if not d.get("kind"):
+            d["kind"] = "simulated" if str(d.get("fhir_base_url", "")).startswith("sim://") else "public_sandbox"
         return d
 
 
@@ -1015,7 +1171,7 @@ def get_active_ehr_connection(user_id: str, backend: Optional[str] = None, db_pa
             f"""
             SELECT c.connection_id, c.user_id, c.ehr_system_id, c.external_patient_id, c.status,
                    c.linked_at, c.last_verified_at, c.last_error_code, c.revoked_at,
-                   s.display_name AS display_name
+                   s.display_name AS display_name, s.kind AS kind
             FROM ehr_connections c
             LEFT JOIN ehr_systems s ON c.ehr_system_id = s.ehr_system_id
             WHERE c.user_id = {ph} AND c.status = 'active'
@@ -1101,6 +1257,7 @@ def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: 
                    started_at: Optional[str] = None,
                    med_state_dict: Optional[Dict[str, Any]] = None,
                    protocol_state_dict: Optional[Dict[str, Any]] = None,
+                   ehr_system_id: Optional[str] = None,
                    backend: Optional[str] = None, db_path: Optional[str] = None,
                    mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
     """Creates a new check-in session and marks older in_progress sessions for this user as abandoned."""
@@ -1115,16 +1272,17 @@ def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: 
         )
         cursor.execute(
             f"""
-            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, status, state_json, med_state_json, protocol_state_json, version, started_at, completed_at)
-            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph}, NULL)
+            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, ehr_system_id, status, state_json, med_state_json, protocol_state_json, version, started_at, completed_at)
+            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph}, NULL)
             """,
-            (checkin_id, user_id, mode, record_patient_id, status, state_str, med_state_str, protocol_state_str, now)
+            (checkin_id, user_id, mode, record_patient_id, ehr_system_id, status, state_str, med_state_str, protocol_state_str, now)
         )
     return {
         "checkin_id": checkin_id,
         "user_id": user_id,
         "mode": mode,
         "record_patient_id": record_patient_id,
+        "ehr_system_id": ehr_system_id,
         "status": status,
         "state": state_dict,
         "med_state": med_state_dict,
@@ -1140,7 +1298,7 @@ def get_checkin_by_id(checkin_id: str, backend: Optional[str] = None, db_path: O
     """Retrieves check-in row and parsed state dictionary by checkin_id."""
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
-            f"SELECT checkin_id, user_id, mode, record_patient_id, status, state_json, med_state_json, protocol_state_json, version, started_at, completed_at FROM checkins WHERE checkin_id = {ph}",
+            f"SELECT checkin_id, user_id, mode, record_patient_id, ehr_system_id, status, state_json, med_state_json, protocol_state_json, version, started_at, completed_at FROM checkins WHERE checkin_id = {ph}",
             (checkin_id,)
         )
         row = cursor.fetchone()
@@ -1647,6 +1805,34 @@ def get_user_baseline_history(user_id: str, exclude_checkin_id: Optional[str] = 
                 except Exception:
                     pass
     except Exception:
+        pass
+
+    # In connected mode, include recent blood pressure & glucose readings from the connected EHR
+    try:
+        active_conn = get_active_ehr_connection(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+        if active_conn:
+            ehr_system = get_ehr_system_by_id(active_conn["ehr_system_id"], backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+            if ehr_system:
+                base_url = ehr_system.get("fhir_base_url")
+                from data_sources import fhir_adapter
+                ehr_obs = fhir_adapter.get_normalized_observations(active_conn["external_patient_id"], base_url=base_url)
+                for obs in ehr_obs:
+                    if obs.observation_type in ("blood_pressure_systolic", "blood_pressure_diastolic", "glucose"):
+                        if obs.timestamp and obs.timestamp != "unknown_time":
+                            try:
+                                obs_dt = datetime.fromisoformat(obs.timestamp.replace("Z", "+00:00"))
+                                if obs_dt.tzinfo is None:
+                                    obs_dt = obs_dt.replace(tzinfo=timezone.utc)
+                                if obs_dt >= fourteen_days_ago:
+                                    history.append({
+                                        "observation_type": obs.observation_type,
+                                        "value": float(obs.value),
+                                        "timestamp": obs.timestamp,
+                                    })
+                            except Exception:
+                                pass
+    except Exception:
+        # Fail soft on any EHR connection or fetch error
         pass
 
     return history
