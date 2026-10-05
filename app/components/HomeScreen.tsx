@@ -44,6 +44,7 @@ export const HomeScreen = () => {
 
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showUrgentGuidance, setShowUrgentGuidance] = useState<boolean>(false);
 
   // Dynamic medication dosage update for Scenario D (EHR update)
   const displayedMedications =
@@ -265,13 +266,77 @@ export const HomeScreen = () => {
       {/* Direct Emergency Reporting Entry Point Button */}
       <button
         type="button"
-        onClick={() => setScreen("emergency")}
+        onClick={() => {
+          if (isLiveMode) {
+            setShowUrgentGuidance(true);
+          } else {
+            setScreen("emergency");
+          }
+        }}
         id="report-urgent-symptoms-btn"
         className="w-full py-3.5 px-4 rounded-2xl border-2 border-red-200/90 text-emergencyRed-800 font-bold text-sm bg-white hover:bg-red-50/80 transition-colors flex items-center justify-center gap-2 shadow-xs"
       >
         <AlertTriangle className="w-4 h-4 text-emergencyRed-700" />
-        <span>Report Urgent Symptoms Now</span>
+        <span>{isUrdu ? "فوری علامات کی اطلاع دیں" : "Report Urgent Symptoms Now"}</span>
       </button>
+
+      {/* Urgent Symptoms Guidance Modal (Live Mode) */}
+      {showUrgentGuidance && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border-2 border-emergencyRed-800/80 space-y-5">
+            <div className="flex items-center gap-3 text-emergencyRed-800">
+              <div className="w-12 h-12 rounded-2xl bg-emergencyRed-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="font-heading text-xl font-bold text-navy-900">
+                  {isUrdu ? "فوری طبی رہنمائی" : "Urgent Medical Guidance"}
+                </h3>
+                <p className="text-xs text-emergencyRed-800 font-semibold">
+                  {isUrdu ? "اگر یہ ایمرجنسی ہے تو فوری کال کریں" : "Call emergency services if in immediate distress"}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-emergencyRed-50 border border-emergencyRed-800/20 text-xs sm:text-sm text-emergencyRed-950 leading-relaxed space-y-2">
+              <p className="font-bold">
+                {isUrdu
+                  ? "اگر آپ کو شدید بے چینی، سینے میں درد، سانس لینے میں شدید دشواری یا بے ہوشی محسوس ہو رہی ہے تو فوراً ایمرجنسی سروسز (1122 / 911) پر کال کریں۔"
+                  : "If you are experiencing severe shortness of breath, acute chest distress, sudden weakness, or confusion, contact emergency services (911 / 1122) immediately."}
+              </p>
+              <p className="text-slate-600 text-xs">
+                {isUrdu
+                  ? "غیر ہنگامی لیکن فوری علامات کے لیے نیچے بٹن دبا کر چیک ان شروع کریں۔"
+                  : "To describe concerning symptoms for clinical red-flag triage, start a check-in below."}
+              </p>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUrgentGuidance(false);
+                  handleStartCheckIn();
+                }}
+                disabled={isStarting}
+                id="describe-urgent-symptoms-btn"
+                className="w-full min-h-[48px] py-3.5 px-4 bg-navy-800 hover:bg-navy-900 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+              >
+                {isStarting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
+                <span>{isUrdu ? "اپنی علامات بیان کریں" : "Describe my symptoms"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowUrgentGuidance(false)}
+                className="w-full min-h-[40px] py-2 px-4 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors text-center"
+              >
+                {isUrdu ? "بند کریں" : "Cancel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Health Snapshot */}
       <div className="surface-card rounded-3xl p-6 sm:p-7 space-y-5">

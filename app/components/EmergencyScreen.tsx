@@ -5,7 +5,7 @@ import { useApp } from "../context/AppContext";
 import { AlertOctagon, PhoneCall, ShieldAlert, Home, BellRing, HeartPulse, CheckCircle2 } from "lucide-react";
 
 export const EmergencyScreen = () => {
-  const { returnToHomeAndClearRun, t, isUrdu } = useApp();
+  const { returnToHomeAndClearRun, escalationRecorded, isLiveMode, t, isUrdu } = useApp();
 
   return (
     <div className="w-full max-w-lg mx-auto surface-raised rounded-3xl border-2 border-emergencyRed-800/80 shadow-2xl overflow-hidden animate-fadeIn space-y-0" dir={isUrdu ? "rtl" : "ltr"}>
@@ -37,18 +37,20 @@ export const EmergencyScreen = () => {
           </p>
         </div>
 
-        {/* Care Team Alerted Notification Receipt */}
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3.5 text-sm text-slate-700">
-          <div className="w-10 h-10 rounded-xl bg-teal-700 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <BellRing className="w-5 h-5 text-teal-200" />
+        {/* Care Team Alerted Notification Receipt - ONLY shown when escalation_recorded is true */}
+        {(!isLiveMode || escalationRecorded === true) && (
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3.5 text-sm text-slate-700">
+            <div className="w-10 h-10 rounded-xl bg-teal-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <BellRing className="w-5 h-5 text-teal-200" />
+            </div>
+            <div>
+              <p className="font-bold text-navy-800">{t.emergencyAlertedText}</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {isUrdu ? "طبی نگہداشت ٹیم کو خودکار فوری پیغام بھیج دیا گیا ہے۔" : "Priority clinical notification dispatched to on-call care team."}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="font-bold text-navy-800">{t.emergencyAlertedText}</p>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {isUrdu ? "طبی نگہداشت ٹیم کو خودکار فوری پیغام بھیج دیا گیا ہے۔" : "Priority clinical notification dispatched to on-call care team."}
-            </p>
-          </div>
-        </div>
+        )}
 
         {/* Emergency Services Shortcut Pill */}
         <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs text-slate-600">
