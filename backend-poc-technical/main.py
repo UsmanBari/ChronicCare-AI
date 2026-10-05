@@ -20,7 +20,7 @@ import re
 import uuid
 import time
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 
@@ -62,6 +62,7 @@ from agents.medication_confirmation import (
     build_medication_bundle_items,
     build_medication_origins,
     MedicationCheckState,
+    _norm,
 )
 from data_sources.data_source import get_patient_bundle
 from data_sources.local_store import (
@@ -69,6 +70,14 @@ from data_sources.local_store import (
     add_local_observation,
     get_local_observation_origins,
     get_local_medication_origins,
+    get_local_medications,
+    add_local_medication,
+    update_local_medication,
+    delete_local_medication,
+    get_local_medication_by_id,
+    get_local_observations,
+    get_local_observation_by_id,
+    delete_local_observation,
 )
 from llm.groq_client import is_configured, get_configured_model, chat
 from auth.firebase_verify import verify_firebase_token, AuthError, get_firebase_project_id
@@ -84,7 +93,13 @@ from data_sources.app_store import (
     get_audit_logs,
     get_patient_profile,
     upsert_patient_profile,
+    update_patient_conditions_basis,
     set_patient_consent,
+    set_patient_provider_notification_consent,
+    create_allergy,
+    get_allergies,
+    get_allergy_by_id,
+    delete_allergy,
     get_enabled_ehr_systems,
     get_ehr_system_by_id,
     get_active_ehr_connection,
@@ -292,12 +307,161 @@ class ProfileResponse(BaseModel):
     language: str
     consent_granted_at: Optional[str] = None
     consent_revoked_at: Optional[str] = None
+    provider_notification_consent_at: Optional[str] = None
+    provider_notification_revoked_at: Optional[str] = None
     updated_at: Optional[str] = None
 
 
 class ConsentRequest(BaseModel):
     model_config = {"extra": "forbid"}
     granted: bool
+    provider_notification: Optional[bool] = None
+
+
+class ProviderNotificationConsentRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    granted: bool
+
+
+# --- Patient Record Schemas (Isolated Mode) ---
+
+def _reject_control_chars(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    raw = str(v)
+    if any(ord(c) < 32 or ord(c) == 127 for c in raw):
+        raise ValueError("Control characters are not allowed")
+    return raw.strip()
+
+
+class RecordConditionItem(BaseModel):
+    name: str
+    basis: Optional[str] = None
+
+
+class RecordMedicationItem(BaseModel):
+    id: str
+    name: str
+    dosage: str
+    status: str
+
+
+class RecordAllergyItem(BaseModel):
+    id: str
+    substance: str
+    reaction: Optional[str] = None
+    confirmed: bool
+
+
+class RecordObservationItem(BaseModel):
+    id: str
+    observation_type: str
+    value: float
+    unit: str
+    measured_at: str
+
+
+class PatientRecordResponse(BaseModel):
+    mode: str
+    conditions: List[RecordConditionItem]
+    medications: List[RecordMedicationItem]
+    allergies: List[RecordAllergyItem]
+    baseline_observations: List[RecordObservationItem]
+
+
+class CreateMedicationRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    name: str = Field(..., max_length=80)
+    dosage: str = Field(..., max_length=100)
+    status: str
+
+    @field_validator("name")
+    @classmethod
+    def val_name(cls, v: str) -> str:
+        clean = _reject_control_chars(v)
+        if not clean:
+            raise ValueError("name cannot be empty")
+        return clean
+
+    @field_validator("dosage")
+    @classmethod
+    def val_dosage(cls, v: str) -> str:
+        clean = _reject_control_chars(v)
+        if not clean:
+            raise ValueError("dosage cannot be empty")
+        return clean
+
+    @field_validator("status")
+    @classmethod
+    def val_status(cls, v: str) -> str:
+        clean = str(v).strip().lower()
+        if clean not in ("active", "stopped"):
+            raise ValueError("status must be 'active' or 'stopped'")
+        return clean
+
+
+class UpdateMedicationRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    dosage: Optional[str] = Field(None, max_length=100)
+    status: Optional[str] = None
+
+    @field_validator("dosage")
+    @classmethod
+    def val_dosage(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        clean = _reject_control_chars(v)
+        if not clean:
+            raise ValueError("dosage cannot be empty")
+        return clean
+
+    @field_validator("status")
+    @classmethod
+    def val_status(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        clean = str(v).strip().lower()
+        if clean not in ("active", "stopped"):
+            raise ValueError("status must be 'active' or 'stopped'")
+        return clean
+
+
+class CreateAllergyRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    substance: str = Field(..., max_length=80)
+    reaction: Optional[str] = Field(None, max_length=120)
+    confirmed: bool
+
+    @field_validator("substance")
+    @classmethod
+    def val_substance(cls, v: str) -> str:
+        clean = _reject_control_chars(v)
+        if not clean:
+            raise ValueError("substance cannot be empty")
+        return clean
+
+    @field_validator("reaction")
+    @classmethod
+    def val_reaction(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        clean = _reject_control_chars(v)
+        return clean if clean else None
+
+
+class CreateObservationRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    observation_type: str
+    value: float
+    measured_at: Optional[str] = None
+
+    @field_validator("observation_type")
+    @classmethod
+    def val_obs_type(cls, v: str) -> str:
+        clean = str(v).strip().lower()
+        if clean not in ("glucose", "blood_pressure_systolic", "blood_pressure_diastolic", "weight", "hba1c"):
+            raise ValueError("Unsupported observation_type")
+        return clean
 
 
 class EHRSystemResponse(BaseModel):
@@ -828,6 +992,8 @@ def get_profile_endpoint(current_user: Dict[str, Any] = Depends(require_role("pa
             language="en",
             consent_granted_at=None,
             consent_revoked_at=None,
+            provider_notification_consent_at=None,
+            provider_notification_revoked_at=None,
             updated_at=None,
         )
     return ProfileResponse(
@@ -837,6 +1003,8 @@ def get_profile_endpoint(current_user: Dict[str, Any] = Depends(require_role("pa
         language=profile["language"],
         consent_granted_at=profile.get("consent_granted_at"),
         consent_revoked_at=profile.get("consent_revoked_at"),
+        provider_notification_consent_at=profile.get("provider_notification_consent_at"),
+        provider_notification_revoked_at=profile.get("provider_notification_revoked_at"),
         updated_at=profile.get("updated_at"),
     )
 
@@ -872,6 +1040,8 @@ def update_profile_endpoint(
         language=updated["language"],
         consent_granted_at=updated.get("consent_granted_at"),
         consent_revoked_at=updated.get("consent_revoked_at"),
+        provider_notification_consent_at=updated.get("provider_notification_consent_at"),
+        provider_notification_revoked_at=updated.get("provider_notification_revoked_at"),
         updated_at=updated.get("updated_at"),
     )
 
@@ -881,13 +1051,54 @@ def set_consent_endpoint(
     body: ConsentRequest,
     current_user: Dict[str, Any] = Depends(require_role("patient")),
 ):
-    """Explicitly grants or revokes patient consent (patient only)."""
+    """Explicitly grants or revokes patient consent and optional provider notification consent (patient only)."""
     user_id = current_user["user_id"]
     updated = set_patient_consent(user_id=user_id, granted=body.granted)
     action = "consent_granted" if body.granted else "consent_revoked"
     append_audit(
         actor_user_id=user_id,
         action=action,
+        target=user_id,
+        outcome="ok",
+        detail={},
+    )
+
+    p_notif = body.provider_notification if body.provider_notification is not None else body.granted
+    updated = set_patient_provider_notification_consent(user_id=user_id, granted=p_notif)
+    p_action = "consent_provider_notification_granted" if p_notif else "consent_provider_notification_revoked"
+    append_audit(
+        actor_user_id=user_id,
+        action=p_action,
+        target=user_id,
+        outcome="ok",
+        detail={},
+    )
+
+    return ProfileResponse(
+        user_id=updated["user_id"],
+        conditions=updated["conditions"],
+        on_insulin_or_sulfonylurea=updated["on_insulin_or_sulfonylurea"],
+        language=updated["language"],
+        consent_granted_at=updated.get("consent_granted_at"),
+        consent_revoked_at=updated.get("consent_revoked_at"),
+        provider_notification_consent_at=updated.get("provider_notification_consent_at"),
+        provider_notification_revoked_at=updated.get("provider_notification_revoked_at"),
+        updated_at=updated.get("updated_at"),
+    )
+
+
+@app.post("/api/me/consent/provider-notification", response_model=ProfileResponse, tags=["Patient Profile"])
+def set_provider_notification_consent_endpoint(
+    body: ProviderNotificationConsentRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Explicitly grants or revokes provider notification consent line (patient only)."""
+    user_id = current_user["user_id"]
+    updated = set_patient_provider_notification_consent(user_id=user_id, granted=body.granted)
+    p_action = "consent_provider_notification_granted" if body.granted else "consent_provider_notification_revoked"
+    append_audit(
+        actor_user_id=user_id,
+        action=p_action,
         target=user_id,
         outcome="ok",
         detail={},
@@ -899,8 +1110,436 @@ def set_consent_endpoint(
         language=updated["language"],
         consent_granted_at=updated.get("consent_granted_at"),
         consent_revoked_at=updated.get("consent_revoked_at"),
+        provider_notification_consent_at=updated.get("provider_notification_consent_at"),
+        provider_notification_revoked_at=updated.get("provider_notification_revoked_at"),
         updated_at=updated.get("updated_at"),
     )
+
+
+# =============================================================================
+# PATIENT'S OWN RECORD ENDPOINTS (ISOLATED MODE)
+# =============================================================================
+
+ALLOWED_CONDITIONS_BASIS = {"clinician_diagnosed", "self_reported", "unsure"}
+
+
+def _require_isolated_mode_patient(current_user: Dict[str, Any]) -> str:
+    """Verifies that patient has active consent and is in isolated mode (no active EHR link)."""
+    user_id = current_user["user_id"]
+    profile = get_patient_profile(user_id)
+    if not profile or not profile.get("consent_granted_at") or profile.get("consent_revoked_at"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="consent_required",
+        )
+    active_conn = get_active_ehr_connection(user_id)
+    if active_conn:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="record_managed_by_ehr",
+        )
+    return f"local-{user_id}"
+
+
+def _validate_observation_value_and_unit(obs_type: str, value: float) -> str:
+    clean_type = str(obs_type).strip().lower()
+    val = float(value)
+    if clean_type == "glucose":
+        if not (20.0 <= val <= 600.0):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Glucose reading outside plausible range (20-600 mg/dL)")
+        return "mg/dL"
+    elif clean_type == "blood_pressure_systolic":
+        if not (60 <= val <= 260):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Systolic BP outside plausible range (60-260 mmHg)")
+        return "mmHg"
+    elif clean_type == "blood_pressure_diastolic":
+        if not (30 <= val <= 160):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Diastolic BP outside plausible range (30-160 mmHg)")
+        return "mmHg"
+    elif clean_type == "weight":
+        if not (20.0 <= val <= 300.0):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Weight outside plausible range (20-300 kg)")
+        return "kg"
+    elif clean_type == "hba1c":
+        if not (3.0 <= val <= 20.0):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="HbA1c outside plausible range (3-20 %)")
+        return "%"
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported observation type '{obs_type}'")
+
+
+def _parse_and_validate_measured_at(measured_at: Optional[str]) -> str:
+    if not measured_at:
+        return _utc_now_iso()
+    clean = str(measured_at).strip()
+    try:
+        dt_str = clean.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(dt_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ISO timestamp format for measured_at")
+
+    now = datetime.now(timezone.utc)
+    if dt > now + timedelta(seconds=60):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="measured_at cannot be in the future")
+    if dt < now - timedelta(days=365):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="measured_at cannot be more than 365 days old")
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@app.get("/api/me/record", response_model=PatientRecordResponse, tags=["Patient Record"])
+def get_patient_record_endpoint(current_user: Dict[str, Any] = Depends(require_role("patient"))):
+    """Retrieves patient's own isolated-mode clinical record (patient only)."""
+    patient_id = _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+    profile = get_patient_profile(user_id) or {}
+    conds = profile.get("conditions", [])
+    cond_basis = profile.get("conditions_basis", {})
+    conditions_list = [
+        RecordConditionItem(name=c, basis=cond_basis.get(c))
+        for c in conds
+    ]
+
+    local_meds = get_local_medications(patient_id)
+    medications_list = [
+        RecordMedicationItem(
+            id=m["id"],
+            name=m["medication_name"],
+            dosage=m["dosage"],
+            status=m["status"],
+        )
+        for m in local_meds
+    ]
+
+    user_allergies = get_allergies(user_id)
+    allergies_list = [
+        RecordAllergyItem(
+            id=a["allergy_id"],
+            substance=a["substance"],
+            reaction=a.get("reaction"),
+            confirmed=bool(a["confirmed"]),
+        )
+        for a in user_allergies
+    ]
+
+    local_obs = get_local_observations(patient_id)
+    observations_list = [
+        RecordObservationItem(
+            id=o["id"],
+            observation_type=o["type"],
+            value=float(o["value"]),
+            unit=o["unit"],
+            measured_at=o["timestamp"],
+        )
+        for o in local_obs
+    ]
+
+    return PatientRecordResponse(
+        mode="isolated",
+        conditions=conditions_list,
+        medications=medications_list,
+        allergies=allergies_list,
+        baseline_observations=observations_list,
+    )
+
+
+@app.put("/api/me/record/conditions-basis", tags=["Patient Record"])
+def update_conditions_basis_endpoint(
+    body: Dict[str, Optional[str]],
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Updates diagnostic basis for conditions in patient's profile (patient only)."""
+    _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+    profile = get_patient_profile(user_id) or {}
+    profile_conds = set(profile.get("conditions", []))
+
+    for cond_name, basis_val in body.items():
+        if cond_name not in profile_conds:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Condition '{cond_name}' is not in user profile conditions",
+            )
+        if basis_val is not None and basis_val not in ALLOWED_CONDITIONS_BASIS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid basis '{basis_val}'. Allowed: {sorted(list(ALLOWED_CONDITIONS_BASIS))}",
+            )
+
+    updated_basis = dict(profile.get("conditions_basis", {}))
+    for k, v in body.items():
+        if v is None:
+            updated_basis.pop(k, None)
+        else:
+            updated_basis[k] = v
+
+    update_patient_conditions_basis(user_id, updated_basis)
+    append_audit(
+        actor_user_id=user_id,
+        action="record_conditions_basis_updated",
+        target="record_conditions_basis",
+        outcome="ok",
+        detail={"type": "conditions_basis", "count": len(body)},
+    )
+    return {"status": "ok", "conditions_basis": updated_basis}
+
+
+@app.post("/api/me/record/medications", response_model=RecordMedicationItem, tags=["Patient Record"])
+def create_record_medication_endpoint(
+    body: CreateMedicationRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Adds a medication to the patient's isolated record (patient only, max 30)."""
+    patient_id = _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+    current_meds = get_local_medications(patient_id)
+    if len(current_meds) >= 30:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="maximum_medications_exceeded",
+        )
+
+    norm_new = _norm(body.name)
+    if any(_norm(m["medication_name"]) == norm_new for m in current_meds):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="duplicate_medication",
+        )
+
+    med_id = f"local-med-{uuid.uuid4()}"
+    now_ts = _utc_now_iso()
+    add_local_patient_if_missing(patient_id, name=current_user.get("display_name") or "Patient")
+    add_local_medication(
+        id=med_id,
+        patient_id=patient_id,
+        medication_name=body.name,
+        status=body.status,
+        dosage=body.dosage,
+        timestamp=now_ts,
+        source="local",
+        origin="self_reported",
+    )
+    append_audit(
+        actor_user_id=user_id,
+        action="record_medication_created",
+        target="record_medication",
+        outcome="ok",
+        detail={"type": "medication", "count": 1},
+    )
+    return RecordMedicationItem(
+        id=med_id,
+        name=body.name,
+        dosage=body.dosage,
+        status=body.status,
+    )
+
+
+@app.patch("/api/me/record/medications/{med_id}", response_model=RecordMedicationItem, tags=["Patient Record"])
+def update_record_medication_endpoint(
+    med_id: str,
+    body: UpdateMedicationRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Updates dosage or status of a medication in patient's isolated record (patient only)."""
+    patient_id = _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+    if body.dosage is None and body.status is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one of dosage or status must be provided",
+        )
+
+    existing = get_local_medication_by_id(med_id, patient_id=patient_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Medication not found",
+        )
+
+    new_dosage = body.dosage if body.dosage is not None else existing["dosage"]
+    new_status = body.status if body.status is not None else existing["status"]
+    update_local_medication(
+        medication_id=med_id,
+        patient_id=patient_id,
+        dosage=new_dosage,
+        status=new_status,
+    )
+    append_audit(
+        actor_user_id=user_id,
+        action="record_medication_updated",
+        target="record_medication",
+        outcome="ok",
+        detail={"type": "medication", "count": 1},
+    )
+    return RecordMedicationItem(
+        id=med_id,
+        name=existing["medication_name"],
+        dosage=new_dosage,
+        status=new_status,
+    )
+
+
+@app.delete("/api/me/record/medications/{med_id}", tags=["Patient Record"])
+def delete_record_medication_endpoint(
+    med_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Deletes a medication from patient's isolated record (patient only)."""
+    patient_id = _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+    existing = get_local_medication_by_id(med_id, patient_id=patient_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Medication not found",
+        )
+
+    delete_local_medication(med_id, patient_id=patient_id)
+    append_audit(
+        actor_user_id=user_id,
+        action="record_medication_deleted",
+        target="record_medication",
+        outcome="ok",
+        detail={"type": "medication", "count": 1},
+    )
+    return {"status": "ok"}
+
+
+@app.post("/api/me/record/allergies", response_model=RecordAllergyItem, tags=["Patient Record"])
+def create_record_allergy_endpoint(
+    body: CreateAllergyRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Adds an allergy to the patient's isolated record (patient only, max 30)."""
+    _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+    current_allergies = get_allergies(user_id)
+    if len(current_allergies) >= 30:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="maximum_allergies_exceeded",
+        )
+
+    allergy_id = str(uuid.uuid4())
+    create_allergy(
+        allergy_id=allergy_id,
+        user_id=user_id,
+        substance=body.substance,
+        reaction=body.reaction,
+        confirmed=body.confirmed,
+    )
+    append_audit(
+        actor_user_id=user_id,
+        action="record_allergy_created",
+        target="record_allergy",
+        outcome="ok",
+        detail={"type": "allergy", "count": 1},
+    )
+    return RecordAllergyItem(
+        id=allergy_id,
+        substance=body.substance,
+        reaction=body.reaction,
+        confirmed=body.confirmed,
+    )
+
+
+@app.delete("/api/me/record/allergies/{allergy_id}", tags=["Patient Record"])
+def delete_record_allergy_endpoint(
+    allergy_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Deletes an allergy from patient's isolated record (patient only)."""
+    _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+    existing = get_allergy_by_id(allergy_id, user_id=user_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Allergy not found",
+        )
+
+    delete_allergy(allergy_id, user_id=user_id)
+    append_audit(
+        actor_user_id=user_id,
+        action="record_allergy_deleted",
+        target="record_allergy",
+        outcome="ok",
+        detail={"type": "allergy", "count": 1},
+    )
+    return {"status": "ok"}
+
+
+@app.post("/api/me/record/observations", response_model=RecordObservationItem, tags=["Patient Record"])
+def create_record_observation_endpoint(
+    body: CreateObservationRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Adds a baseline observation to patient's isolated record (patient only, max 20)."""
+    patient_id = _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+    unit = _validate_observation_value_and_unit(body.observation_type, body.value)
+    ts = _parse_and_validate_measured_at(body.measured_at)
+
+    current_obs = get_local_observations(patient_id)
+    if len(current_obs) >= 20:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="maximum_observations_exceeded",
+        )
+
+    obs_id = f"local-obs-{uuid.uuid4()}"
+    add_local_patient_if_missing(patient_id, name=current_user.get("display_name") or "Patient")
+    add_local_observation(
+        id=obs_id,
+        patient_id=patient_id,
+        observation_type=body.observation_type,
+        value=float(body.value),
+        unit=unit,
+        timestamp=ts,
+        source="local",
+        origin="self_reported",
+    )
+    append_audit(
+        actor_user_id=user_id,
+        action="record_observation_created",
+        target="record_observation",
+        outcome="ok",
+        detail={"type": "observation", "count": 1},
+    )
+    return RecordObservationItem(
+        id=obs_id,
+        observation_type=body.observation_type,
+        value=float(body.value),
+        unit=unit,
+        measured_at=ts,
+    )
+
+
+@app.delete("/api/me/record/observations/{obs_id}", tags=["Patient Record"])
+def delete_record_observation_endpoint(
+    obs_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Deletes a baseline observation from patient's isolated record (patient only)."""
+    patient_id = _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+    existing = get_local_observation_by_id(obs_id, patient_id=patient_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Observation not found",
+        )
+
+    delete_local_observation(obs_id, patient_id=patient_id)
+    append_audit(
+        actor_user_id=user_id,
+        action="record_observation_deleted",
+        target="record_observation",
+        outcome="ok",
+        detail={"type": "observation", "count": 1},
+    )
+    return {"status": "ok"}
 
 
 # =============================================================================
@@ -1124,7 +1763,12 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
     if not profile or not profile.get("consent_granted_at") or profile.get("consent_revoked_at"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Active consent is required to start a check-in",
+            detail="consent_required",
+        )
+    if not profile.get("provider_notification_consent_at") or profile.get("provider_notification_revoked_at"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="provider_notification_consent_required",
         )
 
     # 2. Profile verification

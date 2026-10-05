@@ -297,6 +297,13 @@ ChronicCare-AI/
 
 ---
 
+## ⚠️ Prototype Invariants & Limitations
+
+- **Observation Comparison Window (48 Hours):** Algorithmic reconciliation compares observations only within a 48-hour window of each other. Older baseline observations are retained as historical data for trend analysis, but will not match against today's check-in. Medications have no comparison time window.
+- **Allergies Storage Invariant:** Patient allergies can be recorded and retrieved via the patient record API in isolated mode, but are not yet evaluated by the reconciliation engine in this phase.
+
+---
+
 ## 🗺️ Roadmap
 
 Following the completion of this interface prototype, future project milestones will implement the computational and clinical intelligence layers:

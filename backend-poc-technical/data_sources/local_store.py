@@ -564,6 +564,142 @@ def add_local_medication(
             conn.commit()
 
 
+def get_local_medication_by_id(
+    medication_id: str,
+    patient_id: Optional[str] = None,
+    db_path: Optional[str] = None,
+    backend: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Retrieves a single medication by id (and patient_id if provided)."""
+    b = _resolve_backend(backend)
+    if b == "mysql":
+        conn = get_mysql_connection()
+        try:
+            with conn.cursor() as cursor:
+                if patient_id:
+                    cursor.execute(
+                        "SELECT id, patient_id, medication_name, status, dosage, timestamp, source, origin FROM medications WHERE id = %s AND patient_id = %s",
+                        (medication_id, patient_id)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT id, patient_id, medication_name, status, dosage, timestamp, source, origin FROM medications WHERE id = %s",
+                        (medication_id,)
+                    )
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        finally:
+            conn.close()
+    else:
+        conn = get_connection(db_path)
+        try:
+            cursor = conn.cursor()
+            if patient_id:
+                cursor.execute(
+                    "SELECT id, patient_id, medication_name, status, dosage, timestamp, source, origin FROM medications WHERE id = ? AND patient_id = ?",
+                    (medication_id, patient_id)
+                )
+            else:
+                cursor.execute(
+                    "SELECT id, patient_id, medication_name, status, dosage, timestamp, source, origin FROM medications WHERE id = ?",
+                    (medication_id,)
+                )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+
+def update_local_medication(
+    medication_id: str,
+    patient_id: str,
+    dosage: Optional[str] = None,
+    status: Optional[str] = None,
+    db_path: Optional[str] = None,
+    backend: Optional[str] = None,
+) -> bool:
+    """Updates dosage and/or status of a medication for a patient."""
+    b = _resolve_backend(backend)
+    updates = []
+    params = []
+    if dosage is not None:
+        updates.append("dosage = %s" if b == "mysql" else "dosage = ?")
+        params.append(dosage)
+    if status is not None:
+        updates.append("status = %s" if b == "mysql" else "status = ?")
+        params.append(status)
+    if not updates:
+        return False
+
+    params.extend([medication_id, patient_id])
+    query_set = ", ".join(updates)
+    if b == "mysql":
+        conn = get_mysql_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(f"UPDATE medications SET {query_set} WHERE id = %s AND patient_id = %s", tuple(params))
+                updated = cursor.rowcount > 0
+            conn.commit()
+            return updated
+        finally:
+            conn.close()
+    else:
+        path = _get_db_path(db_path)
+        _init_sqlite_db(path)
+        with sqlite3.connect(path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"UPDATE medications SET {query_set} WHERE id = ? AND patient_id = ?", tuple(params))
+            updated = cursor.rowcount > 0
+            conn.commit()
+            return updated
+
+
+def get_local_observation_by_id(
+    observation_id: str,
+    patient_id: Optional[str] = None,
+    db_path: Optional[str] = None,
+    backend: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Retrieves a single observation by id (and patient_id if provided)."""
+    b = _resolve_backend(backend)
+    if b == "mysql":
+        conn = get_mysql_connection()
+        try:
+            with conn.cursor() as cursor:
+                if patient_id:
+                    cursor.execute(
+                        "SELECT id, patient_id, type, value, unit, timestamp, source, origin FROM observations WHERE id = %s AND patient_id = %s",
+                        (observation_id, patient_id)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT id, patient_id, type, value, unit, timestamp, source, origin FROM observations WHERE id = %s",
+                        (observation_id,)
+                    )
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        finally:
+            conn.close()
+    else:
+        conn = get_connection(db_path)
+        try:
+            cursor = conn.cursor()
+            if patient_id:
+                cursor.execute(
+                    "SELECT id, patient_id, type, value, unit, timestamp, source, origin FROM observations WHERE id = ? AND patient_id = ?",
+                    (observation_id, patient_id)
+                )
+            else:
+                cursor.execute(
+                    "SELECT id, patient_id, type, value, unit, timestamp, source, origin FROM observations WHERE id = ?",
+                    (observation_id,)
+                )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+
 def delete_local_medication(
     medication_id: str,
     patient_id: Optional[str] = None,
