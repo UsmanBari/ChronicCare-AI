@@ -5,6 +5,8 @@ import {
   describeMedicationItem,
   titleCaseName,
   mapApiError,
+  describeTriageLevel,
+  describeProtocol,
 } from "../app/lib/presentation";
 
 describe("presentation logic unit tests", () => {
@@ -311,6 +313,122 @@ describe("presentation logic unit tests", () => {
       expect(result.todayText).toBe("Not reported today");
       expect(result.reason).toBe("Requires clinician review.");
       expect(result.severity).toBe("low");
+    });
+  });
+
+  describe("describeTriageLevel", () => {
+    it("handles emergency level with default patient text", () => {
+      const res = describeTriageLevel("emergency");
+      expect(res.label).toBe("Emergency");
+      expect(res.tone).toBe("danger");
+      expect(res.icon).toBe("AlertOctagon");
+      expect(res.headline).toBe("Emergency");
+      expect(res.patientText).toBe("Call your local emergency number now.");
+    });
+
+    it("ensures server guidance wins over default text for emergency level", () => {
+      const customGuidance = "Call emergency services immediately due to critical blood pressure.";
+      const res = describeTriageLevel("emergency", customGuidance);
+      expect(res.label).toBe("Emergency");
+      expect(res.tone).toBe("danger");
+      expect(res.patientText).toBe(customGuidance);
+    });
+
+    it("handles urgent level with default patient text", () => {
+      const res = describeTriageLevel("urgent");
+      expect(res.label).toBe("Needs a clinician today");
+      expect(res.tone).toBe("warning");
+      expect(res.icon).toBe("AlertTriangle");
+      expect(res.headline).toBe("Needs a clinician today");
+      expect(res.patientText).toBe(
+        "Please contact your clinician today. If you feel worse, call your local emergency number."
+      );
+    });
+
+    it("ensures server guidance wins over default text for urgent level", () => {
+      const customGuidance = "Your reading remained high after rest. Contact your care team today.";
+      const res = describeTriageLevel("urgent", customGuidance);
+      expect(res.label).toBe("Needs a clinician today");
+      expect(res.tone).toBe("warning");
+      expect(res.patientText).toBe(customGuidance);
+    });
+
+    it("handles review level with default patient text", () => {
+      const res = describeTriageLevel("review");
+      expect(res.label).toBe("A clinician will review this");
+      expect(res.tone).toBe("info");
+      expect(res.icon).toBe("Info");
+      expect(res.headline).toBe("A clinician will review this");
+      expect(res.patientText).toBe(
+        "A clinician will review this. Please measure again later today and at the same time tomorrow."
+      );
+    });
+
+    it("ensures server guidance wins over default text for review level", () => {
+      const customGuidance = "Your repeat reading normalized. A clinician will review your log.";
+      const res = describeTriageLevel("review", customGuidance);
+      expect(res.label).toBe("A clinician will review this");
+      expect(res.tone).toBe("info");
+      expect(res.patientText).toBe(customGuidance);
+    });
+
+    it("handles routine level and unknown/null level fallbacks", () => {
+      const resRoutine = describeTriageLevel("routine");
+      expect(resRoutine.label).toBe("Routine");
+      expect(resRoutine.tone).toBe("neutral");
+      expect(resRoutine.icon).toBe("CheckCircle2");
+      expect(resRoutine.headline).toBe("Routine check-in");
+      expect(resRoutine.patientText).toBe("");
+
+      const resNull = describeTriageLevel(null);
+      expect(resNull.label).toBe("Routine");
+      expect(resNull.tone).toBe("neutral");
+
+      const resCustomRoutine = describeTriageLevel("routine", "All parameters in target range.");
+      expect(resCustomRoutine.patientText).toBe("All parameters in target range.");
+    });
+  });
+
+  describe("describeProtocol", () => {
+    it("describes all 5 triage protocols in truthful plain words", () => {
+      expect(describeProtocol("bp_severe")).toBe("Blood pressure in the crisis range");
+      expect(describeProtocol("bp_change")).toBe("Blood pressure above the patient's usual");
+      expect(describeProtocol("bp_low")).toBe("Low blood pressure");
+      expect(describeProtocol("glucose_high")).toBe("High glucose");
+      expect(describeProtocol("glucose_low")).toBe("Low glucose");
+    });
+
+    it("handles unknown or custom protocol names gracefully", () => {
+      expect(describeProtocol("custom_protocol_name")).toBe("custom protocol name");
+      expect(describeProtocol(null)).toBe("Protocol");
+      expect(describeProtocol(undefined)).toBe("Protocol");
+      expect(describeProtocol("")).toBe("Protocol");
+    });
+  });
+
+  describe("new mapApiError cases for triage and inclusion", () => {
+    it("maps 403 profile_incomplete error", () => {
+      expect(mapApiError(403, "profile_incomplete")).toBe(
+        "Please complete your date of birth and inclusion confirmation."
+      );
+    });
+
+    it("maps 422 adults_only error", () => {
+      expect(mapApiError(422, "adults_only")).toBe(
+        "ChronicCare AI is for adults (18 and over) in this release."
+      );
+    });
+
+    it("maps 422 invalid_date_of_birth error", () => {
+      expect(mapApiError(422, "invalid_date_of_birth")).toBe(
+        "Please enter a valid date of birth (age 18 to 120)."
+      );
+    });
+
+    it("maps 409 triage_incomplete error", () => {
+      expect(mapApiError(409, "triage_incomplete")).toBe(
+        "Please finish answering all safety questions."
+      );
     });
   });
 });

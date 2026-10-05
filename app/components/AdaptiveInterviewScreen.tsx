@@ -54,6 +54,7 @@ export const AdaptiveInterviewScreen = () => {
   const [isConsentError, setIsConsentError] = useState<boolean>(false);
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([]);
   const [currentStep, setCurrentStep] = useState<string | null>(activeLiveCheckin?.step || null);
+  const [currentPhase, setCurrentPhase] = useState<string | null>(null);
   const [lastFailedAnswer, setLastFailedAnswer] = useState<string | null>(null);
 
   // Ref guards to prevent double flights
@@ -122,6 +123,10 @@ export const AdaptiveInterviewScreen = () => {
         isSendingRef.current = false;
         if (err instanceof ApiError) {
           const detailStr = (err.detail || "").toLowerCase();
+          if (err.status === 403 && detailStr.includes("profile_incomplete")) {
+            setScreen("inclusion");
+            return;
+          }
           if (err.status === 403 || detailStr.includes("consent")) {
             setIsConsentError(true);
           }
@@ -176,6 +181,10 @@ export const AdaptiveInterviewScreen = () => {
       // Successfully processed by server: clear the input
       setLiveAnswerInput("");
 
+      if (answerRes.phase) {
+        setCurrentPhase(answerRes.phase);
+      }
+
       if (answerRes.emergency) {
         setEscalationRecorded(answerRes.escalation_recorded === true);
         setScreen("emergency");
@@ -198,13 +207,44 @@ export const AdaptiveInterviewScreen = () => {
       }
 
       // If complete -> call /complete endpoint
-      const completeRes: CheckinCompleteResponse = await api.completeCheckin(targetCheckinId);
+      let completeRes: CheckinCompleteResponse;
+      try {
+        completeRes = await api.completeCheckin(targetCheckinId);
+      } catch (completeErr: any) {
+        // Handle 409 triage_incomplete: refetch check-in once and continue
+        if (
+          completeErr instanceof ApiError &&
+          completeErr.status === 409 &&
+          (completeErr.detail?.includes("triage_incomplete") || completeErr.data?.detail === "triage_incomplete")
+        ) {
+          const detailRes = await api.getUserCheckinDetail(targetCheckinId);
+          const detailState = detailRes.state || {};
+          if (detailState.step) setCurrentStep(detailState.step);
+          if (detailState.question) {
+            setLiveQuestion(detailState.question);
+            setConversationHistory((prev) => [
+              ...prev,
+              { role: "system", text: detailState.question },
+            ]);
+          }
+          setIsSending(false);
+          isSendingRef.current = false;
+          return;
+        }
+        throw completeErr;
+      }
+
       setLiveCheckinResult(completeRes);
 
       // Route by result
       if (completeRes.emergency) {
         setEscalationRecorded(true);
         setScreen("emergency");
+      } else if (
+        completeRes.triage &&
+        (completeRes.triage.level === "urgent" || completeRes.triage.level === "review")
+      ) {
+        setScreen("triage_result");
       } else if (completeRes.requires_review) {
         setScreen("conflict_detail");
       } else {
@@ -429,12 +469,25 @@ export const AdaptiveInterviewScreen = () => {
             }}
             className="space-y-3 pt-2 border-t border-slate-200"
           >
-            {currentStep?.startsWith("medication_check") && (
+            {/* Phase / Step Indicator Chip */}
+            {currentPhase === "triage" || currentStep?.startsWith("triage:") ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-950 border border-amber-300 text-xs font-bold uppercase tracking-wider w-fit">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />
+                  <span>{isUrdu ? "حفاظتی سوالات" : "Safety questions"}</span>
+                </div>
+                {isUrdu && (
+                  <span className="text-[11px] text-slate-500 italic">
+                    یہ سوالات انگریزی میں دکھائے گئے ہیں۔
+                  </span>
+                )}
+              </div>
+            ) : currentStep?.startsWith("medication_check") ? (
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-100 text-teal-900 border border-teal-300 text-xs font-bold uppercase tracking-wider w-fit">
                 <Pill className="w-3.5 h-3.5 text-teal-700" />
                 <span>{isUrdu ? "ادویات کی تصدیق" : "Medication check"}</span>
               </div>
-            )}
+            ) : null}
 
             <div className="relative">
               <input
@@ -443,7 +496,15 @@ export const AdaptiveInterviewScreen = () => {
                 value={liveAnswerInput}
                 onChange={(e) => setLiveAnswerInput(e.target.value)}
                 disabled={isSending}
-                placeholder={isUrdu ? "اپنا جواب یہاں لکھیں..." : "Type your response..."}
+                placeholder={
+                  (currentPhase === "triage" || currentStep?.startsWith("triage:")) && liveQuestion.includes("type: cannot")
+                    ? isUrdu
+                      ? "مثال کے طور پر 150/90"
+                      : "for example 150/90"
+                    : isUrdu
+                    ? "اپنا جواب یہاں لکھیں..."
+                    : "Type your response..."
+                }
                 className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white ${
                   isUrdu ? "pr-4 pl-12" : "pl-4 pr-12"
                 } text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 shadow-xs`}
@@ -463,6 +524,48 @@ export const AdaptiveInterviewScreen = () => {
                 )}
               </button>
             </div>
+
+            {/* Quick-answer buttons for Triage "Answer yes or no" questions */}
+            {(currentPhase === "triage" || currentStep?.startsWith("triage:")) && liveQuestion.includes("Answer yes or no") && (
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleLiveSendAnswer("yes")}
+                  disabled={isSending}
+                  id="triage-yes-btn"
+                  className="min-h-[42px] py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 border-2 border-teal-600 text-teal-900 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-teal-700" />
+                  <span>{isUrdu ? "ہاں (Yes)" : "Yes"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLiveSendAnswer("no")}
+                  disabled={isSending}
+                  id="triage-no-btn"
+                  className="min-h-[42px] py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 border-2 border-slate-300 text-slate-800 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <RotateCcw className="w-4 h-4 text-slate-600" />
+                  <span>{isUrdu ? "نہیں (No)" : "No"}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Quick-answer button for Triage "type: cannot" re-measure question */}
+            {(currentPhase === "triage" || currentStep?.startsWith("triage:")) && liveQuestion.includes("type: cannot") && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleLiveSendAnswer("cannot")}
+                  disabled={isSending}
+                  id="triage-cannot-measure-btn"
+                  className="w-full min-h-[42px] py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 border-2 border-amber-400 text-amber-950 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <RotateCcw className="w-4 h-4 text-amber-700" />
+                  <span>{isUrdu ? "میں دوبارہ ناپ نہیں سکتا (I can't measure again)" : "I can't measure again"}</span>
+                </button>
+              </div>
+            )}
 
             {/* Quick-answer buttons for Medication Check Step */}
             {currentStep?.startsWith("medication_check") && (
@@ -525,6 +628,7 @@ export const AdaptiveInterviewScreen = () => {
       </div>
     );
   }
+
 
   // =========================================================================
   // MOCK MODE INTERFACE (Preserves original 3-question flow)

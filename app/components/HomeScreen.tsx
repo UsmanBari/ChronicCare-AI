@@ -92,8 +92,12 @@ export const HomeScreen = () => {
         setScreen("checkin_entry");
       } catch (err: any) {
         if (err instanceof ApiError) {
-          setError(err.getFriendlyMessage(isUrdu));
           const detailStr = (err.detail || "").toLowerCase();
+          if (err.status === 403 && detailStr.includes("profile_incomplete")) {
+            setScreen("inclusion");
+            return;
+          }
+          setError(err.getFriendlyMessage(isUrdu));
           if (err.status === 403 || detailStr.includes("consent")) {
             setIsConsentError(true);
           }

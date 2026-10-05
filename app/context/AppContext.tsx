@@ -21,6 +21,7 @@ export type PatientScreenType =
   | "consent"
   | "connection"
   | "profile"
+  | "inclusion"
   | "health_record"
   | "home"
   | "checkin_entry"
@@ -28,6 +29,7 @@ export type PatientScreenType =
   | "confirmation"
   | "processing"
   | "risk_result"
+  | "triage_result"
   | "trends"
   | "conflict_detail"
   | "conflict_review"
@@ -347,12 +349,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               return;
             }
             setUserIdentifier(email);
-            // Check consent status for patient
+            // Check consent and inclusion status for patient
             try {
               const prof = await api.getProfile();
               setLiveProfile(prof);
               if (!prof.consent_granted_at) {
                 setScreenState("consent");
+              } else if (!prof.date_of_birth || !prof.inclusion_confirmed_at) {
+                setScreenState("inclusion");
               }
             } catch {
               setScreenState("consent");

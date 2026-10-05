@@ -23,6 +23,8 @@ export interface ProfileUpdateRequest {
   conditions: string[];
   on_insulin_or_sulfonylurea: boolean;
   language?: string;
+  date_of_birth?: string | null;
+  inclusion_confirmed?: boolean;
 }
 
 export interface ProfileResponse {
@@ -30,6 +32,8 @@ export interface ProfileResponse {
   conditions: string[];
   on_insulin_or_sulfonylurea: boolean;
   language: string;
+  date_of_birth?: string | null;
+  inclusion_confirmed_at?: string | null;
   consent_granted_at: string | null;
   consent_revoked_at: string | null;
   provider_notification_consent_at?: string | null;
@@ -130,6 +134,8 @@ export interface CheckinAnswerResponse {
   emergency_reason: string | null;
   step?: string | null;
   version?: number;
+  phase?: string | null;
+  triage?: Record<string, any> | null;
   escalation_recorded?: boolean | null;
 }
 
@@ -140,6 +146,7 @@ export interface CheckinCompleteResponse {
   verification: Record<string, any> | null;
   requires_review: boolean;
   max_severity: string | null;
+  triage?: Record<string, any> | null;
 }
 
 export interface UserCheckinSummaryResponse {
@@ -180,6 +187,8 @@ export interface ReviewQueueItemResponse {
   trigger_text?: string | null;
   trigger_reading?: Record<string, any> | string | null;
   escalated_at?: string | null;
+  triage_level?: "emergency" | "urgent" | "review" | string | null;
+  triage?: Record<string, any> | null;
 }
 
 export interface ReviewActionResponse {
@@ -209,6 +218,8 @@ export interface ReviewDetailResponse {
   trigger_text?: string | null;
   trigger_reading?: Record<string, any> | string | null;
   escalated_at?: string | null;
+  triage_level?: "emergency" | "urgent" | "review" | string | null;
+  triage?: Record<string, any> | null;
 }
 
 export interface AuditLogRow {

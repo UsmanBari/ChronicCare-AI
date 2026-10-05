@@ -16,6 +16,7 @@ import { LoginScreen } from "./components/LoginScreen";
 import { ConsentScreen } from "./components/ConsentScreen";
 import { ConnectionScreen } from "./components/ConnectionScreen";
 import { HealthProfileScreen } from "./components/HealthProfileScreen";
+import { InclusionScreen } from "./components/InclusionScreen";
 import { HealthRecordScreen } from "./components/HealthRecordScreen";
 import { HomeScreen } from "./components/HomeScreen";
 import { CheckInEntryScreen } from "./components/CheckInEntryScreen";
@@ -23,6 +24,7 @@ import { AdaptiveInterviewScreen } from "./components/AdaptiveInterviewScreen";
 import { ConfirmationScreen } from "./components/ConfirmationScreen";
 import { ProcessingScreen } from "./components/ProcessingScreen";
 import { RiskResultScreen } from "./components/RiskResultScreen";
+import { TriageResultScreen } from "./components/TriageResultScreen";
 import { TrendScreen } from "./components/TrendScreen";
 import { ConflictScreen } from "./components/ConflictScreen";
 import { RoutedToReviewScreen } from "./components/RoutedToReviewScreen";
@@ -141,11 +143,13 @@ export default function App() {
                   screen === "consent" ||
                   screen === "connection" ||
                   screen === "profile" ||
+                  screen === "inclusion" ||
                   screen === "checkin_entry" ||
                   screen === "adaptive_interview" ||
                   screen === "confirmation" ||
                   screen === "processing" ||
                   screen === "risk_result" ||
+                  screen === "triage_result" ||
                   screen === "conflict_detail" ||
                   screen === "conflict_review" ||
                   screen === "emergency") && (
@@ -154,11 +158,13 @@ export default function App() {
                     {screen === "consent" && <ConsentScreen />}
                     {screen === "connection" && <ConnectionScreen />}
                     {screen === "profile" && <HealthProfileScreen />}
+                    {screen === "inclusion" && <InclusionScreen />}
                     {screen === "checkin_entry" && <CheckInEntryScreen />}
                     {screen === "adaptive_interview" && <AdaptiveInterviewScreen />}
                     {screen === "confirmation" && <ConfirmationScreen />}
                     {screen === "processing" && <ProcessingScreen />}
                     {screen === "risk_result" && <RiskResultScreen />}
+                    {screen === "triage_result" && <TriageResultScreen />}
                     {screen === "conflict_detail" && <ConflictScreen />}
                     {screen === "conflict_review" && <RoutedToReviewScreen />}
                     {screen === "emergency" && <EmergencyScreen />}
