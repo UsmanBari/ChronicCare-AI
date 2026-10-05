@@ -287,6 +287,8 @@ class ProfileUpdateRequest(BaseModel):
     conditions: List[str]
     on_insulin_or_sulfonylurea: bool
     language: str = "en"
+    date_of_birth: Optional[str] = None
+    inclusion_confirmed: Optional[bool] = None
 
     @field_validator("conditions")
     @classmethod
@@ -316,6 +318,8 @@ class ProfileResponse(BaseModel):
     conditions: List[str]
     on_insulin_or_sulfonylurea: bool
     language: str
+    date_of_birth: Optional[str] = None
+    inclusion_confirmed_at: Optional[str] = None
     consent_granted_at: Optional[str] = None
     consent_revoked_at: Optional[str] = None
     provider_notification_consent_at: Optional[str] = None
@@ -1017,6 +1021,8 @@ def get_profile_endpoint(current_user: Dict[str, Any] = Depends(require_role("pa
         conditions=profile["conditions"],
         on_insulin_or_sulfonylurea=profile["on_insulin_or_sulfonylurea"],
         language=profile["language"],
+        date_of_birth=profile.get("date_of_birth"),
+        inclusion_confirmed_at=profile.get("inclusion_confirmed_at"),
         consent_granted_at=profile.get("consent_granted_at"),
         consent_revoked_at=profile.get("consent_revoked_at"),
         provider_notification_consent_at=profile.get("provider_notification_consent_at"),
@@ -1030,30 +1036,74 @@ def update_profile_endpoint(
     body: ProfileUpdateRequest,
     current_user: Dict[str, Any] = Depends(require_role("patient")),
 ):
-    """Updates patient profile conditions, insulin/sulfonylurea flag, and language (patient only)."""
+    """Updates patient profile conditions, insulin/sulfonylurea flag, language, date of birth, and inclusion confirmation (patient only)."""
     user_id = current_user["user_id"]
+
+    dob_clean = None
+    if body.date_of_birth is not None:
+        dob_str = str(body.date_of_birth).strip()
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", dob_str):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="invalid_date_of_birth",
+            )
+        try:
+            dob_dt = datetime.strptime(dob_str, "%Y-%m-%d").date()
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="invalid_date_of_birth",
+            )
+
+        today = datetime.now(timezone.utc).date()
+        if dob_dt > today:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="invalid_date_of_birth",
+            )
+
+        age = today.year - dob_dt.year - ((today.month, today.day) < (dob_dt.month, dob_dt.day))
+        if age < 18:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="adults_only",
+            )
+        if age > 120:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="invalid_date_of_birth",
+            )
+        dob_clean = dob_str
+
     updated = upsert_patient_profile(
         user_id=user_id,
         conditions=body.conditions,
         on_insulin_or_sulfonylurea=body.on_insulin_or_sulfonylurea,
         language=body.language,
+        date_of_birth=dob_clean,
+        inclusion_confirmed=body.inclusion_confirmed,
     )
+
+    updated_fields = ["conditions", "on_insulin_or_sulfonylurea", "language"]
+    if body.date_of_birth is not None:
+        updated_fields.append("date_of_birth")
+    if body.inclusion_confirmed is not None:
+        updated_fields.append("inclusion_confirmed")
+
     append_audit(
         actor_user_id=user_id,
         action="profile_updated",
         target=user_id,
         outcome="ok",
-        detail={
-            "conditions": updated["conditions"],
-            "language": updated["language"],
-            "on_insulin_or_sulfonylurea": updated["on_insulin_or_sulfonylurea"],
-        },
+        detail={"fields": updated_fields},
     )
     return ProfileResponse(
         user_id=updated["user_id"],
         conditions=updated["conditions"],
         on_insulin_or_sulfonylurea=updated["on_insulin_or_sulfonylurea"],
         language=updated["language"],
+        date_of_birth=updated.get("date_of_birth"),
+        inclusion_confirmed_at=updated.get("inclusion_confirmed_at"),
         consent_granted_at=updated.get("consent_granted_at"),
         consent_revoked_at=updated.get("consent_revoked_at"),
         provider_notification_consent_at=updated.get("provider_notification_consent_at"),
@@ -1799,7 +1849,16 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
             detail="Provider notification consent is required to start a check-in (provider_notification_consent_required)",
         )
 
-    # 2. Profile verification
+    # 2. Inclusion verification (date of birth and inclusion confirmation)
+    require_inclusion = os.environ.get("REQUIRE_INCLUSION", "1")
+    if require_inclusion != "0":
+        if not profile.get("date_of_birth") or not profile.get("inclusion_confirmed_at"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="profile_incomplete",
+            )
+
+    # 3. Profile verification
     conditions = profile.get("conditions", [])
     if not conditions:
         raise HTTPException(

@@ -196,6 +196,7 @@ The backend supports dual database backends: SQLite (default for local developme
 - `DB_BACKEND`: Set to `mysql` to use MySQL. If unset or set to `sqlite`, SQLite is used.
 - `MYSQL_URL`: Connection string in the format `mysql://<user>:<password>@<host>:<port>/<dbname>?ssl-mode=REQUIRED`.
 - `MYSQL_SSL_CA`: (Optional) Absolute or relative path to the CA bundle. Defaults to `certs/aiven-ca.pem`.
+- `REQUIRE_INCLUSION`: Controls adult-only inclusion gating (`1` by default, `0` disables). When enabled, check-ins require verified date of birth and inclusion confirmation in patient profile.
 
 ### Safety Rules & Guardrails
 - **Database Safety Guardrail (`_dev` suffix)**: Destructive schema resets (`--reset` via `init_local_db.py`) and live integration test suites strictly refuse execution unless the target database name ends with `_dev` (e.g., `chroniccare_dev`). This prevents accidental mutation or truncation of staging or production databases.
