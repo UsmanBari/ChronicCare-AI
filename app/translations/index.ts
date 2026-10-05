@@ -286,6 +286,19 @@ export interface Translations {
   actionEscalateBtn: string;
   actionAcknowledgeBtn: string;
   demoCrossPortalLabel: string;
+  researchPrototypeNotice: string;
+  consentBulletRoleAccess: string;
+  consentBulletWithdrawConsent: string;
+  consentBulletNotForEmergencies: string;
+  routedToReviewHeadline: string;
+  routedToReviewExplanation: string;
+  confidenceLowChip: string;
+  medicationsNoneRecorded: string;
+  noCheckinsYet: string;
+  notConnectedYet: string;
+  isolatedModeLabel: string;
+  needsClinicianReviewTitle: string;
+  readingDiffersTitle: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -567,6 +580,19 @@ export const translations: Record<Language, Translations> = {
     actionEscalateBtn: "Escalate to Care Team",
     actionAcknowledgeBtn: "Acknowledge Alert",
     demoCrossPortalLabel: "Demo Cross-Portal Feature",
+    researchPrototypeNotice: "Research prototype. Please enter test information only.",
+    consentBulletRoleAccess: "Role-based access: patients, clinicians and administrators see different screens and data.",
+    consentBulletWithdrawConsent: "You can withdraw consent at any time in your settings.",
+    consentBulletNotForEmergencies: "This prototype is not for emergencies.",
+    routedToReviewHeadline: "Sent for clinician review",
+    routedToReviewExplanation: "A clinician will see this in their review queue. This version of the app does not send notifications.",
+    confidenceLowChip: "Confidence: Low (a reading was missing)",
+    medicationsNoneRecorded: "Medications: none recorded yet",
+    noCheckinsYet: "No check-ins yet",
+    notConnectedYet: "Not connected yet",
+    isolatedModeLabel: "Isolated Mode (Local Store)",
+    needsClinicianReviewTitle: "Needs clinician review",
+    readingDiffersTitle: "Your reading differs from the record",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -847,5 +873,19 @@ export const translations: Record<Language, Translations> = {
     actionEscalateBtn: "نگہداشت کی ٹیم کو ایسکلیٹ کریں",
     actionAcknowledgeBtn: "الرٹ تسلیم کریں",
     demoCrossPortalLabel: "ڈیمو فیچر",
+    // UNREVIEWED Urdu strings
+    researchPrototypeNotice: "تحقیقی پروٹوٹائپ۔ براہ کرم صرف ٹیسٹ معلومات درج کریں۔",
+    consentBulletRoleAccess: "کردار کی بنیاد پر رسائی: مریض، معالجین اور منتظمین مختلف اسکرینز اور ڈیٹا دیکھتے ہیں۔",
+    consentBulletWithdrawConsent: "آپ اپنی ترتیبات میں کسی بھی وقت رضامندی واپس لے سکتے ہیں۔",
+    consentBulletNotForEmergencies: "یہ پروٹوٹائپ ہنگامی حالات کے لیے نہیں ہے۔",
+    routedToReviewHeadline: "طبی معالج کے جائزے کے لیے بھیج دیا گیا",
+    routedToReviewExplanation: "طبی معالج اسے اپنی جائزہ قطار میں دیکھیں گے۔ ایپ کا یہ ورژن اطلاعات نہیں بھیجتا ہے۔",
+    confidenceLowChip: "اعتماد: کم (کوئی ریڈنگ موجود نہیں تھی)",
+    medicationsNoneRecorded: "ادویات: ابھی تک کوئی درج نہیں ہیں",
+    noCheckinsYet: "ابھی تک کوئی چیک ان نہیں ہوا",
+    notConnectedYet: "ابھی منسلک نہیں ہے",
+    isolatedModeLabel: "آئسولیٹڈ موڈ (مقامی اسٹور)",
+    needsClinicianReviewTitle: "طبی معالج کے جائزے کی ضرورت ہے",
+    readingDiffersTitle: "آپ کی ریڈنگ ریکارڈ سے مختلف ہے",
   }
 };

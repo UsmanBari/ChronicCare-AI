@@ -128,6 +128,8 @@ interface AppContextType {
   setActiveLiveCheckin: React.Dispatch<React.SetStateAction<CheckinStartResponse | null>>;
   liveCheckinResult: CheckinCompleteResponse | null;
   setLiveCheckinResult: React.Dispatch<React.SetStateAction<CheckinCompleteResponse | null>>;
+  escalationRecorded: boolean | null;
+  setEscalationRecorded: React.Dispatch<React.SetStateAction<boolean | null>>;
   refreshLiveState: () => Promise<void>;
 
   // Connection mode
@@ -185,6 +187,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [liveEhrConnection, setLiveEhrConnection] = useState<EHRConnectionResponse | null>(null);
   const [activeLiveCheckin, setActiveLiveCheckin] = useState<CheckinStartResponse | null>(null);
   const [liveCheckinResult, setLiveCheckinResult] = useState<CheckinCompleteResponse | null>(null);
+  const [escalationRecorded, setEscalationRecorded] = useState<boolean | null>(null);
+
+  // Single-flight promise refs for authSession
+  const sessionPromiseRef = React.useRef<Promise<any> | null>(null);
+  const sessionUserUidRef = React.useRef<string | null>(null);
 
   // Presenter controls
   const [demoScenario, setDemoScenario] = useState<DemoScenario>("normal");
@@ -320,8 +327,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const email = user.email;
 
         // In LIVE mode: role comes strictly from /api/auth/session or /api/me
+        // Single-flight promise: avoid calling /api/auth/session multiple times per sign-in
         try {
-          const session = await api.authSession();
+          if (!sessionPromiseRef.current || sessionUserUidRef.current !== user.uid) {
+            sessionUserUidRef.current = user.uid;
+            sessionPromiseRef.current = api.authSession();
+          }
+          const session = await sessionPromiseRef.current;
           const role = session.role;
           setUserRole(role);
 
@@ -363,12 +375,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           }
         } catch (err) {
           // Backend communication error or invalid token: fail-closed
+          sessionPromiseRef.current = null;
+          sessionUserUidRef.current = null;
           try {
             await signOut(auth);
           } catch {}
           setUserRole(null);
         }
       } else {
+        sessionPromiseRef.current = null;
+        sessionUserUidRef.current = null;
         setUserRole(null);
       }
     });
@@ -377,6 +393,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [portal, isLiveMode]);
 
   const signOutUser = async () => {
+    sessionPromiseRef.current = null;
+    sessionUserUidRef.current = null;
     if (isLiveMode) {
       const auth = getFirebaseAuth();
       if (auth) {
@@ -392,6 +410,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setLiveEhrConnection(null);
     setActiveLiveCheckin(null);
     setLiveCheckinResult(null);
+    setEscalationRecorded(null);
   };
 
   const setPortal = (p: PortalType) => {
@@ -445,6 +464,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
     setActiveLiveCheckin(null);
     setLiveCheckinResult(null);
+    setEscalationRecorded(null);
   };
 
   const resetDemo = () => {
@@ -472,6 +492,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
     setActiveLiveCheckin(null);
     setLiveCheckinResult(null);
+    setEscalationRecorded(null);
   };
 
   return (
@@ -513,6 +534,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setActiveLiveCheckin,
         liveCheckinResult,
         setLiveCheckinResult,
+        escalationRecorded,
+        setEscalationRecorded,
         refreshLiveState,
         connectionMode,
         setConnectionMode,

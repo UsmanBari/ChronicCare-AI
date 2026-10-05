@@ -86,15 +86,15 @@ export const ConsentScreen = () => {
         <div className="space-y-2.5 text-xs text-slate-600">
           <div className="flex items-start gap-2">
             <CheckCircle2 className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
-            <span>Role-based access & patient identity verification.</span>
+            <span>{t.consentBulletRoleAccess}</span>
           </div>
           <div className="flex items-start gap-2">
             <CheckCircle2 className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
-            <span>Zero PHI exposed in technical logging or analytics layers.</span>
+            <span>{t.consentBulletWithdrawConsent}</span>
           </div>
           <div className="flex items-start gap-2">
             <CheckCircle2 className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
-            <span>Full patient control to revoke consent or disconnect EHR at any time.</span>
+            <span>{t.consentBulletNotForEmergencies}</span>
           </div>
         </div>
 

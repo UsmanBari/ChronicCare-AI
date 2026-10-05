@@ -28,6 +28,9 @@ export const Header = () => {
     isUrdu,
     connectionMode,
     portal,
+    screen,
+    isLiveMode,
+    liveEhrConnection,
     setPortal,
     setScreen,
     setProviderScreen,
@@ -49,6 +52,55 @@ export const Header = () => {
     if (portal === "admin") return t.adminPortal;
     if (portal === "patient") return t.patientPortal;
     return "Clinical Suite";
+  };
+
+  const renderConnectionBadge = () => {
+    if (isLiveMode) {
+      if (screen === "consent" || !liveEhrConnection?.mode) {
+        return (
+          <span className="inline-flex items-center gap-1 text-slate-500 font-sans">
+            <Shield className="w-3.5 h-3.5" /> {t.notConnectedYet}
+          </span>
+        );
+      }
+      if (liveEhrConnection.mode === "isolated") {
+        return (
+          <span className="inline-flex items-center gap-1 text-amber-800 font-sans">
+            <Database className="w-3.5 h-3.5" /> {t.isolatedModeLabel}
+          </span>
+        );
+      }
+      if (liveEhrConnection.mode === "fhir") {
+        return (
+          <span className="inline-flex items-center gap-1 text-mutedGreen-800 font-sans">
+            <ShieldCheck className="w-3.5 h-3.5" />{" "}
+            {liveEhrConnection.connection?.display_name || "Hospital EHR (FHIR)"}
+          </span>
+        );
+      }
+      return (
+        <span className="inline-flex items-center gap-1 text-slate-500 font-sans">
+          <Shield className="w-3.5 h-3.5" /> {t.notConnectedYet}
+        </span>
+      );
+    }
+
+    // Mock Mode
+    if (connectionMode === "fhir") {
+      return (
+        <span className="inline-flex items-center gap-1 text-mutedGreen-800 font-sans">
+          <ShieldCheck className="w-3.5 h-3.5" /> {t.connectedHospital}
+        </span>
+      );
+    }
+    if (connectionMode === "offline") {
+      return (
+        <span className="inline-flex items-center gap-1 text-amber-800 font-sans">
+          <Database className="w-3.5 h-3.5" /> {t.offlineMode}
+        </span>
+      );
+    }
+    return <span className="text-slate-500 font-sans">Clinical Suite</span>;
   };
 
   return (
@@ -73,17 +125,7 @@ export const Header = () => {
               {isUrdu ? "کرونک کیئر اے آئی" : "ChronicCare AI"}
             </span>
             <span className="text-[11px] sm:text-xs uppercase tracking-wider font-semibold text-teal-700 block">
-              {connectionMode === "fhir" ? (
-                <span className="inline-flex items-center gap-1 text-mutedGreen-800 font-sans">
-                  <ShieldCheck className="w-3.5 h-3.5" /> {t.connectedHospital}
-                </span>
-              ) : connectionMode === "offline" ? (
-                <span className="inline-flex items-center gap-1 text-amber-800 font-sans">
-                  <Database className="w-3.5 h-3.5" /> {t.offlineMode}
-                </span>
-              ) : (
-                <span className="text-slate-500 font-sans">Clinical Suite</span>
-              )}
+              {renderConnectionBadge()}
             </span>
           </div>
         </div>

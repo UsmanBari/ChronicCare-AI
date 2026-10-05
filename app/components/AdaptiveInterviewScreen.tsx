@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import {
   CheckCircle2,
@@ -14,8 +14,15 @@ import {
   ShieldAlert,
   AlertTriangle,
   Bot,
+  RotateCcw,
 } from "lucide-react";
-import { api, ApiError, CheckinStartResponse, CheckinAnswerResponse, CheckinCompleteResponse } from "../lib/api";
+import {
+  api,
+  ApiError,
+  CheckinStartResponse,
+  CheckinAnswerResponse,
+  CheckinCompleteResponse,
+} from "../lib/api";
 
 interface ChatMessage {
   role: "system" | "user";
@@ -31,6 +38,7 @@ export const AdaptiveInterviewScreen = () => {
     activeLiveCheckin,
     setActiveLiveCheckin,
     setLiveCheckinResult,
+    setEscalationRecorded,
     t,
     isUrdu,
   } = useApp();
@@ -41,6 +49,14 @@ export const AdaptiveInterviewScreen = () => {
   const [isSending, setIsSending] = useState<boolean>(false);
   const [liveError, setLiveError] = useState<string | null>(null);
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([]);
+  const [currentStep, setCurrentStep] = useState<string | null>(activeLiveCheckin?.step || null);
+  const [lastFailedAnswer, setLastFailedAnswer] = useState<string | null>(null);
+
+  // Ref guards to prevent double flights
+  const isSendingRef = useRef<boolean>(false);
+  const isStartingRef = useRef<boolean>(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   // --- MOCK MODE STATE ---
   const [q1Thirst, setQ1Thirst] = useState<boolean | null>(checkIn.thirst);
@@ -49,9 +65,21 @@ export const AdaptiveInterviewScreen = () => {
     checkIn.missedMeds
   );
 
+  // Scroll to bottom & focus on question update (P3 requirement)
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [conversationHistory, liveQuestion]);
+
   // Initialize Live Mode Interview Session
   useEffect(() => {
     if (!isLiveMode) return;
+    if (isStartingRef.current) return;
+    isStartingRef.current = true;
 
     let isMounted = true;
     const initLiveSession = async () => {
@@ -60,61 +88,46 @@ export const AdaptiveInterviewScreen = () => {
         let currentCheckin = activeLiveCheckin;
         if (!currentCheckin || !currentCheckin.checkin_id) {
           setIsSending(true);
+          isSendingRef.current = true;
           currentCheckin = await api.startCheckin();
           if (!isMounted) return;
           setActiveLiveCheckin(currentCheckin);
+          setCurrentStep(currentCheckin.step || null);
           setIsSending(false);
+          isSendingRef.current = false;
+        } else {
+          setCurrentStep(currentCheckin.step || null);
         }
 
-        const firstQ = currentCheckin.question || "How are you feeling today with your symptoms and medications?";
+        const firstQ =
+          currentCheckin.question ||
+          (isUrdu
+            ? "آج آپ اپنی علامات اور ادویات کے ساتھ کیسا محسوس کر رہے ہیں؟"
+            : "How are you feeling today with your symptoms and medications?");
         setLiveQuestion(firstQ);
         setConversationHistory([{ role: "system", text: firstQ }]);
 
         // If user provided a note in CheckInEntryScreen, send it as initial answer
         if (checkIn.note && checkIn.note.trim()) {
-          setIsSending(true);
           const initialAnswer = checkIn.note.trim();
-          setConversationHistory((prev) => [...prev, { role: "user", text: initialAnswer }]);
-
-          const answerRes = await api.answerCheckin(currentCheckin.checkin_id, initialAnswer);
-          if (!isMounted) return;
-
-          if (answerRes.emergency) {
-            setScreen("emergency");
-            return;
-          }
-
-          if (answerRes.complete) {
-            // Check-in already complete
-            const completeRes = await api.completeCheckin(currentCheckin.checkin_id);
-            if (!isMounted) return;
-            setLiveCheckinResult(completeRes);
-            if (completeRes.emergency) {
-              setScreen("emergency");
-            } else if (completeRes.requires_review) {
-              setScreen("conflict_detail");
-            } else {
-              setScreen("risk_result");
-            }
-            return;
-          }
-
-          if (answerRes.question) {
-            setLiveQuestion(answerRes.question);
-            setConversationHistory((prev) => [
-              ...prev,
-              { role: "system", text: answerRes.question! },
-            ]);
-          }
-          setIsSending(false);
+          await handleLiveSendAnswerInternal(initialAnswer, currentCheckin.checkin_id, currentCheckin.step || null);
         }
       } catch (err: any) {
         if (!isMounted) return;
         setIsSending(false);
+        isSendingRef.current = false;
         if (err instanceof ApiError) {
-          setLiveError(err.getFriendlyMessage(isUrdu));
+          setLiveError(
+            isUrdu
+              ? "ہم آپ کا سیشن شروع نہیں کر سکے۔ اگر یہ ہنگامی صورتحال ہے تو فوراً اپنے مقامی ایمرجنسی نمبر پر کال کریں۔"
+              : "We could not start your check-in session. If this is an emergency, call your local emergency number now."
+          );
         } else {
-          setLiveError(err?.message || "Failed to communicate with check-in service");
+          setLiveError(
+            isUrdu
+              ? "ہم آپ کا سیشن شروع نہیں کر سکے۔ اگر یہ ہنگامی صورتحال ہے تو فوراً اپنے مقامی ایمرجنسی نمبر پر کال کریں۔"
+              : "We could not start your check-in session. If this is an emergency, call your local emergency number now."
+          );
         }
       }
     };
@@ -127,27 +140,46 @@ export const AdaptiveInterviewScreen = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLiveMode]);
 
-  // Live Mode Answer Submit
-  const handleLiveSendAnswer = async (answerText: string) => {
+  const handleLiveSendAnswerInternal = async (
+    answerText: string,
+    checkinId?: string,
+    stepToSend?: string | null
+  ) => {
     const cleanAnswer = answerText.trim();
-    if (!cleanAnswer || isSending || !activeLiveCheckin?.checkin_id) return;
+    const targetCheckinId = checkinId || activeLiveCheckin?.checkin_id;
+    if (!cleanAnswer || isSendingRef.current || !targetCheckinId) return;
 
+    isSendingRef.current = true;
     setIsSending(true);
     setLiveError(null);
-    setLiveAnswerInput("");
+    setLastFailedAnswer(null);
 
-    // Update conversation history
+    // Keep the typed input in case of error; only clear on success/handling
+    const previousInput = liveAnswerInput;
+
+    // Append user message to history
     setConversationHistory((prev) => [...prev, { role: "user", text: cleanAnswer }]);
+
+    const currentStepValue = stepToSend !== undefined ? stepToSend : currentStep;
 
     try {
       const answerRes: CheckinAnswerResponse = await api.answerCheckin(
-        activeLiveCheckin.checkin_id,
-        cleanAnswer
+        targetCheckinId,
+        cleanAnswer,
+        currentStepValue
       );
 
+      // Successfully processed by server: clear the input
+      setLiveAnswerInput("");
+
       if (answerRes.emergency) {
+        setEscalationRecorded(answerRes.escalation_recorded === true);
         setScreen("emergency");
         return;
+      }
+
+      if (answerRes.step) {
+        setCurrentStep(answerRes.step);
       }
 
       if (!answerRes.complete && answerRes.question) {
@@ -157,17 +189,17 @@ export const AdaptiveInterviewScreen = () => {
           { role: "system", text: answerRes.question! },
         ]);
         setIsSending(false);
+        isSendingRef.current = false;
         return;
       }
 
       // If complete -> call /complete endpoint
-      const completeRes: CheckinCompleteResponse = await api.completeCheckin(
-        activeLiveCheckin.checkin_id
-      );
+      const completeRes: CheckinCompleteResponse = await api.completeCheckin(targetCheckinId);
       setLiveCheckinResult(completeRes);
 
       // Route by result
       if (completeRes.emergency) {
+        setEscalationRecorded(true);
         setScreen("emergency");
       } else if (completeRes.requires_review) {
         setScreen("conflict_detail");
@@ -176,11 +208,62 @@ export const AdaptiveInterviewScreen = () => {
       }
     } catch (err: any) {
       setIsSending(false);
-      if (err instanceof ApiError) {
-        setLiveError(err.getFriendlyMessage(isUrdu));
-      } else {
-        setLiveError(err?.message || "Failed to submit answer");
+      isSendingRef.current = false;
+
+      // Handle 409 stale_step: do not show error, replace shown question with response question, keep typed text
+      if (err instanceof ApiError && err.status === 409) {
+        const errorData = err.data;
+        if (errorData?.detail === "stale_step" || err.detail === "stale_step") {
+          const newQ = errorData?.question || "Please answer the current question:";
+          const newStep = errorData?.step || null;
+          setCurrentStep(newStep);
+          setLiveQuestion(newQ);
+          setConversationHistory((prev) => [
+            ...prev,
+            { role: "system", text: newQ },
+          ]);
+          // Retain user's input text in input box
+          setLiveAnswerInput(cleanAnswer);
+          return;
+        }
+
+        // Handle 409 concurrent_update: refetch checkin detail once and continue
+        if (errorData?.detail === "concurrent_update" || err.detail === "concurrent_update") {
+          try {
+            const updatedDetail = await api.getUserCheckinDetail(targetCheckinId);
+            const updatedState = updatedDetail.state || {};
+            if (updatedState.step) {
+              setCurrentStep(updatedState.step);
+            }
+          } catch {
+            // Refetch error fallback
+          }
+        }
       }
+
+      // Keep typed text and record last failed answer for retry
+      setLastFailedAnswer(cleanAnswer);
+      setLiveAnswerInput(cleanAnswer);
+
+      // Non-409 errors (network or 5xx): Fail-closed error with emergency notice
+      const errorMsg = isUrdu
+        ? "ہم آپ کا جواب نہیں بھیج سکے۔ اگر یہ ہنگامی صورتحال ہے تو فوراً اپنے مقامی ایمرجنسی نمبر پر کال کریں۔"
+        : "We could not send your answer. If this is an emergency, call your local emergency number now.";
+      setLiveError(errorMsg);
+    }
+  };
+
+  // Live Mode Answer Submit Wrapper
+  const handleLiveSendAnswer = async (answerText: string) => {
+    await handleLiveSendAnswerInternal(answerText);
+  };
+
+  // Retry handler for failed answer send
+  const handleRetrySend = async () => {
+    if (lastFailedAnswer) {
+      await handleLiveSendAnswerInternal(lastFailedAnswer);
+    } else if (liveAnswerInput.trim()) {
+      await handleLiveSendAnswerInternal(liveAnswerInput);
     }
   };
 
@@ -234,7 +317,10 @@ export const AdaptiveInterviewScreen = () => {
   // =========================================================================
   if (isLiveMode) {
     return (
-      <div className="w-full max-w-xl mx-auto glass-raised rounded-3xl border border-slate-200/90 shadow-2xl overflow-hidden animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
+      <div
+        className="w-full max-w-xl mx-auto glass-raised rounded-3xl border border-slate-200/90 shadow-2xl overflow-hidden animate-fadeIn"
+        dir={isUrdu ? "rtl" : "ltr"}
+      >
         {/* Header */}
         <div className="bg-gradient-to-br from-navy-800 via-navy-800 to-teal-800 p-6 sm:p-7 text-white text-center relative overflow-hidden">
           <div className="absolute -top-10 -right-10 w-36 h-36 bg-teal-400/15 rounded-full blur-2xl pointer-events-none" />
@@ -242,26 +328,50 @@ export const AdaptiveInterviewScreen = () => {
             <Sparkles className="w-3.5 h-3.5" />
             <span>AI Adaptive Interview</span>
           </div>
-          <h1 className="font-heading text-2xl sm:text-[26px] font-bold mb-1.5">{t.adaptiveInterviewTitle}</h1>
-          <p className="text-sm text-slate-200 max-w-md mx-auto leading-relaxed">{t.adaptiveInterviewSubtitle}</p>
+          <h1 className="font-heading text-2xl sm:text-[26px] font-bold mb-1.5">
+            {t.adaptiveInterviewTitle}
+          </h1>
+          <p className="text-sm text-slate-200 max-w-md mx-auto leading-relaxed">
+            {t.adaptiveInterviewSubtitle}
+          </p>
         </div>
 
         <div className="p-6 sm:p-7 space-y-5">
+          {/* Fail-closed error alert with Retry */}
           {liveError && (
-            <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2 animate-fadeIn">
-              <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
-              <span>{liveError}</span>
+            <div className="p-4 text-sm bg-amber-50 border-2 border-amber-600/60 text-amber-950 rounded-2xl space-y-2.5 animate-fadeIn">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-emergencyRed-700 shrink-0 mt-0.5" />
+                <span className="font-semibold leading-relaxed">{liveError}</span>
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleRetrySend}
+                  id="interview-retry-btn"
+                  className="px-3.5 py-1.5 bg-amber-800 hover:bg-amber-900 text-white font-bold text-xs rounded-xl transition-colors inline-flex items-center gap-1.5 shadow-xs"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>{isUrdu ? "دوبارہ کوشش کریں" : "Retry"}</span>
+                </button>
+              </div>
             </div>
           )}
 
-          {/* Conversation Stream */}
-          <div className="space-y-3.5 max-h-[360px] overflow-y-auto p-1 pr-2">
+          {/* Conversation Stream with aria-live */}
+          <div
+            className="space-y-3.5 max-h-[360px] overflow-y-auto p-1 pr-2"
+            aria-live="polite"
+            role="log"
+          >
             {conversationHistory.map((msg, idx) => (
               <div
                 key={idx}
                 className={`flex gap-3 animate-fadeIn ${
                   msg.role === "user"
-                    ? isUrdu ? "justify-start flex-row-reverse" : "justify-end"
+                    ? isUrdu
+                      ? "justify-start flex-row-reverse"
+                      : "justify-end"
                     : "justify-start"
                 }`}
               >
@@ -293,6 +403,7 @@ export const AdaptiveInterviewScreen = () => {
                 </div>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Active Input Area */}
@@ -305,20 +416,29 @@ export const AdaptiveInterviewScreen = () => {
           >
             <div className="relative">
               <input
+                ref={inputRef}
                 type="text"
                 value={liveAnswerInput}
                 onChange={(e) => setLiveAnswerInput(e.target.value)}
                 disabled={isSending}
-                placeholder="Type your response..."
-                className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white ${isUrdu ? "pr-4 pl-12" : "pl-4 pr-12"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 shadow-xs`}
+                placeholder={isUrdu ? "اپنا جواب یہاں لکھیں..." : "Type your response..."}
+                className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white ${
+                  isUrdu ? "pr-4 pl-12" : "pl-4 pr-12"
+                } text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 shadow-xs`}
               />
               <button
                 type="submit"
                 disabled={!liveAnswerInput.trim() || isSending}
                 id="live-send-answer-btn"
-                className={`absolute ${isUrdu ? "left-1.5" : "right-1.5"} top-1.5 bottom-1.5 px-3 bg-teal-700 hover:bg-teal-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-all flex items-center justify-center`}
+                className={`absolute ${
+                  isUrdu ? "left-1.5" : "right-1.5"
+                } top-1.5 bottom-1.5 px-3 bg-teal-700 hover:bg-teal-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-all flex items-center justify-center`}
               >
-                {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {isSending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
               </button>
             </div>
 
@@ -344,6 +464,15 @@ export const AdaptiveInterviewScreen = () => {
               </button>
             </div>
           </form>
+
+          {/* Permanent Emergency Disclaimer on Interview Screen */}
+          <div className="pt-2 text-center border-t border-slate-100">
+            <p className="text-[11px] font-medium text-slate-500">
+              {isUrdu
+                ? "ہنگامی صورتحال میں اپنے مقامی ایمرجنسی نمبر پر رابطہ کریں۔"
+                : "In an emergency, call your local emergency number."}
+            </p>
+          </div>
         </div>
       </div>
     );

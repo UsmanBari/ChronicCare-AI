@@ -59,6 +59,8 @@ export interface CheckinStartResponse {
   question: string | null;
   mode: string;
   is_cold_start: boolean;
+  step?: string | null;
+  version?: number;
 }
 
 export interface CheckinAnswerResponse {
@@ -66,6 +68,9 @@ export interface CheckinAnswerResponse {
   complete: boolean;
   emergency: boolean;
   emergency_reason: string | null;
+  step?: string | null;
+  version?: number;
+  escalation_recorded?: boolean | null;
 }
 
 export interface CheckinCompleteResponse {
@@ -111,6 +116,10 @@ export interface ReviewQueueItemResponse {
   emergency: boolean;
   overdue: boolean;
   counts: Record<string, number>;
+  trigger_category?: string | null;
+  trigger_text?: string | null;
+  trigger_reading?: Record<string, any> | string | null;
+  escalated_at?: string | null;
 }
 
 export interface ReviewActionResponse {
@@ -136,6 +145,10 @@ export interface ReviewDetailResponse {
   review_status: string;
   created_at: string;
   actions: ReviewActionResponse[];
+  trigger_category?: string | null;
+  trigger_text?: string | null;
+  trigger_reading?: Record<string, any> | string | null;
+  escalated_at?: string | null;
 }
 
 export interface AuditLogRow {
@@ -151,11 +164,13 @@ export interface AuditLogRow {
 export class ApiError extends Error {
   status: number;
   detail: string;
+  data?: any;
 
-  constructor(status: number, detail: string) {
+  constructor(status: number, detail: string, data?: any) {
     super(`API Error ${status}: ${detail}`);
     this.status = status;
     this.detail = detail;
+    this.data = data;
     this.name = "ApiError";
   }
 
@@ -274,15 +289,17 @@ async function request<T>(
 
     if (!response.ok) {
       let detail = `HTTP ${response.status}`;
+      let data: any = null;
       try {
         const errJson = await response.json();
+        data = errJson;
         if (errJson && errJson.detail) {
           detail = typeof errJson.detail === "string" ? errJson.detail : JSON.stringify(errJson.detail);
         }
       } catch {
         // If response is not JSON
       }
-      throw new ApiError(response.status, detail);
+      throw new ApiError(response.status, detail, data);
     }
 
     if (response.status === 204) {
@@ -380,11 +397,12 @@ export const api = {
 
   answerCheckin: async (
     checkin_id: string,
-    answer: string
+    answer: string,
+    step?: string | null
   ): Promise<CheckinAnswerResponse> => {
     return request<CheckinAnswerResponse>(`/api/checkins/${encodeURIComponent(checkin_id)}/answer`, {
       method: "POST",
-      body: JSON.stringify({ answer }),
+      body: JSON.stringify({ answer, step: step !== undefined ? step : undefined }),
     });
   },
 
