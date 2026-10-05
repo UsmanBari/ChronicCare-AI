@@ -306,24 +306,43 @@ def test_3_bp_crisis_range_triggers_emergency_via_api(rsa_key_pair):
     ).json()
     assert ans1["step"] == "bp_reading"
 
-    # Step 2: Post hypertensive crisis reading (>= 180/120)
-    ans_resp = client.post(
+    # Step 2: Post severe BP reading (>= 180/120). Kept and does not end interview.
+    ans2 = client.post(
         f"/api/checkins/{chk_id}/answer",
         headers={"Authorization": f"Bearer {pat_token}"},
         json={"answer": "190/125", "step": "bp_reading"},
-    )
-    assert ans_resp.status_code == 200
-    data = ans_resp.json()
-    assert data["complete"] is True
-    assert data["emergency"] is True
-    assert data["emergency_reason"] == "bp_crisis_range"
-    assert data.get("escalation_recorded") is True
+    ).json()
+    assert ans2["complete"] is False
+    assert ans2["emergency"] is False
+    assert ans2["step"] == "associated_symptoms"
 
-    # Verify provider review shows crisis category and reading
-    detail = client.get(f"/api/provider/review/{chk_id}", headers={"Authorization": f"Bearer {prov_token}"}).json()
-    assert detail["emergency"] is True
-    assert detail["trigger_category"] == "bp_crisis_range"
-    assert detail.get("trigger_reading") == {"systolic": 190, "diastolic": 125, "unit": "mmHg"}
+    # Step 3: Associated symptoms
+    ans3 = client.post(
+        f"/api/checkins/{chk_id}/answer",
+        headers={"Authorization": f"Bearer {pat_token}"},
+        json={"answer": "None", "step": "associated_symptoms"},
+    ).json()
+    assert ans3["step"] == "adherence"
+
+    # Step 4: Adherence
+    ans4 = client.post(
+        f"/api/checkins/{chk_id}/answer",
+        headers={"Authorization": f"Bearer {pat_token}"},
+        json={"answer": "Yes", "step": "adherence"},
+    ).json()
+    assert ans4["step"] == "lifestyle"
+
+    # Step 5: Lifestyle - interview finishes, starts bp_severe triage protocol
+    ans5 = client.post(
+        f"/api/checkins/{chk_id}/answer",
+        headers={"Authorization": f"Bearer {pat_token}"},
+        json={"answer": "No changes", "step": "lifestyle"},
+    ).json()
+    assert ans5["complete"] is False
+    assert ans5["emergency"] is False
+    assert ans5["phase"] == "triage"
+    assert ans5["step"] == "triage:bp_severe:0:0"
+    assert "rest quietly for 5 minutes" in ans5["question"]
 
 
 def test_4_complete_after_emergency_is_idempotent(rsa_key_pair):

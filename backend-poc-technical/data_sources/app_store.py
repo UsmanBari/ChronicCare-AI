@@ -12,7 +12,7 @@ Guarantees:
 import os
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any, Optional
 from contextlib import contextmanager
 
@@ -274,6 +274,33 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN provider_notification_revoked_at TEXT")
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (7, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 8")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(checkins)")
+                c_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "protocol_state_json" not in c_cols:
+                    cursor.execute("ALTER TABLE checkins ADD COLUMN protocol_state_json TEXT")
+
+                cursor.execute("PRAGMA table_info(checkin_results)")
+                cr_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "triage_level" not in cr_cols:
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN triage_level TEXT")
+                if "triage_json" not in cr_cols:
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN triage_json TEXT")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (8, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 9")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(patient_profiles)")
+                pp_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "date_of_birth" not in pp_cols:
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN date_of_birth TEXT")
+                if "inclusion_confirmed_at" not in pp_cols:
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN inclusion_confirmed_at TEXT")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (9, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -487,6 +514,49 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (7, %s)", (now,))
 
+            cursor.execute("SELECT version FROM schema_version WHERE version = 8")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkins' AND COLUMN_NAME = 'protocol_state_json'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE checkins ADD COLUMN protocol_state_json MEDIUMTEXT NULL")
+
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkin_results' AND COLUMN_NAME = 'triage_level'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN triage_level VARCHAR(32) NULL")
+
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkin_results' AND COLUMN_NAME = 'triage_json'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN triage_json MEDIUMTEXT NULL")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (8, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 9")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patient_profiles' AND COLUMN_NAME = 'date_of_birth'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN date_of_birth VARCHAR(64) NULL")
+
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patient_profiles' AND COLUMN_NAME = 'inclusion_confirmed_at'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN inclusion_confirmed_at VARCHAR(64) NULL")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (9, %s)", (now,))
+
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
                    mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -644,6 +714,7 @@ def get_patient_profile(user_id: str, backend: Optional[str] = None, db_path: Op
         cursor.execute(
             f"""
             SELECT user_id, conditions_json, on_insulin_or_sulfonylurea, language,
+                   date_of_birth, inclusion_confirmed_at,
                    consent_granted_at, consent_revoked_at,
                    conditions_basis_json, provider_notification_consent_at, provider_notification_revoked_at,
                    updated_at
@@ -669,9 +740,11 @@ def get_patient_profile(user_id: str, backend: Optional[str] = None, db_path: Op
 
 
 def upsert_patient_profile(user_id: str, conditions: List[str], on_insulin_or_sulfonylurea: bool,
-                           language: str = "en", backend: Optional[str] = None, db_path: Optional[str] = None,
+                           language: str = "en", date_of_birth: Optional[str] = None,
+                           inclusion_confirmed: Optional[bool] = None,
+                           backend: Optional[str] = None, db_path: Optional[str] = None,
                            mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
-    """Upserts conditions, medication flag, and language for a patient."""
+    """Upserts conditions, medication flag, language, date_of_birth, and inclusion confirmation for a patient."""
     clean_conditions = [str(c).strip().lower() for c in conditions]
     clean_lang = str(language).strip().lower()
     if clean_lang not in ALLOWED_LANGUAGES:
@@ -680,32 +753,43 @@ def upsert_patient_profile(user_id: str, conditions: List[str], on_insulin_or_su
     insulin_val = 1 if on_insulin_or_sulfonylurea else 0
     now = _utc_now_iso()
 
+    existing = get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+    final_dob = date_of_birth if date_of_birth is not None else (existing.get("date_of_birth") if existing else None)
+    if inclusion_confirmed is True:
+        final_inc_at = now
+    else:
+        final_inc_at = existing.get("inclusion_confirmed_at") if existing else None
+
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         if be == "sqlite":
             cursor.execute(
                 f"""
-                INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language, updated_at)
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph})
+                INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language, date_of_birth, inclusion_confirmed_at, updated_at)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON CONFLICT(user_id) DO UPDATE SET
                     conditions_json = excluded.conditions_json,
                     on_insulin_or_sulfonylurea = excluded.on_insulin_or_sulfonylurea,
                     language = excluded.language,
+                    date_of_birth = excluded.date_of_birth,
+                    inclusion_confirmed_at = excluded.inclusion_confirmed_at,
                     updated_at = excluded.updated_at
                 """,
-                (user_id, cond_json, insulin_val, clean_lang, now)
+                (user_id, cond_json, insulin_val, clean_lang, final_dob, final_inc_at, now)
             )
         else:
             cursor.execute(
                 f"""
-                INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language, updated_at)
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph})
+                INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language, date_of_birth, inclusion_confirmed_at, updated_at)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON DUPLICATE KEY UPDATE
                     conditions_json = VALUES(conditions_json),
                     on_insulin_or_sulfonylurea = VALUES(on_insulin_or_sulfonylurea),
                     language = VALUES(language),
+                    date_of_birth = VALUES(date_of_birth),
+                    inclusion_confirmed_at = VALUES(inclusion_confirmed_at),
                     updated_at = VALUES(updated_at)
                 """,
-                (user_id, cond_json, insulin_val, clean_lang, now)
+                (user_id, cond_json, insulin_val, clean_lang, final_dob, final_inc_at, now)
             )
     return get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
@@ -1016,12 +1100,14 @@ def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: 
                    state_dict: Dict[str, Any], status: str = "in_progress",
                    started_at: Optional[str] = None,
                    med_state_dict: Optional[Dict[str, Any]] = None,
+                   protocol_state_dict: Optional[Dict[str, Any]] = None,
                    backend: Optional[str] = None, db_path: Optional[str] = None,
                    mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
     """Creates a new check-in session and marks older in_progress sessions for this user as abandoned."""
     now = started_at or _utc_now_iso()
     state_str = json.dumps(state_dict)
     med_state_str = json.dumps(med_state_dict) if med_state_dict is not None else None
+    protocol_state_str = json.dumps(protocol_state_dict) if protocol_state_dict is not None else None
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
             f"UPDATE checkins SET status = 'abandoned', completed_at = {ph} WHERE user_id = {ph} AND status = 'in_progress'",
@@ -1029,10 +1115,10 @@ def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: 
         )
         cursor.execute(
             f"""
-            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, status, state_json, med_state_json, version, started_at, completed_at)
-            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph}, NULL)
+            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, status, state_json, med_state_json, protocol_state_json, version, started_at, completed_at)
+            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph}, NULL)
             """,
-            (checkin_id, user_id, mode, record_patient_id, status, state_str, med_state_str, now)
+            (checkin_id, user_id, mode, record_patient_id, status, state_str, med_state_str, protocol_state_str, now)
         )
     return {
         "checkin_id": checkin_id,
@@ -1042,6 +1128,7 @@ def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: 
         "status": status,
         "state": state_dict,
         "med_state": med_state_dict,
+        "protocol_state": protocol_state_dict,
         "version": 0,
         "started_at": now,
         "completed_at": None,
@@ -1053,7 +1140,7 @@ def get_checkin_by_id(checkin_id: str, backend: Optional[str] = None, db_path: O
     """Retrieves check-in row and parsed state dictionary by checkin_id."""
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
-            f"SELECT checkin_id, user_id, mode, record_patient_id, status, state_json, med_state_json, version, started_at, completed_at FROM checkins WHERE checkin_id = {ph}",
+            f"SELECT checkin_id, user_id, mode, record_patient_id, status, state_json, med_state_json, protocol_state_json, version, started_at, completed_at FROM checkins WHERE checkin_id = {ph}",
             (checkin_id,)
         )
         row = cursor.fetchone()
@@ -1072,28 +1159,32 @@ def get_checkin_by_id(checkin_id: str, backend: Optional[str] = None, db_path: O
                 d["med_state"] = None
         else:
             d["med_state"] = None
+        raw_proto = d.pop("protocol_state_json", None)
+        if raw_proto:
+            try:
+                d["protocol_state"] = json.loads(raw_proto)
+            except Exception:
+                d["protocol_state"] = None
+        else:
+            d["protocol_state"] = None
         d["version"] = int(d.get("version", 0)) if d.get("version") is not None else 0
         return d
 
 
 def update_checkin_state(checkin_id: str, state_dict: Dict[str, Any], status: str = "in_progress",
                          completed_at: Optional[str] = None, med_state_dict: Optional[Dict[str, Any]] = None,
+                         protocol_state_dict: Optional[Dict[str, Any]] = None,
                          backend: Optional[str] = None, db_path: Optional[str] = None,
                          mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Updates interview state, med state, status, and completion timestamp."""
+    """Updates interview state, med state, protocol state, status, and completion timestamp."""
     state_str = json.dumps(state_dict)
+    med_state_str = json.dumps(med_state_dict) if med_state_dict is not None else None
+    protocol_state_str = json.dumps(protocol_state_dict) if protocol_state_dict is not None else None
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
-        if med_state_dict is not None:
-            med_state_str = json.dumps(med_state_dict)
-            cursor.execute(
-                f"UPDATE checkins SET state_json = {ph}, med_state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph}",
-                (state_str, med_state_str, status, completed_at, checkin_id)
-            )
-        else:
-            cursor.execute(
-                f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph}",
-                (state_str, status, completed_at, checkin_id)
-            )
+        cursor.execute(
+            f"UPDATE checkins SET state_json = {ph}, med_state_json = {ph}, protocol_state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph}",
+            (state_str, med_state_str, protocol_state_str, status, completed_at, checkin_id)
+        )
     return get_checkin_by_id(checkin_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
 
@@ -1108,6 +1199,9 @@ def apply_checkin_answer_atomic(
     trigger_text: Optional[str] = None,
     actor_user_id: Optional[str] = None,
     med_state_dict: Optional[Dict[str, Any]] = None,
+    protocol_state_dict: Optional[Dict[str, Any]] = None,
+    triage_level: Optional[str] = None,
+    triage_dict: Optional[Dict[str, Any]] = None,
     backend: Optional[str] = None,
     db_path: Optional[str] = None,
     mysql_url: Optional[str] = None,
@@ -1117,26 +1211,22 @@ def apply_checkin_answer_atomic(
     Atomically updates check-in state with optimistic locking (version match + increment).
     When emergency=True:
       - Sets status='emergency'
-      - Creates checkin_results row if not exists
+      - Creates checkin_results row if not exists (with triage_level, triage_json)
       - Appends emergency_escalated audit row if not exists (category only)
     Returns True on success, False on concurrent update version mismatch.
     """
     now = _utc_now_iso()
     state_str = json.dumps(state_dict)
     clean_trigger_text = trigger_text[:500] if trigger_text else None
+    med_state_str = json.dumps(med_state_dict) if med_state_dict is not None else None
+    protocol_state_str = json.dumps(protocol_state_dict) if protocol_state_dict is not None else None
+    triage_json_str = json.dumps(triage_dict) if triage_dict is not None else None
 
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
-        if med_state_dict is not None:
-            med_state_str = json.dumps(med_state_dict)
-            cursor.execute(
-                f"UPDATE checkins SET state_json = {ph}, med_state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph} AND version = {ph}",
-                (state_str, med_state_str, status, completed_at, checkin_id, expected_version)
-            )
-        else:
-            cursor.execute(
-                f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph} AND version = {ph}",
-                (state_str, status, completed_at, checkin_id, expected_version)
-            )
+        cursor.execute(
+            f"UPDATE checkins SET state_json = {ph}, med_state_json = {ph}, protocol_state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph} AND version = {ph}",
+            (state_str, med_state_str, protocol_state_str, status, completed_at, checkin_id, expected_version)
+        )
         if cursor.rowcount == 0:
             return False
 
@@ -1158,10 +1248,10 @@ def apply_checkin_answer_atomic(
                     INSERT INTO checkin_results (
                         checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                         requires_review, max_severity, review_status, trigger_category, trigger_text,
-                        escalated_at, created_at
-                    ) VALUES ({ph}, {ph}, {ph}, NULL, NULL, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                        escalated_at, triage_level, triage_json, created_at
+                    ) VALUES ({ph}, {ph}, {ph}, NULL, NULL, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                     """,
-                    (checkin_id, emg_val, intakes_str, req_rev_val, max_sev, rev_status, trigger_category, clean_trigger_text, now, now)
+                    (checkin_id, emg_val, intakes_str, req_rev_val, max_sev, rev_status, trigger_category, clean_trigger_text, now, triage_level or ("emergency" if emergency else None), triage_json_str, now)
                 )
 
             # Check if audit row exists
@@ -1191,6 +1281,8 @@ def create_checkin_result(
     trigger_category: Optional[str] = None,
     trigger_text: Optional[str] = None,
     escalated_at: Optional[str] = None,
+    triage_level: Optional[str] = None,
+    triage: Optional[Dict[str, Any]] = None,
     created_at: Optional[str] = None,
     backend: Optional[str] = None,
     db_path: Optional[str] = None,
@@ -1202,6 +1294,7 @@ def create_checkin_result(
     intakes_str = json.dumps(intakes)
     recon_str = json.dumps(reconciliation) if reconciliation else None
     verif_str = json.dumps(verification) if verification else None
+    triage_str = json.dumps(triage) if triage else None
     emg_val = 1 if emergency else 0
     req_rev_val = 1 if requires_review else 0
     clean_trigger_text = trigger_text[:500] if trigger_text else None
@@ -1213,9 +1306,9 @@ def create_checkin_result(
                 INSERT INTO checkin_results (
                     checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                     requires_review, max_severity, review_status, trigger_category, trigger_text,
-                    escalated_at, created_at
+                    escalated_at, triage_level, triage_json, created_at
                 )
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON CONFLICT(checkin_id) DO UPDATE SET
                     emergency = excluded.emergency,
                     intakes_json = excluded.intakes_json,
@@ -1226,9 +1319,11 @@ def create_checkin_result(
                     review_status = excluded.review_status,
                     trigger_category = excluded.trigger_category,
                     trigger_text = excluded.trigger_text,
-                    escalated_at = excluded.escalated_at
+                    escalated_at = excluded.escalated_at,
+                    triage_level = excluded.triage_level,
+                    triage_json = excluded.triage_json
                 """,
-                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, now)
+                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, now)
             )
         else:
             cursor.execute(
@@ -1236,9 +1331,9 @@ def create_checkin_result(
                 INSERT INTO checkin_results (
                     checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                     requires_review, max_severity, review_status, trigger_category, trigger_text,
-                    escalated_at, created_at
+                    escalated_at, triage_level, triage_json, created_at
                 )
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON DUPLICATE KEY UPDATE
                     emergency = VALUES(emergency),
                     intakes_json = VALUES(intakes_json),
@@ -1249,9 +1344,11 @@ def create_checkin_result(
                     review_status = VALUES(review_status),
                     trigger_category = VALUES(trigger_category),
                     trigger_text = VALUES(trigger_text),
-                    escalated_at = VALUES(escalated_at)
+                    escalated_at = VALUES(escalated_at),
+                    triage_level = VALUES(triage_level),
+                    triage_json = VALUES(triage_json)
                 """,
-                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, now)
+                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, now)
             )
     return get_checkin_result(checkin_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
@@ -1264,7 +1361,7 @@ def get_checkin_result(checkin_id: str, backend: Optional[str] = None, db_path: 
             f"""
             SELECT checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                    requires_review, max_severity, review_status, trigger_category, trigger_text,
-                   escalated_at, created_at
+                   escalated_at, triage_level, triage_json, created_at
             FROM checkin_results
             WHERE checkin_id = {ph}
             """,
@@ -1281,6 +1378,8 @@ def get_checkin_result(checkin_id: str, backend: Optional[str] = None, db_path: 
         d["reconciliation"] = json.loads(recon_raw) if recon_raw else None
         verif_raw = d.pop("verification_json", None)
         d["verification"] = json.loads(verif_raw) if verif_raw else None
+        raw_triage = d.pop("triage_json", None)
+        d["triage"] = json.loads(raw_triage) if raw_triage else None
         return d
 
 
@@ -1312,27 +1411,34 @@ def get_user_checkins(user_id: str, limit: int = 20, backend: Optional[str] = No
         return results
 
 
+
 # =============================================================================
 # PROVIDER REVIEW QUEUE & ACTION HELPERS
 # =============================================================================
 
 def get_provider_review_queue(review_status: str = "open", backend: Optional[str] = None, db_path: Optional[str] = None,
                               mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Retrieves review queue ordered by emergency (desc), max_severity (desc), and created_at (asc)."""
+    """Retrieves review queue ordered by triage_level, emergency (desc), max_severity (desc), and created_at (asc)."""
     now_dt = datetime.now(timezone.utc)
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
             f"""
             SELECT r.checkin_id, r.emergency, r.max_severity, r.review_status, r.created_at,
                    r.intakes_json, r.reconciliation_json, r.verification_json,
-                   r.trigger_category, r.trigger_text, r.escalated_at,
+                   r.trigger_category, r.trigger_text, r.escalated_at, r.triage_level, r.triage_json,
                    c.mode, c.user_id,
                    u.display_name, u.email
             FROM checkin_results r
             JOIN checkins c ON r.checkin_id = c.checkin_id
             JOIN users u ON c.user_id = u.user_id
             WHERE r.review_status = {ph}
-            ORDER BY r.emergency DESC,
+            ORDER BY CASE r.triage_level
+                         WHEN 'emergency' THEN 1
+                         WHEN 'urgent' THEN 2
+                         WHEN 'review' THEN 3
+                         ELSE 4
+                     END ASC,
+                     r.emergency DESC,
                      CASE r.max_severity
                          WHEN 'high' THEN 1
                          WHEN 'moderate' THEN 2
@@ -1399,8 +1505,10 @@ def get_provider_review_queue(review_status: str = "open", backend: Optional[str
                 "trigger_text": d.get("trigger_text"),
                 "trigger_reading": trigger_reading,
                 "escalated_at": d.get("escalated_at"),
+                "triage_level": d.get("triage_level"),
             })
         return items
+
 
 
 def append_review_action(checkin_id: str, provider_user_id: str, action: str,
@@ -1453,5 +1561,94 @@ def get_review_actions(checkin_id: str, backend: Optional[str] = None, db_path: 
             (checkin_id,)
         )
         return [dict(r) for r in cursor.fetchall()]
+
+
+def get_user_baseline_history(user_id: str, exclude_checkin_id: Optional[str] = None,
+                              backend: Optional[str] = None, db_path: Optional[str] = None,
+                              mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Returns the signed-in patient's own readings (observation type, value, completed-at timestamp)
+    from their earlier COMPLETED, non-emergency check-ins within the last 14 days (read from
+    checkin_results.intakes_json), excluding the current check-in, plus, in Isolated Mode,
+    the baseline observations in the Local Store (with their measured_at).
+    Scoped strictly to user_id.
+    """
+    now_dt = datetime.now(timezone.utc)
+    fourteen_days_ago = now_dt - timedelta(days=14)
+    earliest_iso = fourteen_days_ago.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    history: List[Dict[str, Any]] = []
+
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        exclude_clause = f"AND c.checkin_id != {ph}" if exclude_checkin_id else ""
+        params = [user_id, earliest_iso]
+        if exclude_checkin_id:
+            params.append(exclude_checkin_id)
+
+        query = f"""
+            SELECT c.checkin_id, c.completed_at, r.intakes_json, r.emergency
+            FROM checkins c
+            INNER JOIN checkin_results r ON c.checkin_id = r.checkin_id
+            WHERE c.user_id = {ph}
+              AND c.status = 'complete'
+              AND r.emergency = 0
+              AND c.completed_at >= {ph}
+              {exclude_clause}
+            ORDER BY c.completed_at DESC
+        """
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall()
+        for row in rows:
+            d = dict(row)
+            raw_intakes = d.get("intakes_json")
+            completed_at = d.get("completed_at")
+            if not raw_intakes or not completed_at:
+                continue
+            try:
+                intakes = json.loads(raw_intakes)
+            except Exception:
+                intakes = []
+            for intake in intakes:
+                for reading in intake.get("readings", []):
+                    obs_type = reading.get("observation_type")
+                    val = reading.get("value")
+                    if obs_type in ("blood_pressure_systolic", "blood_pressure_diastolic", "glucose") and val is not None:
+                        try:
+                            history.append({
+                                "observation_type": obs_type,
+                                "value": float(val),
+                                "timestamp": completed_at,
+                            })
+                        except (ValueError, TypeError):
+                            pass
+
+    # In isolated mode, include baseline observations from local_store (excluding checkin copies)
+    try:
+        from data_sources import local_store
+        local_obs = local_store.get_local_observations(f"local-{user_id}")
+        for obs in local_obs:
+            source_rec_id = str(obs.get("id") or obs.get("source_record_id") or "")
+            if source_rec_id.startswith("CHECKIN-"):
+                continue
+            obs_type = obs.get("type") or obs.get("observation_type")
+            val = obs.get("value")
+            measured_at = obs.get("measured_at") or obs.get("timestamp")
+            if obs_type in ("blood_pressure_systolic", "blood_pressure_diastolic", "glucose") and val is not None and measured_at:
+                try:
+                    obs_dt = datetime.fromisoformat(measured_at.replace("Z", "+00:00"))
+                    if obs_dt.tzinfo is None:
+                        obs_dt = obs_dt.replace(tzinfo=timezone.utc)
+                    if obs_dt >= fourteen_days_ago:
+                        history.append({
+                            "observation_type": obs_type,
+                            "value": float(val),
+                            "timestamp": measured_at,
+                        })
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    return history
 
 
