@@ -19,7 +19,13 @@ import {
   Pill,
 } from "lucide-react";
 import { api, ApiError, ReviewDetailResponse } from "../../lib/api";
-import { describeSide, describeReviewReason, describeMedicationItem } from "../../lib/presentation";
+import {
+  describeSide,
+  describeReviewReason,
+  describeMedicationItem,
+  describeProtocol,
+  describeTriageLevel,
+} from "../../lib/presentation";
 
 export const ReconciliationAlertDetail = () => {
   const {
@@ -177,6 +183,37 @@ export const ReconciliationAlertDetail = () => {
     }
   }
 
+  const formatReadings = (val: any): string => {
+    if (!val) return "Not recorded";
+    if (typeof val === "string") return val;
+    if (Array.isArray(val)) {
+      return val.map((item) => formatReadings(item)).join(", ");
+    }
+    if (typeof val === "object") {
+      if (val.systolic !== undefined && val.diastolic !== undefined) {
+        return `${val.systolic}/${val.diastolic} ${val.unit || "mmHg"}`;
+      }
+      if (val.value !== undefined) {
+        return `${val.value} ${val.unit || ""}`.trim();
+      }
+      if (val.reading !== undefined) {
+        return String(val.reading);
+      }
+      return Object.entries(val)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(", ");
+    }
+    return String(val);
+  };
+
+  const formatAgeBand = (band?: string | null): string => {
+    if (!band) return "Adult";
+    const norm = band.toLowerCase().trim();
+    if (norm === "65_plus" || norm === "65+" || norm.includes("65")) return "Age 65 and over";
+    if (norm === "18_64" || norm === "18-64" || norm.includes("18")) return "Adult 18 to 64";
+    return band;
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 animate-fadeIn py-2" dir={isUrdu ? "rtl" : "ltr"}>
       {/* Toast Notification */}
@@ -230,6 +267,120 @@ export const ReconciliationAlertDetail = () => {
         <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
           <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {/* Triage Card (Rendered at top for items with triage) */}
+      {liveDetail?.triage && (
+        <div className="surface-card rounded-3xl p-6 sm:p-7 space-y-5 border-2 border-teal-600/40 bg-white shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3.5">
+            <div className="flex items-center gap-2.5">
+              <Sparkles className="w-5 h-5 text-teal-700 shrink-0" />
+              <div>
+                <h2 className="font-heading font-bold text-lg text-navy-900">
+                  Triage: {describeProtocol(liveDetail.triage.protocol)}
+                </h2>
+                <span className="text-xs text-slate-500 font-medium">
+                  Protocol: {liveDetail.triage.protocol} • Age Band: {formatAgeBand(liveDetail.triage.age_band)}
+                </span>
+              </div>
+            </div>
+
+            {/* Triage Level Tag */}
+            {(() => {
+              const triageLvl = (liveDetail.triage.level || "routine").toLowerCase();
+              const triageDesc = describeTriageLevel(triageLvl, liveDetail.triage.guidance);
+              return (
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5 self-start sm:self-auto ${
+                    triageLvl === "emergency"
+                      ? "bg-emergencyRed-100 text-emergencyRed-900 border border-emergencyRed-300"
+                      : triageLvl === "urgent"
+                      ? "bg-amber-100 text-amber-950 border border-amber-300"
+                      : triageLvl === "review"
+                      ? "bg-teal-100 text-teal-900 border border-teal-300"
+                      : "bg-slate-100 text-slate-800 border border-slate-200"
+                  }`}
+                >
+                  {triageLvl === "emergency" ? (
+                    <AlertOctagon className="w-3.5 h-3.5 text-emergencyRed-700" />
+                  ) : triageLvl === "urgent" ? (
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
+                  ) : (
+                    <Info className="w-3.5 h-3.5 text-teal-700" />
+                  )}
+                  <span>{triageDesc.label}</span>
+                </span>
+              );
+            })()}
+          </div>
+
+          <div className="space-y-4 text-xs sm:text-sm">
+            {/* Reasons */}
+            {liveDetail.triage.reasons && Array.isArray(liveDetail.triage.reasons) && liveDetail.triage.reasons.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="font-bold text-navy-800 uppercase tracking-wider text-xs block">
+                  Triage Rationale & Reasons:
+                </span>
+                <ul className="space-y-1 list-disc list-inside text-slate-700 pl-1">
+                  {liveDetail.triage.reasons.map((reason: string, rIdx: number) => (
+                    <li key={rIdx} className="leading-relaxed">
+                      {reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Contributing Factors (only when present and non-empty) */}
+            {liveDetail.triage.factors && Array.isArray(liveDetail.triage.factors) && liveDetail.triage.factors.length > 0 && (
+              <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-950 font-semibold text-xs">
+                Possible contributing factors: {liveDetail.triage.factors.join(", ")}
+              </div>
+            )}
+
+            {/* Telemetry Readings & Recheck Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Initial Reading
+                </span>
+                <div className="text-base font-bold text-navy-900 font-mono">
+                  {formatReadings(liveDetail.triage.readings)}
+                </div>
+              </div>
+
+              {liveDetail.triage.recheck && (
+                <div className="p-3.5 rounded-xl bg-teal-50/70 border border-teal-200 space-y-1">
+                  <span className="text-[11px] font-bold text-teal-800 uppercase tracking-wider block">
+                    Re-measure After Rest
+                  </span>
+                  <div className="text-base font-bold text-teal-950 font-mono">
+                    {formatReadings(liveDetail.triage.recheck)}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Patient Guidance Shown */}
+            {liveDetail.triage.guidance && (
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1 text-xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Guidance Shown to Patient:
+                </span>
+                <p className="font-semibold text-navy-900 leading-relaxed italic">
+                  &ldquo;{liveDetail.triage.guidance}&rdquo;
+                </p>
+              </div>
+            )}
+
+            {/* Disclaimer line */}
+            <div className="pt-1 text-center">
+              <p className="text-[11px] font-medium text-slate-400">
+                Thresholds are illustrative and not clinically validated.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

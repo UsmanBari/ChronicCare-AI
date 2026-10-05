@@ -16,6 +16,7 @@ import {
   Loader2,
   Flame,
   RotateCw,
+  Info,
 } from "lucide-react";
 import { api, ReviewQueueItemResponse } from "../../lib/api";
 
@@ -264,9 +265,35 @@ export const ReviewQueueScreen = () => {
                         }`}
                       >
                         <td className="py-4.5 px-5">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-navy-800 text-sm">{item.patient_display}</span>
-                            {item.emergency && (
+                            {item.triage_level && (
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 ${
+                                  item.triage_level === "emergency"
+                                    ? "bg-emergencyRed-100 text-emergencyRed-800 border border-emergencyRed-300"
+                                    : item.triage_level === "urgent"
+                                    ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                    : "bg-teal-100 text-teal-900 border border-teal-300"
+                                }`}
+                              >
+                                {item.triage_level === "emergency" ? (
+                                  <AlertOctagon className="w-3 h-3 text-emergencyRed-700" />
+                                ) : item.triage_level === "urgent" ? (
+                                  <AlertTriangle className="w-3 h-3 text-amber-700" />
+                                ) : (
+                                  <Info className="w-3 h-3 text-teal-700" />
+                                )}
+                                <span>
+                                  {item.triage_level === "emergency"
+                                    ? isUrdu ? "ایمرجنسی" : "Emergency"
+                                    : item.triage_level === "urgent"
+                                    ? isUrdu ? "ارجنٹ" : "Urgent"
+                                    : isUrdu ? "جائزہ" : "Review"}
+                                </span>
+                              </span>
+                            )}
+                            {item.emergency && !item.triage_level && (
                               <span className="px-2 py-0.5 rounded bg-emergencyRed-100 text-emergencyRed-800 text-[10px] font-bold uppercase tracking-wider">
                                 {isUrdu ? "ایمرجنسی" : "Emergency"}
                               </span>
