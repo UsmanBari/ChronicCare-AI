@@ -74,7 +74,9 @@ def _get_db_path(db_path: Optional[str] = None) -> str:
 
 def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     """Returns an open SQLite connection with sqlite3.Row factory."""
-    conn = sqlite3.connect(_get_db_path(db_path))
+    path = _get_db_path(db_path)
+    _init_sqlite_db(path)
+    conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -125,9 +127,17 @@ def _init_sqlite_db(db_path: Optional[str] = None) -> None:
                 dosage TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
                 source TEXT NOT NULL,
+                origin TEXT,
                 FOREIGN KEY (patient_id) REFERENCES patients(id)
             )
         """)
+        
+        # Migration: ensure origin column exists on medications table
+        cursor.execute("PRAGMA table_info(medications)")
+        cols_m = [r[1] for r in cursor.fetchall()]
+        if "origin" not in cols_m:
+            cursor.execute("ALTER TABLE medications ADD COLUMN origin TEXT")
+        
         conn.commit()
 
 
@@ -212,10 +222,19 @@ def _init_mysql_db(mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None
                     dosage VARCHAR(255) NOT NULL,
                     timestamp VARCHAR(64) NOT NULL,
                     source VARCHAR(64) NOT NULL,
+                    origin VARCHAR(64) DEFAULT NULL,
                     INDEX idx_med_patient (patient_id),
                     CONSTRAINT fk_med_patient FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """)
+
+            # Idempotent migration: check if origin column exists on medications
+            cursor.execute("""
+                SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'medications' AND COLUMN_NAME = 'origin';
+            """)
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE medications ADD COLUMN origin VARCHAR(64) DEFAULT NULL;")
         conn.commit()
     finally:
         conn.close()
@@ -348,7 +367,7 @@ def get_local_medications(patient_id: str, db_path: Optional[str] = None, backen
         try:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id, patient_id, medication_name, status, dosage, timestamp, source FROM medications WHERE patient_id = %s",
+                    "SELECT id, patient_id, medication_name, status, dosage, timestamp, source, origin FROM medications WHERE patient_id = %s",
                     (patient_id,)
                 )
                 rows = cursor.fetchall()
@@ -360,7 +379,7 @@ def get_local_medications(patient_id: str, db_path: Optional[str] = None, backen
         try:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, patient_id, medication_name, status, dosage, timestamp, source FROM medications WHERE patient_id = ?",
+                "SELECT id, patient_id, medication_name, status, dosage, timestamp, source, origin FROM medications WHERE patient_id = ?",
                 (patient_id,)
             )
             rows = cursor.fetchall()
@@ -455,6 +474,131 @@ def add_local_observation(
             conn.commit()
 
 
+def delete_local_observation(
+    observation_id: str,
+    patient_id: Optional[str] = None,
+    db_path: Optional[str] = None,
+    backend: Optional[str] = None,
+) -> bool:
+    """Deletes an observation record by id (and patient_id if provided). Returns True if deleted."""
+    b = _resolve_backend(backend)
+    if b == "mysql":
+        conn = get_mysql_connection()
+        try:
+            with conn.cursor() as cursor:
+                if patient_id:
+                    cursor.execute("DELETE FROM observations WHERE id = %s AND patient_id = %s;", (observation_id, patient_id))
+                else:
+                    cursor.execute("DELETE FROM observations WHERE id = %s;", (observation_id,))
+                deleted = cursor.rowcount > 0
+            conn.commit()
+            return deleted
+        finally:
+            conn.close()
+    else:
+        path = _get_db_path(db_path)
+        _init_sqlite_db(path)
+        with sqlite3.connect(path) as conn:
+            cursor = conn.cursor()
+            if patient_id:
+                cursor.execute("DELETE FROM observations WHERE id = ? AND patient_id = ?", (observation_id, patient_id))
+            else:
+                cursor.execute("DELETE FROM observations WHERE id = ?", (observation_id,))
+            deleted = cursor.rowcount > 0
+            conn.commit()
+            return deleted
+
+
+def add_local_medication(
+    id: str,
+    patient_id: str,
+    medication_name: str,
+    status: str,
+    dosage: str,
+    timestamp: str,
+    source: str = "local",
+    origin: Optional[str] = "self_reported",
+    db_path: Optional[str] = None,
+    backend: Optional[str] = None,
+) -> None:
+    """Inserts or updates a medication with provenance origin in the active store."""
+    b = _resolve_backend(backend)
+    if b == "mysql":
+        conn = get_mysql_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO medications (id, patient_id, medication_name, status, dosage, timestamp, source, origin)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        medication_name = VALUES(medication_name),
+                        status = VALUES(status),
+                        dosage = VALUES(dosage),
+                        timestamp = VALUES(timestamp),
+                        origin = VALUES(origin);
+                    """,
+                    (id, patient_id, medication_name, status, dosage, timestamp, source, origin)
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    else:
+        path = _get_db_path(db_path)
+        _init_sqlite_db(path)
+        with sqlite3.connect(path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO medications (id, patient_id, medication_name, status, dosage, timestamp, source, origin)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    medication_name = excluded.medication_name,
+                    status = excluded.status,
+                    dosage = excluded.dosage,
+                    timestamp = excluded.timestamp,
+                    origin = excluded.origin
+                """,
+                (id, patient_id, medication_name, status, dosage, timestamp, source, origin)
+            )
+            conn.commit()
+
+
+def delete_local_medication(
+    medication_id: str,
+    patient_id: Optional[str] = None,
+    db_path: Optional[str] = None,
+    backend: Optional[str] = None,
+) -> bool:
+    """Deletes a medication record by id (and patient_id if provided). Returns True if deleted."""
+    b = _resolve_backend(backend)
+    if b == "mysql":
+        conn = get_mysql_connection()
+        try:
+            with conn.cursor() as cursor:
+                if patient_id:
+                    cursor.execute("DELETE FROM medications WHERE id = %s AND patient_id = %s;", (medication_id, patient_id))
+                else:
+                    cursor.execute("DELETE FROM medications WHERE id = %s;", (medication_id,))
+                deleted = cursor.rowcount > 0
+            conn.commit()
+            return deleted
+        finally:
+            conn.close()
+    else:
+        path = _get_db_path(db_path)
+        _init_sqlite_db(path)
+        with sqlite3.connect(path) as conn:
+            cursor = conn.cursor()
+            if patient_id:
+                cursor.execute("DELETE FROM medications WHERE id = ? AND patient_id = ?", (medication_id, patient_id))
+            else:
+                cursor.execute("DELETE FROM medications WHERE id = ?", (medication_id,))
+            deleted = cursor.rowcount > 0
+            conn.commit()
+            return deleted
+
+
 def get_local_observation_origins(
     patient_id: str,
     db_path: Optional[str] = None,
@@ -486,3 +630,37 @@ def get_local_observation_origins(
             return {r["id"]: r["origin"] for r in rows if r["origin"]}
         finally:
             conn.close()
+
+
+def get_local_medication_origins(
+    patient_id: str,
+    db_path: Optional[str] = None,
+    backend: Optional[str] = None,
+) -> Dict[str, str]:
+    """Retrieves {source_record_id: origin} mapping for a patient's medications where origin is not null."""
+    b = _resolve_backend(backend)
+    if b == "mysql":
+        conn = get_mysql_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, origin FROM medications WHERE patient_id = %s AND origin IS NOT NULL;",
+                    (patient_id,)
+                )
+                rows = cursor.fetchall()
+                return {r["id"]: r["origin"] for r in rows if r["origin"]}
+        finally:
+            conn.close()
+    else:
+        conn = get_connection(db_path)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, origin FROM medications WHERE patient_id = ? AND origin IS NOT NULL",
+                (patient_id,)
+            )
+            rows = cursor.fetchall()
+            return {r["id"]: r["origin"] for r in rows if r["origin"]}
+        finally:
+            conn.close()
+

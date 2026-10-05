@@ -52,12 +52,23 @@ from agents.adaptive_interview_agent import (
     build_checkin_origins,
     get_current_question,
     INTERVIEW_COMPLETE,
+    run_stage1_red_flag_screen,
+)
+from agents.medication_confirmation import (
+    start_medication_check,
+    current_medication_question,
+    advance_medication_check,
+    restrict_to_asked,
+    build_medication_bundle_items,
+    build_medication_origins,
+    MedicationCheckState,
 )
 from data_sources.data_source import get_patient_bundle
 from data_sources.local_store import (
     add_local_patient_if_missing,
     add_local_observation,
     get_local_observation_origins,
+    get_local_medication_origins,
 )
 from llm.groq_client import is_configured, get_configured_model, chat
 from auth.firebase_verify import verify_firebase_token, AuthError, get_firebase_project_id
@@ -1139,12 +1150,20 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
                         started_dt = datetime.fromisoformat(started_str.replace("Z", "+00:00"))
                         if (now_dt - started_dt).total_seconds() <= 900:
                             st = InterviewState.from_dict(c_state)
+                            med_st_dict = c_detail.get("med_state")
+                            med_st = MedicationCheckState.from_dict(med_st_dict) if med_st_dict else None
+                            if st.step == INTERVIEW_COMPLETE and med_st and not med_st.complete:
+                                res_step = f"medication_check:{med_st.index}:{med_st.attempts}"
+                                res_question = current_medication_question(med_st)
+                            else:
+                                res_step = st.step
+                                res_question = get_current_question(st)
                             return CheckinStartResponse(
                                 checkin_id=c_detail["checkin_id"],
-                                question=get_current_question(st),
+                                question=res_question,
                                 mode=c_detail["mode"],
                                 is_cold_start=st.is_cold_start,
-                                step=st.step,
+                                step=res_step,
                                 version=c_detail.get("version", 0),
                             )
                     except Exception:
@@ -1167,7 +1186,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
         patient_name = current_user.get("display_name") or "Local Patient"
         add_local_patient_if_missing(record_patient_id, name=patient_name)
 
-    # 6. Fetch prior bundle to determine cold start
+    # 6. Fetch prior bundle to determine cold start and initialize medication confirmation
     try:
         prior_bundle = get_patient_bundle(record_patient_id, mode=mode, base_url=base_url)
     except Exception:
@@ -1177,6 +1196,8 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
         )
 
     is_cold_start = (len(prior_bundle.get("observations", [])) == 0 and len(prior_bundle.get("medications", [])) == 0)
+    med_state = start_medication_check(prior_bundle.get("medications", []))
+    med_state_dict = med_state.to_dict()
 
     # 7. Initialize InterviewState and run first node
     state = InterviewState(
@@ -1196,6 +1217,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
         record_patient_id=record_patient_id,
         state_dict=initial_state.to_dict(),
         status="in_progress",
+        med_state_dict=med_state_dict,
     )
     question = get_current_question(initial_state)
 
@@ -1231,8 +1253,126 @@ def answer_checkin_endpoint(
 
     current_state = InterviewState.from_dict(checkin["state"])
     current_version = checkin.get("version", 0)
+    med_state_dict = checkin.get("med_state")
+    med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
 
-    # Step validation
+    in_med_phase = (current_state.step == INTERVIEW_COMPLETE and med_state is not None and not med_state.complete)
+
+    if in_med_phase:
+        expected_step = f"medication_check:{med_state.index}:{med_state.attempts}"
+        if body.step is not None and body.step != expected_step:
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={
+                    "detail": "stale_step",
+                    "step": expected_step,
+                    "question": current_medication_question(med_state),
+                },
+            )
+
+        answer_text = (body.answer or "").strip()
+        if not answer_text:
+            return CheckinAnswerResponse(
+                question=current_medication_question(med_state),
+                complete=False,
+                emergency=False,
+                emergency_reason=None,
+                step=expected_step,
+                version=current_version,
+            )
+
+        # Stage-1 red-flag screen on medication answer
+        triggered, reason = run_stage1_red_flag_screen(body.answer)
+        if triggered:
+            last_cond = current_state.active_condition or "general"
+            intakes = current_state.intakes if current_state.intakes else [{"condition": last_cond, "emergency": True, "reason": reason}]
+            completed_at = _utc_now_iso()
+            try:
+                success = apply_checkin_answer_atomic(
+                    checkin_id=checkin_id,
+                    expected_version=current_version,
+                    state_dict=current_state.to_dict(),
+                    status="emergency",
+                    completed_at=completed_at,
+                    emergency=True,
+                    trigger_category=reason,
+                    trigger_text=body.answer,
+                    actor_user_id=current_user["user_id"],
+                    med_state_dict=med_state.to_dict(),
+                )
+            except Exception as e:
+                logger.error(f"Persistence error during answer: {type(e).__name__}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to save check-in answer. Please try again.",
+                )
+
+            if not success:
+                return JSONResponse(
+                    status_code=status.HTTP_409_CONFLICT,
+                    content={"detail": "concurrent_update"},
+                )
+
+            return CheckinAnswerResponse(
+                question=None,
+                complete=True,
+                emergency=True,
+                emergency_reason=reason,
+                step=expected_step,
+                version=current_version + 1,
+                escalation_recorded=True,
+            )
+
+        next_med_state = advance_medication_check(med_state, body.answer)
+        is_med_complete = next_med_state.complete
+        new_status = "complete" if is_med_complete else "in_progress"
+        completed_at = _utc_now_iso() if is_med_complete else None
+
+        try:
+            success = apply_checkin_answer_atomic(
+                checkin_id=checkin_id,
+                expected_version=current_version,
+                state_dict=current_state.to_dict(),
+                status=new_status,
+                completed_at=completed_at,
+                emergency=False,
+                actor_user_id=current_user["user_id"],
+                med_state_dict=next_med_state.to_dict(),
+            )
+        except Exception as e:
+            logger.error(f"Persistence error during answer: {type(e).__name__}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save check-in answer. Please try again.",
+            )
+
+        if not success:
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={"detail": "concurrent_update"},
+            )
+
+        next_version = current_version + 1
+        if is_med_complete:
+            return CheckinAnswerResponse(
+                question=None,
+                complete=True,
+                emergency=False,
+                emergency_reason=None,
+                step=f"medication_check:{next_med_state.index}:{next_med_state.attempts}",
+                version=next_version,
+            )
+        else:
+            return CheckinAnswerResponse(
+                question=current_medication_question(next_med_state),
+                complete=False,
+                emergency=False,
+                emergency_reason=None,
+                step=f"medication_check:{next_med_state.index}:{next_med_state.attempts}",
+                version=next_version,
+            )
+
+    # In interview phase
     if body.step is not None:
         if body.step != current_state.step:
             return JSONResponse(
@@ -1253,9 +1393,20 @@ def answer_checkin_endpoint(
         )
 
     is_emergency = bool(next_state.stage1_red_flag or (next_state.intake and next_state.intake.get("emergency")))
-    is_complete = bool(next_state.step == INTERVIEW_COMPLETE or is_emergency)
-    new_status = "emergency" if is_emergency else ("complete" if is_complete else "in_progress")
-    completed_at = _utc_now_iso() if is_complete else None
+    has_med_items = bool(med_state and len(med_state.items) > 0 and not med_state.complete)
+
+    if not is_emergency and next_state.step == INTERVIEW_COMPLETE and has_med_items:
+        new_status = "in_progress"
+        completed_at = None
+        is_complete = False
+        next_step_str = f"medication_check:{med_state.index}:{med_state.attempts}"
+        next_question_str = current_medication_question(med_state)
+    else:
+        is_complete = bool(next_state.step == INTERVIEW_COMPLETE or is_emergency)
+        new_status = "emergency" if is_emergency else ("complete" if is_complete else "in_progress")
+        completed_at = _utc_now_iso() if is_complete else None
+        next_step_str = next_state.step
+        next_question_str = get_current_question(next_state) if not is_complete else None
 
     try:
         success = apply_checkin_answer_atomic(
@@ -1268,6 +1419,7 @@ def answer_checkin_endpoint(
             trigger_category=next_state.stage1_reason,
             trigger_text=body.answer,
             actor_user_id=current_user["user_id"],
+            med_state_dict=med_state.to_dict() if med_state else None,
         )
     except Exception as e:
         logger.error(f"Persistence error during answer: {type(e).__name__}")
@@ -1282,15 +1434,14 @@ def answer_checkin_endpoint(
             content={"detail": "concurrent_update"},
         )
 
-    question = get_current_question(next_state) if not is_complete else None
     next_version = current_version + 1
 
     return CheckinAnswerResponse(
-        question=question,
+        question=next_question_str,
         complete=is_complete,
         emergency=is_emergency,
         emergency_reason=next_state.stage1_reason if is_emergency else None,
-        step=next_state.step,
+        step=next_step_str,
         version=next_version,
         escalation_recorded=True if is_emergency else None,
     )
@@ -1325,11 +1476,21 @@ def complete_checkin_endpoint(
         )
 
     state = InterviewState.from_dict(checkin["state"])
-    if not state.stage1_red_flag and state.step != INTERVIEW_COMPLETE and checkin["status"] not in ("complete", "emergency"):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Interview is not complete",
-        )
+    med_state_dict = checkin.get("med_state")
+    med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
+
+    # Check incomplete checkin
+    if not state.stage1_red_flag and checkin["status"] != "emergency":
+        if state.step != INTERVIEW_COMPLETE:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Interview is not complete",
+            )
+        if med_state and not med_state.complete:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="medication_check_incomplete",
+            )
 
     # 1. Emergency Flow
     if state.stage1_red_flag or checkin["status"] == "emergency":
@@ -1353,6 +1514,7 @@ def complete_checkin_endpoint(
             state_dict=state.to_dict(),
             status="emergency",
             completed_at=now_iso,
+            med_state_dict=med_state.to_dict() if med_state else None,
         )
         return CheckinCompleteResponse(
             emergency=True,
@@ -1383,13 +1545,23 @@ def complete_checkin_endpoint(
     # Build check-in bundle
     source = "fhir" if checkin["mode"] == "connected" else "local"
     patient_name = current_user.get("display_name") or (prior_bundle["patient"].name if prior_bundle.get("patient") else "Patient")
+    now_iso = _utc_now_iso()
     try:
-        checkin_bundle = build_checkin_bundle(state, source=source, patient_name=patient_name)
+        checkin_bundle = build_checkin_bundle(state, source=source, patient_name=patient_name, checkin_timestamp=now_iso)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+
+    if med_state and med_state.items:
+        checkin_bundle["medications"] = build_medication_bundle_items(
+            med_state,
+            patient_id=checkin["record_patient_id"],
+            source=source,
+            timestamp=now_iso,
+        )
+        prior_bundle["medications"] = restrict_to_asked(prior_bundle.get("medications", []), med_state)
 
     # Reconcile bundles
     try:
@@ -1402,9 +1574,13 @@ def complete_checkin_endpoint(
 
     # Verify reconciliation with origins
     checkin_origins = build_checkin_origins(checkin_bundle)
+    if med_state and med_state.items:
+        checkin_origins.update(build_medication_origins(checkin_bundle["medications"]))
+
     if checkin["mode"] == "isolated":
-        local_origins = get_local_observation_origins(checkin["record_patient_id"])
-        combined_origins = {**local_origins, **checkin_origins}
+        local_obs_origins = get_local_observation_origins(checkin["record_patient_id"])
+        local_med_origins = get_local_medication_origins(checkin["record_patient_id"])
+        combined_origins = {**local_obs_origins, **local_med_origins, **checkin_origins}
     else:
         combined_origins = checkin_origins
 
@@ -1453,6 +1629,7 @@ def complete_checkin_endpoint(
         state_dict=state.to_dict(),
         status="complete",
         completed_at=_utc_now_iso(),
+        med_state_dict=med_state.to_dict() if med_state else None,
     )
 
     return CheckinCompleteResponse(

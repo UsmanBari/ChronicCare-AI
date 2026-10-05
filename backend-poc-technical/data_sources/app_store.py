@@ -234,6 +234,15 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     cursor.execute("ALTER TABLE checkin_results ADD COLUMN escalated_at TEXT")
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (4, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 5")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(checkins)")
+                c_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "med_state_json" not in c_cols:
+                    cursor.execute("ALTER TABLE checkins ADD COLUMN med_state_json TEXT")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (5, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -394,6 +403,17 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     cursor.execute("ALTER TABLE checkin_results ADD COLUMN escalated_at VARCHAR(64) NULL")
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (4, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 5")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkins' AND COLUMN_NAME = 'med_state_json'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE checkins ADD COLUMN med_state_json MEDIUMTEXT NULL")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (5, %s)", (now,))
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -772,11 +792,13 @@ def revoke_ehr_connection(user_id: str, backend: Optional[str] = None, db_path: 
 def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: str,
                    state_dict: Dict[str, Any], status: str = "in_progress",
                    started_at: Optional[str] = None,
+                   med_state_dict: Optional[Dict[str, Any]] = None,
                    backend: Optional[str] = None, db_path: Optional[str] = None,
                    mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
     """Creates a new check-in session and marks older in_progress sessions for this user as abandoned."""
     now = started_at or _utc_now_iso()
     state_str = json.dumps(state_dict)
+    med_state_str = json.dumps(med_state_dict) if med_state_dict is not None else None
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
             f"UPDATE checkins SET status = 'abandoned', completed_at = {ph} WHERE user_id = {ph} AND status = 'in_progress'",
@@ -784,10 +806,10 @@ def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: 
         )
         cursor.execute(
             f"""
-            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, status, state_json, version, started_at, completed_at)
-            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph}, NULL)
+            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, status, state_json, med_state_json, version, started_at, completed_at)
+            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph}, NULL)
             """,
-            (checkin_id, user_id, mode, record_patient_id, status, state_str, now)
+            (checkin_id, user_id, mode, record_patient_id, status, state_str, med_state_str, now)
         )
     return {
         "checkin_id": checkin_id,
@@ -796,6 +818,7 @@ def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: 
         "record_patient_id": record_patient_id,
         "status": status,
         "state": state_dict,
+        "med_state": med_state_dict,
         "version": 0,
         "started_at": now,
         "completed_at": None,
@@ -807,7 +830,7 @@ def get_checkin_by_id(checkin_id: str, backend: Optional[str] = None, db_path: O
     """Retrieves check-in row and parsed state dictionary by checkin_id."""
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
-            f"SELECT checkin_id, user_id, mode, record_patient_id, status, state_json, version, started_at, completed_at FROM checkins WHERE checkin_id = {ph}",
+            f"SELECT checkin_id, user_id, mode, record_patient_id, status, state_json, med_state_json, version, started_at, completed_at FROM checkins WHERE checkin_id = {ph}",
             (checkin_id,)
         )
         row = cursor.fetchone()
@@ -818,20 +841,36 @@ def get_checkin_by_id(checkin_id: str, backend: Optional[str] = None, db_path: O
             d["state"] = json.loads(d.pop("state_json", "{}"))
         except Exception:
             d["state"] = {}
+        raw_med = d.pop("med_state_json", None)
+        if raw_med:
+            try:
+                d["med_state"] = json.loads(raw_med)
+            except Exception:
+                d["med_state"] = None
+        else:
+            d["med_state"] = None
         d["version"] = int(d.get("version", 0)) if d.get("version") is not None else 0
         return d
 
 
 def update_checkin_state(checkin_id: str, state_dict: Dict[str, Any], status: str = "in_progress",
-                         completed_at: Optional[str] = None, backend: Optional[str] = None,
-                         db_path: Optional[str] = None, mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """Updates interview state, status, and completion timestamp."""
+                         completed_at: Optional[str] = None, med_state_dict: Optional[Dict[str, Any]] = None,
+                         backend: Optional[str] = None, db_path: Optional[str] = None,
+                         mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Updates interview state, med state, status, and completion timestamp."""
     state_str = json.dumps(state_dict)
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
-        cursor.execute(
-            f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph}",
-            (state_str, status, completed_at, checkin_id)
-        )
+        if med_state_dict is not None:
+            med_state_str = json.dumps(med_state_dict)
+            cursor.execute(
+                f"UPDATE checkins SET state_json = {ph}, med_state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph}",
+                (state_str, med_state_str, status, completed_at, checkin_id)
+            )
+        else:
+            cursor.execute(
+                f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph}",
+                (state_str, status, completed_at, checkin_id)
+            )
     return get_checkin_by_id(checkin_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
 
@@ -845,6 +884,7 @@ def apply_checkin_answer_atomic(
     trigger_category: Optional[str] = None,
     trigger_text: Optional[str] = None,
     actor_user_id: Optional[str] = None,
+    med_state_dict: Optional[Dict[str, Any]] = None,
     backend: Optional[str] = None,
     db_path: Optional[str] = None,
     mysql_url: Optional[str] = None,
@@ -863,10 +903,17 @@ def apply_checkin_answer_atomic(
     clean_trigger_text = trigger_text[:500] if trigger_text else None
 
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
-        cursor.execute(
-            f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph} AND version = {ph}",
-            (state_str, status, completed_at, checkin_id, expected_version)
-        )
+        if med_state_dict is not None:
+            med_state_str = json.dumps(med_state_dict)
+            cursor.execute(
+                f"UPDATE checkins SET state_json = {ph}, med_state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph} AND version = {ph}",
+                (state_str, med_state_str, status, completed_at, checkin_id, expected_version)
+            )
+        else:
+            cursor.execute(
+                f"UPDATE checkins SET state_json = {ph}, status = {ph}, completed_at = {ph}, version = version + 1 WHERE checkin_id = {ph} AND version = {ph}",
+                (state_str, status, completed_at, checkin_id, expected_version)
+            )
         if cursor.rowcount == 0:
             return False
 
