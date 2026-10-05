@@ -1,178 +1,240 @@
 # Clinical Rules Register
 
-> **Medical Decision-Support Specification for ChronicCare AI**  
-> **Version:** 1.0 (Stage 7D-1)  
-> **Purpose:** Comprehensive clinician-readable specification of deterministic clinical rules, physiological thresholds, triage logic, guideline citations, intentional exclusions, and codebase constants.
+> **STATUS: NOT REVIEWED BY A CLINICIAN.** Every number and rule in this document is illustrative and is **not clinical guidance**. This register describes exactly what the code does today; it was generated from the code so that the two cannot disagree. A clinician must review it, change what they disagree with, and sign the last section before anyone relies on the system for a real patient.
 
----
+ChronicCare AI is decision support for a clinician. It never diagnoses, never gives treatment or dose advice, never changes a medication, and never ends a conversation about a possible emergency with reassurance.
 
-## 1. Executive Summary & Design Principles
+## 1. Levels
 
-ChronicCare AI is a medical decision-support prototype assisting adults living with chronic hypertension and type 2 diabetes. The system is designed to behave like a careful, conservative clinician:
-1. **Safety First (Fail-Safe)**: When uncertainty, contradiction, or physiological extremes arise, the system always escalates conservatively (Routine $\rightarrow$ Review $\rightarrow$ Urgent $\rightarrow$ Emergency) and never down-grades clinical risk.
-2. **Confirmation-Based Triage**: A single extreme blood pressure reading without warning symptoms is not immediately treated as an unconfirmed emergency, nor is it dismissed. It triggers a structured, protocol-driven re-measurement after quiet rest, followed by systematic symptom and factor investigation.
-3. **Deterministic Execution**: All routing, thresholding, triage classifications, and reconciliation comparisons are deterministic algorithms with zero reliance on generative language models for clinical calculations or safety gating.
-4. **No Direct Prescribing or Titration**: The system does not calculate insulin boluses, titrate antihypertensive medications, or offer unsolicited diagnostic conclusions.
+| Level | Meaning | Text shown to the patient | Who is told |
+|---|---|---|---|
+| emergency | Warning signs are present | Call your local emergency number now. Your care team is being alerted. | Provider alerted immediately; saved by the same request that decides it |
+| urgent | Needs a clinician the same day | Please contact your clinician today. If you feel worse, call your local emergency number. | Top of the provider queue after emergencies |
+| review | A clinician should look at it | A clinician will review this. Please measure again later today and at the same time tomorrow. | Normal provider review queue |
+| routine | Nothing to flag | (none) | Nobody |
 
----
+A single number never decides an emergency. A numeric trigger starts the confirmation questions in section 3; only the answers decide the level. The only things that give emergency guidance at once are the danger phrases in section 5, because a patient reporting such a symptom is reporting a warning sign (the usual practice in nurse triage).
 
-## 2. Enforced Clinical Rules
+## 2. What starts a protocol (highest priority first)
 
-### 2.1 Patient Inclusion & Eligibility
-- **Adults Only (`MIN_ADULT_AGE = 18`, `MAX_PLAUSIBLE_AGE = 120`)**:
-  - *Rule*: Check-ins are restricted to adult patients aged 18 to 120 years.
-  - *Logic*: Profile submission validates `date_of_birth` (ISO `YYYY-MM-DD`). Ages $< 18$ return HTTP 422 `adults_only`. Ages $> 120$ or future dates return HTTP 422 `invalid_date_of_birth`.
-  - *Inclusion Confirmation*: Patient must explicitly confirm "I am 18 or older and not pregnant" (`inclusion_confirmed_at`). Check-in starts are blocked (HTTP 403 `profile_incomplete`) if either DOB or inclusion confirmation is missing when `REQUIRE_INCLUSION` is enabled.
-  - *Guideline*: NICE NG136 (Hypertension in adults), ADA Standards of Care (2024, Chapter 15 - Management of Diabetes in Pregnancy).
-
-### 2.2 Adaptive Interview Phase
-- **Plausible Physiological Bounds**:
-  - *Blood Pressure Systolic (`SYSTOLIC_RANGE_MMHG = (50, 300)`)*: Readings $< 50$ or $> 300\text{ mmHg}$ are rejected as non-physiological input.
-  - *Blood Pressure Diastolic (`DIASTOLIC_RANGE_MMHG = (30, 200)`)*: Readings $< 30$ or $> 200\text{ mmHg}$ are rejected.
-  - *Blood Glucose (`GLUCOSE_RANGE_MG_DL = (20.0, 1000.0)`)*: Readings $< 20$ or $> 1000\text{ mg/dL}$ are rejected.
-- **Stage 1 Dangerous Reading Screening**:
-  - *Dangerous Blood Pressure (`DANGEROUS_BP_SYSTOLIC_MMHG = 180`, `DANGEROUS_BP_DIASTOLIC_MMHG = 120`)*: During intake interview, systolic $\ge 180$ or diastolic $\ge 120\text{ mmHg}$ triggers the confirmation-based severe blood pressure triage protocol at the end of interview.
-  - *Guideline*: 2017 ACC/AHA High Blood Pressure Clinical Practice Guideline (Hypertensive Crisis / Crisis Range).
-- **Stage 1 Red-Flag Keyword Screening**:
-  - Unprompted statements of acute medical distress ("chest pain", "shortness of breath", "loss of vision", "slurred speech", "weakness on one side") halt the intake and immediately trigger emergency persistence. Negation cues within `NEGATION_WINDOW_WORDS = 3` words prevent false escalations.
-
-### 2.3 Clinical Triage Protocol Phase
-When an intake interview completes without an acute red flag, the system evaluates all submitted vital signs and triggers specialized triage protocols in priority order:
-
-1. **Severe Blood Pressure Protocol (`bp_severe`)**:
-   - *Trigger*: First systolic $\ge 180$ or diastolic $\ge 120\text{ mmHg}$ (`BP_STAGE2_SYSTOLIC_MMHG`, `BP_STAGE2_DIASTOLIC_MMHG`).
-   - *Protocol Steps*:
-     1. Re-measurement instruction: "Please sit and rest quietly for 5 minutes, then take your blood pressure again. What is your reading now?"
-     2. Acute symptom inquiry: Checks for hypertensive encephalopathy / end-organ damage symptoms (chest pain, shortness of breath, severe headache, vision changes, weakness/numbness). Any warning symptom $\rightarrow$ **Emergency** (immediate call 911/999).
-     3. Substance & medication factors: Checks for recent sympathomimetics, decongestants, cold medicine, caffeine, or NSAIDs.
-     4. Acute circumstances: Checks for acute stress, severe pain, or missed doses.
-   - *Outcomes*:
-     - Warning symptoms present $\rightarrow$ **Emergency**
-     - Persistent severe reading ($\ge 180/120$) without symptoms $\rightarrow$ **Urgent** (same-day clinician assessment)
-     - Improved reading ($< 180/120$) without symptoms $\rightarrow$ **Review** (routine clinician review with annotated context)
-   - *Guideline*: ACC/AHA 2017 Guideline for Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults; NICE NG136 Section 1.4.
-
-2. **High Blood Glucose Protocol (`glucose_high`)**:
-   - *Trigger*: Glucose $\ge 250\text{ mg/dL}$ (`GLUCOSE_HIGH_MG_DL = 250.0`).
-   - *Protocol Steps*:
-     1. Diabetic Ketoacidosis (DKA) / Hyperosmolar Hyperglycemic State (HHS) symptoms: Nausea, vomiting, abdominal pain, shortness of breath, fruity breath, confusion. Any positive $\rightarrow$ **Emergency**.
-     2. Acute infection / illness inquiry: Fever, cough, dysuria.
-     3. Medication & nutritional factors: Missed insulin/medication, high-carbohydrate intake.
-   - *Outcomes*:
-     - Warning symptoms present $\rightarrow$ **Emergency**
-     - Glucose $\ge 300\text{ mg/dL}$ (`GLUCOSE_URGENT_MG_DL = 300.0`) without symptoms $\rightarrow$ **Urgent**
-     - Glucose between $250\text{ and }299\text{ mg/dL}$ without symptoms $\rightarrow$ **Review**
-   - *Guideline*: ADA Standards of Care in Diabetes (2024, Chapter 6 - Glycemic Targets and Hypo/Hyperglycemia Management).
-
-3. **Low Blood Glucose Protocol (`glucose_low`)**:
-   - *Trigger*: Glucose $< 70\text{ mg/dL}$ (`GLUCOSE_LOW_MG_DL = 70.0`).
-   - *Protocol Steps*:
-     1. Severe neuroglycopenic symptoms: Confusion, unsteadiness, loss of coordination. Any positive $\rightarrow$ **Emergency**.
-     2. Swallowing safety: Patient or caregiver confirms if patient can safely swallow liquids or fast-acting carbohydrate. If unable $\rightarrow$ **Emergency**.
-     3. Rule of 15 guidance: Guidance to consume 15-20g fast-acting carbohydrate and recheck in 15 minutes.
-   - *Outcomes*:
-     - Severe confusion or unable to swallow $\rightarrow$ **Emergency**
-     - Severe hypoglycemia ($< 54\text{ mg/dL}$, `GLUCOSE_VERY_LOW_MG_DL = 54.0`) $\rightarrow$ **Urgent**
-     - Mild-moderate hypoglycemia ($54-69\text{ mg/dL}$) self-treatable $\rightarrow$ **Review**
-   - *Guideline*: ADA Standards of Care in Diabetes (2024, Chapter 6 - Hypoglycemia Level 1/2/3 definitions).
-
-4. **Low Blood Pressure Protocol (`bp_low`)**:
-   - *Trigger*: Systolic $< 90$ or Diastolic $< 60\text{ mmHg}$ (`BP_LOW_SYSTOLIC_MMHG = 90.0`, `BP_LOW_DIASTOLIC_MMHG = 60.0`).
-   - *Protocol Steps*:
-     1. Symptom check: Lightheadedness, dizziness, fainting, clammy skin.
-     2. Hydration and fluid intake check.
-     3. Recent antihypertensive medication timing.
-     4. Older Adult Extension ($\ge 65$ years, `OLDER_ADULT_AGE = 65`): Evaluates recent falls or near-syncope.
-   - *Outcomes*:
-     - Dizziness, fainting, or fall in older adult $\rightarrow$ **Urgent**
-     - Asymptomatic low BP $\rightarrow$ **Review**
-   - *Guideline*: WHO Guidelines on Hypertension Management; NICE CG161 (Falls in older people).
-
-5. **Blood Pressure Change from Baseline Protocol (`bp_change`)**:
-   - *Baseline Calculation*: Requires at least 3 (`BASELINE_MIN_READINGS = 3`) completed, non-emergency readings within the last 14 days (`BASELINE_WINDOW_DAYS = 14`), using up to the latest 7 readings (`BASELINE_MAX_READINGS = 7`). Calculated as the statistical median.
-   - *Trigger*: Systolic rise $\ge 20\text{ mmHg}$ (`BP_CHANGE_NOTABLE_MMHG = 20.0`) from the personal baseline (when not severe).
-   - *Protocol Steps*:
-     1. Headaches or visual disturbance inquiry.
-     2. Adherence check (missed doses).
-     3. Stress, sleep, or dietary sodium factors.
-     4. Orthostatic dizziness on standing for older adults ($\ge 65$).
-   - *Outcomes*:
-     - Marked rise $\ge 30\text{ mmHg}$ (`BP_CHANGE_MARKED_MMHG = 30.0`) $\rightarrow$ **Urgent**
-     - Rise $\ge 20\text{ mmHg}$ with symptoms or orthostatic dizziness $\rightarrow$ **Urgent**
-     - Rise $\ge 20\text{ mmHg}$ without symptoms $\rightarrow$ **Review**
-   - *Guideline*: NICE NG136 (Blood pressure variability and monitoring); BHS Guidelines.
-
----
-
-## 3. Intentional Exclusions (Prototype Boundaries)
-
-The following clinical domains are intentionally excluded from this prototype version:
-1. **Insulin Titration / Bolus Calculation**: The system explicitly avoids computing insulin-to-carbohydrate ratios or correction factors. Titration requires clinician oversight and certified medical device classification (SaMD / FDA Class II/III).
-2. **Paediatric Patients ($< 18$ years)**: Paediatric diabetes and hypertension follow distinct physiological curves, developmental milestones, and specialist regimens.
-3. **Pregnancy & Gestational Conditions**: Preeclampsia, eclampsia, and gestational diabetes require specialized obstetric triage algorithms.
-4. **End-Stage Renal Disease (ESRD) & Dialysis**: Hemodialysis shifts fluid balance and vital sign dynamics outside standard ambulatory baseline models.
-5. **Direct Diagnostic Classification**: The prototype does not assign new diagnostic ICD-10 codes or assert clinical diagnosis.
-
----
-
-## 4. Codebase Constants Reference Table
-
-The table below catalogs every constant defined in `agents/triage_protocol.py` and `agents/adaptive_interview_agent.py`:
-
-| Constant Name | Value | Unit | Meaning & Clinical Function | Guideline / Authority Reference |
+| Priority | Protocol | Starts when | Constants | Source |
 |---|---|---|---|---|
-| `MIN_ADULT_AGE` | 18 | years | Minimum eligible patient age for standard adult protocols | NICE NG136, ADA Standards of Care |
-| `OLDER_ADULT_AGE` | 65 | years | Threshold for older adult fall/orthostatic risk extensions | NICE CG161, WHO Ageing Clinical Care |
-| `MAX_PLAUSIBLE_AGE` | 120 | years | Upper bound for physiological human lifespan validation | Demographics & Health Data Quality Standards |
-| `BP_STAGE2_SYSTOLIC_MMHG` | 180.0 | mmHg | Systolic threshold for hypertensive crisis range | ACC/AHA 2017 High Blood Pressure Guideline |
-| `BP_STAGE2_DIASTOLIC_MMHG` | 120.0 | mmHg | Diastolic threshold for hypertensive crisis range | ACC/AHA 2017 High Blood Pressure Guideline |
-| `BP_LOW_SYSTOLIC_MMHG` | 90.0 | mmHg | Systolic threshold defining symptomatic hypotension | WHO Guidelines, British Hypertension Society |
-| `BP_LOW_DIASTOLIC_MMHG` | 60.0 | mmHg | Diastolic threshold defining symptomatic hypotension | WHO Guidelines, British Hypertension Society |
-| `BP_CHANGE_NOTABLE_MMHG` | 20.0 | mmHg | Systolic increase above baseline initiating change protocol | NICE NG136 Monitoring Blood Pressure |
-| `BP_CHANGE_MARKED_MMHG` | 30.0 | mmHg | Marked systolic increase indicating urgent review | NICE NG136, AHA Scientific Statement |
-| `BASELINE_MIN_READINGS` | 3 | count | Minimum completed readings required to compute valid baseline | Statistical median stability standard |
-| `BASELINE_MAX_READINGS` | 7 | count | Maximum recent readings window utilized for baseline calculation | Moving-window standard in ambulatory vitals |
-| `BASELINE_WINDOW_DAYS` | 14 | days | Lookback temporal cutoff for personal baseline observations | NICE NG136 (14-day ambulatory monitoring) |
-| `GLUCOSE_HIGH_MG_DL` | 250.0 | mg/dL | Hyperglycemia threshold for DKA/HHS warning protocol | ADA Standards of Care (Chapter 6, Table 6.1) |
-| `GLUCOSE_URGENT_MG_DL` | 300.0 | mg/dL | Severe asymptomatic hyperglycemia requiring urgent clinical review | ADA Standards of Care (Glycemic Management) |
-| `GLUCOSE_LOW_MG_DL` | 70.0 | mg/dL | Level 1 Hypoglycemia threshold initiating Rule of 15 protocol | ADA Standards of Care (Chapter 6: Hypoglycemia) |
-| `GLUCOSE_VERY_LOW_MG_DL` | 54.0 | mg/dL | Level 2 Clinically Significant Hypoglycemia threshold | ADA Standards of Care / International Hypoglycemia Group |
-| `SYSTOLIC` | "blood_pressure_systolic" | string | Observation type identifier for systolic blood pressure | LOINC 8480-6 / FHIR Observation standard |
-| `DIASTOLIC` | "blood_pressure_diastolic" | string | Observation type identifier for diastolic blood pressure | LOINC 8462-4 / FHIR Observation standard |
-| `GLUCOSE` | "glucose" | string | Observation type identifier for capillary blood glucose | LOINC 2339-0 / FHIR Observation standard |
-| `LEVEL_RANK` | `{"routine": 0, "review": 1, "urgent": 2, "emergency": 3}` | dict | Severity hierarchy for conservative triage escalation | ChronicCare AI Decision-Support Matrix |
-| `GUIDANCE` | `{"routine": ..., "review": ..., "urgent": ..., "emergency": ...}` | dict | Deterministic patient guidance templates by triage level | NHS Pathways / Clinical Triage Templates |
-| `_SYMPTOMS_CRISIS` | Regex pattern | regex | Regex detecting acute organ damage / hypertensive crisis symptoms | ACC/AHA Crisis Symptom Lexicon |
-| `_BP_SEVERE_QUESTIONS` | Question tuple | tuple | Step definitions and prompts for `bp_severe` protocol | Clinical Triage Protocol Definition |
-| `_BP_CHANGE_QUESTIONS` | Question tuple | tuple | Step definitions and prompts for `bp_change` protocol | Clinical Triage Protocol Definition |
-| `_BP_LOW_QUESTIONS` | Question tuple | tuple | Step definitions and prompts for `bp_low` protocol | Clinical Triage Protocol Definition |
-| `_GLUCOSE_HIGH_QUESTIONS` | Question tuple | tuple | Step definitions and prompts for `glucose_high` protocol | Clinical Triage Protocol Definition |
-| `_GLUCOSE_LOW_QUESTIONS` | Question tuple | tuple | Step definitions and prompts for `glucose_low` protocol | Clinical Triage Protocol Definition |
-| `_OLDER_EXTRA` | Question definition | dict | Orthostatic dizziness / fall risk probe for older adults | NICE CG161 Falls Prevention Guideline |
-| `_QUESTION_SETS` | Dictionary of question sets | dict | Registry mapping protocol identifiers to question sequences | ChronicCare AI Protocol Engine |
-| `_FACTOR_PATTERNS` | Factor regex mappings | list | Clinical keyword patterns mapping to contextual review factors | Clinical Pharmacology & Adherence Lexicon |
-| `_CANNOT` | Regex pattern | regex | Detection pattern for patient inability to perform action (e.g. swallow) | Patient Safety & Airway Reflex Screen |
-| `_CONTRADICTION` | Regex pattern | regex | Detection pattern for conflicting affirmative/negative phrases | Conservative Linguistic Safety Screen |
-| `SUPPORTED_CONDITIONS` | `("diabetes", "hypertension")` | tuple | Primary chronic disease tracks supported by the prototype | ChronicCare AI Initial Scope Specification |
-| `INTERVIEW_COMPLETE` | "complete" | string | State step identifier indicating interview completion | Adaptive Interview Pipeline Architecture |
-| `SELF_REPORTED_ORIGIN` | "self_reported" | string | Data origin tag indicating patient self-reported observation | Provenance & Trust Scoring Architecture |
-| `GLUCOSE_RANGE_MG_DL` | `(20.0, 1000.0)` | mg/dL | Biologically plausible capillary blood glucose bounds | Clinical Pathology Reference Limits |
-| `SYSTOLIC_RANGE_MMHG` | `(50.0, 300.0)` | mmHg | Biologically plausible systolic blood pressure bounds | Clinical Hemodynamic Reference Limits |
-| `DIASTOLIC_RANGE_MMHG` | `(30.0, 200.0)` | mmHg | Biologically plausible diastolic blood pressure bounds | Clinical Hemodynamic Reference Limits |
-| `NEGATION_WINDOW_WORDS` | 3 | count | Linguistic window for detecting red-flag negation modifiers | Clinical NLP Safety Standard |
-| `DANGEROUS_BP_SYSTOLIC_MMHG` | 180.0 | mmHg | Intake screen systolic threshold triggering triage protocol | ACC/AHA 2017 Hypertensive Crisis Standard |
-| `DANGEROUS_BP_DIASTOLIC_MMHG` | 120.0 | mmHg | Intake screen diastolic threshold triggering triage protocol | ACC/AHA 2017 Hypertensive Crisis Standard |
-| `_NEGATION_CUES` | Regex pattern | regex | Cues negating acute red-flag symptoms | Clinical NLP Negation Dictionary |
-| `_CLAUSE_BREAK` | Regex pattern | regex | Sentence and clause boundary punctuation markers | Linguistic Boundary Parser |
-| `_TIME_OF_DAY` | Regex pattern | regex | Contextual markers for fasting vs post-prandial intake | Diabetes Telemetry Context Parser |
-| `_NO_CUES` | Regex pattern | regex | Deterministic negative response indicators | Conservative Affirmation/Negation Parser |
-| `_STRONG_YES` | Regex pattern | regex | Unambiguous affirmative response indicators | Conservative Affirmation/Negation Parser |
-| `_WEAK_YES` | Regex pattern | regex | Contextual affirmative response indicators | Conservative Affirmation/Negation Parser |
-| `_NO_PROBLEM` | Regex pattern | regex | Phrases indicating absence of symptoms or complaints | Clinical Symptom Screening Parser |
-| `_NEGATIVE_NUMBER` | Regex pattern | regex | Regex rejecting negative numeric intake values | Data Sanitization & Plausibility Guard |
+| 1 | bp_severe | systolic >= 180 or diastolic >= 120 | `DANGEROUS_BP_SYSTOLIC_MMHG`, `DANGEROUS_BP_DIASTOLIC_MMHG` | ACC/AHA 2017 blood-pressure guideline; Project Proposal Section 27 |
+| 2 | glucose_high | glucose >= 250 mg/dL | `GLUCOSE_HIGH_MG_DL` | Project Proposal Section 15 |
+| 3 | glucose_low | glucose < 70 mg/dL | `GLUCOSE_LOW_MG_DL` | ADA Standards of Care (current edition) |
+| 4 | bp_low | systolic < 90 or diastolic < 60 | `BP_LOW_SYSTOLIC_MMHG`, `BP_LOW_DIASTOLIC_MMHG` | Project team, illustrative (no guideline cited) |
+| 5 | bp_change | systolic at least 20 mmHg above the patient's own median, and the reading is not already in the crisis range | `BP_CHANGE_NOTABLE_MMHG` | Project team, illustrative (no guideline cited); supervisor feedback |
 
----
+Only the highest-priority protocol is run for a check-in. Readings that are ordinary start nothing and the check-in continues as before.
 
-## 5. Review & Revision History
+**The patient's own baseline.** The median systolic (and diastolic) of the patient's own readings from earlier completed, non-emergency check-ins and entered baseline readings in the last 14 days, using at most the latest 7. If there are fewer than 3 systolic readings there is no baseline and the change rule never fires. Constants: `BASELINE_WINDOW_DAYS`, `BASELINE_MAX_READINGS`, `BASELINE_MIN_READINGS`.
 
-- **2026-10-05 (Stage 7D-1)**: Initial registration of complete clinical triage rules, inclusion criteria, baseline algorithms, and codebase constants.
+## 3. The questions and how each protocol decides
+
+Each question is asked once. If an answer cannot be understood it is asked one more time; if it is still unclear it is recorded as **unknown**, and unknown answers to the warning-sign questions raise the level (they are never read as 'no'). A danger phrase in any answer ends the protocol as an emergency. When an emergency is already settled the remaining questions are skipped.
+
+### bp_severe (crisis-range blood pressure)
+
+Questions, in order:
+
+1. `recheck`: "Please sit down, rest quietly for 5 minutes, then measure your blood pressure again. What is the new reading? If you cannot measure again, type: cannot"
+2. `symptoms`: "Right now, do you have any of these: chest pain or pressure, trouble breathing, back pain, numbness or weakness, a change in your vision, trouble speaking, a severe headache, or confusion? Answer yes or no."
+3. `substances`: "In the last few hours, did you take cold or flu medicine, painkillers such as ibuprofen, steroids, or stimulants such as energy drinks, strong coffee or tea, or nicotine, or did you miss your blood pressure medicine? Answer yes or no, and tell me which."
+4. `circumstances`: "Just before the first reading, were you in pain, very upset or anxious, or physically active? Answer yes or no."
+
+| Condition | Result |
+|---|---|
+| Warning symptoms = yes | emergency (stops the questions at once) |
+| Otherwise start at review. Symptoms unknown | raise to urgent |
+| The re-measure is missing, 'cannot', or unclear | raise to urgent |
+| The re-measure is still in the crisis range (systolic >= 180 or diastolic >= 120) | raise to urgent |
+| The re-measure is below the crisis range but systolic >= 140 or diastolic >= 90 | stay at review, reason 'improved after rest but still high' |
+| The re-measure is lower | stay at review, reason 'first reading in the crisis range, normal after rest' |
+| Pain, stress or activity before the first reading = yes | added to the reasons, no change of level |
+| Medicines, caffeine, nicotine or a missed dose named | recorded as contributing factors for the clinician, no change of level |
+
+### bp_change (rise from the patient's own baseline)
+
+Questions, in order:
+
+1. `symptoms`: "Do you have a headache, dizziness, a pounding heartbeat, blurred vision or shortness of breath right now? Answer yes or no."
+2. `substances`: "In the last few hours, did you take cold or flu medicine, painkillers such as ibuprofen, steroids, or stimulants such as energy drinks, strong coffee or tea, or nicotine? Answer yes or no, and tell me which."
+3. `adherence`: "Did you take your blood pressure medicine as prescribed over the last two days? Answer yes or no."
+4. `circumstances`: "Just before the reading, were you in pain, very upset or anxious, or physically active? Answer yes or no."
+5. `orthostatic`: "Do you feel dizzy or faint when you stand up? Answer yes or no." *(asked only at age 65 and over)*
+
+| Condition | Result |
+|---|---|
+| Start at review | reason: the size of the rise over the patient's usual |
+| The rise is >= 40 mmHg | raise to urgent |
+| Symptoms = yes, or unknown | raise to urgent |
+| Dizziness on standing = yes (age 65 and over only) | raise to urgent |
+| Blood pressure medicine not taken as prescribed | recorded as a contributing factor, no change of level |
+
+### bp_low (low blood pressure)
+
+Questions, in order:
+
+1. `symptoms`: "Do you feel dizzy, faint, very weak or unusually tired right now? Answer yes or no."
+2. `medicines`: "Did you recently start, stop or change a medicine, or have you been vomiting, had diarrhoea, or been drinking very little? Answer yes or no, and tell me which."
+3. `falls`: "Have you fallen or nearly fallen today? Answer yes or no." *(asked only at age 65 and over)*
+
+| Condition | Result |
+|---|---|
+| Start at review | reason: blood pressure is low |
+| Symptoms (dizzy, faint, very weak, unusually tired) = yes, or unknown | raise to urgent |
+| A fall or near-fall today = yes (age 65 and over only) | raise to urgent |
+
+### glucose_high (high glucose)
+
+Questions, in order:
+
+1. `dka_symptoms`: "Do you have nausea or vomiting, stomach pain, fast or deep breathing, breath that smells fruity, or feel very drowsy? Answer yes or no."
+2. `thirst`: "Are you very thirsty and passing urine much more than usual? Answer yes or no."
+3. `context`: "Did you eat a large meal just before, miss your insulin or diabetes medicine, or have an illness or infection? Answer yes or no, and tell me which."
+
+| Condition | Result |
+|---|---|
+| Warning symptoms (nausea or vomiting, stomach pain, fast or deep breathing, fruity breath, very drowsy) = yes | emergency (stops the questions at once) |
+| Otherwise start at review. Warning symptoms unknown | raise to urgent |
+| Glucose >= 300 mg/dL | raise to urgent |
+| Marked thirst and passing much more urine = yes | added to the reasons, no change of level |
+| Large meal, missed insulin or diabetes medicine, illness named | recorded as contributing factors, no change of level |
+
+### glucose_low (low glucose)
+
+Questions, in order:
+
+1. `neuro`: "Are you confused, very drowsy, or having trouble speaking or staying awake? Answer yes or no."
+2. `can_swallow`: "Can you swallow and eat or drink safely right now? Answer yes or no."
+3. `symptoms`: "Do you feel shaky, sweaty, hungry or have a pounding heartbeat? Answer yes or no."
+4. `context`: "Did you take insulin or diabetes tablets, skip or delay a meal, or exercise a lot? Answer yes or no, and tell me which."
+
+| Condition | Result |
+|---|---|
+| Confused, very drowsy, trouble speaking or staying awake = yes | emergency (stops the questions at once) |
+| Cannot swallow and eat or drink safely (the answer to 'Can you swallow and eat or drink safely right now?' is no) | emergency (stops the questions at once) |
+| Otherwise start at review. Either of those two answers unknown | raise to urgent |
+| Glucose < 54 mg/dL | raise to urgent |
+| Shaky, sweaty, hungry or pounding heartbeat = yes | added to the reasons, no change of level |
+| Insulin or tablets taken, skipped or delayed meal, exercise named | recorded as contributing factors, no change of level |
+
+The system gives **no treatment advice** in any protocol. The only advice it shows is the level text in section 1 (call emergency services, contact your clinician today, a clinician will review and please measure again later).
+
+## 4. Age, inclusion and exclusions
+
+- Adults only: age below `MIN_ADULT_AGE` (18) is refused at onboarding; above `MAX_PLAUSIBLE_AGE` (120) is treated as an invalid date of birth.
+- For adults the ACC/AHA categories and the crisis limits do not change with age. Age band changes the questions only: from `OLDER_ADULT_AGE` (65) the bp_change and bp_low protocols add one question each (dizziness on standing, falls).
+- The patient confirms at onboarding that they are 18 or older and not pregnant. Pregnancy has different blood-pressure limits and is **out of scope**.
+- Not for children, pregnancy, anyone who cannot answer for themselves, or any emergency. The system does not consider kidney disease, heart failure or other conditions that change the targets.
+
+## 5. The interview: danger phrases, readings and missing data
+
+**Danger phrases (end the interview as an emergency at any answer).** A phrase is ignored only if a negation (no, not, never, without, don't, didn't, haven't, isn't and similar) appears within `NEGATION_WINDOW_WORDS` words before it in the same clause. Anything unclear is flagged. Text is split into clauses at punctuation and at but, however, although, though, and, while.
+
+| Category | Phrases |
+|---|---|
+| chest_pain | chest pain; chest tightness; chest pressure; chest hurts; pain in my chest; crushing chest; سینے میں درد |
+| breathing | can't breathe; cant breathe; cannot breathe; struggling to breathe; severe shortness of breath; gasping for air; سانس لینے میں دشواری; سانس نہیں آ رہی |
+| confusion | confused; slurred speech; can't speak clearly; cant speak clearly |
+| loss_of_consciousness | fainted; passed out; lost consciousness; blacked out; بے ہوش |
+| one_sided_weakness | one side weak; one-sided weakness; can't move one side; cant move one side; face drooping |
+| unable_to_keep_fluids | can't keep anything down; cant keep anything down; can't keep fluids down; vomiting nonstop; vomiting non-stop |
+| severe_headache | worst headache; severe headache; thunderclap headache |
+| vision_loss | sudden vision loss; lost my vision; went blind; can't see at all; cannot see at all |
+
+The Urdu phrases are **unreviewed**; Urdu negation is not handled, so an Urdu match always flags.
+
+**Readings.** A glucose must be one number from 20 to 600 mg/dL (`GLUCOSE_RANGE_MG_DL`); a blood pressure one pair with systolic 60 to 260 (`SYSTOLIC_RANGE_MMHG`), diastolic 30 to 160 (`DIASTOLIC_RANGE_MMHG`) and systolic greater than diastolic. Several plausible numbers, a negative number, a value in mmol/L or an out-of-range value count as **missing**; the patient is asked one clarifying question and the intake is tagged Low confidence. A meter that shows 'HI' is not understood (known limitation).
+
+**Hand-off.** `check_dangerous_bp` reports a crisis-range pair; the interview keeps the reading and the protocol in section 3 decides.
+
+## 6. Medication confirmation
+
+After the interview (and the protocol, if one was needed) the patient is asked about each **active** medication in the record, at most `MAX_MEDICATIONS` (20). The answer is read as: stopped (stop words such as stopped, quit, discontinued, no longer, anymore), still taking at the same dose, still taking at a different dose (only when a unit or dose word such as mg, tablet, half, twice, once, daily is given; a bare number is not a dose; the text is cut at `MAX_DOSAGE_CHARS` = 100), or unclear. Missed or skipped doses are not a stop. An unclear answer is asked once more, then recorded as unknown and left out of the comparison. A medication that the record lists as active but the patient says is stopped is high severity for the clinician. Every answer goes through the danger-phrase check first.
+
+## 7. Known limitations
+
+- No clinician has reviewed any value in this document.
+- The language understanding is keyword and pattern based, English only for the interview.
+- A glucose meter reading of 'HI' or 'LO' is not understood.
+- Targets do not depend on the patient's individual target set by a clinician.
+- Kidney disease, heart failure, pregnancy and other conditions are not considered.
+- The negation window is a heuristic and can be fooled by unusual wording.
+- The patient's own baseline needs at least three earlier readings in two weeks, so it does not exist for a new patient.
+
+## 8. Every constant in the clinical code
+
+| Constant | Value | File | Source | Meaning |
+|---|---|---|---|---|
+| `SUPPORTED_CONDITIONS` | `diabetes, hypertension` | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
+| `INTERVIEW_COMPLETE` | `interview_complete` | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
+| `SELF_REPORTED_ORIGIN` | `self_reported` | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
+| `GLUCOSE_RANGE_MG_DL` | `20.0, 600.0` | adaptive_interview_agent.py | Project team, illustrative (no guideline cited) | A glucose outside this range is treated as a missing reading. |
+| `SYSTOLIC_RANGE_MMHG` | `60, 260` | adaptive_interview_agent.py | Project team, illustrative (no guideline cited) | A systolic outside this range is treated as a missing reading. |
+| `DIASTOLIC_RANGE_MMHG` | `30, 160` | adaptive_interview_agent.py | Project team, illustrative (no guideline cited) | A diastolic outside this range is treated as a missing reading. |
+| `NEGATION_WINDOW_WORDS` | `3` | adaptive_interview_agent.py | Project team, illustrative (no guideline cited) | A negation within this many words before a danger phrase cancels it. |
+| `DANGEROUS_BP_SYSTOLIC_MMHG` | `180` | adaptive_interview_agent.py | ACC/AHA 2017 blood-pressure guideline (hypertensive crisis); Project Proposal Section 27 | Crisis-range limit; starts the confirmation protocol, never an emergency by itself. |
+| `DANGEROUS_BP_DIASTOLIC_MMHG` | `120` | adaptive_interview_agent.py | ACC/AHA 2017 blood-pressure guideline (hypertensive crisis); Project Proposal Section 27 | Same as above, diastolic limit. |
+| `RED_FLAG_PATTERNS` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
+| `_NEGATION_CUES` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_CLAUSE_BREAK` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_TIME_OF_DAY` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_NO_CUES` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_STRONG_YES` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_WEAK_YES` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_NO_PROBLEM` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_NEGATIVE_NUMBER` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `MIN_ADULT_AGE` | `18` | triage_protocol.py | Scope decision (adults only) | Younger patients are refused: paediatric blood pressure is judged against age, sex and height percentiles. |
+| `OLDER_ADULT_AGE` | `65` | triage_protocol.py | Project team, illustrative (no guideline cited) | From this age two extra questions are asked (standing dizziness, falls). |
+| `MAX_PLAUSIBLE_AGE` | `120` | triage_protocol.py | Project team, illustrative (no guideline cited) | Upper limit for a plausible age. |
+| `BP_STAGE2_SYSTOLIC_MMHG` | `140` | triage_protocol.py | ACC/AHA 2017 blood-pressure guideline (stage 2 hypertension) | After a re-measure, at or above this the first reading is judged 'improved but still high'. |
+| `BP_STAGE2_DIASTOLIC_MMHG` | `90` | triage_protocol.py | ACC/AHA 2017 blood-pressure guideline (stage 2 hypertension) | Same as above, diastolic limit. |
+| `BP_LOW_SYSTOLIC_MMHG` | `90` | triage_protocol.py | Project team, illustrative (no guideline cited) | Common clinical convention for low blood pressure; starts the low-pressure questions. |
+| `BP_LOW_DIASTOLIC_MMHG` | `60` | triage_protocol.py | Project team, illustrative (no guideline cited) | Same as above, diastolic limit. |
+| `BP_CHANGE_NOTABLE_MMHG` | `20` | triage_protocol.py | Project team, illustrative (no guideline cited); supervisor feedback, October 2026 | Rise over the patient's own median that starts the change questions. |
+| `BP_CHANGE_MARKED_MMHG` | `40` | triage_protocol.py | Project team, illustrative (no guideline cited) | A rise this large is urgent even without symptoms. |
+| `BASELINE_MIN_READINGS` | `3` | triage_protocol.py | Project team, illustrative (no guideline cited) | A baseline is never built from fewer readings than this. |
+| `BASELINE_MAX_READINGS` | `7` | triage_protocol.py | Project team, illustrative (no guideline cited) | Only the most recent readings are used. |
+| `BASELINE_WINDOW_DAYS` | `14` | triage_protocol.py | Project team, illustrative (no guideline cited) | Only readings from this many days back are used. |
+| `GLUCOSE_HIGH_MG_DL` | `250` | triage_protocol.py | Project Proposal Section 15 (glucose at or above 250 mg/dL with warning symptoms is Red) | Starts the high-glucose questions. |
+| `GLUCOSE_URGENT_MG_DL` | `300` | triage_protocol.py | Project team, illustrative (no guideline cited) | At or above this a high glucose is urgent even without warning symptoms. |
+| `GLUCOSE_LOW_MG_DL` | `70` | triage_protocol.py | ADA Standards of Care (current edition) (level 1 hypoglycaemia) | Starts the low-glucose questions. |
+| `GLUCOSE_VERY_LOW_MG_DL` | `54` | triage_protocol.py | ADA Standards of Care (current edition) (level 2 hypoglycaemia) | Below this a low glucose is urgent. |
+| `SYSTOLIC` | `blood_pressure_systolic` | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
+| `DIASTOLIC` | `blood_pressure_diastolic` | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
+| `GLUCOSE` | `glucose` | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
+| `LEVEL_RANK` | `routine=0; review=1; urgent=2; emergency=3` | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
+| `GUIDANCE` | `emergency=Call your local emergency number now. Your care team is being alerted.; urgent=Please contact your clinician today. If you feel worse, call your local emergency number.; review=A clinician will review this. Please measure again later today and at the same time tomorrow.; routine=` | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
+| `_SYMPTOMS_CRISIS` | `chest pain or pressure, trouble breathing, back pain, numbness or weakness, a change in your vision, trouble speaking, a severe headache, or confusion` | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_BP_SEVERE_QUESTIONS` | (see the sections above) | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_BP_CHANGE_QUESTIONS` | (see the sections above) | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_BP_LOW_QUESTIONS` | (see the sections above) | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_GLUCOSE_HIGH_QUESTIONS` | (see the sections above) | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_GLUCOSE_LOW_QUESTIONS` | (see the sections above) | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_OLDER_EXTRA` | (see the sections above) | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_QUESTION_SETS` | (see the sections above) | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_FACTOR_PATTERNS` | (see the sections above) | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_CANNOT` | (see the sections above) | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_CONTRADICTION` | (see the sections above) | triage_protocol.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `MAX_MEDICATIONS` | `20` | medication_confirmation.py | Project team, illustrative (no guideline cited) | Maximum number of medications asked about per check-in. |
+| `MAX_DOSAGE_CHARS` | `100` | medication_confirmation.py | Project team, illustrative (no guideline cited) | Maximum length of a stored dose text. |
+| `SELF_REPORTED_ORIGIN` | `self_reported` | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
+| `_STOP_WORDS` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_MISSED` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_HARD_NO` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_DOSE_HINT` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_LEADING_YES` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+
+## 9. Clinician review
+
+| Section | Reviewer | Date | Decision (accept, change, reject) | Notes |
+|---|---|---|---|---|
+| 1. Levels | | | PENDING | |
+| 2. Triggers and baseline | | | PENDING | |
+| 3. Questions and decisions | | | PENDING | |
+| 4. Age and exclusions | | | PENDING | |
+| 5. Danger phrases and readings | | | PENDING | |
+| 6. Medication confirmation | | | PENDING | |
+| 8. Constants | | | PENDING | |
+
