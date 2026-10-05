@@ -18,6 +18,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { api, ApiError, ReviewDetailResponse } from "../../lib/api";
+import { describeSide, describeReviewReason } from "../../lib/presentation";
 
 export const ReconciliationAlertDetail = () => {
   const {
@@ -126,6 +127,21 @@ export const ReconciliationAlertDetail = () => {
   // Live comparison resolution
   let patientDisplayName = liveDetail?.patient_display || (selectedPatient && selectedPatient.includes("@") ? selectedPatient : "Ali Khan (PT-04821)");
   let obsComparison = liveDetail?.reconciliation?.observation_comparisons?.[0];
+  let obsVerification = liveDetail?.verification?.observation_verifications?.[0];
+
+  const sourceAType = obsComparison?.source_a || obsVerification?.source_a || "local";
+  const sourceBType = obsComparison?.source_b || obsVerification?.source_b || "local";
+  const trustLevelA = obsVerification?.trust_level_a || "low";
+  const trustLevelB = obsVerification?.trust_level_b || "low";
+  const mode = liveDetail?.mode || "isolated";
+
+  let sideALabel = isLiveMode
+    ? describeSide("a", sourceAType, trustLevelA, mode)
+    : "Source A: Patient Telemetry";
+  let sideBLabel = isLiveMode
+    ? describeSide("b", sourceBType, trustLevelB, mode)
+    : "Source B: Hospital EHR";
+
   let sourceAVal = obsComparison?.value_a !== null && obsComparison?.value_a !== undefined
     ? `${obsComparison.value_a} ${obsComparison.unit_a || ""}`
     : "180 mg/dL";
@@ -133,14 +149,14 @@ export const ReconciliationAlertDetail = () => {
     ? `${obsComparison.value_b} ${obsComparison.unit_b || ""}`
     : "140 mg/dL";
   let comparisonTitle = obsComparison?.observation_type
-    ? `${obsComparison.observation_type.toUpperCase()} Discrepancy`
-    : "Blood Glucose Measurement Discrepancy";
+    ? `${obsComparison.observation_type.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())} Review`
+    : "Clinical Telemetry Review";
 
   const isEmergencyItem = liveDetail?.emergency === true;
 
   // Format trigger category in plain words
   const triggerCategoryPlain = liveDetail?.trigger_category
-    ? liveDetail.trigger_category.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    ? liveDetail.trigger_category.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
     : "Clinical Emergency Escalation";
 
   // Format trigger reading
@@ -335,37 +351,49 @@ export const ReconciliationAlertDetail = () => {
 
           {/* Source Comparison Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {/* Source 1: Patient Reported */}
-            <div className="p-5 rounded-2xl bg-amber-50/80 border-2 border-amber-300 space-y-2">
+            {/* Side A: Earlier / Baseline Record */}
+            <div className="p-5 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-amber-200 text-amber-900 inline-flex items-center gap-1">
+                <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-slate-200 text-slate-800 inline-flex items-center gap-1">
                   <FileText className="w-3.5 h-3.5" />
-                  Source A: Patient Telemetry
+                  {sideALabel}
                 </span>
-                <span className="text-xs text-slate-500 font-medium">Daily Check-in</span>
+                <span className="text-xs text-slate-500 font-medium">
+                  {isLiveMode ? `Trust: ${trustLevelA.toUpperCase()}` : "Daily Check-in"}
+                </span>
               </div>
               <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
                 {sourceAVal}
               </div>
-              <p className="text-xs text-amber-950 leading-relaxed">
-                Self-reported telemetry via adaptive symptom check-in survey.
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {isLiveMode
+                  ? sourceAType === "fhir"
+                    ? "Verified lab and observation telemetry from hospital system record."
+                    : trustLevelA === "high"
+                    ? "Clinician-entered baseline record in local clinical store."
+                    : "Prior self-reported telemetry recorded during an earlier check-in."
+                  : "Self-reported telemetry via adaptive symptom check-in survey."}
               </p>
             </div>
 
-            {/* Source 2: Clinic EHR Record */}
-            <div className="p-5 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-2">
+            {/* Side B: Today's Check-in */}
+            <div className="p-5 rounded-2xl bg-amber-50/80 border-2 border-amber-300 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-teal-100 text-teal-900 inline-flex items-center gap-1">
                   <Hospital className="w-3.5 h-3.5" />
-                  Source B: Hospital EHR
+                  {sideBLabel}
                 </span>
-                <span className="text-xs text-slate-500 font-medium">Lab Record</span>
+                <span className="text-xs text-slate-500 font-medium">
+                  {isLiveMode ? `Trust: ${trustLevelB.toUpperCase()}` : "Lab Record"}
+                </span>
               </div>
               <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
                 {sourceBVal}
               </div>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Verified lab and observation telemetry from hospital system record.
+              <p className="text-xs text-amber-950 leading-relaxed">
+                {isLiveMode
+                  ? "Self-reported telemetry via today's adaptive symptom check-in."
+                  : "Verified lab and observation telemetry from hospital system record."}
               </p>
             </div>
           </div>
@@ -377,7 +405,13 @@ export const ReconciliationAlertDetail = () => {
               <span>Automated Reconciliation Analysis</span>
             </div>
             <p className="text-xs text-slate-700 leading-relaxed">
-              Cross-source validation identified delta between patient-reported input and baseline records. Clinician review is recommended to reconcile telemetry before updating longitudinal care targets.
+              {isLiveMode
+                ? describeReviewReason(
+                    obsComparison?.status,
+                    obsVerification?.review_reason,
+                    { delta: obsComparison?.delta, unit: obsComparison?.unit_a || obsComparison?.unit_b }
+                  )
+                : "Cross-source validation identified delta between patient-reported input and baseline records. Clinician review is recommended to reconcile telemetry before updating longitudinal care targets."}
             </p>
           </div>
 

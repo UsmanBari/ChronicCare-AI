@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
 import {
   Calendar,
@@ -22,7 +22,8 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { FhirSourceBadge } from "./FhirSourceBadge";
-import { api, ApiError } from "../lib/api";
+import { api, ApiError, UserCheckinSummaryResponse } from "../lib/api";
+import { titleCaseName } from "../lib/presentation";
 
 export const HomeScreen = () => {
   const {
@@ -45,6 +46,23 @@ export const HomeScreen = () => {
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showUrgentGuidance, setShowUrgentGuidance] = useState<boolean>(false);
+  const [lastCheckinTime, setLastCheckinTime] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isLiveMode) return;
+    api
+      .getUserCheckins()
+      .then((checkins: UserCheckinSummaryResponse[]) => {
+        if (checkins && checkins.length > 0) {
+          const latest = checkins[0];
+          const timeStr = latest.completed_at || latest.started_at;
+          if (timeStr) {
+            setLastCheckinTime(new Date(timeStr).toLocaleString());
+          }
+        }
+      })
+      .catch(() => {});
+  }, [isLiveMode]);
 
   // Dynamic medication dosage update for Scenario D (EHR update)
   const displayedMedications =
@@ -196,7 +214,7 @@ export const HomeScreen = () => {
             {isUrdu ? "روزانہ صحت کا جائزہ" : "Daily Care Companion"}
           </span>
           <h1 className="font-heading text-2xl sm:text-3xl font-bold text-navy-800 tracking-tight">
-            {isLiveMode ? `Good day, ${userIdentifier.split("@")[0]}` : t.homeGreeting}
+            {isLiveMode ? `Good day, ${titleCaseName(userIdentifier)}` : t.homeGreeting}
           </h1>
           <p className="text-sm text-slate-600 mt-1 max-w-lg">
             {t.homeSubtitle}
@@ -388,14 +406,20 @@ export const HomeScreen = () => {
               <Pill className="w-4 h-4 text-teal-700" />
               <span>{t.trackedMeds}</span>
             </span>
-            <div className="font-medium text-navy-800 space-y-1.5">
-              {displayedMedications.map((med, i) => (
-                <div key={i} className="flex items-center justify-between text-xs sm:text-sm">
-                  <span className="truncate">• {med}</span>
-                  {connectionMode === "fhir" && <FhirSourceBadge />}
-                </div>
-              ))}
-            </div>
+            {isLiveMode ? (
+              <div className="font-medium text-slate-600 text-xs sm:text-sm italic py-1">
+                {t.medicationsNoneRecorded}
+              </div>
+            ) : (
+              <div className="font-medium text-navy-800 space-y-1.5">
+                {displayedMedications.map((med, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs sm:text-sm">
+                    <span className="truncate">• {med}</span>
+                    {connectionMode === "fhir" && <FhirSourceBadge />}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -407,7 +431,7 @@ export const HomeScreen = () => {
           </span>
           <span className="font-semibold text-mutedGreen-800 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-mutedGreen-800" />
-            <span>{t.lastCheckInValue}</span>
+            <span>{isLiveMode ? (lastCheckinTime || t.noCheckinsYet) : t.lastCheckInValue}</span>
           </span>
         </div>
       </div>

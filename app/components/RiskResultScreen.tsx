@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 
 export const RiskResultScreen = () => {
-  const { setScreen, isLiveMode, liveCheckinResult, t, isUrdu } = useApp();
+  const { setScreen, returnToHomeAndClearRun, isLiveMode, liveCheckinResult, t, isUrdu } = useApp();
   const [showWhyPanel, setShowWhyPanel] = useState(false);
 
   // =========================================================================
@@ -30,6 +30,9 @@ export const RiskResultScreen = () => {
     const agreementCount = summary.agreement || 0;
     const missingCount = (summary.source_a_only || 0) + (summary.source_b_only || 0);
     const confidenceLabel = liveCheckinResult?.intakes?.[0]?.confidence_label || "High";
+
+    const comparisons = liveCheckinResult?.reconciliation?.observation_comparisons || [];
+    const medComparisons = liveCheckinResult?.reconciliation?.medication_comparisons || [];
 
     return (
       <div className="w-full max-w-lg mx-auto glass-raised rounded-3xl border border-slate-200/90 shadow-2xl overflow-hidden animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
@@ -78,14 +81,45 @@ export const RiskResultScreen = () => {
             </div>
           </div>
 
+          {/* Plain words comparison details */}
+          {(comparisons.length > 0 || medComparisons.length > 0) && (
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
+                {isUrdu ? "موازنہ کی گئی پیمائشیں:" : "Compared Readings & Records:"}
+              </span>
+              <ul className="space-y-1.5 text-xs text-slate-600">
+                {comparisons.map((c: any, idx: number) => {
+                  const type = c.observation_type ? c.observation_type.replace(/_/g, " ").replace(/\b\w/g, (ch: string) => ch.toUpperCase()) : "Observation";
+                  const val = c.value_b !== null && c.value_b !== undefined ? `${c.value_b} ${c.unit_b || ""}`.trim() : "Reported";
+                  let statusDesc = "Verified against baseline";
+                  if (c.status === "agreement" || c.status === "agree") statusDesc = isUrdu ? "پچھلے ریکارڈ کے مطابق ہے" : "Matches saved record";
+                  else if (c.status === "source_b_only") statusDesc = isUrdu ? "آج درج کیا گیا (کوئی پچھلا ریکارڈ موجود نہیں)" : "Reported today (no prior record)";
+                  else if (c.status === "conflict") statusDesc = isUrdu ? "پچھلے ریکارڈ سے مختلف ہے" : "Differs from saved record";
+                  return (
+                    <li key={idx} className="flex items-center justify-between py-1 border-b border-slate-200/60 last:border-none">
+                      <span className="font-semibold text-slate-800">{type} ({val})</span>
+                      <span className="text-slate-500 font-medium">{statusDesc}</span>
+                    </li>
+                  );
+                })}
+                {medComparisons.map((m: any, idx: number) => (
+                  <li key={`med-${idx}`} className="flex items-center justify-between py-1 border-b border-slate-200/60 last:border-none">
+                    <span className="font-semibold text-slate-800">{m.medication_name}</span>
+                    <span className="text-slate-500 font-medium">{isUrdu ? "دوائی کا جائزہ لیا گیا" : "Medication reviewed"}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Mandatory Release Scope Note */}
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 flex items-start gap-3 text-xs text-slate-600 leading-relaxed">
             <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
             <span>{t.riskScoringOmittedNote}</span>
           </div>
 
-          {/* Navigation to Trends */}
-          <div className="pt-2">
+          {/* Navigation to Trends and Return Home */}
+          <div className="pt-2 space-y-2.5">
             <button
               type="button"
               onClick={() => setScreen("trends")}
@@ -95,6 +129,15 @@ export const RiskResultScreen = () => {
               <TrendingUp className="w-4 h-4" />
               <span>{t.viewTrendsBtn}</span>
               <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+            </button>
+
+            <button
+              type="button"
+              onClick={returnToHomeAndClearRun}
+              id="result-back-home-btn"
+              className="w-full min-h-[44px] py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2"
+            >
+              <span>{t.finishBtn}</span>
             </button>
           </div>
         </div>
@@ -187,8 +230,8 @@ export const RiskResultScreen = () => {
           </div>
         )}
 
-        {/* Proceed to Trend Screen */}
-        <div className="pt-2">
+        {/* Proceed to Trend Screen or Return Home */}
+        <div className="pt-2 space-y-2.5">
           <button
             type="button"
             onClick={() => setScreen("trends")}
@@ -198,6 +241,15 @@ export const RiskResultScreen = () => {
             <TrendingUp className="w-4 h-4" />
             <span>{t.viewTrendsBtn}</span>
             <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+          </button>
+
+          <button
+            type="button"
+            onClick={returnToHomeAndClearRun}
+            id="mock-result-back-home-btn"
+            className="w-full min-h-[44px] py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2"
+          >
+            <span>{t.finishBtn}</span>
           </button>
         </div>
       </div>
