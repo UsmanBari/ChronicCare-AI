@@ -237,11 +237,38 @@ export function mapApiError(status?: number | null, detail?: string | null): str
     return "Your session has expired. Please sign in again.";
   }
 
+  if (status === 400) {
+    if (normDetail.includes("maximum_medications_exceeded")) {
+      return "You have reached the maximum limit of 30 medications.";
+    }
+    if (normDetail.includes("maximum_allergies_exceeded")) {
+      return "You have reached the maximum limit of 30 allergies.";
+    }
+    if (normDetail.includes("maximum_observations_exceeded")) {
+      return "You have reached the maximum limit of 20 baseline readings.";
+    }
+    if (normDetail.includes("plausible range")) {
+      return detail && detail.trim() ? detail.trim() : "The reading value is outside the plausible clinical range.";
+    }
+  }
+
   if (status === 403) {
+    if (normDetail.includes("provider_notification_consent_required")) {
+      return "Provider notification consent is required before starting a check-in.";
+    }
+    if (normDetail.includes("consent_required") || normDetail.includes("active consent")) {
+      return "Active consent is required before proceeding.";
+    }
     return "Access denied. You do not have permission for this action.";
   }
 
   if (status === 409) {
+    if (normDetail.includes("record_managed_by_ehr")) {
+      return "Your record is managed by your hospital EHR.";
+    }
+    if (normDetail.includes("duplicate_medication")) {
+      return "A medication with this name already exists in your record.";
+    }
     if (normDetail.includes("stale_step")) {
       return "The check-in question was updated. Please answer the current question.";
     }

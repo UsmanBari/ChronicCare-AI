@@ -21,6 +21,7 @@ export type PatientScreenType =
   | "consent"
   | "connection"
   | "profile"
+  | "health_record"
   | "home"
   | "checkin_entry"
   | "adaptive_interview"

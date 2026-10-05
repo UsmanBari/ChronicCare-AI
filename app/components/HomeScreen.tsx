@@ -20,9 +20,11 @@ import {
   RefreshCw,
   Loader2,
   ShieldAlert,
+  FileText,
+  Hospital,
 } from "lucide-react";
 import { FhirSourceBadge } from "./FhirSourceBadge";
-import { api, ApiError, UserCheckinSummaryResponse } from "../lib/api";
+import { api, ApiError, UserCheckinSummaryResponse, PatientRecordResponse } from "../lib/api";
 import { titleCaseName } from "../lib/presentation";
 
 export const HomeScreen = () => {
@@ -47,6 +49,7 @@ export const HomeScreen = () => {
   const [error, setError] = useState<string | null>(null);
   const [showUrgentGuidance, setShowUrgentGuidance] = useState<boolean>(false);
   const [lastCheckinTime, setLastCheckinTime] = useState<string | null>(null);
+  const [liveRecord, setLiveRecord] = useState<PatientRecordResponse | null>(null);
 
   useEffect(() => {
     if (!isLiveMode) return;
@@ -62,7 +65,11 @@ export const HomeScreen = () => {
         }
       })
       .catch(() => {});
-  }, [isLiveMode]);
+
+    if (connectionMode === "offline" || liveEhrConnection?.mode === "isolated") {
+      api.getRecord().then(setLiveRecord).catch(() => {});
+    }
+  }, [isLiveMode, connectionMode, liveEhrConnection?.mode]);
 
   // Dynamic medication dosage update for Scenario D (EHR update)
   const displayedMedications =
@@ -363,10 +370,31 @@ export const HomeScreen = () => {
             <Activity className="w-5 h-5 text-teal-700" />
             <span>{t.statusTitle}</span>
           </h3>
-          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700">
-            {connectionMode === "fhir" ? "FHIR Live Synced" : "Local Mode"}
-          </span>
+          <div className="flex items-center gap-2">
+            {isLiveMode && (connectionMode === "offline" || liveEhrConnection?.mode === "isolated") && (
+              <button
+                type="button"
+                onClick={() => setScreen("health_record")}
+                id="edit-my-record-btn"
+                className="px-3 py-1.5 rounded-xl border border-teal-600 bg-teal-50 hover:bg-teal-100 text-teal-900 font-bold text-xs transition-all flex items-center gap-1.5 shadow-2xs"
+              >
+                <FileText className="w-3.5 h-3.5 text-teal-700" />
+                <span>{isUrdu ? "ریکارڈ میں ترمیم کریں" : "Edit my record"}</span>
+              </button>
+            )}
+            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700">
+              {connectionMode === "fhir" ? "FHIR Live Synced" : "Local Mode"}
+            </span>
+          </div>
         </div>
+
+        {/* Connected Mode EHR Banner */}
+        {isLiveMode && (connectionMode === "fhir" || liveEhrConnection?.mode === "fhir") && (
+          <div className="p-3.5 rounded-2xl bg-teal-50 border border-teal-200 text-xs text-teal-900 font-semibold flex items-center gap-2">
+            <Hospital className="w-4 h-4 text-teal-700 shrink-0" />
+            <span>{isUrdu ? "آپ کا ریکارڈ آپ کے اسپتال کے EHR کے ذریعے منظم ہے۔" : "Your record is managed by your hospital EHR."}</span>
+          </div>
+        )}
 
         {/* Scenario D: EHR Update Notification Banner (Mock only) */}
         {!isLiveMode && demoScenario === "ehr_update" && (
@@ -407,9 +435,26 @@ export const HomeScreen = () => {
               <span>{t.trackedMeds}</span>
             </span>
             {isLiveMode ? (
-              <div className="font-medium text-slate-600 text-xs sm:text-sm italic py-1">
-                {t.medicationsNoneRecorded}
-              </div>
+              (connectionMode === "fhir" || liveEhrConnection?.mode === "fhir") ? (
+                <div className="font-medium text-slate-600 text-xs sm:text-sm italic py-1">
+                  {isUrdu ? "آپ کا ریکارڈ اسپتال EHR سے منظم ہے۔" : "Managed by hospital EHR"}
+                </div>
+              ) : (liveRecord?.medications && liveRecord.medications.filter((m) => m.status === "active").length > 0) ? (
+                <div className="font-medium text-navy-800 space-y-1.5">
+                  {liveRecord.medications
+                    .filter((m) => m.status === "active")
+                    .map((med, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs sm:text-sm">
+                        <span className="truncate font-semibold">• {med.name}</span>
+                        <span className="text-slate-500 text-xs font-mono">{med.dosage}</span>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div className="font-medium text-slate-500 text-xs sm:text-sm italic py-1">
+                  {isUrdu ? "کوئی فعال دوا درج نہیں ہے۔" : "No active medications recorded yet."}
+                </div>
+              )
             ) : (
               <div className="font-medium text-navy-800 space-y-1.5">
                 {displayedMedications.map((med, i) => (

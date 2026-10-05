@@ -32,7 +32,67 @@ export interface ProfileResponse {
   language: string;
   consent_granted_at: string | null;
   consent_revoked_at: string | null;
+  provider_notification_consent_at?: string | null;
+  provider_notification_revoked_at?: string | null;
   updated_at: string | null;
+}
+
+export interface RecordConditionItem {
+  name: string;
+  basis: "clinician_diagnosed" | "self_reported" | "unsure" | string | null;
+}
+
+export interface RecordMedicationItem {
+  id: string;
+  name: string;
+  dosage: string;
+  status: "active" | "stopped" | string;
+}
+
+export interface RecordAllergyItem {
+  id: string;
+  substance: string;
+  reaction?: string | null;
+  confirmed: boolean;
+}
+
+export interface RecordObservationItem {
+  id: string;
+  observation_type: "glucose" | "blood_pressure_systolic" | "blood_pressure_diastolic" | "weight" | "hba1c" | string;
+  value: number;
+  unit: string;
+  measured_at: string;
+}
+
+export interface PatientRecordResponse {
+  mode: string;
+  conditions: RecordConditionItem[];
+  medications: RecordMedicationItem[];
+  allergies: RecordAllergyItem[];
+  baseline_observations: RecordObservationItem[];
+}
+
+export interface CreateMedicationRequest {
+  name: string;
+  dosage: string;
+  status: "active" | "stopped";
+}
+
+export interface UpdateMedicationRequest {
+  dosage?: string | null;
+  status?: "active" | "stopped" | null;
+}
+
+export interface CreateAllergyRequest {
+  substance: string;
+  reaction?: string | null;
+  confirmed: boolean;
+}
+
+export interface CreateObservationRequest {
+  observation_type: string;
+  value: number;
+  measured_at?: string | null;
 }
 
 export interface EHRSystemResponse {
@@ -352,11 +412,112 @@ export const api = {
     });
   },
 
-  setConsent: async (granted: boolean): Promise<ProfileResponse> => {
+  setConsent: async (
+    granted: boolean,
+    provider_notification?: boolean
+  ): Promise<ProfileResponse> => {
     return request<ProfileResponse>("/api/me/consent", {
+      method: "POST",
+      body: JSON.stringify({
+        granted,
+        ...(provider_notification !== undefined ? { provider_notification } : {}),
+      }),
+    });
+  },
+
+  setProviderNotificationConsent: async (
+    granted: boolean
+  ): Promise<ProfileResponse> => {
+    return request<ProfileResponse>("/api/me/consent/provider-notification", {
       method: "POST",
       body: JSON.stringify({ granted }),
     });
+  },
+
+  // 2b. Patient Record Endpoints (Isolated Mode)
+  getRecord: async (): Promise<PatientRecordResponse> => {
+    return request<PatientRecordResponse>("/api/me/record", {
+      method: "GET",
+    });
+  },
+
+  updateConditionsBasis: async (
+    basisMap: Record<string, string | null>
+  ): Promise<{ status: string; conditions_basis: Record<string, string> }> => {
+    return request<{ status: string; conditions_basis: Record<string, string> }>(
+      "/api/me/record/conditions-basis",
+      {
+        method: "PUT",
+        body: JSON.stringify(basisMap),
+      }
+    );
+  },
+
+  createRecordMedication: async (
+    data: CreateMedicationRequest
+  ): Promise<RecordMedicationItem> => {
+    return request<RecordMedicationItem>("/api/me/record/medications", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateRecordMedication: async (
+    med_id: string,
+    data: UpdateMedicationRequest
+  ): Promise<RecordMedicationItem> => {
+    return request<RecordMedicationItem>(
+      `/api/me/record/medications/${encodeURIComponent(med_id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }
+    );
+  },
+
+  deleteRecordMedication: async (med_id: string): Promise<{ status: string }> => {
+    return request<{ status: string }>(
+      `/api/me/record/medications/${encodeURIComponent(med_id)}`,
+      {
+        method: "DELETE",
+      }
+    );
+  },
+
+  createRecordAllergy: async (
+    data: CreateAllergyRequest
+  ): Promise<RecordAllergyItem> => {
+    return request<RecordAllergyItem>("/api/me/record/allergies", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteRecordAllergy: async (allergy_id: string): Promise<{ status: string }> => {
+    return request<{ status: string }>(
+      `/api/me/record/allergies/${encodeURIComponent(allergy_id)}`,
+      {
+        method: "DELETE",
+      }
+    );
+  },
+
+  createRecordObservation: async (
+    data: CreateObservationRequest
+  ): Promise<RecordObservationItem> => {
+    return request<RecordObservationItem>("/api/me/record/observations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteRecordObservation: async (obs_id: string): Promise<{ status: string }> => {
+    return request<{ status: string }>(
+      `/api/me/record/observations/${encodeURIComponent(obs_id)}`,
+      {
+        method: "DELETE",
+      }
+    );
   },
 
   // 3. EHR Connection

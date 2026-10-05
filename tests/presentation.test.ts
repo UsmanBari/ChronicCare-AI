@@ -162,6 +162,23 @@ describe("presentation logic unit tests", () => {
       expect(mapApiError(null)).toBe("Network request failed. Please check your connection and try again.");
     });
 
+    it("maps 400 record limit and validation errors", () => {
+      expect(mapApiError(400, "maximum_medications_exceeded")).toBe("You have reached the maximum limit of 30 medications.");
+      expect(mapApiError(400, "maximum_allergies_exceeded")).toBe("You have reached the maximum limit of 30 allergies.");
+      expect(mapApiError(400, "maximum_observations_exceeded")).toBe("You have reached the maximum limit of 20 baseline readings.");
+      expect(mapApiError(400, "Glucose reading outside plausible range (20-600 mg/dL)")).toBe("Glucose reading outside plausible range (20-600 mg/dL)");
+    });
+
+    it("maps 403 consent error codes", () => {
+      expect(mapApiError(403, "consent_required")).toBe("Active consent is required before proceeding.");
+      expect(mapApiError(403, "provider_notification_consent_required")).toBe("Provider notification consent is required before starting a check-in.");
+    });
+
+    it("maps 409 duplicate and ehr-managed conflict errors", () => {
+      expect(mapApiError(409, "record_managed_by_ehr")).toBe("Your record is managed by your hospital EHR.");
+      expect(mapApiError(409, "duplicate_medication")).toBe("A medication with this name already exists in your record.");
+    });
+
     it("maps generic 500 errors", () => {
       expect(mapApiError(500)).toBe("An unexpected error occurred. Please try again.");
     });

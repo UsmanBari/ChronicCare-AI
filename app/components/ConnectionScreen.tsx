@@ -150,7 +150,7 @@ export const ConnectionScreen = () => {
         connection: null,
       });
       setTimeout(() => {
-        setScreen("home");
+        setScreen("health_record");
       }, 800);
       return;
     }
