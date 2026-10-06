@@ -31,9 +31,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend-poc-technical/requirements.txt
 
+      - name: Python Static Analysis Gate (Ruff Correctness Rules)
+        run: |
+          pip install ruff
+          ruff check backend-poc-technical scripts --select E9,F63,F7,F82 --exclude backend-poc-technical/output
+
       - name: Initialize Local SQLite Store
         run: |
           python backend-poc-technical/init_local_db.py
+
 
       - name: Run Backend Pytest Suite (Hermetic)
         run: |
