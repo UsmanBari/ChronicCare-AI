@@ -9,6 +9,7 @@ Usage:
 
 import os
 import sys
+from typing import Set
 
 # Add backend directory to sys.path to import project modules
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +25,22 @@ except ImportError as e:
     sys.exit(1)
 
 
+# Schema version 10 is the latest migration version defined in app_store.migrate()
 LATEST_EXPECTED_SCHEMA_VERSION = 10
+
+# All 10 tables created by MySQL migrations in app_store.py
+EXPECTED_TABLES: Set[str] = {
+    "users",
+    "audit_log",
+    "patient_profiles",
+    "ehr_systems",
+    "ehr_connections",
+    "checkins",
+    "checkin_results",
+    "review_actions",
+    "allergies",
+    "schema_version",
+}
 
 
 def run_preflight() -> int:
@@ -38,7 +54,7 @@ def run_preflight() -> int:
         print("[FAIL] Missing required environment variable: MYSQL_URL")
         return 1
 
-    ssl_ca = os.environ.get("MYSQL_SSL_CA", "").strip()
+    ssl_ca = os.environ.get("MYSQL_SSL_CA", "").strip() or None
     try:
         conn_params = db_config.get_mysql_connection_params(mysql_url=mysql_url, ssl_ca=ssl_ca)
     except Exception as e:
@@ -60,7 +76,8 @@ def run_preflight() -> int:
         )
         with conn.cursor() as cursor:
             cursor.execute("SELECT VERSION()")
-            server_version = cursor.fetchone()[0]
+            ver_row = cursor.fetchone()
+            server_version = ver_row[0] if isinstance(ver_row, (tuple, list)) else list(ver_row.values())[0]
         print(f"  -> Server Version: {server_version}")
         print("  -> Status: PASS")
     except Exception as e:
@@ -73,9 +90,16 @@ def run_preflight() -> int:
     try:
         app_store.migrate(backend="mysql", mysql_url=mysql_url, ssl_ca=ssl_ca)
         with conn.cursor() as cursor:
-            cursor.execute("SELECT MAX(version) FROM schema_version")
+            cursor.execute("SELECT MAX(version) AS max_v FROM schema_version")
             row = cursor.fetchone()
-            current_version = row[0] if row and row[0] is not None else 0
+            if row is None:
+                current_version = 0
+            elif isinstance(row, (tuple, list)):
+                current_version = row[0] if row[0] is not None else 0
+            elif isinstance(row, dict):
+                current_version = row.get("max_v") or 0
+            else:
+                current_version = int(row)
 
         print(f"  -> Schema Version Reached: {current_version} (Expected: {LATEST_EXPECTED_SCHEMA_VERSION})")
         if current_version < LATEST_EXPECTED_SCHEMA_VERSION:
@@ -94,11 +118,11 @@ def run_preflight() -> int:
     try:
         with conn.cursor() as cursor:
             cursor.execute("SHOW TABLES")
-            tables = sorted([r[0] for r in cursor.fetchall()])
+            rows = cursor.fetchall()
+            tables = sorted([r[0] if isinstance(r, (tuple, list)) else list(r.values())[0] for r in rows])
         print(f"  -> Total Tables: {len(tables)}")
         print(f"  -> Table List: {', '.join(tables)}")
-        required_tables = {"users", "patients", "allergies", "ehr_systems", "ehr_connections", "checkins", "checkin_results", "audit_log", "schema_version"}
-        missing = required_tables - set(tables)
+        missing = EXPECTED_TABLES - set(tables)
         if missing:
             print(f"  -> Missing required tables: {missing}")
             print("  -> Status: FAIL")
@@ -120,7 +144,8 @@ def run_preflight() -> int:
             conn.commit()
             cursor.execute("SELECT id FROM _preflight_tmp WHERE id = 1")
             found = cursor.fetchone()
-            if not found or found[0] != 1:
+            found_id = found[0] if isinstance(found, (tuple, list)) else list(found.values())[0]
+            if found_id != 1:
                 raise ValueError("Verification read on temporary table failed")
             cursor.execute("DROP TABLE _preflight_tmp")
             conn.commit()
