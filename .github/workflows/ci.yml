@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+  push:
+    branches:
+      - dev
+      - main
+
+jobs:
+  backend-and-frontend-ci:
+    name: Test Backend & Lint Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend-poc-technical/requirements.txt
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend-poc-technical/requirements.txt
+
+      - name: Python Static Analysis Gate (Ruff Correctness Rules)
+        run: |
+          pip install ruff
+          ruff check backend-poc-technical scripts --select E9,F63,F7,F82 --exclude backend-poc-technical/output
+
+      - name: Initialize Local SQLite Store
+        run: |
+          python backend-poc-technical/init_local_db.py
+
+
+      - name: Run Backend Pytest Suite (Hermetic)
+        run: |
+          pytest backend-poc-technical/scenarios/ backend-poc-technical/test_main.py backend-poc-technical/test_llm.py backend-poc-technical/test_auth.py backend-poc-technical/test_profile_ehr.py backend-poc-technical/test_adaptive_interview_agent.py backend-poc-technical/test_checkin_api.py backend-poc-technical/test_checkin_safety.py backend-poc-technical/test_medication_confirmation.py backend-poc-technical/test_checkin_medications.py backend-poc-technical/test_record.py backend-poc-technical/test_consent_lines.py backend-poc-technical/test_triage_protocol.py backend-poc-technical/test_checkin_triage.py backend-poc-technical/test_inclusion.py backend-poc-technical/test_clinical_rules_doc.py backend-poc-technical/test_fhir_sim.py backend-poc-technical/test_fhir_client.py backend-poc-technical/test_ehr_connected.py backend-poc-technical/test_production_guard.py backend-poc-technical/test_mysql_preflight.py -v -k "not run_source_blind_test"
+
+
+
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install Frontend Dependencies
+        run: |
+          npm ci || npm install
+
+      - name: Lint Frontend
+        run: |
+          npm run lint
+
+      - name: Test Frontend
+        run: |
+          npm test
+
+      - name: No unsupported compliance claims in the UI
+        run: |
+          if git grep -n -i -E "hipaa[ -]?(compliant|grade|certified)|gdpr[ -]?compliant|fda[ -]?(approved|cleared)|clinically validated" -- app; then echo "Unsupported compliance claim found"; exit 1; fi
+
+      - name: Build Frontend
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          npm run build
+
+  live-fhir-check:
+    name: Live FHIR Check (Informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend-poc-technical/requirements.txt
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend-poc-technical/requirements.txt
+
+      - name: Initialize Local SQLite Store
+        run: |
+          python backend-poc-technical/init_local_db.py
+
+      - name: Run Live FHIR Check
+        continue-on-error: true
+        run: |
+          pytest backend-poc-technical/scenarios/test_source_blind.py -v || echo "Live FHIR sandbox unavailable (informational only)"

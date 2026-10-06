@@ -13,8 +13,10 @@ import { HelpCircle, X, Sparkles } from "lucide-react";
 
 // Patient Portal Components
 import { LoginScreen } from "./components/LoginScreen";
+import { ConsentScreen } from "./components/ConsentScreen";
 import { ConnectionScreen } from "./components/ConnectionScreen";
 import { HealthProfileScreen } from "./components/HealthProfileScreen";
+import { HealthRecordScreen } from "./components/HealthRecordScreen";
 import { HomeScreen } from "./components/HomeScreen";
 import { CheckInEntryScreen } from "./components/CheckInEntryScreen";
 import { AdaptiveInterviewScreen } from "./components/AdaptiveInterviewScreen";
@@ -136,6 +138,7 @@ export default function App() {
               <div className="w-full">
                 {/* Narrow / Auth & Interview Screens */}
                 {(screen === "login" ||
+                  screen === "consent" ||
                   screen === "connection" ||
                   screen === "profile" ||
                   screen === "checkin_entry" ||
@@ -148,6 +151,7 @@ export default function App() {
                   screen === "emergency") && (
                   <div className="max-w-xl mx-auto px-4 sm:px-6 py-6 md:py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
                     {screen === "login" && <LoginScreen />}
+                    {screen === "consent" && <ConsentScreen />}
                     {screen === "connection" && <ConnectionScreen />}
                     {screen === "profile" && <HealthProfileScreen />}
                     {screen === "checkin_entry" && <CheckInEntryScreen />}
@@ -162,6 +166,11 @@ export default function App() {
                 )}
 
                 {/* Dashboard & Content Rich Patient Screens */}
+                {screen === "health_record" && (
+                  <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 md:py-8">
+                    <HealthRecordScreen />
+                  </div>
+                )}
                 {screen === "home" && (
                   <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 md:py-8">
                     <HomeScreen />

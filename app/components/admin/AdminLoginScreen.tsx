@@ -2,19 +2,85 @@
 
 import React, { useState } from "react";
 import { useApp } from "../../context/AppContext";
-import { Shield, Lock, Mail, ArrowRight, ArrowLeft } from "lucide-react";
+import { Shield, Lock, Mail, ArrowRight, ArrowLeft, Loader2, KeyRound } from "lucide-react";
+import { isFirebaseEnabled, isFirebaseConfigured, getFirebaseAuth, getAuthErrorMessage } from "../../lib/firebase";
+import { getRoleFromEmail } from "../../lib/roles";
+import { api, ApiError } from "../../lib/api";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 export const AdminLoginScreen = () => {
-  const { setAdminScreen, setPortal, adminIdentifier, setAdminIdentifier, t, isUrdu } = useApp();
-  const [password, setPassword] = useState("••••••••");
+  const { setAdminScreen, setPortal, setAdminIdentifier, setUserRole, t, isUrdu } = useApp();
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminIdentifier.trim() || !password.trim()) {
-      setError(isUrdu ? "براہ کرم تمام خانے پُر کریں۔" : "Please enter administrator credentials.");
+    const cleanId = identifier.trim();
+    const cleanPass = password.trim();
+
+    // 1. Strict Empty Field Validation
+    if (!cleanId || !cleanPass) {
+      setError(t.authEmptyFields);
       return;
     }
+
+    // 2. Firebase Auth Mode
+    if (isFirebaseEnabled()) {
+      setIsLoading(true);
+      setError("");
+
+      if (!isFirebaseConfigured()) {
+        setError(t.authConfigError);
+        setIsLoading(false);
+        return;
+      }
+
+      const auth = getFirebaseAuth();
+      if (!auth) {
+        setError(t.authInvalidApiKey);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, cleanId, cleanPass);
+        const email = userCredential.user.email || cleanId;
+
+        // In Live Mode: Validate strictly from backend session
+        const session = await api.authSession();
+        if (session.role !== "admin") {
+          await signOut(auth);
+          setError(t.authRoleMismatch);
+          setIsLoading(false);
+          return;
+        }
+
+        setAdminIdentifier(email);
+        setUserRole(session.role);
+        setAdminScreen("dashboard");
+      } catch (err: any) {
+        if (err instanceof ApiError) {
+          setError(err.getFriendlyMessage(isUrdu));
+        } else {
+          const errorCode = err?.code || "";
+          setError(getAuthErrorMessage(errorCode, t));
+        }
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // 3. Mock / Offline Demo Mode (Strictly when AUTH_MODE is unset or mock)
+    const mockRole = getRoleFromEmail(cleanId);
+    if (mockRole && mockRole !== "admin") {
+      setError(t.authRoleMismatch);
+      return;
+    }
+    setError("");
+    setAdminIdentifier(cleanId);
     setAdminScreen("dashboard");
   };
 
@@ -22,6 +88,14 @@ export const AdminLoginScreen = () => {
     <div className="w-full max-w-md mx-auto bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden animate-fadeIn">
       {/* Hero Header */}
       <div className="bg-slate-900 p-6 text-white text-center relative overflow-hidden">
+        {/* Unobtrusive Mode Indicator Badge */}
+        <div className="mb-2.5 flex justify-center">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800 border border-teal-400/30 text-[11px] font-medium text-teal-200 tracking-wide">
+            <KeyRound className="w-3 h-3 text-teal-300" />
+            <span>{isFirebaseEnabled() ? t.authModeFirebase : t.authModeMock}</span>
+          </span>
+        </div>
+
         <div className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto mb-3 shadow-inner">
           <Shield className="w-6 h-6 text-teal-400" />
         </div>
@@ -34,7 +108,7 @@ export const AdminLoginScreen = () => {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      <form onSubmit={handleSubmit} className="p-6 space-y-4" dir={isUrdu ? "rtl" : "ltr"}>
         {error && (
           <div className="p-3 text-xs bg-amber-50 border border-amber-800/30 text-amber-800 rounded-lg">
             {error}
@@ -52,9 +126,9 @@ export const AdminLoginScreen = () => {
             <input
               id="admin-identifier"
               type="text"
-              value={adminIdentifier}
-              onChange={(e) => setAdminIdentifier(e.target.value)}
-              placeholder="admin@citygeneral.org"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder={process.env.NEXT_PUBLIC_DEMO_ADMIN_EMAIL || "admin@citygeneral.org"}
               className={`w-full text-sm rounded-xl border border-slate-300 bg-slate-50/50 py-2.5 ${isUrdu ? "pr-9 pl-3" : "pl-9 pr-3"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all`}
             />
           </div>
@@ -82,10 +156,20 @@ export const AdminLoginScreen = () => {
         <button
           type="submit"
           id="admin-login-btn"
-          className="w-full mt-2 py-3 px-4 bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+          disabled={isLoading}
+          className="w-full mt-2 py-3 px-4 bg-slate-900 hover:bg-slate-800 active:scale-[0.99] disabled:opacity-75 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
         >
-          <span>{t.signInBtn}</span>
-          <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>{t.authSigningIn}</span>
+            </>
+          ) : (
+            <>
+              <span>{t.signInBtn}</span>
+              <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+            </>
+          )}
         </button>
 
         <div className="text-center pt-2">

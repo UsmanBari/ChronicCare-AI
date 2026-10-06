@@ -58,6 +58,19 @@ export interface Translations {
   adminLoginTitle: string;
   adminLoginSubtitle: string;
 
+  // Auth / Firebase Errors
+  authInvalidApiKey: string;
+  authUserNotFound: string;
+  authWrongPassword: string;
+  authInvalidCredentials: string;
+  authRoleMismatch: string;
+  authGeneralError: string;
+  authSigningIn: string;
+  authModeFirebase: string;
+  authModeMock: string;
+  authConfigError: string;
+  authEmptyFields: string;
+
   // Screen 2: Connection Choice
   connectionTitle: string;
   connectionSubtitle: string;
@@ -227,6 +240,65 @@ export interface Translations {
   languageSettingLabel: string;
   connectionModeSettingLabel: string;
   activeProfileLabel: string;
+
+  // Stage 4 Live Additions
+  authPasswordTooShort: string;
+  authPasswordMismatch: string;
+  authInvalidEmail: string;
+  confirmPasswordLabel: string;
+  confirmPasswordPlaceholder: string;
+  serverWakingTitle: string;
+  serverWakingDesc: string;
+  consentTitle: string;
+  consentSubtitle: string;
+  consentBody: string;
+  consentAcceptBtn: string;
+  consentDeclineBtn: string;
+  consentDeclinedNotice: string;
+  insulinOrSulfonylureaLabel: string;
+  insulinOrSulfonylureaHint: string;
+  insulinYes: string;
+  insulinNo: string;
+  selectEhrSystemLabel: string;
+  patientIdLabel: string;
+  patientIdPlaceholder: string;
+  connectEhrBtn: string;
+  disconnectEhrBtn: string;
+  disconnectConfirm: string;
+  connectedBadgeTitle: string;
+  isolatedBadgeTitle: string;
+  lastVerified: string;
+  patientIdMasked: string;
+  dontHaveInfoBtn: string;
+  checkinSummaryTitle: string;
+  checkinSummarySubtitle: string;
+  agreementsCountLabel: string;
+  missingCountLabel: string;
+  confidenceLabel: string;
+  riskScoringOmittedNote: string;
+  notEnoughHistory: string;
+  serverTyping: string;
+  overdueBadge: string;
+  emergencyPriority: string;
+  actionNoteLabel: string;
+  actionNotePlaceholder: string;
+  actionResolveBtn: string;
+  actionEscalateBtn: string;
+  actionAcknowledgeBtn: string;
+  demoCrossPortalLabel: string;
+  researchPrototypeNotice: string;
+  consentBulletRoleAccess: string;
+  consentBulletWithdrawConsent: string;
+  consentBulletNotForEmergencies: string;
+  routedToReviewHeadline: string;
+  routedToReviewExplanation: string;
+  confidenceLowChip: string;
+  medicationsNoneRecorded: string;
+  noCheckinsYet: string;
+  notConnectedYet: string;
+  isolatedModeLabel: string;
+  needsClinicianReviewTitle: string;
+  readingDiffersTitle: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -284,11 +356,24 @@ export const translations: Record<Language, Translations> = {
     adminLoginTitle: "System Administration Portal",
     adminLoginSubtitle: "Manage platform users, system parameters, and audit trails.",
 
+    // Auth / Firebase Errors
+    authInvalidApiKey: "Invalid Firebase API configuration. Please check your system settings.",
+    authUserNotFound: "No registered account found with this email address.",
+    authWrongPassword: "Incorrect password. Please verify and try again.",
+    authInvalidCredentials: "Invalid credentials. Please check your email and password.",
+    authRoleMismatch: "Access denied: this account does not have permission for this portal.",
+    authGeneralError: "Authentication failed. Please check your network and try again.",
+    authSigningIn: "Signing in...",
+    authModeFirebase: "Auth: Firebase",
+    authModeMock: "Auth: Demo (mock)",
+    authConfigError: "Firebase authentication is not properly configured. Please check your configuration.",
+    authEmptyFields: "Please enter both your email and password to proceed.",
+
     connectionTitle: "Select Connection Mode",
     connectionSubtitle: "Choose how ChronicCare AI should access and synchronize your clinical profile.",
     fhirCardTitle: "Connect to your hospital's EHR",
-    fhirCardDesc: "Securely link your record with City General Hospital using the HL7® FHIR® standard interface.",
-    fhirConnectingText: "Establishing secure FHIR handshake...",
+    fhirCardDesc: "Link your record with City General Hospital using the HL7® FHIR® standard interface.",
+    fhirConnectingText: "Establishing FHIR connection...",
     fhirConnectedText: "Connected to City General Hospital via FHIR ✓",
     offlineCardTitle: "Set up offline profile",
     offlineCardDesc: "Maintain an isolated, private local profile on this device without connecting to an EHR.",
@@ -345,7 +430,7 @@ export const translations: Record<Language, Translations> = {
 
     confirmationTitle: "Check-in submitted!",
     confirmationSubtitle: "Your daily health check-in has been successfully recorded.",
-    confirmationMessage: "Thank you for completing your daily check-in. Your responses have been securely stored in your active profile.",
+    confirmationMessage: "Thank you for completing your daily check-in. Your responses have been recorded in your active profile.",
     submittedAt: "Submitted on",
     finishBtn: "Return to Home",
     viewResultsBtn: "View My Results",
@@ -449,6 +534,65 @@ export const translations: Record<Language, Translations> = {
     languageSettingLabel: "Display Language",
     connectionModeSettingLabel: "Clinical Data Synchronizer",
     activeProfileLabel: "Active Profile",
+
+    // Stage 4 Live Additions
+    authPasswordTooShort: "Password must be at least 8 characters.",
+    authPasswordMismatch: "Passwords do not match.",
+    authInvalidEmail: "Please enter a valid email address.",
+    confirmPasswordLabel: "Confirm Password",
+    confirmPasswordPlaceholder: "Re-enter your password",
+    serverWakingTitle: "The server is waking up, please wait",
+    serverWakingDesc: "Initial requests may take a moment while the cloud service starts.",
+    consentTitle: "Patient Privacy & Care Consent",
+    consentSubtitle: "Please review and accept our clinical monitoring consent before proceeding.",
+    consentBody: "ChronicCare AI is a university research prototype. It records your daily symptoms and readings, compares what you report with your health record, and flags differences for a clinician to review. It does not diagnose, give treatment advice, or replace your doctor, and it is not for emergencies: if you feel seriously unwell, contact your local emergency services. The answers you enter and the results are stored in this prototype's database. In this prototype, any clinician account registered with the system can view check-ins that need review. Please enter test information only unless you are part of an approved evaluation. You can withdraw consent at any time in your settings; withdrawing stops new check-ins but does not delete reviews that were already sent.",
+    consentAcceptBtn: "I Understand and Accept",
+    consentDeclineBtn: "Decline and Sign Out",
+    consentDeclinedNotice: "Consent is required to use ChronicCare AI daily monitoring.",
+    insulinOrSulfonylureaLabel: "Are you currently taking Insulin or a Sulfonylurea (e.g., Glimepiride, Glibenclamide)?",
+    insulinOrSulfonylureaHint: "Helps identify hypoglycemia risk during glycemic monitoring.",
+    insulinYes: "Yes, taking Insulin or Sulfonylurea",
+    insulinNo: "No, neither",
+    selectEhrSystemLabel: "Select Healthcare Organization / EHR",
+    patientIdLabel: "Patient Identifier (MRN / Patient ID)",
+    patientIdPlaceholder: "e.g. 768be7ac-743f-4c24-aa0f-fed5a3a38b6a or PT-04821",
+    connectEhrBtn: "Connect EHR",
+    disconnectEhrBtn: "Disconnect",
+    disconnectConfirm: "Are you sure you want to disconnect from this EHR?",
+    connectedBadgeTitle: "Connected EHR",
+    isolatedBadgeTitle: "Isolated Mode (Own Records)",
+    lastVerified: "Last verified",
+    patientIdMasked: "Patient ID",
+    dontHaveInfoBtn: "I don't have this information",
+    checkinSummaryTitle: "Check-in recorded and verified",
+    checkinSummarySubtitle: "Your daily health parameters have been processed against your clinical profile.",
+    agreementsCountLabel: "Verified In-Range Parameters",
+    missingCountLabel: "Omitted / Incomplete Data Points",
+    confidenceLabel: "Assessment Confidence",
+    riskScoringOmittedNote: "Note: Automated risk scoring is not part of this release. Clinical review is prioritized based on source reconciliation and safety rules.",
+    notEnoughHistory: "Not enough history yet (minimum 3 check-ins required to display trend trajectory).",
+    serverTyping: "Processing response...",
+    overdueBadge: "OVERDUE",
+    emergencyPriority: "EMERGENCY",
+    actionNoteLabel: "Clinical Review Note (Required)",
+    actionNotePlaceholder: "Enter clinical observation, rationale, or instructions for care team...",
+    actionResolveBtn: "Resolve & Close Alert",
+    actionEscalateBtn: "Escalate to Care Team",
+    actionAcknowledgeBtn: "Acknowledge Alert",
+    demoCrossPortalLabel: "Demo Cross-Portal Feature",
+    researchPrototypeNotice: "Research prototype. Please enter test information only.",
+    consentBulletRoleAccess: "Role-based access: patients, clinicians and administrators see different screens and data.",
+    consentBulletWithdrawConsent: "You can withdraw consent at any time in your settings.",
+    consentBulletNotForEmergencies: "This prototype is not for emergencies.",
+    routedToReviewHeadline: "Sent for clinician review",
+    routedToReviewExplanation: "A clinician will see this in their review queue. This version of the app does not send notifications.",
+    confidenceLowChip: "Confidence: Low (a reading was missing)",
+    medicationsNoneRecorded: "Medications: none recorded yet",
+    noCheckinsYet: "No check-ins yet",
+    notConnectedYet: "Not connected yet",
+    isolatedModeLabel: "Isolated Mode (Local Store)",
+    needsClinicianReviewTitle: "Needs clinician review",
+    readingDiffersTitle: "Your reading differs from the record",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -503,6 +647,19 @@ export const translations: Record<Language, Translations> = {
     providerIdPlaceholder: "مثلاً dr.sanamalik@citygeneral.org",
     adminLoginTitle: "سسٹم ایڈمنسٹریشن پورٹل",
     adminLoginSubtitle: "سسٹم کے صارفین اور آڈٹ لاگ کا انتظام کریں۔",
+
+    // Auth / Firebase Errors
+    authInvalidApiKey: "فائر بیس API کی ترتیب درست نہیں ہے۔ براہ کرم سسٹم سیٹنگز چیک کریں۔",
+    authUserNotFound: "اس ای میل سے کوئی رجسٹرڈ اکاؤنٹ موجود نہیں ہے۔",
+    authWrongPassword: "پاس ورڈ غلط ہے۔ براہ کرم دوبارہ کوشش کریں۔",
+    authInvalidCredentials: "ای میل یا پاس ورڈ غلط ہے۔ براہ کرم دوبارہ تصدیق کریں۔",
+    authRoleMismatch: "رسائی مسترد: اس اکاؤنٹ کے پاس اس پورٹل کے لیے اجازت نہیں ہے۔",
+    authGeneralError: "لاگ ان تصدیق ناکام ہو گئی۔ براہ کرم نیٹ ورک چیک کریں اور دوبارہ کوشش کریں۔",
+    authSigningIn: "سائن ان ہو رہا ہے...",
+    authModeFirebase: "تصدیق: فائر بیس",
+    authModeMock: "تصدیق: ڈیمو (فرضی)",
+    authConfigError: "فائر بیس کی ترتیب نامکمل ہے۔ لاگ ان سروس دستیاب نہیں ہے۔",
+    authEmptyFields: "براہ کرم آگے بڑھنے کے لیے ای میل اور پاس ورڈ درج کریں۔",
 
     connectionTitle: "کنکشن کا طریقہ منتخب کریں",
     connectionSubtitle: "منتخب کریں کہ کرونک کیئر اے آئی آپ کی طبی معلومات کیسے حاصل کرے۔",
@@ -669,5 +826,66 @@ export const translations: Record<Language, Translations> = {
     languageSettingLabel: "زبان کا انتخاب",
     connectionModeSettingLabel: "کلینیکل ڈیٹا سنکرونائزر",
     activeProfileLabel: "فعال پروفائل",
+
+    // Stage 4 Live Additions
+    authPasswordTooShort: "پاس ورڈ کم از کم 8 حروف پر مشتمل ہونا چاہیے۔",
+    authPasswordMismatch: "پاس ورڈ مماثلت نہیں رکھتے۔",
+    authInvalidEmail: "براہ کرم درست ای میل ایڈریس درج کریں۔",
+    confirmPasswordLabel: "پاس ورڈ کی تصدیق کریں",
+    confirmPasswordPlaceholder: "اپنا پاس ورڈ دوبارہ درج کریں",
+    serverWakingTitle: "سرور بیدار ہو رہا ہے، براہ کرم انتظار کریں",
+    serverWakingDesc: "کلاؤڈ سروس کے آغاز کے دوران چند لمحے لگ سکتے ہیں۔",
+    consentTitle: "مریض کی رازداری اور دیکھ بھال کا اقرار نامہ",
+    consentSubtitle: "آگے بڑھنے سے پہلے براہ کرم نگہداشت کا اقرار نامہ پڑھیں اور منظور کریں۔",
+    // UNREVIEWED
+    consentBody: "کرونک کیئر اے آئی یونیورسٹی کا ایک تحقیقی پروٹوٹائپ ہے۔ یہ آپ کی روزانہ کی علامات اور ریڈنگز کو ریکارڈ کرتا ہے، آپ کی فراہم کردہ معلومات کا آپ کے ہیلتھ ریکارڈ سے موازنہ کرتا ہے، اور فرق کی نشاندہی کرتا ہے تاکہ کوئی معالج جائزہ لے سکے۔ یہ کوئی تشخیص نہیں کرتا، علاج کا مشورہ نہیں دیتا، یا آپ کے ڈاکٹر کا متبادل نہیں ہے، اور یہ ہنگامی حالات کے لیے نہیں ہے: اگر آپ کی طبیعت شدید خراب ہو تو اپنی مقامی ایمرجنسی سروسز سے رابطہ کریں۔ آپ کے درج کردہ جوابات اور نتائج اس پروٹوٹائپ کے ڈیٹا بیس میں محفوظ کیے جاتے ہیں۔ اس پروٹوٹائپ میں، سسٹم کے ساتھ رجسٹرڈ کوئی بھی معالج اکاؤنٹ ان چیک انز کو دیکھ سکتا ہے جن کے جائزے کی ضرورت ہے۔ براہ کرم صرف ٹیسٹ معلومات درج کریں الا یہ کہ آپ کسی منظور شدہ تشخیص کا حصہ ہوں۔ آپ اپنی ترتیبات سے کسی بھی وقت اجازت واپس لے سکتے ہیں؛ اجازت واپس لینے سے نئے چیک ان رک جائیں گے لیکن پہلے سے بھیجے گئے جائزے حذف نہیں ہوں گے۔",
+    consentAcceptBtn: "میں نے پڑھ لیا ہے اور منظور ہے",
+    consentDeclineBtn: "مسترد کریں اور لاگ آؤٹ کریں",
+    consentDeclinedNotice: "کرونک کیئر اے آئی کے استعمال کے لیے اقرار نامہ لازمی ہے۔",
+    insulinOrSulfonylureaLabel: "کیا آپ انسولین یا سلفونائل یوریا ادویات استعمال کر رہے ہیں؟",
+    insulinOrSulfonylureaHint: "لو شوگر (ہائپوگلیسیمیا) کے خطرے کی نشاندہی میں مدد ملتی ہے۔",
+    insulinYes: "جی ہاں، انسولین یا سلفونائل یوریا لے رہا ہوں",
+    insulinNo: "نہیں، کوئی بھی نہیں",
+    selectEhrSystemLabel: "ہسپتال یا EHR سسٹم منتخب کریں",
+    patientIdLabel: "مریض کی شناختی آئی ڈی (MRN / Patient ID)",
+    patientIdPlaceholder: "مثلاً 768be7ac-743f-4c24-aa0f-fed5a3a38b6a یا PT-04821",
+    connectEhrBtn: "EHR منسلک کریں",
+    disconnectEhrBtn: "منقطع کریں",
+    disconnectConfirm: "کیا آپ واقعی اس EHR سے رابطہ ختم کرنا چاہتے ہیں؟",
+    connectedBadgeTitle: "منسلک EHR",
+    isolatedBadgeTitle: "آئسولیٹڈ موڈ (ذاتی ریکارڈ)",
+    lastVerified: "آخری تصدیق",
+    patientIdMasked: "مریض آئی ڈی",
+    dontHaveInfoBtn: "میرے پاس یہ معلومات نہیں ہیں",
+    checkinSummaryTitle: "چیک ان محفوظ اور تصدیق شدہ",
+    checkinSummarySubtitle: "آپ کا روزانہ ڈیٹا آپ کے کلینیکل پروفائل کے مطابق پروسیس کر لیا گیا ہے۔",
+    agreementsCountLabel: "تصدیق شدہ درست اشارے",
+    missingCountLabel: "نامکمل یا چھوٹی ہوئی معلومات",
+    confidenceLabel: "تجزیاتی اعتماد",
+    riskScoringOmittedNote: "نوٹ: خودکار رسک اسکورنگ اس ورژن کا حصہ نہیں ہے۔ دیکھ بھال کی ترجیح ڈیٹا کے تضاد اور حفاظتی اصولوں پر مبنی ہے۔",
+    notEnoughHistory: "ابھی کافی تاریخ موجود نہیں ہے (رجحانات دیکھنے کے لیے کم از کم 3 چیک ان ضروری ہیں)۔",
+    serverTyping: "جواب کا تجزیہ ہو رہا ہے...",
+    overdueBadge: "وقت گزر چکا ہے",
+    emergencyPriority: "ایمرجنسی",
+    actionNoteLabel: "کلینیکل نوٹ (لازمی)",
+    actionNotePlaceholder: "طبی مشاہدہ، وجہ یا نگہداشت کے لیے ہدایات درج کریں...",
+    actionResolveBtn: "حل کریں اور الرٹ بند کریں",
+    actionEscalateBtn: "نگہداشت کی ٹیم کو ایسکلیٹ کریں",
+    actionAcknowledgeBtn: "الرٹ تسلیم کریں",
+    demoCrossPortalLabel: "ڈیمو فیچر",
+    // UNREVIEWED Urdu strings
+    researchPrototypeNotice: "تحقیقی پروٹوٹائپ۔ براہ کرم صرف ٹیسٹ معلومات درج کریں۔",
+    consentBulletRoleAccess: "کردار کی بنیاد پر رسائی: مریض، معالجین اور منتظمین مختلف اسکرینز اور ڈیٹا دیکھتے ہیں۔",
+    consentBulletWithdrawConsent: "آپ اپنی ترتیبات میں کسی بھی وقت رضامندی واپس لے سکتے ہیں۔",
+    consentBulletNotForEmergencies: "یہ پروٹوٹائپ ہنگامی حالات کے لیے نہیں ہے۔",
+    routedToReviewHeadline: "طبی معالج کے جائزے کے لیے بھیج دیا گیا",
+    routedToReviewExplanation: "طبی معالج اسے اپنی جائزہ قطار میں دیکھیں گے۔ ایپ کا یہ ورژن اطلاعات نہیں بھیجتا ہے۔",
+    confidenceLowChip: "اعتماد: کم (کوئی ریڈنگ موجود نہیں تھی)",
+    medicationsNoneRecorded: "ادویات: ابھی تک کوئی درج نہیں ہیں",
+    noCheckinsYet: "ابھی تک کوئی چیک ان نہیں ہوا",
+    notConnectedYet: "ابھی منسلک نہیں ہے",
+    isolatedModeLabel: "آئسولیٹڈ موڈ (مقامی اسٹور)",
+    needsClinicianReviewTitle: "طبی معالج کے جائزے کی ضرورت ہے",
+    readingDiffersTitle: "آپ کی ریڈنگ ریکارڈ سے مختلف ہے",
   }
 };

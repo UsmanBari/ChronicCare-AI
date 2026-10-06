@@ -1,8 +1,7 @@
-"use client";
-
-import React from "react";
+import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
-import { Settings, Globe, ShieldCheck, Database, X, Activity, User, Hospital } from "lucide-react";
+import { Settings, Globe, ShieldCheck, Database, X, Activity, User, Hospital, ShieldAlert, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { api, ApiError } from "../lib/api";
 
 export const UnifiedSettingsModal = () => {
   const {
@@ -11,17 +10,99 @@ export const UnifiedSettingsModal = () => {
     language,
     setLanguage,
     connectionMode,
+    liveProfile,
+    setLiveProfile,
+    isLiveMode,
     profile,
     portal,
     t,
     isUrdu,
   } = useApp();
 
+  const [confirmRevokeType, setConfirmRevokeType] = useState<"data" | "provider" | null>(null);
+  const [isUpdatingConsent, setIsUpdatingConsent] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+
   if (!showSettings) return null;
+
+  const hasDataConsent = Boolean(
+    liveProfile?.consent_granted_at && !liveProfile.consent_revoked_at
+  );
+  const hasProviderConsent = Boolean(
+    liveProfile?.provider_notification_consent_at && !liveProfile.provider_notification_revoked_at
+  );
+
+  const handleToggleDataConsent = async () => {
+    if (hasDataConsent) {
+      setConfirmRevokeType("data");
+      return;
+    }
+    // Turning ON
+    setIsUpdatingConsent(true);
+    setConsentError(null);
+    try {
+      const updated = await api.setConsent(true);
+      setLiveProfile(updated);
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        setConsentError(err.getFriendlyMessage(isUrdu));
+      } else {
+        setConsentError(err?.message || "Failed to update consent");
+      }
+    } finally {
+      setIsUpdatingConsent(false);
+    }
+  };
+
+  const handleToggleProviderConsent = async () => {
+    if (hasProviderConsent) {
+      setConfirmRevokeType("provider");
+      return;
+    }
+    // Turning ON
+    setIsUpdatingConsent(true);
+    setConsentError(null);
+    try {
+      const updated = await api.setProviderNotificationConsent(true);
+      setLiveProfile(updated);
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        setConsentError(err.getFriendlyMessage(isUrdu));
+      } else {
+        setConsentError(err?.message || "Failed to update consent");
+      }
+    } finally {
+      setIsUpdatingConsent(false);
+    }
+  };
+
+  const handleConfirmRevoke = async () => {
+    if (!confirmRevokeType) return;
+    setIsUpdatingConsent(true);
+    setConsentError(null);
+    try {
+      if (confirmRevokeType === "data") {
+        const updated = await api.setConsent(false);
+        setLiveProfile(updated);
+      } else if (confirmRevokeType === "provider") {
+        const updated = await api.setProviderNotificationConsent(false);
+        setLiveProfile(updated);
+      }
+      setConfirmRevokeType(null);
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        setConsentError(err.getFriendlyMessage(isUrdu));
+      } else {
+        setConsentError(err?.message || "Failed to update consent");
+      }
+    } finally {
+      setIsUpdatingConsent(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden animate-slideUp">
+      <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden animate-slideUp max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="bg-navy-800 p-5 text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -49,6 +130,13 @@ export const UnifiedSettingsModal = () => {
 
         {/* Content */}
         <div className="p-6 space-y-5">
+          {consentError && (
+            <div className="p-3 text-xs bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
+              <span>{consentError}</span>
+            </div>
+          )}
+
           {/* Setting 1: Language Toggle */}
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
             <label className="text-xs font-bold uppercase tracking-wider text-navy-800 flex items-center gap-1.5">
@@ -83,7 +171,73 @@ export const UnifiedSettingsModal = () => {
             </div>
           </div>
 
-          {/* Setting 2: Connection Mode Indicator */}
+          {/* Setting 2: Privacy & Consent Management (Patient Portal / Live Mode) */}
+          {isLiveMode && (
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-navy-800 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-teal-700" />
+                <span>{isUrdu ? "رازداری و اجازت نامہ" : "Privacy & Consent Settings"}</span>
+              </span>
+
+              <div className="space-y-2.5 pt-1">
+                {/* Consent Toggle 1: Data Processing & Storage */}
+                <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0 flex-1">
+                    <span className="text-xs font-bold text-navy-900 block truncate">
+                      {isUrdu ? "ڈیٹا پروسیسنگ اور اسٹوریج" : "Data Processing & Storage"}
+                    </span>
+                    <p className="text-[11px] text-slate-500 leading-snug">
+                      {isUrdu
+                        ? "چیک ان کے جوابات اور ریکارڈ کا اندراج پراسیس اور محفوظ کرنے کی اجازت۔"
+                        : "Process and store check-in answers and record entries."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleDataConsent}
+                    disabled={isUpdatingConsent}
+                    id="toggle-data-consent-btn"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                      hasDataConsent
+                        ? "bg-teal-100 text-teal-900 hover:bg-teal-200"
+                        : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                    }`}
+                  >
+                    {hasDataConsent ? (isUrdu ? "فعال ✓" : "Active ✓") : (isUrdu ? "غیر فعال" : "Off")}
+                  </button>
+                </div>
+
+                {/* Consent Toggle 2: Provider Notification */}
+                <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0 flex-1">
+                    <span className="text-xs font-bold text-navy-900 block truncate">
+                      {isUrdu ? "معالج کی اطلاع اور جائزہ" : "Clinician Review & Notification"}
+                    </span>
+                    <p className="text-[11px] text-slate-500 leading-snug">
+                      {isUrdu
+                        ? "جائزے کی ضرورت والے چیک ان معالجین کو دکھانے کی اجازت۔"
+                        : "Allow check-ins needing review to be shown to clinicians."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleProviderConsent}
+                    disabled={isUpdatingConsent}
+                    id="toggle-provider-consent-btn"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                      hasProviderConsent
+                        ? "bg-teal-100 text-teal-900 hover:bg-teal-200"
+                        : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                    }`}
+                  >
+                    {hasProviderConsent ? (isUrdu ? "فعال ✓" : "Active ✓") : (isUrdu ? "غیر فعال" : "Off")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Setting 3: Connection Mode Indicator */}
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
             <span className="text-xs font-bold uppercase tracking-wider text-navy-800 flex items-center gap-1.5">
               <Hospital className="w-4 h-4 text-teal-700" />
@@ -104,12 +258,12 @@ export const UnifiedSettingsModal = () => {
               <p className="text-[11px] text-slate-500 mt-1">
                 {connectionMode === "fhir"
                   ? "Live HL7® FHIR® bridge active with City General Hospital."
-                  : "Isolated device storage mode with AES-256 local encrypted store."}
+                  : "Isolated device storage mode using the local store."}
               </p>
             </div>
           </div>
 
-          {/* Setting 3: Active Profile Parameters */}
+          {/* Setting 4: Active Profile Parameters */}
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
             <span className="text-xs font-bold uppercase tracking-wider text-navy-800 flex items-center gap-1.5">
               <User className="w-4 h-4 text-teal-700" />
@@ -138,6 +292,47 @@ export const UnifiedSettingsModal = () => {
           </button>
         </div>
       </div>
+
+      {/* Confirmation Dialog for Revoking Consent */}
+      {confirmRevokeType && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="w-full max-w-md bg-white rounded-2xl border-2 border-amber-600 p-6 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-amber-700 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-heading text-base font-bold text-navy-900">
+                  {isUrdu ? "کیا آپ اجازت واپس لینا چاہتے ہیں؟" : "Revoke Consent Confirmation"}
+                </h3>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  {isUrdu
+                    ? "اسے بند کرنے سے نئے چیک ان رک جائیں گے۔ جو جائزے آپ کے معالج کو پہلے ہی بھیجے جا چکے ہیں وہ ان کے پاس رہیں گے۔"
+                    : "Turning this off stops new check-ins. Reviews that were already sent stay with your clinician."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmRevokeType(null)}
+                disabled={isUpdatingConsent}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold border border-slate-300 hover:bg-slate-100 text-slate-700 transition-colors"
+              >
+                {isUrdu ? "منسوخ کریں" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRevoke}
+                disabled={isUpdatingConsent}
+                id="confirm-revoke-consent-btn"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-800 hover:bg-amber-900 text-white transition-colors shadow-xs"
+              >
+                {isUpdatingConsent ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (isUrdu ? "بند کرنے کی تصدیق کریں" : "Confirm Turn Off")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
