@@ -239,6 +239,17 @@ def test_get_ehr_systems_returns_no_urls(client):
             assert len(s["suggested_patient_ids"]) >= 3
 
 
+def test_get_ehr_systems_unique_and_distinct(client):
+    res = client.get("/api/ehr/systems")
+    assert res.status_code == 200
+    systems = res.json()
+    ids = [s["ehr_system_id"] for s in systems]
+    assert len(ids) == len(set(ids)), "System IDs must be unique"
+    kind_desc = [(s["kind"], s["description"]) for s in systems]
+    assert len(kind_desc) == len(set(kind_desc)), "No two systems should share the same kind and description"
+
+
+
 def test_ehr_test_endpoint(client, rsa_key_pair):
     token = create_test_token(rsa_key_pair, sub="uid-pat-test", email="pattest@demo.com")
     headers = auth_header(token)

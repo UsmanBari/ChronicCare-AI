@@ -43,32 +43,22 @@ flowchart TD
 
 ## 2. Public Sandbox Probe Results & Selection
 
-A live probe script (`scripts/probe_fhir.py`) evaluated multiple candidate public FHIR R4 sandbox servers on key operational dimensions: uptime, latency, search capabilities, and synthetic adult data availability.
+Measured by the team with `scripts/probe_fhir.py` on 5 and 6 October 2026 (+05:00):
+- **`r4.smarthealthit.org`**: UP (FHIR 4.0.0, Smile CDR, 1.1 to 4.3 s per request).
+- **`hapi.fhir.org/baseR4`**: UP but its first patient was empty.
+- **`server.fire.ly/r4`**: UP, nearly empty, metadata 6.4 to 7.0 s.
+- **`fhir-open.cerner.com`**: answered metadata but answered HTTP 400 to `Patient?_count=3`.
+- **`launch.smarthealthit.org`**: serves the same data as `r4.smarthealthit.org`.
 
-### Sandbox Evaluation Matrix
+The proof-of-concept patient `768be7ac-743f-4c24-aa0f-fed5a3a38b6a` exists on the SMART server (born 1931, 50 observations including glucose 2339-0 and HbA1c 4548-4, latest 2020-12-30, 42 medication requests, 6 conditions).
 
-| Sandbox Server | Base URL | Version / Software | Probe Result | Latency | Evaluation & Decision |
-|---|---|---|---|---|---|
-| **SMART Health IT R4** | `https://r4.smarthealthit.org` | FHIR 4.0.0 (Smile CDR) | **Pass (HTTP 200)** | ~720ms | **Selected as Primary Public Sandbox.** Open access, reliable search, verified adult cohort with complete BP panels and active medication requests. |
-| **HAPI FHIR Public R4** | `https://hapi.fhir.org/baseR4` | FHIR 4.0.1 (HAPI / JPA) | Variable (Rate-limited) | >2500ms | **Excluded as primary.** Frequent test timeouts, community data overwrites, and intermittent 502/503 errors. |
-| **Logica Health Open** | `https://api.logicahealth.org/open` | FHIR 4.0.1 | Requires Auth Token | N/A | **Excluded as default unauthenticated sandbox.** Requires OAuth2 bearer credentials. |
+Suggested adult test patients, each read with HTTP 200:
+1. **`d48ac962-78c6-46cf-ba33-a24771bfa0e4`**: born 1939, 50 observations latest 2020-11-27, 7 medication requests, 7 conditions.
+2. **`b85d7e00-3690-4e2a-87a0-f3d2dfc908b3`**: born 1973, HbA1c and glucose observations, latest 2021-02-22, 7 medication requests, 6 conditions.
+3. **`4551370c-c3eb-4164-a2ff-b528f73a4e0f`**: born 1997, blood pressure panels 55284-4 with components, latest 2020-01-06, 2 medication requests, 2 conditions.
 
-### Verified Adult Patient Cohort (SMART Health IT)
+Public sandbox data is from 2020 to 2021, so a check-in finds nothing within 48 hours to compare, which is why the simulated hospital exists.
 
-The probe script verified the following adult synthetic patients meeting the clinical criteria (Adult >= 18, >= 3 BP observation panels, >= 1 active medication request):
-
-1. **`d48ac962-78c6-46cf-ba33-a24771bfa0e4`**
-   - **DOB**: 1939-01-27 (Adult, age 87)
-   - **Observations**: 4 BP panels (LOINC `55284-4` / `85354-9`)
-   - **Medications**: Active prescription for Hydrochlorothiazide
-2. **`b85d7e00-3690-4e2a-87a0-f3d2dfc908b3`**
-   - **DOB**: 1973-01-28 (Adult, age 53)
-   - **Observations**: 4 BP panels
-   - **Medications**: Active prescription for Lisinopril
-3. **`4551370c-c3eb-4164-a2ff-b528f73a4e0f`**
-   - **DOB**: 1997-03-03 (Adult, age 29)
-   - **Observations**: 3 BP panels
-   - **Medications**: Active prescription for Metformin
 
 ---
 

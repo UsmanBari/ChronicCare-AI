@@ -1125,8 +1125,9 @@ def get_enabled_ehr_systems(backend: Optional[str] = None, db_path: Optional[str
                             mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> List[Dict[str, Any]]:
     """Retrieves all active registered EHR systems (id, display name, kind, description, sample patients, never URLs)."""
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
-        cursor.execute("SELECT ehr_system_id, display_name, kind, description FROM ehr_systems WHERE enabled = 1")
+        cursor.execute("SELECT ehr_system_id, display_name, kind, description FROM ehr_systems WHERE enabled = 1 AND ehr_system_id != 'public-sandbox'")
         rows = cursor.fetchall()
+
         results = []
         for r in rows:
             d = dict(r)
@@ -1143,6 +1144,7 @@ def get_enabled_ehr_systems(backend: Optional[str] = None, db_path: Optional[str
                 item["suggested_patient_ids"] = PUBLIC_SANDBOX_SUGGESTED_PATIENT_IDS
             results.append(item)
         return results
+
 
 
 def get_ehr_system_by_id(ehr_system_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
