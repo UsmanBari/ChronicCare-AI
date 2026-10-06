@@ -133,6 +133,57 @@ def test_medication_scope_constants_defined():
     assert "amlodipine" in HYPERTENSION_MEDICATIONS
 
 
+def test_medication_scope_two_different_ace_inhibitors_both_retained():
+    # Two different ACE inhibitors (Lisinopril and Ramipril) both active should BOTH be retained
+    meds = [
+        NormalizedMedication("p1", "Lisinopril 10mg", "active", "10mg", "2026-10-01T00:00:00Z", "fhir", "m1"),
+        NormalizedMedication("p1", "Ramipril 5mg", "active", "5mg", "2026-10-02T00:00:00Z", "fhir", "m2"),
+    ]
+    scoped = select_chronic_care_medications(meds)
+    assert len(scoped) == 2
+    names = {m.medication_name for m in scoped}
+    assert names == {"Lisinopril 10mg", "Ramipril 5mg"}
+
+
+def test_medication_scope_same_drug_four_times_gives_one():
+    # Same drug prescribed 4 times across different dates: keep only the single most recent entry
+    meds = [
+        NormalizedMedication("p1", "Metformin 500mg", "active", "500mg", "2026-07-01T00:00:00Z", "fhir", "m1"),
+        NormalizedMedication("p1", "Metformin 500mg", "active", "500mg", "2026-08-01T00:00:00Z", "fhir", "m2"),
+        NormalizedMedication("p1", "Metformin 500mg", "active", "500mg", "2026-10-01T00:00:00Z", "fhir", "m3"),
+        NormalizedMedication("p1", "Metformin 500mg", "active", "500mg", "2026-09-01T00:00:00Z", "fhir", "m4"),
+    ]
+    scoped = select_chronic_care_medications(meds)
+    assert len(scoped) == 1
+    assert scoped[0].source_record_id == "m3"
+    assert scoped[0].timestamp == "2026-10-01T00:00:00Z"
+
+
+
+def test_medication_scope_only_unrelated_medications_gives_empty():
+    # Only unrelated medications (e.g. painkiller, eye drops, antibiotic) gives empty list
+    meds = [
+        NormalizedMedication("p1", "Aspirin 81mg", "active", "81mg", "2026-10-01T00:00:00Z", "fhir", "m1"),
+        NormalizedMedication("p1", "Artificial Tears", "active", "1 drop", "2026-10-01T00:00:00Z", "fhir", "m2"),
+        NormalizedMedication("p1", "Amoxicillin 500mg", "active", "500mg", "2026-10-01T00:00:00Z", "fhir", "m3"),
+    ]
+    scoped = select_chronic_care_medications(meds)
+    assert len(scoped) == 0
+
+
+def test_medication_scope_stopped_medications_excluded():
+    # Stopped, completed, or cancelled medications are excluded
+    meds = [
+        NormalizedMedication("p1", "Metformin 500mg", "stopped", "500mg", "2026-10-01T00:00:00Z", "fhir", "m1"),
+        NormalizedMedication("p1", "Lisinopril 10mg", "completed", "10mg", "2026-10-01T00:00:00Z", "fhir", "m2"),
+        NormalizedMedication("p1", "Amlodipine 5mg", "cancelled", "5mg", "2026-10-01T00:00:00Z", "fhir", "m3"),
+        NormalizedMedication("p1", "Bisoprolol 2.5mg", "active", "2.5mg", "2026-10-01T00:00:00Z", "fhir", "m4"),
+    ]
+    scoped = select_chronic_care_medications(meds)
+    assert len(scoped) == 1
+    assert scoped[0].medication_name == "Bisoprolol 2.5mg"
+
+
 def test_medication_scope_filters_and_caps():
     # 20 active medications: 3 relevant, 17 unrelated
     meds = [
@@ -147,18 +198,6 @@ def test_medication_scope_filters_and_caps():
     assert len(scoped) == 3
     names = {m.medication_name for m in scoped}
     assert names == {"Metformin 500mg", "Lisinopril 10mg", "Amlodipine 5mg"}
-
-
-def test_medication_scope_excludes_stopped_and_deduplicates():
-    meds = [
-        NormalizedMedication("p1", "Metformin 500mg", "active", "500mg", "2026-10-01T00:00:00Z", "fhir", "m1"),
-        NormalizedMedication("p1", "Metformin 1000mg", "active", "1000mg", "2026-10-05T00:00:00Z", "fhir", "m2"),  # newer duplicate
-        NormalizedMedication("p1", "Lisinopril 10mg", "stopped", "10mg", "2026-10-04T00:00:00Z", "fhir", "m3"),   # stopped
-        NormalizedMedication("p1", "Aspirin 81mg", "active", "81mg", "2026-10-01T00:00:00Z", "fhir", "m4"),       # unrelated
-    ]
-    scoped = select_chronic_care_medications(meds)
-    assert len(scoped) == 1
-    assert scoped[0].medication_name == "Metformin 1000mg"
 
 
 def test_medication_scope_cap_of_8():

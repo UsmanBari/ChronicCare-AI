@@ -122,14 +122,14 @@ def select_chronic_care_medications(
     # Sort most recent first if timestamps present
     sorted_meds = sorted(relevant, key=lambda m: _get_med_timestamp(m), reverse=True)
 
-    # Deduplicate by matched keyword / active ingredient (keeping first/most recent)
-    seen_kws: Set[str] = set()
+    # Deduplicate by normalised medication name (keeping first/most recent)
+    seen_names: Set[str] = set()
     deduped: List[Any] = []
     for med in sorted_meds:
         med_norm = _norm(_get_med_name(med))
-        matched_kw = next((kw for kw in CHRONIC_CARE_MEDICATION_KEYWORDS if kw in med_norm), med_norm)
-        if matched_kw not in seen_kws:
-            seen_kws.add(matched_kw)
+        if med_norm not in seen_names:
+            seen_names.add(med_norm)
             deduped.append(med)
 
     return deduped[:limit]
+
