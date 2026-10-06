@@ -91,7 +91,9 @@ from data_sources.local_store import (
 )
 from llm.groq_client import is_configured, get_configured_model, chat
 from auth.firebase_verify import verify_firebase_token, AuthError, get_firebase_project_id
-from data_sources.fhir_client import get_fhir_patient
+from data_sources.medication_scope import select_chronic_care_medications
+from data_sources.fhir_client import get_fhir_patient, fhir_get, check_fhir_metadata, FHIRError, clear_fhir_cache
+from data_sources.fhir_sim import SAMPLE_PATIENTS
 from data_sources.app_store import (
     migrate,
     get_user_by_id,
@@ -479,9 +481,31 @@ class CreateObservationRequest(BaseModel):
         return clean
 
 
+class SamplePatient(BaseModel):
+    id: str
+    label: str
+    description: str
+
+
 class EHRSystemResponse(BaseModel):
     ehr_system_id: str
     display_name: str
+    kind: str = "public_sandbox"
+    description: str = ""
+    sample_patients: Optional[List[SamplePatient]] = None
+    suggested_patient_ids: Optional[List[str]] = None
+
+
+class EHRTestRequest(BaseModel):
+    ehr_system_id: Optional[str] = None
+    system_id: Optional[str] = None
+
+
+class EHRTestResponse(BaseModel):
+    ok: bool
+    latency_ms: int
+    kind: str
+    error_code: Optional[str] = None
 
 
 PATIENT_ID_REGEX = re.compile(r"^[A-Za-z0-9\-.]{1,64}$")
@@ -501,6 +525,11 @@ class EHRConnectRequest(BaseModel):
         return clean
 
 
+class EHRConnectionSummary(BaseModel):
+    recent_observations: int = 0
+    active_medications: int = 0
+
+
 class EHRConnectionInfo(BaseModel):
     ehr_system_id: str
     display_name: str
@@ -513,6 +542,20 @@ class EHRConnectionResponse(BaseModel):
     mode: str
     connection: Optional[EHRConnectionInfo] = None
     message: Optional[str] = None
+    system_id: Optional[str] = None
+    kind: Optional[str] = None
+    record_source_label: Optional[str] = None
+    summary: Optional[EHRConnectionSummary] = None
+    warning: Optional[str] = None
+
+
+class ConfigItem(BaseModel):
+    name: str
+    set: bool
+
+
+class ConfigStatusResponse(BaseModel):
+    settings: List[ConfigItem]
 
 
 # --- Check-in & Review Schemas ---
@@ -552,6 +595,7 @@ class CheckinCompleteResponse(BaseModel):
     requires_review: bool
     max_severity: Optional[str] = None
     triage: Optional[Dict[str, Any]] = None
+    record_source_label: Optional[str] = None
 
 
 class UserCheckinSummaryResponse(BaseModel):
@@ -578,6 +622,7 @@ class UserCheckinDetailResponse(BaseModel):
     completed_at: Optional[str] = None
     state: Dict[str, Any]
     result: Optional[Dict[str, Any]] = None
+    record_source_label: Optional[str] = None
 
 
 class ReviewQueueItemResponse(BaseModel):
@@ -624,6 +669,7 @@ class ReviewDetailResponse(BaseModel):
     escalated_at: Optional[str] = None
     triage: Optional[Dict[str, Any]] = None
     actions: List[ReviewActionResponse]
+    record_source_label: Optional[str] = None
 
 
 class ReviewActionRequest(BaseModel):
@@ -1608,21 +1654,86 @@ def delete_record_observation_endpoint(
     return {"status": "ok"}
 
 
+def _compute_record_source_label(mode: str, ehr_system_id: Optional[str] = None) -> str:
+    if mode == "isolated":
+        return "Your saved record"
+    if ehr_system_id:
+        sys = get_ehr_system_by_id(ehr_system_id)
+        if sys and sys.get("kind") == "simulated":
+            return "Simulated hospital record (synthetic data)"
+    return "Hospital EHR (FHIR test server)"
+
+
+SAMPLE_PATIENTS_LIST = [
+    SamplePatient(id="sim-ayesha", label="Ayesha K. (age 52)", description="Type 2 diabetes & hypertension (BP ~128/82, glucose 140-150, active Metformin & Lisinopril)"),
+    SamplePatient(id="sim-bilal", label="Bilal A. (age 67)", description="Hypertension personal baseline (BP 110-116/70-74, active Amlodipine)"),
+    SamplePatient(id="sim-sana", label="Sana M. (age 45)", description="Type 2 diabetes on insulin (glucose 150-175, active Insulin glargine & Metformin)"),
+    SamplePatient(id="sim-imran", label="Imran Q. (age 71)", description="Type 2 diabetes & hypertension, rising readings (BP 148-156/92-98, glucose 180-210)"),
+    SamplePatient(id="sim-newpatient", label="Nadia R. (age 38)", description="Hypertension, no recent observations (empty record test)"),
+]
+
+SUGGESTED_PATIENT_IDS = [
+    "d48ac962-78c6-46cf-ba33-a24771bfa0e4",
+    "b85d7e00-3690-4e2a-87a0-f3d2dfc908b3",
+    "4551370c-c3eb-4164-a2ff-b528f73a4e0f",
+]
+
+
 # =============================================================================
 # EHR REGISTRY & CONNECTION ENDPOINTS
 # =============================================================================
 
 @app.get("/api/ehr/systems", response_model=List[EHRSystemResponse], tags=["EHR Connection"])
 def get_ehr_systems_endpoint():
-    """Returns enabled EHR systems (id and display name only, never URLs)."""
+    """Returns enabled EHR systems (id, display name, kind, description and suggested/sample patients, never URLs)."""
     systems = get_enabled_ehr_systems()
-    return [
-        EHRSystemResponse(
-            ehr_system_id=s["ehr_system_id"],
-            display_name=s["display_name"],
+    res = []
+    for s in systems:
+        kind = s.get("kind", "public_sandbox")
+        sample_patients = SAMPLE_PATIENTS_LIST if kind == "simulated" else None
+        suggested_ids = SUGGESTED_PATIENT_IDS if kind == "public_sandbox" else None
+        res.append(
+            EHRSystemResponse(
+                ehr_system_id=s["ehr_system_id"],
+                display_name=s["display_name"],
+                kind=kind,
+                description=s.get("description", ""),
+                sample_patients=sample_patients,
+                suggested_patient_ids=suggested_ids,
+            )
         )
-        for s in systems
-    ]
+    return res
+
+
+@app.post("/api/ehr/test", response_model=EHRTestResponse, tags=["EHR Connection"])
+def test_ehr_endpoint(
+    body: EHRTestRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Tests connectivity to an EHR system with a 5s timeout and no retries.
+    Requires signed-in user, no consent required, uses no patient data.
+    """
+    sys_id = body.ehr_system_id or body.system_id
+    if not sys_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing ehr_system_id")
+    sys = get_ehr_system_by_id(sys_id)
+    if not sys or not sys.get("enabled"):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="EHR system not found or disabled")
+
+    base_url = sys["fhir_base_url"]
+    kind = sys.get("kind", "public_sandbox")
+    t0 = time.monotonic()
+    try:
+        check_fhir_metadata(base_url=base_url, timeout=5.0)
+        lat = round((time.monotonic() - t0) * 1000)
+        return EHRTestResponse(ok=True, latency_ms=lat, kind=kind)
+    except FHIRError as fe:
+        lat = round((time.monotonic() - t0) * 1000)
+        return EHRTestResponse(ok=False, latency_ms=lat, kind=kind, error_code=fe.error_code)
+    except Exception:
+        lat = round((time.monotonic() - t0) * 1000)
+        return EHRTestResponse(ok=False, latency_ms=lat, kind=kind, error_code="ehr_unreachable")
 
 
 @app.post("/api/ehr/connect", response_model=EHRConnectionResponse, tags=["EHR Connection"])
@@ -1632,7 +1743,7 @@ def connect_ehr_endpoint(
 ):
     """
     Connects patient account to an external patient record in a registered EHR system.
-    Requires active consent. Checks live FHIR patient record deterministically.
+    Requires active consent. Checks live FHIR patient record deterministically and enforces adult scope.
     """
     user_id = current_user["user_id"]
     masked_id = "..." + body.external_patient_id[-4:]
@@ -1678,7 +1789,7 @@ def connect_ehr_endpoint(
     # 4. Live FHIR verification with timeout <= 10s
     base_url = ehr_system["fhir_base_url"]
     try:
-        get_fhir_patient(patient_id=body.external_patient_id, base_url=base_url, timeout=10)
+        patient_res = get_fhir_patient(patient_id=body.external_patient_id, base_url=base_url, timeout=10)
     except requests.exceptions.HTTPError as e:
         if e.response is not None and e.response.status_code == 404:
             record_ehr_connection(
@@ -1698,7 +1809,7 @@ def connect_ehr_endpoint(
             )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Patient not found in this EHR",
+                detail="Patient not found in this EHR (ehr_patient_not_found)",
             )
         else:
             record_ehr_connection(
@@ -1718,8 +1829,49 @@ def connect_ehr_endpoint(
             )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="EHR unavailable",
+                detail="EHR unavailable (ehr_unreachable)",
             )
+    except FHIRError as fe:
+        err_code = fe.error_code
+        if fe.status_code == 404 or err_code == "ehr_patient_not_found":
+            record_ehr_connection(
+                connection_id=str(uuid.uuid4()),
+                user_id=user_id,
+                ehr_system_id=body.ehr_system_id,
+                external_patient_id=body.external_patient_id,
+                status="failed",
+                last_error_code="not_found",
+            )
+            append_audit(
+                actor_user_id=user_id,
+                action="ehr_connect_failed",
+                target=body.ehr_system_id,
+                outcome="error",
+                detail={"ehr_system_id": body.ehr_system_id, "error_code": "not_found", "masked_patient_id": masked_id},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Patient not found in this EHR (ehr_patient_not_found)",
+            )
+        record_ehr_connection(
+            connection_id=str(uuid.uuid4()),
+            user_id=user_id,
+            ehr_system_id=body.ehr_system_id,
+            external_patient_id=body.external_patient_id,
+            status="failed",
+            last_error_code="unavailable",
+        )
+        append_audit(
+            actor_user_id=user_id,
+            action="ehr_connect_failed",
+            target=body.ehr_system_id,
+            outcome="error",
+            detail={"ehr_system_id": body.ehr_system_id, "error_code": "unavailable", "masked_patient_id": masked_id},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"EHR unavailable ({err_code})",
+        )
     except requests.exceptions.RequestException:
         record_ehr_connection(
             connection_id=str(uuid.uuid4()),
@@ -1738,8 +1890,49 @@ def connect_ehr_endpoint(
         )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="EHR unavailable",
+            detail="EHR unavailable (ehr_unreachable)",
         )
+
+    # 4c. Adults only check: read Patient birthDate
+    dob_str = patient_res.get("birthDate") if isinstance(patient_res, dict) else None
+    warning = None
+    if not dob_str:
+        warning = "ehr_birthdate_missing"
+    else:
+        age = _compute_age_years(dob_str)
+        if age is not None and age < 18:
+            record_ehr_connection(
+                connection_id=str(uuid.uuid4()),
+                user_id=user_id,
+                ehr_system_id=body.ehr_system_id,
+                external_patient_id=body.external_patient_id,
+                status="failed",
+                last_error_code="not_adult",
+            )
+            append_audit(
+                actor_user_id=user_id,
+                action="ehr_connect_failed",
+                target=body.ehr_system_id,
+                outcome="error",
+                detail={"ehr_system_id": body.ehr_system_id, "error_code": "ehr_patient_not_adult", "masked_patient_id": masked_id},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="This record belongs to a patient under 18. ChronicCare AI is for adults (18 and over) in this release. (ehr_patient_not_adult)",
+            )
+
+    # Fetch bundle for summary counts
+    try:
+        bundle = get_patient_bundle(body.external_patient_id, mode="connected", base_url=base_url)
+        obs_count = len(bundle.get("observations", []))
+        meds = bundle.get("medications", [])
+        med_count = sum(1 for m in meds if getattr(m, "status", None) == "active" or (isinstance(m, dict) and m.get("status") == "active"))
+    except Exception:
+        obs_count = 0
+        med_count = 0
+
+    if obs_count == 0:
+        warning = "ehr_empty_record"
 
     # 5. Connect Success: store active connection (replaces previous active connection)
     now_iso = _utc_now_iso()
@@ -1760,6 +1953,8 @@ def connect_ehr_endpoint(
         detail={"ehr_system_id": body.ehr_system_id, "masked_patient_id": masked_id},
     )
 
+    record_label = _compute_record_source_label(mode="connected", ehr_system_id=body.ehr_system_id)
+
     return EHRConnectionResponse(
         mode="connected",
         connection=EHRConnectionInfo(
@@ -1769,6 +1964,14 @@ def connect_ehr_endpoint(
             linked_at=record["linked_at"],
             last_verified_at=now_iso,
         ),
+        system_id=body.ehr_system_id,
+        kind=ehr_system.get("kind", "public_sandbox"),
+        record_source_label=record_label,
+        summary=EHRConnectionSummary(
+            recent_observations=obs_count,
+            active_medications=med_count,
+        ),
+        warning=warning,
     )
 
 
@@ -1780,6 +1983,10 @@ def get_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(get_curre
         return EHRConnectionResponse(mode="isolated", connection=None)
 
     masked_id = "..." + active["external_patient_id"][-4:]
+    sys = get_ehr_system_by_id(active["ehr_system_id"])
+    kind = sys.get("kind", "public_sandbox") if sys else "public_sandbox"
+    record_label = _compute_record_source_label(mode="connected", ehr_system_id=active["ehr_system_id"])
+
     return EHRConnectionResponse(
         mode="connected",
         connection=EHRConnectionInfo(
@@ -1789,13 +1996,17 @@ def get_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(get_curre
             linked_at=active["linked_at"],
             last_verified_at=active.get("last_verified_at"),
         ),
+        system_id=active["ehr_system_id"],
+        kind=kind,
+        record_source_label=record_label,
     )
 
 
 @app.delete("/api/ehr/connection", response_model=EHRConnectionResponse, tags=["EHR Connection"])
 def delete_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(require_role("patient"))):
-    """Revokes active EHR connection and switches patient mode to isolated (patient only)."""
+    """Revokes active EHR connection and switches patient mode to isolated (patient only). Clears transient FHIR cache."""
     user_id = current_user["user_id"]
+    clear_fhir_cache()
     revoke_ehr_connection(user_id)
     append_audit(
         actor_user_id=user_id,
@@ -1809,6 +2020,37 @@ def delete_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(requir
         connection=None,
         message="EHR connection revoked",
     )
+
+
+@app.get("/api/admin/config-status", response_model=ConfigStatusResponse, tags=["Admin"])
+def get_config_status_endpoint(current_user: Dict[str, Any] = Depends(require_role("admin"))):
+    """
+    Returns configured status (name and set boolean only, never values) for critical server settings.
+    Restricted to admin role only.
+    """
+    db_backend = os.environ.get("DB_BACKEND", "").strip().lower()
+    is_mysql = db_backend == "mysql"
+
+    keys = [
+        "FIREBASE_PROJECT_ID",
+        "DB_BACKEND",
+        "FHIR_BASE_URL",
+        "DEMO_ROLE_MAP",
+    ]
+    if is_mysql:
+        keys.extend([
+            "MYSQL_HOST",
+            "MYSQL_PORT",
+            "MYSQL_USER",
+            "MYSQL_PASSWORD",
+            "MYSQL_DATABASE",
+        ])
+
+    settings = [
+        ConfigItem(name=k, set=bool(os.environ.get(k, "").strip()))
+        for k in keys
+    ]
+    return ConfigStatusResponse(settings=settings)
 
 
 def _compute_age_years(dob_str: Optional[str]) -> Optional[float]:
@@ -1926,8 +2168,13 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
             detail="Record source unavailable",
         )
 
+    # 4d. MEDICATION SCOPE in Connected Mode
+    meds_for_check = prior_bundle.get("medications", [])
+    if mode == "connected":
+        meds_for_check = select_chronic_care_medications(meds_for_check)
+
     is_cold_start = (len(prior_bundle.get("observations", [])) == 0 and len(prior_bundle.get("medications", [])) == 0)
-    med_state = start_medication_check(prior_bundle.get("medications", []))
+    med_state = start_medication_check(meds_for_check)
     med_state_dict = med_state.to_dict()
 
     # 7. Initialize InterviewState and run first node
@@ -1949,6 +2196,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
         state_dict=initial_state.to_dict(),
         status="in_progress",
         med_state_dict=med_state_dict,
+        ehr_system_id=active_conn["ehr_system_id"] if active_conn else None,
     )
     question = get_current_question(initial_state)
 
@@ -2435,6 +2683,7 @@ def complete_checkin_endpoint(
 
     # Idempotent check
     stored_result = get_checkin_result(checkin_id)
+    record_label = _compute_record_source_label(checkin["mode"], checkin.get("ehr_system_id"))
     if stored_result:
         return CheckinCompleteResponse(
             emergency=stored_result["emergency"],
@@ -2444,6 +2693,7 @@ def complete_checkin_endpoint(
             requires_review=stored_result["requires_review"],
             max_severity=stored_result.get("max_severity"),
             triage=stored_result.get("triage"),
+            record_source_label=record_label,
         )
 
     state = InterviewState.from_dict(checkin["state"])
@@ -2506,6 +2756,7 @@ def complete_checkin_endpoint(
             requires_review=True,
             max_severity="high",
             triage=triage_dict,
+            record_source_label=record_label,
         )
 
     # 2. Non-Emergency Flow
@@ -2651,6 +2902,7 @@ def complete_checkin_endpoint(
             requires_review=final_requires_review,
             max_severity=final_max_sev,
             triage=triage_res,
+            record_source_label=record_label,
         )
     else:
         review_status = "open" if verif_requires_review else "resolved"
@@ -2680,6 +2932,7 @@ def complete_checkin_endpoint(
             verification=verif_result.to_dict(),
             requires_review=verif_requires_review,
             max_severity=verif_max_severity,
+            record_source_label=record_label,
         )
 
 
@@ -2720,6 +2973,7 @@ def get_user_checkin_detail_endpoint(
         )
 
     result = get_checkin_result(checkin_id)
+    record_label = _compute_record_source_label(checkin["mode"], checkin.get("ehr_system_id"))
     return UserCheckinDetailResponse(
         checkin_id=checkin["checkin_id"],
         user_id=checkin["user_id"],
@@ -2730,6 +2984,7 @@ def get_user_checkin_detail_endpoint(
         completed_at=checkin.get("completed_at"),
         state=checkin["state"],
         result=result,
+        record_source_label=record_label,
     )
 
 
@@ -2770,6 +3025,7 @@ def get_provider_review_detail_endpoint(
     patient_user = get_user_by_id(checkin["user_id"])
     patient_display = (patient_user.get("display_name") if patient_user else None) or (patient_user.get("email") if patient_user else None) or "Patient"
     actions = get_review_actions(checkin_id)
+    record_label = _compute_record_source_label(checkin["mode"], checkin.get("ehr_system_id"))
 
     # Extract trigger_reading if present in intakes
     trigger_reading = None
@@ -2797,6 +3053,7 @@ def get_provider_review_detail_endpoint(
         escalated_at=result.get("escalated_at"),
         triage=result.get("triage"),
         actions=[ReviewActionResponse(**a) for a in actions],
+        record_source_label=record_label,
     )
 
 
@@ -2846,6 +3103,7 @@ def post_provider_review_action_endpoint(
             trigger_reading = intake["trigger_reading"]
             break
 
+    record_label = _compute_record_source_label(checkin["mode"], checkin.get("ehr_system_id"))
     return ReviewDetailResponse(
         checkin_id=checkin_id,
         patient_id=checkin["record_patient_id"],
@@ -2865,6 +3123,7 @@ def post_provider_review_action_endpoint(
         escalated_at=updated_result.get("escalated_at"),
         triage=updated_result.get("triage"),
         actions=[ReviewActionResponse(**a) for a in actions],
+        record_source_label=record_label,
     )
 
 

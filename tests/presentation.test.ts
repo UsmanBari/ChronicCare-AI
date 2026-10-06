@@ -5,6 +5,8 @@ import {
   describeMedicationItem,
   titleCaseName,
   mapApiError,
+  describeEhrSystem,
+  mapEhrError,
 } from "../app/lib/presentation";
 
 describe("presentation logic unit tests", () => {
@@ -311,6 +313,101 @@ describe("presentation logic unit tests", () => {
       expect(result.todayText).toBe("Not reported today");
       expect(result.reason).toBe("Requires clinician review.");
       expect(result.severity).toBe("low");
+    });
+  });
+
+  describe("describeEhrSystem", () => {
+    it("returns in-process simulator metadata and purple badge", () => {
+      const res = describeEhrSystem({ kind: "simulated", display_name: "Demo Hospital" });
+      expect(res.isSimulated).toBe(true);
+      expect(res.badge).toBe("In-Process Simulator");
+      expect(res.badgeColor).toContain("purple");
+      expect(res.description).toContain("synthetic data");
+    });
+
+    it("returns public sandbox metadata and blue badge", () => {
+      const res = describeEhrSystem({ kind: "public_sandbox", display_name: "SMART Health IT" });
+      expect(res.isSimulated).toBe(false);
+      expect(res.badge).toBe("Public FHIR Sandbox");
+      expect(res.badgeColor).toContain("blue");
+    });
+
+    it("returns connected EHR fallback when kind is live or unspecified", () => {
+      const res = describeEhrSystem({ kind: "live_hospital", display_name: "City Hospital" });
+      expect(res.isSimulated).toBe(false);
+      expect(res.badge).toBe("Connected EHR");
+      expect(res.badgeColor).toContain("teal");
+    });
+  });
+
+  describe("mapEhrError", () => {
+    it("maps ehr_unreachable to clear connection troubleshooting message", () => {
+      const msg = mapEhrError("ehr_unreachable");
+      expect(msg).toContain("unreachable or timed out");
+    });
+
+    it("maps ehr_patient_not_found to ID verification message", () => {
+      const msg = mapEhrError("ehr_patient_not_found");
+      expect(msg).toContain("Patient record was not found");
+    });
+
+    it("maps ehr_forbidden to permission message", () => {
+      const msg = mapEhrError("ehr_forbidden");
+      expect(msg).toContain("forbidden");
+    });
+
+    it("maps ehr_bad_response to format error", () => {
+      const msg = mapEhrError("ehr_bad_response");
+      expect(msg).toContain("invalid or unreadable");
+    });
+
+    it("maps ehr_patient_not_adult to 18+ age scope explanation", () => {
+      const msg = mapEhrError("ehr_patient_not_adult");
+      expect(msg).toContain("under 18");
+      expect(msg).toContain("18 and over");
+    });
+
+    it("maps ehr_empty_record to honest empty data warning", () => {
+      const msg = mapEhrError("ehr_empty_record");
+      expect(msg).toContain("no recent observations");
+    });
+
+    it("maps ehr_birthdate_missing to birthdate warning", () => {
+      const msg = mapEhrError("ehr_birthdate_missing");
+      expect(msg).toContain("birth date is missing");
+    });
+  });
+
+  describe("describeSide with record_source_label", () => {
+    it("prioritizes server-provided recordSourceLabel over client defaults", () => {
+      const label = "Simulated hospital record (synthetic data)";
+      const sideA = describeSide("a", "fhir", "high", "connected", label);
+      expect(sideA).toBe(label);
+    });
+
+    it("preserves self-reported label when recordSourceLabel is 'Your saved record'", () => {
+      const label = "Your saved record";
+      const sideA = describeSide("a", "local", "low", "isolated", label);
+      expect(sideA).toBe(label);
+    });
+  });
+
+  describe("mapApiError 503 auth and 422 adult mappings", () => {
+    it("maps 503 Authentication not configured honestly", () => {
+      const msg = mapApiError(503, "Authentication not configured");
+      expect(msg).toContain("Authentication not configured on the backend");
+      expect(msg).toContain("Firebase");
+    });
+
+    it("maps 422 ehr_patient_not_adult honestly", () => {
+      const msg = mapApiError(422, "Patient is under 18 (ehr_patient_not_adult)");
+      expect(msg).toContain("under 18");
+      expect(msg).toContain("18 and over");
+    });
+
+    it("maps 502 ehr_patient_not_found honestly", () => {
+      const msg = mapApiError(502, "Patient not found in this EHR (ehr_patient_not_found)");
+      expect(msg).toContain("Patient record was not found");
     });
   });
 });

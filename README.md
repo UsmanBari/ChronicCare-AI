@@ -301,6 +301,7 @@ ChronicCare-AI/
 
 - **Observation Comparison Window (48 Hours):** Algorithmic reconciliation compares observations only within a 48-hour window of each other. Older baseline observations are retained as historical data for trend analysis, but will not match against today's check-in. Medications have no comparison time window.
 - **Allergies Storage Invariant:** Patient allergies can be recorded and retrieved via the patient record API in isolated mode, but are not yet evaluated by the reconciliation engine in this phase.
+- **EHR Connected Mode (Stage 7E):** Provides real-time HL7® FHIR® R4 integration against an in-process simulated hospital (`demo-hospital`) and public sandboxes (SMART Health IT `r4.smarthealthit.org`). See [EHR Sandbox Documentation](docs/EHR_SANDBOX.md) for sandbox results, synthetic patient IDs, and clinical boundaries.
 
 ---
 

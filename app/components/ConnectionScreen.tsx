@@ -14,8 +14,12 @@ import {
   AlertCircle,
   Link as LinkIcon,
   ShieldAlert,
+  Activity,
+  Info,
+  Server,
 } from "lucide-react";
-import { api, ApiError, EHRSystemResponse, EHRConnectionResponse } from "../lib/api";
+import { api, ApiError, EHRSystemResponse, EHRConnectionResponse, EHRTestResponse } from "../lib/api";
+import { describeEhrSystem, mapEhrError, mapApiError } from "../lib/presentation";
 
 export const ConnectionScreen = () => {
   const {
@@ -33,12 +37,15 @@ export const ConnectionScreen = () => {
   const [fhirSuccess, setFhirSuccess] = useState(false);
   const [offlineSuccess, setOfflineSuccess] = useState(false);
 
-  // Live EHR form state
+  // Live EHR state
   const [ehrSystems, setEhrSystems] = useState<EHRSystemResponse[]>([]);
   const [selectedSystemId, setSelectedSystemId] = useState<string>("");
   const [patientIdInput, setPatientIdInput] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [showConnectModal, setShowConnectModal] = useState<boolean>(false);
+
+  // Connection testing state
+  const [testingSystemId, setTestingSystemId] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, EHRTestResponse>>({});
 
   useEffect(() => {
     if (isLiveMode) {
@@ -49,6 +56,10 @@ export const ConnectionScreen = () => {
           setEhrSystems(systems);
           if (systems.length > 0) {
             setSelectedSystemId(systems[0].ehr_system_id);
+            // Default to first sample patient if simulated
+            if (systems[0].sample_patients && systems[0].sample_patients.length > 0) {
+              setPatientIdInput(systems[0].sample_patients[0].id);
+            }
           }
         })
         .catch(() => {});
@@ -58,7 +69,7 @@ export const ConnectionScreen = () => {
         .getEHRConnection()
         .then((conn) => {
           setLiveEhrConnection(conn);
-          if (conn.mode === "fhir") {
+          if (conn.mode === "fhir" || conn.mode === "connected") {
             setConnectionMode("fhir");
           } else if (conn.mode === "isolated") {
             setConnectionMode("offline");
@@ -68,18 +79,49 @@ export const ConnectionScreen = () => {
     }
   }, [isLiveMode, setConnectionMode, setLiveEhrConnection]);
 
+  const activeSystem = ehrSystems.find((s) => s.ehr_system_id === selectedSystemId);
+
+  const handleSystemChange = (sysId: string) => {
+    setSelectedSystemId(sysId);
+    setError(null);
+    const target = ehrSystems.find((s) => s.ehr_system_id === sysId);
+    if (target?.sample_patients && target.sample_patients.length > 0) {
+      setPatientIdInput(target.sample_patients[0].id);
+    } else if (target?.suggested_patient_ids && target.suggested_patient_ids.length > 0) {
+      setPatientIdInput(target.suggested_patient_ids[0]);
+    } else {
+      setPatientIdInput("");
+    }
+  };
+
+  const handleTestConnection = async (sysId: string) => {
+    setTestingSystemId(sysId);
+    setError(null);
+    try {
+      const res = await api.testEHRConnection(sysId);
+      setTestResults((prev) => ({ ...prev, [sysId]: res }));
+    } catch (err: any) {
+      setTestResults((prev) => ({
+        ...prev,
+        [sysId]: { ok: false, latency_ms: 0, kind: "unknown", error_code: "ehr_unreachable" },
+      }));
+    } finally {
+      setTestingSystemId(null);
+    }
+  };
+
   const handleFhirConnect = async () => {
     if (connectingFhir || fhirSuccess) return;
     setError(null);
 
     if (isLiveMode) {
       if (!selectedSystemId) {
-        setError(t.selectEhrSystemLabel);
+        setError(t.selectEhrSystemLabel || "Please select an EHR system.");
         return;
       }
       const cleanPatientId = patientIdInput.trim();
       if (!cleanPatientId) {
-        setError("Please enter a valid Patient ID (MRN)");
+        setError("Please enter or select a Patient ID.");
         return;
       }
 
@@ -89,7 +131,6 @@ export const ConnectionScreen = () => {
         setLiveEhrConnection(res);
         setConnectionMode("fhir");
         setFhirSuccess(true);
-        setShowConnectModal(false);
         setTimeout(() => {
           setScreen("home");
         }, 1200);
@@ -97,7 +138,7 @@ export const ConnectionScreen = () => {
         if (err instanceof ApiError) {
           setError(err.getFriendlyMessage(isUrdu));
         } else {
-          setError(err?.message || "Failed to connect to EHR");
+          setError(mapApiError(err?.status, err?.message || "ehr_unreachable"));
         }
       } finally {
         setConnectingFhir(false);
@@ -105,7 +146,7 @@ export const ConnectionScreen = () => {
       return;
     }
 
-    // Mocked FHIR handshake delay (1.5s)
+    // Mocked mode
     setConnectingFhir(true);
     setTimeout(() => {
       setConnectingFhir(false);
@@ -114,7 +155,7 @@ export const ConnectionScreen = () => {
       setTimeout(() => {
         setScreen("home");
       }, 1200);
-    }, 1500);
+    }, 1200);
   };
 
   const handleDisconnect = async () => {
@@ -155,14 +196,14 @@ export const ConnectionScreen = () => {
       return;
     }
 
-    // Proceeds to Health Profile screen in mock mode
     setTimeout(() => {
       setScreen("profile");
     }, 800);
   };
 
   const isConnectedToFhir = Boolean(
-    liveEhrConnection?.mode === "fhir" && liveEhrConnection.connection
+    (liveEhrConnection?.mode === "fhir" || liveEhrConnection?.mode === "connected") &&
+      liveEhrConnection.connection
   );
 
   return (
@@ -178,7 +219,7 @@ export const ConnectionScreen = () => {
       </div>
 
       {error && (
-        <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
+        <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2 animate-fadeIn">
           <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
           <span>{error}</span>
         </div>
@@ -190,7 +231,7 @@ export const ConnectionScreen = () => {
           <div className="flex items-center justify-between">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-100 text-teal-800 text-xs font-bold">
               <ShieldCheck className="w-4 h-4 text-teal-700" />
-              <span>{t.connectedBadgeTitle}</span>
+              <span>{t.connectedBadgeTitle || "Connected Mode Active"}</span>
             </div>
             <span className="text-[11px] text-slate-500 font-mono">
               HL7® FHIR® R4
@@ -201,13 +242,16 @@ export const ConnectionScreen = () => {
             <h3 className="text-base font-bold text-navy-800">
               {liveEhrConnection.connection.display_name}
             </h3>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+            <p className="text-xs text-teal-900 font-medium">
+              {liveEhrConnection.record_source_label || "Connected Hospital Record"}
+            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 pt-1">
               <span>
-                <strong>{t.patientIdMasked}:</strong> {liveEhrConnection.connection.masked_patient_id}
+                <strong>{t.patientIdMasked || "Patient ID"}:</strong> {liveEhrConnection.connection.masked_patient_id}
               </span>
               {liveEhrConnection.connection.last_verified_at && (
                 <span>
-                  <strong>{t.lastVerified}:</strong>{" "}
+                  <strong>{t.lastVerified || "Last verified"}:</strong>{" "}
                   {new Date(liveEhrConnection.connection.last_verified_at).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -215,6 +259,14 @@ export const ConnectionScreen = () => {
                 </span>
               )}
             </div>
+
+            {/* Honest Warning (if empty record or missing birthdate) */}
+            {liveEhrConnection.warning && (
+              <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+                <Info className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>{mapEhrError(liveEhrConnection.warning)}</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-3 pt-1">
@@ -235,7 +287,7 @@ export const ConnectionScreen = () => {
               className="min-h-[40px] px-4 py-2 bg-white hover:bg-red-50 text-red-700 border border-red-200 font-semibold text-xs rounded-xl transition-all flex items-center gap-1.5"
             >
               {disconnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unlink className="w-3.5 h-3.5" />}
-              <span>{t.disconnectEhrBtn}</span>
+              <span>{t.disconnectEhrBtn || "Disconnect"}</span>
             </button>
           </div>
         </div>
@@ -278,7 +330,7 @@ export const ConnectionScreen = () => {
                   {t.fhirCardTitle}
                 </h2>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-teal-100 text-teal-800 shrink-0">
-                  HL7® FHIR®
+                  HL7® FHIR® R4
                 </span>
               </div>
 
@@ -286,40 +338,168 @@ export const ConnectionScreen = () => {
                 {t.fhirCardDesc}
               </p>
 
-              {/* In Live Mode: Connect Dialog toggle */}
+              {/* In Live Mode: Enhanced Systems, Testing & Patient Selectors */}
               {isLiveMode && !isConnectedToFhir && (
-                <div className="mt-3.5 space-y-3 pt-2 border-t border-slate-100">
+                <div className="mt-3.5 space-y-3 pt-3 border-t border-slate-100">
+                  {/* EHR System Select */}
                   <div>
-                    <label className="block text-xs font-semibold text-navy-800 mb-1">
-                      {t.selectEhrSystemLabel}
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-navy-800">
+                        {t.selectEhrSystemLabel || "EHR System"}
+                      </label>
+                      {activeSystem && (
+                        <button
+                          type="button"
+                          onClick={() => handleTestConnection(activeSystem.ehr_system_id)}
+                          disabled={testingSystemId === activeSystem.ehr_system_id}
+                          id="test-ehr-connection-btn"
+                          className="text-[11px] font-semibold text-teal-700 hover:text-teal-900 inline-flex items-center gap-1"
+                        >
+                          {testingSystemId === activeSystem.ehr_system_id ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span>Testing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Activity className="w-3 h-3" />
+                              <span>Test connection</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
                     <select
                       value={selectedSystemId}
-                      onChange={(e) => setSelectedSystemId(e.target.value)}
+                      onChange={(e) => handleSystemChange(e.target.value)}
                       id="ehr-system-select"
                       className="w-full text-xs rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
                     >
-                      {ehrSystems.map((s) => (
-                        <option key={s.ehr_system_id} value={s.ehr_system_id}>
-                          {s.display_name}
-                        </option>
-                      ))}
+                      {ehrSystems.map((s) => {
+                        const desc = describeEhrSystem(s);
+                        return (
+                          <option key={s.ehr_system_id} value={s.ehr_system_id}>
+                            {s.display_name} ({desc.badge})
+                          </option>
+                        );
+                      })}
                     </select>
+
+                    {/* Active System Description & Test Status */}
+                    {activeSystem && (
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-600">
+                            {describeEhrSystem(activeSystem).description}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                              describeEhrSystem(activeSystem).badgeColor
+                            }`}
+                          >
+                            {describeEhrSystem(activeSystem).badge}
+                          </span>
+                        </div>
+
+                        {/* Test connection result badge */}
+                        {testResults[activeSystem.ehr_system_id] && (
+                          <div
+                            className={`p-2 rounded-lg text-xs flex items-center justify-between ${
+                              testResults[activeSystem.ehr_system_id].ok
+                                ? "bg-emerald-50 text-emerald-900 border border-emerald-200"
+                                : "bg-red-50 text-red-900 border border-red-200"
+                            }`}
+                          >
+                            <span className="font-semibold">
+                              {testResults[activeSystem.ehr_system_id].ok
+                                ? `Online (${testResults[activeSystem.ehr_system_id].latency_ms}ms latency)`
+                                : `Unavailable (${mapEhrError(testResults[activeSystem.ehr_system_id].error_code)})`}
+                            </span>
+                            <span className="text-[10px] uppercase font-mono font-bold">
+                              {testResults[activeSystem.ehr_system_id].ok ? "HTTP 200" : "ERROR"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-navy-800 mb-1" htmlFor="ehr-patient-id-input">
-                      {t.patientIdLabel}
-                    </label>
-                    <input
-                      id="ehr-patient-id-input"
-                      type="text"
-                      value={patientIdInput}
-                      onChange={(e) => setPatientIdInput(e.target.value)}
-                      placeholder={t.patientIdPlaceholder}
-                      className="w-full text-xs rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700"
-                    />
-                  </div>
+                  {/* Patient ID Selection: Sample dropdown vs Manual input */}
+                  {activeSystem?.sample_patients && activeSystem.sample_patients.length > 0 ? (
+                    <div>
+                      <label className="block text-xs font-semibold text-navy-800 mb-1" htmlFor="sample-patient-select">
+                        Sample Patient Profile (Synthetic Data)
+                      </label>
+                      <select
+                        id="sample-patient-select"
+                        value={patientIdInput}
+                        onChange={(e) => setPatientIdInput(e.target.value)}
+                        className="w-full text-xs rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                      >
+                        {activeSystem.sample_patients.map((sp) => (
+                          <option key={sp.id} value={sp.id}>
+                            {sp.label}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Selected sample patient details */}
+                      {(() => {
+                        const selectedSample = activeSystem.sample_patients.find((sp) => sp.id === patientIdInput);
+                        if (!selectedSample) return null;
+                        return (
+                          <div className="mt-1.5 p-2 rounded-lg bg-purple-50/70 border border-purple-200 text-purple-950 text-[11px] leading-relaxed">
+                            <strong>Profile:</strong> {selectedSample.description}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-semibold text-navy-800 mb-1" htmlFor="ehr-patient-id-input">
+                        {t.patientIdLabel || "Patient Identifier (UUID or MRN)"}
+                      </label>
+                      <input
+                        id="ehr-patient-id-input"
+                        type="text"
+                        value={patientIdInput}
+                        onChange={(e) => setPatientIdInput(e.target.value)}
+                        placeholder={t.patientIdPlaceholder || "e.g. d48ac962-78c6-46cf-ba33-a24771bfa0e4"}
+                        className="w-full text-xs rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                      />
+
+                      {/* Suggested Patient IDs */}
+                      {activeSystem?.suggested_patient_ids && activeSystem.suggested_patient_ids.length > 0 && (
+                        <div className="mt-2">
+                          <span className="text-[11px] text-slate-500 font-medium block mb-1">
+                            Verified Adult Test IDs:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {activeSystem.suggested_patient_ids.map((sugId) => (
+                              <button
+                                key={sugId}
+                                type="button"
+                                onClick={() => setPatientIdInput(sugId)}
+                                className={`px-2 py-0.5 text-[10px] font-mono rounded-lg border transition-all ${
+                                  patientIdInput === sugId
+                                    ? "bg-blue-600 text-white border-blue-600"
+                                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                {sugId.slice(0, 8)}...
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Honest Clinical Testing Disclaimer */}
+                  <p className="text-[11px] text-slate-500 italic pt-1">
+                    Simulated hospital records use synthetic data for testing. Never enter real patient health identifiers into public sandboxes.
+                  </p>
 
                   <button
                     type="button"

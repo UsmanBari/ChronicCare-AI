@@ -226,6 +226,24 @@ After the interview (and the protocol, if one was needed) the patient is asked a
 | `_DOSE_HINT` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_LEADING_YES` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 
+## 7. Medication scope in Connected Mode
+
+In Connected Mode, an EHR patient record may contain dozens of active medication requests (e.g. historical, topical, acute, or unrelated prescriptions). Asking about every single active medication would impose an unacceptable burden on the check-in interview.
+
+`data_sources/medication_scope.py` defines `select_chronic_care_medications(medications, limit=8)` to filter connected records prior to the medication confirmation check.
+
+### Inclusion Rules:
+1. Only **ACTIVE** medications are considered (completed, stopped, or cancelled medications are excluded).
+2. The normalised medication name must match at least one recognised diabetes or hypertension medication keyword:
+   - **Diabetes medications (`DIABETES_MEDICATIONS`):** `metformin`, `glimepiride`, `gliclazide`, `glibenclamide`, `glipizide`, `insulin`, `sitagliptin`, `vildagliptin`, `linagliptin`, `empagliflozin`, `dapagliflozin`, `canagliflozin`, `pioglitazone`, `liraglutide`, `semaglutide`, `dulaglutide`, `acarbose`.
+   - **Hypertension medications (`HYPERTENSION_MEDICATIONS`):** `amlodipine`, `nifedipine`, `lisinopril`, `enalapril`, `ramipril`, `perindopril`, `losartan`, `valsartan`, `telmisartan`, `candesartan`, `irbesartan`, `atenolol`, `bisoprolol`, `metoprolol`, `carvedilol`, `propranolol`, `hydrochlorothiazide`, `chlorthalidone`, `indapamide`, `furosemide`, `spironolactone`, `hydralazine`, `methyldopa`, `doxazosin`.
+3. Medications are deduplicated by normalised name and sorted with most recently authored first.
+4. The total number of medications selected is capped at `DEFAULT_MEDICATION_LIMIT` = `8`.
+
+*Note:* In Isolated Mode, the scope filter is not applied because patients explicitly choose and enter their own medications.
+
+> **Important Clinician Notice:** This medication scope keyword list and selection limit are illustrative and unreviewed. A licensed clinician must review and approve the medication categories and capping rules before production use.
+
 ## 9. Clinician review
 
 | Section | Reviewer | Date | Decision (accept, change, reject) | Notes |
@@ -236,5 +254,7 @@ After the interview (and the protocol, if one was needed) the patient is asked a
 | 4. Age and exclusions | | | PENDING | |
 | 5. Danger phrases and readings | | | PENDING | |
 | 6. Medication confirmation | | | PENDING | |
+| 7. Medication scope | | | PENDING | |
 | 8. Constants | | | PENDING | |
+
 
