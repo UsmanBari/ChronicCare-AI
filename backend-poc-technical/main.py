@@ -137,14 +137,49 @@ from data_sources.app_store import (
 logger = logging.getLogger(__name__)
 
 
+def get_cors_allowed_origins() -> List[str]:
+    raw = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
+    if not raw:
+        return ["http://localhost:3000", "http://127.0.0.1:3000"]
+    origins = [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
+    return [o for o in origins if o != "*"]
+
+
+def validate_production_config():
+    app_env = os.environ.get("APP_ENV", "").strip().lower()
+    if app_env == "production":
+        db_backend = os.environ.get("DB_BACKEND", "").strip().lower()
+        if db_backend != "mysql":
+            raise RuntimeError("Production configuration error: DB_BACKEND must be set to 'mysql'")
+
+        firebase_project = os.environ.get("FIREBASE_PROJECT_ID", "").strip()
+        if not firebase_project:
+            raise RuntimeError("Production configuration error: FIREBASE_PROJECT_ID is required")
+
+        cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
+        if not cors_origins:
+            raise RuntimeError("Production configuration error: CORS_ALLOWED_ORIGINS is required")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initializes app database schema on startup if configured."""
+    """Initializes app database schema on startup if configured and enforces production guards."""
+    validate_production_config()
     try:
         migrate()
     except Exception as e:
         logger.warning("Database migration skipped on startup: %s", str(e))
     yield
+
+
+class DynamicCORSMiddleware(CORSMiddleware):
+    def is_allowed_origin(self, origin: str) -> bool:
+        if self.allow_all_origins:
+            return True
+        allowed = get_cors_allowed_origins()
+        if self.allow_origin_regex is not None and self.allow_origin_regex.fullmatch(origin):
+            return True
+        return origin in allowed
 
 
 app = FastAPI(
@@ -156,12 +191,14 @@ app = FastAPI(
 
 # Enable CORS for frontend integration
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
+    DynamicCORSMiddleware,
+    allow_origins=get_cors_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 
 
 # =============================================================================
