@@ -76,6 +76,7 @@ from agents.triage_protocol import (
 )
 from data_sources.data_source import get_patient_bundle
 from data_sources.local_store import (
+    init_db as local_store_init_db,
     add_local_patient_if_missing,
     add_local_observation,
     get_local_observation_origins,
@@ -169,6 +170,11 @@ async def lifespan(app: FastAPI):
         migrate()
     except Exception as e:
         logger.warning("Database migration skipped on startup: %s", str(e))
+    try:
+        local_store_init_db()
+        logger.info("local store ready")
+    except Exception as e:
+        logger.warning("Local store initialization skipped on startup: %s", str(e))
     yield
 
 
@@ -323,17 +329,19 @@ class AuditLogRow(BaseModel):
 
 class ProfileUpdateRequest(BaseModel):
     model_config = {"extra": "forbid"}
-    conditions: List[str]
-    on_insulin_or_sulfonylurea: bool
-    language: str = "en"
+    conditions: Optional[List[str]] = None
+    on_insulin_or_sulfonylurea: Optional[bool] = None
+    language: Optional[str] = None
     date_of_birth: Optional[str] = None
     inclusion_confirmed: Optional[bool] = None
 
     @field_validator("conditions")
     @classmethod
-    def validate_conditions(cls, v: List[str]) -> List[str]:
+    def validate_conditions(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is None:
+            return None
         if not v:
-            raise ValueError("conditions must contain at least one condition.")
+            return []
         cleaned = []
         for c in v:
             c_str = str(c).strip().lower()
@@ -345,7 +353,9 @@ class ProfileUpdateRequest(BaseModel):
 
     @field_validator("language")
     @classmethod
-    def validate_language(cls, v: str) -> str:
+    def validate_language(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
         clean = str(v).strip().lower()
         if clean not in ALLOWED_LANGUAGES:
             raise ValueError(f"Invalid language '{v}'. Allowed languages: {sorted(list(ALLOWED_LANGUAGES))}")
@@ -2131,10 +2141,17 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
     # 2. Inclusion verification (date of birth and inclusion confirmation)
     require_inclusion = os.environ.get("REQUIRE_INCLUSION", "1")
     if require_inclusion != "0":
-        if not profile.get("date_of_birth") or not profile.get("inclusion_confirmed_at"):
-            raise HTTPException(
+        missing_items = []
+        if not profile.get("date_of_birth"):
+            missing_items.append("date_of_birth")
+        if not profile.get("inclusion_confirmed_at"):
+            missing_items.append("inclusion_confirmed")
+        if not profile.get("conditions"):
+            missing_items.append("conditions")
+        if missing_items:
+            return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="profile_incomplete",
+                content={"detail": "profile_incomplete", "missing": missing_items},
             )
 
     # 3. Profile verification
