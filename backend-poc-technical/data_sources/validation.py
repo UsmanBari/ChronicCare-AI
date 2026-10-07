@@ -95,20 +95,55 @@ def validate_date_of_birth(
     return dob_date.isoformat(), age
 
 
+THIRD_PARTY_SUBJECTS = {
+    "sister", "wife", "daughter", "friend", "mother", "mom", "cousin",
+    "partner", "relative", "neighbor", "colleague", "coworker", "aunt", "niece"
+}
+
+PAST_TENSE_PHRASES = [
+    "was pregnant", "were pregnant", "previously pregnant", "pregnant in the past",
+    "pregnant last year", "years ago", "months ago", "prior pregnancy", "past pregnancy"
+]
+
+
 def detect_pregnancy_statement(text: str) -> bool:
     """
-    Detects if free-text contains an affirmative statement indicating pregnancy.
+    Detects if free-text contains an affirmative first-person statement indicating current pregnancy.
     Uses negation-aware matching imported from adaptive_interview_agent.
-    Returns True if an unnegated pregnancy statement is found, False otherwise.
+    Filters out third-person references, past pregnancies, and negative test results.
+    Returns True if an unnegated, current first-person pregnancy statement is found, False otherwise.
     """
     if not text or not text.strip():
         return False
-        
-    for clause in _CLAUSE_BREAK.split(_normalize(text)):
-        if not clause.strip():
+    
+    normalized_full = _normalize(text)
+    
+    # Check for negative pregnancy test phrasing in clause or full text
+    if "negative" in normalized_full:
+        for term in ("pregnancy test negative", "test is negative", "test was negative", "negative pregnancy", "negative test"):
+            if term in normalized_full:
+                return False
+
+    for clause in _CLAUSE_BREAK.split(normalized_full):
+        clause_clean = clause.strip()
+        if not clause_clean:
             continue
+        
+        # Filter out past tense / historical mentions
+        if any(past in clause_clean for past in PAST_TENSE_PHRASES):
+            continue
+        
+        # Filter out third-person references
+        words = clause_clean.split()
+        if any(tp in words for tp in THIRD_PARTY_SUBJECTS):
+            continue
+            
         for pattern in PREGNANCY_PATTERNS:
-            for match in re.finditer(re.escape(pattern), clause):
-                if not _is_negated(clause, match.start()):
+            for match in re.finditer(re.escape(pattern), clause_clean):
+                if not _is_negated(clause_clean, match.start()):
+                    # Check if post-match has 'negative'
+                    post_text = clause_clean[match.end(): match.end() + 25].strip()
+                    if post_text.startswith("negative") or post_text.startswith("test negative") or post_text.startswith("is negative"):
+                        continue
                     return True
     return False

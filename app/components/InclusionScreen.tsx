@@ -326,6 +326,17 @@ export const InclusionScreen = () => {
           </div>
         )}
 
+        {Boolean(liveProfile?.inclusion_confirmed_at && !liveProfile?.sex_at_birth) && (
+          <div className="p-3.5 rounded-xl bg-teal-50 border border-teal-200 text-xs text-teal-950 flex items-start gap-2.5 animate-fadeIn">
+            <Sparkles className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
+            <span>
+              {isUrdu
+                ? "ایک نیا حفاظتی سوال شامل کیا گیا ہے۔ براہ کرم جاری رکھنے سے پہلے پیدائشی جنس اور حمل کا سوال مکمل کریں۔"
+                : "A new clinical safety question has been added. Please answer the sex at birth and pregnancy screening below to proceed."}
+            </span>
+          </div>
+        )}
+
         {/* Date of Birth Input */}
         <div className="space-y-2">
           <label className="block text-xs font-bold uppercase tracking-wider text-navy-800 flex items-center justify-between">
