@@ -66,7 +66,7 @@ def test_mysql_preflight_signatures_and_constants():
         assert kw in sig_pymysql.parameters
 
     # 5. Expected schema version and tables (10 app tables + 3 local store tables)
-    assert mysql_preflight.LATEST_EXPECTED_SCHEMA_VERSION == 10
+    assert mysql_preflight.LATEST_EXPECTED_SCHEMA_VERSION == 11
     expected_tables = {
         "users",
         "audit_log",
@@ -112,8 +112,8 @@ class FakeCursor:
             return ("8.0.35-aiven",)
         if "SELECT MAX(version)" in self._last_query:
             if self.mode == "fail_low_version":
-                return (9,)  # Lower than 10
-            return (10,)
+                return (mysql_preflight.LATEST_EXPECTED_SCHEMA_VERSION - 1,)  # Lower than expected
+            return (mysql_preflight.LATEST_EXPECTED_SCHEMA_VERSION,)
         if "SELECT id FROM _preflight_tmp" in self._last_query:
             if self.mode == "fail_wrong_tmp_id":
                 return (999,)

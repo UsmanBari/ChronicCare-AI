@@ -25,8 +25,8 @@ except ImportError as e:
     sys.exit(1)
 
 
-# Schema version 10 is the latest migration version defined in app_store.migrate()
-LATEST_EXPECTED_SCHEMA_VERSION = 10
+# Schema version dynamically fetched from app_store migrations
+LATEST_EXPECTED_SCHEMA_VERSION = getattr(app_store, "LATEST_SCHEMA_VERSION", 11)
 
 # All tables created by application migrations and local store initialization
 EXPECTED_TABLES: Set[str] = set(app_store.APP_STORE_TABLES) | set(local_store.LOCAL_STORE_TABLES)
