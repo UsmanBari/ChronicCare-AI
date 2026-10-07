@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { Settings, Globe, ShieldCheck, Database, X, Activity, User, Hospital, ShieldAlert, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 import { api, ApiError } from "../lib/api";
+import { titleCaseName } from "../lib/presentation";
 
 export const UnifiedSettingsModal = () => {
   const {
@@ -17,6 +18,9 @@ export const UnifiedSettingsModal = () => {
     portal,
     t,
     isUrdu,
+    userRole,
+    userIdentifier,
+    setScreen,
   } = useApp();
 
   const [confirmRevokeType, setConfirmRevokeType] = useState<"data" | "provider" | null>(null);
@@ -203,7 +207,7 @@ export const UnifiedSettingsModal = () => {
                         : "bg-slate-200 text-slate-700 hover:bg-slate-300"
                     }`}
                   >
-                    {hasDataConsent ? (isUrdu ? "فعال ✓" : "Active ✓") : (isUrdu ? "غیر فعال" : "Off")}
+                    {hasDataConsent ? (isUrdu ? "فعال ✓" : "Active ✓") : (isUrdu ? "اجازت نہیں دی گئی" : "Not given")}
                   </button>
                 </div>
 
@@ -230,7 +234,7 @@ export const UnifiedSettingsModal = () => {
                         : "bg-slate-200 text-slate-700 hover:bg-slate-300"
                     }`}
                   >
-                    {hasProviderConsent ? (isUrdu ? "فعال ✓" : "Active ✓") : (isUrdu ? "غیر فعال" : "Off")}
+                    {hasProviderConsent ? (isUrdu ? "فعال ✓" : "Active ✓") : (isUrdu ? "اجازت نہیں دی گئی" : "Not given")}
                   </button>
                 </div>
               </div>
@@ -257,7 +261,7 @@ export const UnifiedSettingsModal = () => {
               )}
               <p className="text-[11px] text-slate-500 mt-1">
                 {connectionMode === "fhir"
-                  ? "Live HL7® FHIR® bridge active with City General Hospital."
+                  ? "Live HL7® FHIR® bridge active with configured EHR system."
                   : "Isolated device storage mode using the local store."}
               </p>
             </div>
@@ -269,14 +273,29 @@ export const UnifiedSettingsModal = () => {
               <User className="w-4 h-4 text-teal-700" />
               <span>{t.activeProfileLabel}</span>
             </span>
-            <div className="grid grid-cols-2 gap-2 text-slate-600">
-              <div className="p-2 rounded bg-white border border-slate-200">
-                <span className="text-[10px] text-slate-400 block uppercase font-bold">Patient</span>
-                <span className="font-semibold text-navy-800">Ali Khan (58y)</span>
-              </div>
-              <div className="p-2 rounded bg-white border border-slate-200">
-                <span className="text-[10px] text-slate-400 block uppercase font-bold">Provider</span>
-                <span className="font-semibold text-navy-800">Dr. Sana Malik</span>
+            <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-2 text-slate-600">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-slate-400 block uppercase font-bold">
+                    {userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : (portal === "patient" ? "Patient" : portal === "provider" ? "Provider" : "Admin")}
+                  </span>
+                  <span className="font-semibold text-navy-800">
+                    {titleCaseName(userIdentifier) || userIdentifier}
+                  </span>
+                </div>
+                {portal === "patient" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSettings(false);
+                      setScreen("inclusion");
+                    }}
+                    id="settings-my-details-btn"
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-200 transition-colors"
+                  >
+                    {isUrdu ? "میری تفصیلات" : "My details"}
+                  </button>
+                )}
               </div>
             </div>
           </div>
