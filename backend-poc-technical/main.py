@@ -341,7 +341,7 @@ class ProfileUpdateRequest(BaseModel):
         if v is None:
             return None
         if not v:
-            return []
+            raise ValueError("conditions list cannot be empty")
         cleaned = []
         for c in v:
             c_str = str(c).strip().lower()
