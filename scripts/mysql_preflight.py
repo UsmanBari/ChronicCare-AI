@@ -19,7 +19,7 @@ if BACKEND_DIR not in sys.path:
 
 try:
     import pymysql
-    from data_sources import db_config, app_store
+    from data_sources import db_config, app_store, local_store
 except ImportError as e:
     print(f"[FAIL] Missing required module: {e}")
     sys.exit(1)
@@ -28,19 +28,8 @@ except ImportError as e:
 # Schema version 10 is the latest migration version defined in app_store.migrate()
 LATEST_EXPECTED_SCHEMA_VERSION = 10
 
-# All 10 tables created by MySQL migrations in app_store.py
-EXPECTED_TABLES: Set[str] = {
-    "users",
-    "audit_log",
-    "patient_profiles",
-    "ehr_systems",
-    "ehr_connections",
-    "checkins",
-    "checkin_results",
-    "review_actions",
-    "allergies",
-    "schema_version",
-}
+# All tables created by application migrations and local store initialization
+EXPECTED_TABLES: Set[str] = set(app_store.APP_STORE_TABLES) | set(local_store.LOCAL_STORE_TABLES)
 
 
 def run_preflight() -> int:
@@ -85,10 +74,11 @@ def run_preflight() -> int:
         print("  -> Status: FAIL")
         return 1
 
-    # 3. Schema Migrations Check
-    print("\n[STEP 2/4] Executing schema migrations...")
+    # 3. Schema Migrations & Local Store Check
+    print("\n[STEP 2/4] Executing schema migrations & local store initialization...")
     try:
         app_store.migrate(backend="mysql", mysql_url=mysql_url, ssl_ca=ssl_ca)
+        local_store.init_db(backend="mysql", mysql_url=mysql_url, ssl_ca=ssl_ca)
         with conn.cursor() as cursor:
             cursor.execute("SELECT MAX(version) AS max_v FROM schema_version")
             row = cursor.fetchone()

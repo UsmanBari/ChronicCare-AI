@@ -29,6 +29,12 @@ except ImportError:
 DEFAULT_DB_PATH = "local_store.db"
 SOURCE_TAG = "local_synthetic_store"
 
+LOCAL_STORE_TABLES = {
+    "patients",
+    "observations",
+    "medications",
+}
+
 # =============================================================================
 # SYNTHETIC TEST FIXTURES
 # =============================================================================
@@ -289,11 +295,12 @@ def _seed_mysql_db(mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None
 # UNIFIED PUBLIC STORE INTERFACE
 # =============================================================================
 
-def init_db(db_path: Optional[str] = None, backend: Optional[str] = None) -> None:
+def init_db(db_path: Optional[str] = None, backend: Optional[str] = None,
+            mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> None:
     """Initializes schema on the configured backend (SQLite or MySQL)."""
     b = _resolve_backend(backend)
     if b == "mysql":
-        _init_mysql_db()
+        _init_mysql_db(mysql_url=mysql_url, ssl_ca=ssl_ca)
     else:
         _init_sqlite_db(db_path)
 

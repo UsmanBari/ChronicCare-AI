@@ -20,9 +20,11 @@ export interface UserResponse {
 }
 
 export interface ProfileUpdateRequest {
-  conditions: string[];
-  on_insulin_or_sulfonylurea: boolean;
+  conditions?: string[];
+  on_insulin_or_sulfonylurea?: boolean;
   language?: string;
+  date_of_birth?: string | null;
+  inclusion_confirmed?: boolean | null;
 }
 
 export interface ProfileResponse {
@@ -30,6 +32,8 @@ export interface ProfileResponse {
   conditions: string[];
   on_insulin_or_sulfonylurea: boolean;
   language: string;
+  date_of_birth?: string | null;
+  inclusion_confirmed_at?: string | null;
   consent_granted_at: string | null;
   consent_revoked_at: string | null;
   provider_notification_consent_at?: string | null;

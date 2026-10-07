@@ -14,6 +14,7 @@ import { HelpCircle, X, Sparkles } from "lucide-react";
 // Patient Portal Components
 import { LoginScreen } from "./components/LoginScreen";
 import { ConsentScreen } from "./components/ConsentScreen";
+import { InclusionScreen } from "./components/InclusionScreen";
 import { ConnectionScreen } from "./components/ConnectionScreen";
 import { HealthProfileScreen } from "./components/HealthProfileScreen";
 import { HealthRecordScreen } from "./components/HealthRecordScreen";
@@ -139,6 +140,7 @@ export default function App() {
                 {/* Narrow / Auth & Interview Screens */}
                 {(screen === "login" ||
                   screen === "consent" ||
+                  screen === "inclusion" ||
                   screen === "connection" ||
                   screen === "profile" ||
                   screen === "checkin_entry" ||
@@ -152,6 +154,7 @@ export default function App() {
                   <div className="max-w-xl mx-auto px-4 sm:px-6 py-6 md:py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
                     {screen === "login" && <LoginScreen />}
                     {screen === "consent" && <ConsentScreen />}
+                    {screen === "inclusion" && <InclusionScreen />}
                     {screen === "connection" && <ConnectionScreen />}
                     {screen === "profile" && <HealthProfileScreen />}
                     {screen === "checkin_entry" && <CheckInEntryScreen />}

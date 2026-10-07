@@ -503,7 +503,11 @@ export const HealthRecordScreen = () => {
                         {isActive ? (isUrdu ? "فعال" : "Active") : (isUrdu ? "بند شدہ" : "Stopped")}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-600 font-mono">{med.dosage}</p>
+                    <p className="text-xs text-slate-600 font-mono">
+                      {med.dosage && med.dosage.trim() && med.dosage.trim().toLowerCase() !== "dosage"
+                        ? med.dosage
+                        : (isUrdu ? "کوئی مقدار درج نہیں ہے" : "No dose entered")}
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-2 self-end sm:self-center">
@@ -616,7 +620,11 @@ export const HealthRecordScreen = () => {
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-navy-900">{alg.substance}</span>
+                    <span className="font-bold text-sm text-navy-900">
+                      {alg.substance && alg.substance.trim() && alg.substance.trim().toLowerCase() !== "substance"
+                        ? alg.substance
+                        : (isUrdu ? "کوئی مادہ درج نہیں ہے" : "No substance entered")}
+                    </span>
                     {alg.confirmed && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-900 inline-flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" /> Confirmed

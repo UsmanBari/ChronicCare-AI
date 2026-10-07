@@ -13,8 +13,8 @@ SCRIPTS_DIR = os.path.join(ROOT_DIR, "scripts")
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
+from data_sources import db_config, app_store, local_store
 import mysql_preflight
-from data_sources import db_config, app_store
 import pymysql
 
 
@@ -40,7 +40,7 @@ def test_mysql_preflight_handles_invalid_url(monkeypatch, capsys):
 def test_mysql_preflight_signatures_and_constants():
     """
     (a) Uses inspect.signature to prove that every argument the script passes to
-    app_store.migrate, db_config.get_mysql_connection_params, and pymysql.connect
+    app_store.migrate, local_store.init_db, db_config.get_mysql_connection_params, and pymysql.connect
     exists in the real signatures, and that schema version 10 is the latest expected version.
     """
     # 1. db_config.get_mysql_connection_params
@@ -54,12 +54,18 @@ def test_mysql_preflight_signatures_and_constants():
     assert "mysql_url" in sig_migrate.parameters
     assert "ssl_ca" in sig_migrate.parameters
 
-    # 3. pymysql.connect
+    # 3. local_store.init_db
+    sig_init_db = inspect.signature(local_store.init_db)
+    assert "backend" in sig_init_db.parameters
+    assert "mysql_url" in sig_init_db.parameters
+    assert "ssl_ca" in sig_init_db.parameters
+
+    # 4. pymysql.connect
     sig_pymysql = inspect.signature(pymysql.connect)
     for kw in ("host", "port", "user", "password", "database", "charset", "ssl", "connect_timeout"):
         assert kw in sig_pymysql.parameters
 
-    # 4. Expected schema version and tables
+    # 5. Expected schema version and tables (10 app tables + 3 local store tables)
     assert mysql_preflight.LATEST_EXPECTED_SCHEMA_VERSION == 10
     expected_tables = {
         "users",
@@ -72,6 +78,9 @@ def test_mysql_preflight_signatures_and_constants():
         "review_actions",
         "allergies",
         "schema_version",
+        "patients",
+        "observations",
+        "medications",
     }
     assert mysql_preflight.EXPECTED_TABLES == expected_tables
 
@@ -137,7 +146,7 @@ class FakeConnection:
 
 def test_mysql_preflight_fake_full_run_and_step_failures(monkeypatch, capsys):
     """
-    (b) Runs the whole script with pymysql.connect and app_store.migrate replaced by fakes
+    (b) Runs the whole script with pymysql.connect, app_store.migrate, and local_store.init_db replaced by fakes
     and asserts that all four steps print PASS and exit code is 0,
     and that a fake failure at each step gives exit code 1.
     """
@@ -147,12 +156,13 @@ def test_mysql_preflight_fake_full_run_and_step_failures(monkeypatch, capsys):
     # 1. Full Success Run
     monkeypatch.setattr(pymysql, "connect", lambda **kwargs: FakeConnection("ok"))
     monkeypatch.setattr(app_store, "migrate", lambda **kwargs: None)
+    monkeypatch.setattr(local_store, "init_db", lambda **kwargs: None)
 
     code = mysql_preflight.run_preflight()
     assert code == 0
     captured = capsys.readouterr()
     assert "[STEP 1/4] Establishing secure connection to MySQL database..." in captured.out
-    assert "[STEP 2/4] Executing schema migrations..." in captured.out
+    assert "[STEP 2/4] Executing schema migrations & local store initialization..." in captured.out
     assert "[STEP 3/4] Verifying registered tables..." in captured.out
     assert "[STEP 4/4] Testing table creation, write, read, and drop (_preflight_tmp)..." in captured.out
     assert "PRE-FLIGHT CHECK SUMMARY: ALL STEPS PASSED" in captured.out
@@ -180,13 +190,14 @@ def test_mysql_preflight_fake_full_run_and_step_failures(monkeypatch, capsys):
 
     # 4. Step 2 Failure (Migration did not reach expected version)
     monkeypatch.setattr(app_store, "migrate", lambda **kwargs: None)
+    monkeypatch.setattr(local_store, "init_db", lambda **kwargs: None)
     monkeypatch.setattr(pymysql, "connect", lambda **kwargs: FakeConnection("fail_low_version"))
     code = mysql_preflight.run_preflight()
     assert code == 1
     captured = capsys.readouterr()
     assert "Status: FAIL (Migration did not reach expected version)" in captured.out
 
-    # 5. Step 3 Failure (Missing Required Tables)
+    # 5. Step 3 Failure (Missing Required Tables - e.g. local store table missing)
     monkeypatch.setattr(pymysql, "connect", lambda **kwargs: FakeConnection("fail_missing_tables"))
     code = mysql_preflight.run_preflight()
     assert code == 1
@@ -199,6 +210,37 @@ def test_mysql_preflight_fake_full_run_and_step_failures(monkeypatch, capsys):
     assert code == 1
     captured = capsys.readouterr()
     assert "Temporary table error: RuntimeError" in captured.out
+
+
+def test_mysql_preflight_fails_when_local_store_table_missing(monkeypatch, capsys):
+    """
+    Specifically verifies that if app tables are present but a local store table
+    (such as 'medications') is missing, pre-flight fails with exit code 1.
+    """
+    monkeypatch.setenv("MYSQL_URL", "mysql://fake_user:fake_password@fake_host:3306/fake_db")
+    monkeypatch.delenv("MYSQL_SSL_CA", raising=False)
+    monkeypatch.setattr(app_store, "migrate", lambda **kwargs: None)
+    monkeypatch.setattr(local_store, "init_db", lambda **kwargs: None)
+
+    # All tables except 'medications'
+    all_except_meds = sorted(list(mysql_preflight.EXPECTED_TABLES - {"medications"}))
+
+    class FakeCursorMissingLocalTable(FakeCursor):
+        def fetchall(self):
+            if "SHOW TABLES" in self._last_query:
+                return [(t,) for t in all_except_meds]
+            return []
+
+    class FakeConnMissingLocalTable(FakeConnection):
+        def cursor(self):
+            return FakeCursorMissingLocalTable(mode="ok")
+
+    monkeypatch.setattr(pymysql, "connect", lambda **kwargs: FakeConnMissingLocalTable())
+
+    code = mysql_preflight.run_preflight()
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "Missing required tables: {'medications'}" in captured.out
 
 
 def test_mysql_preflight_leak_free_output(monkeypatch, capsys):
@@ -216,6 +258,7 @@ def test_mysql_preflight_leak_free_output(monkeypatch, capsys):
     monkeypatch.delenv("MYSQL_SSL_CA", raising=False)
     monkeypatch.setattr(pymysql, "connect", lambda **kwargs: FakeConnection("ok"))
     monkeypatch.setattr(app_store, "migrate", lambda **kwargs: None)
+    monkeypatch.setattr(local_store, "init_db", lambda **kwargs: None)
 
     code = mysql_preflight.run_preflight()
     assert code == 0
@@ -231,3 +274,37 @@ def test_mysql_preflight_leak_free_output(monkeypatch, capsys):
     assert secret_user not in captured.err
     assert secret_pass not in captured.err
     assert secret_db not in captured.err
+
+
+def test_fastapi_startup_lifespan_initializes_local_store(monkeypatch, caplog):
+    """
+    Hermetic test verifying that FastAPI startup lifespan calls local_store.init_db()
+    and logs 'local store ready' without logging credentials.
+    """
+    import asyncio
+    import logging
+    from main import lifespan, app
+
+    init_called = {"migrate": False, "local_store": False}
+
+    def fake_migrate():
+        init_called["migrate"] = True
+
+    def fake_local_init():
+        init_called["local_store"] = True
+
+    import main
+    monkeypatch.setattr(main, "migrate", fake_migrate)
+    monkeypatch.setattr(main, "local_store_init_db", fake_local_init)
+
+    async def _run():
+        with caplog.at_level(logging.INFO):
+            async with lifespan(app):
+                pass
+
+    asyncio.run(_run())
+
+    assert init_called["migrate"] is True
+    assert init_called["local_store"] is True
+    assert "local store ready" in caplog.text
+

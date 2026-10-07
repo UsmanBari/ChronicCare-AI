@@ -372,3 +372,157 @@ export function mapApiError(status?: number | null, detail?: string | null): str
 
   return detail && detail.trim() ? detail.trim() : "An unexpected error occurred. Please try again.";
 }
+
+export type BlockedActionTarget =
+  | "consent"
+  | "inclusion"
+  | "profile"
+  | "connection"
+  | "retry"
+  | "none";
+
+export interface BlockedActionDescription {
+  message: string;
+  actionText: string | null;
+  target: BlockedActionTarget;
+}
+
+/**
+ * Maps blocked action responses (403, 409, 500, network errors) to clear, friendly explanations
+ * and actionable UI navigation targets in English and Urdu.
+ */
+export function describeBlockedAction(
+  status?: number | null,
+  detail?: string | null,
+  missing?: string[] | null,
+  isUrdu: boolean = false
+): BlockedActionDescription {
+  const normDetail = (detail || "").toLowerCase();
+
+  // 1. Consent blocked actions
+  if (
+    normDetail.includes("consent_required") ||
+    normDetail.includes("active consent is required") ||
+    normDetail.includes("provider_notification_consent_required") ||
+    normDetail.includes("provider notification consent")
+  ) {
+    if (normDetail.includes("provider_notification") || normDetail.includes("provider notification")) {
+      return {
+        message: isUrdu
+          ? "چیک ان شروع کرنے کے لیے معالج کی اطلاع کا اجازت نامہ درکار ہے۔"
+          : "Provider notification consent is required before starting a check-in.",
+        actionText: isUrdu ? "اجازت نامہ کی ترتیبات کھولیں" : "Open Consent Settings",
+        target: "consent",
+      };
+    }
+    return {
+      message: isUrdu
+        ? "چیک ان شروع کرنے کے لیے اجازت نامہ فعال ہونا ضروری ہے۔"
+        : "Active consent is required before starting a check-in.",
+      actionText: isUrdu ? "اجازت نامہ کی ترتیبات کھولیں" : "Open Consent Settings",
+      target: "consent",
+    };
+  }
+
+  // 2. Profile incomplete blocked actions (403 or explicit code)
+  if (normDetail.includes("profile_incomplete") || (status === 403 && missing && missing.length > 0)) {
+    const missingList = missing || [];
+    if (
+      missingList.includes("date_of_birth") ||
+      missingList.includes("inclusion_confirmed") ||
+      missingList.length === 0
+    ) {
+      return {
+        message: isUrdu
+          ? "چیک ان شروع کرنے سے پہلے تاریخ پیدائش اور بالغ ہونے کی تصدیق درکار ہے۔"
+          : "Clinical inclusion and eligibility details are required before starting a check-in.",
+        actionText: isUrdu ? "شمولیت کی تفصیلات درج کریں" : "Complete Eligibility Details",
+        target: "inclusion",
+      };
+    }
+    if (missingList.includes("conditions")) {
+      return {
+        message: isUrdu
+          ? "چیک ان شروع کرنے سے پہلے اپنے طبی حالات کا اندراج مکمل کریں۔"
+          : "Please complete your conditions profile before starting a check-in.",
+        actionText: isUrdu ? "طبی پروفائل مکمل کریں" : "Complete Health Profile",
+        target: "profile",
+      };
+    }
+    return {
+      message: isUrdu
+        ? "چیک ان شروع کرنے سے پہلے اپنے پروفائل کی تفصیلات مکمل کریں۔"
+        : "Please complete your clinical profile before starting a check-in.",
+      actionText: isUrdu ? "پروفائل مکمل کریں" : "Complete Profile",
+      target: "inclusion",
+    };
+  }
+
+  // 3. Incomplete profile via 409 conflict
+  if (status === 409 && (normDetail.includes("complete your profile") || normDetail.includes("profile first"))) {
+    return {
+      message: isUrdu
+        ? "چیک ان شروع کرنے سے پہلے اپنے طبی حالات کا اندراج کریں۔"
+        : "Please complete your conditions profile before starting a check-in.",
+      actionText: isUrdu ? "طبی پروفائل کھولیں" : "Open Health Profile",
+      target: "profile",
+    };
+  }
+
+  // 4. Role mismatch / wrong portal (403)
+  if (
+    status === 403 &&
+    (normDetail.includes("role") ||
+      normDetail.includes("forbidden") ||
+      normDetail.includes("patient only") ||
+      normDetail.includes("provider only") ||
+      normDetail.includes("admin only") ||
+      normDetail.includes("rejected") ||
+      normDetail.includes("cannot access"))
+  ) {
+    return {
+      message: isUrdu
+        ? "یہ اکاؤنٹ اس پورٹل کو استعمال کرنے کی اجازت نہیں رکھتا۔"
+        : "This account cannot use this portal. Please sign in with the appropriate account.",
+      actionText: null,
+      target: "none",
+    };
+  }
+
+  // 5. Generic 403 Forbidden
+  if (status === 403) {
+    return {
+      message: isUrdu
+        ? "اس کارروائی کی فی الوقت اجازت نہیں ہے۔"
+        : "You do not have permission to perform this action.",
+      actionText: null,
+      target: "none",
+    };
+  }
+
+  // 6. Server errors (500, 502, 503, 504) or Network Failures (0)
+  if (
+    !status ||
+    status === 0 ||
+    status >= 500 ||
+    normDetail.includes("network") ||
+    normDetail.includes("failed to fetch")
+  ) {
+    return {
+      message: isUrdu
+        ? "سرور اس وقت درخواست مکمل نہیں کر سکا۔ براہ کرم دوبارہ کوشش کریں۔"
+        : "The server could not complete your request. Please try again.",
+      actionText: isUrdu ? "دوبارہ کوشش کریں" : "Retry",
+      target: "retry",
+    };
+  }
+
+  // 7. General neutral fallback
+  return {
+    message: isUrdu
+      ? "کارروائی مکمل نہیں ہو سکی۔ براہ کرم دوبارہ کوشش کریں۔"
+      : "The action could not be completed. Please try again.",
+    actionText: isUrdu ? "دوبارہ کوشش کریں" : "Retry",
+    target: "retry",
+  };
+}

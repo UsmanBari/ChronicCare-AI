@@ -34,6 +34,19 @@ VALID_ROLES = ("patient", "provider", "admin")
 VALID_STATUSES = ("active", "disabled")
 VALID_OUTCOMES = ("ok", "denied", "error")
 
+APP_STORE_TABLES = {
+    "users",
+    "audit_log",
+    "patient_profiles",
+    "ehr_systems",
+    "ehr_connections",
+    "checkins",
+    "checkin_results",
+    "review_actions",
+    "allergies",
+    "schema_version",
+}
+
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -843,24 +856,38 @@ def get_patient_profile(user_id: str, backend: Optional[str] = None, db_path: Op
         return d
 
 
-def upsert_patient_profile(user_id: str, conditions: List[str], on_insulin_or_sulfonylurea: bool,
-                           language: str = "en", date_of_birth: Optional[str] = None,
+def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
+                           on_insulin_or_sulfonylurea: Optional[bool] = None,
+                           language: Optional[str] = "en", date_of_birth: Optional[str] = None,
                            inclusion_confirmed: Optional[bool] = None,
                            backend: Optional[str] = None, db_path: Optional[str] = None,
                            mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
     """Upserts conditions, medication flag, language, date_of_birth, and inclusion confirmation for a patient."""
-    clean_conditions = [str(c).strip().lower() for c in conditions]
-    clean_lang = str(language).strip().lower()
+    existing = get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+    if conditions is None:
+        clean_conditions = existing.get("conditions", []) if existing else []
+    else:
+        clean_conditions = [str(c).strip().lower() for c in conditions]
+
+    if language is None:
+        clean_lang = existing.get("language", "en") if existing else "en"
+    else:
+        clean_lang = str(language).strip().lower()
     if clean_lang not in ALLOWED_LANGUAGES:
         clean_lang = "en"
+
     cond_json = json.dumps(clean_conditions)
-    insulin_val = 1 if on_insulin_or_sulfonylurea else 0
+    if on_insulin_or_sulfonylurea is None:
+        insulin_val = 1 if (existing and existing.get("on_insulin_or_sulfonylurea")) else 0
+    else:
+        insulin_val = 1 if on_insulin_or_sulfonylurea else 0
     now = _utc_now_iso()
 
-    existing = get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
     final_dob = date_of_birth if date_of_birth is not None else (existing.get("date_of_birth") if existing else None)
     if inclusion_confirmed is True:
         final_inc_at = now
+    elif inclusion_confirmed is False:
+        final_inc_at = None
     else:
         final_inc_at = existing.get("inclusion_confirmed_at") if existing else None
 
