@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { FhirSourceBadge } from "./FhirSourceBadge";
 import { api, ApiError, UserCheckinSummaryResponse, PatientRecordResponse } from "../lib/api";
-import { titleCaseName } from "../lib/presentation";
+import { titleCaseName, describeBlockedAction, BlockedActionDescription } from "../lib/presentation";
 
 export const HomeScreen = () => {
   const {
@@ -47,8 +47,7 @@ export const HomeScreen = () => {
   } = useApp();
 
   const [isStarting, setIsStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isConsentError, setIsConsentError] = useState(false);
+  const [blockedAction, setBlockedAction] = useState<BlockedActionDescription | null>(null);
   const [showUrgentGuidance, setShowUrgentGuidance] = useState<boolean>(false);
   const [lastCheckinTime, setLastCheckinTime] = useState<string | null>(null);
   const [liveRecord, setLiveRecord] = useState<PatientRecordResponse | null>(null);
@@ -82,8 +81,7 @@ export const HomeScreen = () => {
       : profile.medications;
 
   const handleStartCheckIn = async () => {
-    setError(null);
-    setIsConsentError(false);
+    setBlockedAction(null);
     if (isLiveMode) {
       setIsStarting(true);
       try {
@@ -92,13 +90,11 @@ export const HomeScreen = () => {
         setScreen("checkin_entry");
       } catch (err: any) {
         if (err instanceof ApiError) {
-          setError(err.getFriendlyMessage(isUrdu));
-          const detailStr = (err.detail || "").toLowerCase();
-          if (err.status === 403 || detailStr.includes("consent")) {
-            setIsConsentError(true);
-          }
+          const desc = describeBlockedAction(err.status, err.detail, err.data?.missing, isUrdu);
+          setBlockedAction(desc);
         } else {
-          setError(err?.message || "Failed to start check-in session");
+          const desc = describeBlockedAction(0, err?.message || "network", null, isUrdu);
+          setBlockedAction(desc);
         }
       } finally {
         setIsStarting(false);
@@ -201,24 +197,32 @@ export const HomeScreen = () => {
         </div>
       )}
 
-      {error && (
+      {blockedAction && (
         <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
-            <span>{error}</span>
+            <span>{blockedAction.message}</span>
           </div>
-          {isConsentError && (
+          {blockedAction.actionText && (
             <button
               type="button"
               onClick={() => {
-                setShowSettings(true);
-                setError(null);
-                setIsConsentError(false);
+                const target = blockedAction.target;
+                setBlockedAction(null);
+                if (target === "consent") {
+                  setShowSettings(true);
+                } else if (target === "inclusion") {
+                  setScreen("inclusion");
+                } else if (target === "profile") {
+                  setScreen("profile");
+                } else if (target === "retry") {
+                  handleStartCheckIn();
+                }
               }}
-              id="home-consent-settings-btn"
+              id={`home-blocked-action-${blockedAction.target}-btn`}
               className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-800 hover:bg-amber-900 text-white transition-colors shrink-0 shadow-xs self-start sm:self-auto"
             >
-              {isUrdu ? "اجازت نامہ کی ترتیبات کھولیں" : "Open Consent Settings"}
+              {blockedAction.actionText}
             </button>
           )}
         </div>
