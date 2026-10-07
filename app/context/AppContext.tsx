@@ -19,6 +19,7 @@ export type PortalType = "landing" | "patient" | "provider" | "admin";
 export type PatientScreenType =
   | "login"
   | "consent"
+  | "inclusion"
   | "connection"
   | "profile"
   | "health_record"
@@ -164,6 +165,34 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export function computeNextPatientScreen(
+  prof: ProfileResponse | null,
+  conn: EHRConnectionResponse | null
+): PatientScreenType {
+  if (!prof) return "consent";
+  if (
+    !prof.consent_granted_at ||
+    prof.consent_revoked_at ||
+    !prof.provider_notification_consent_at ||
+    prof.provider_notification_revoked_at
+  ) {
+    return "consent";
+  }
+  if (!prof.date_of_birth || !prof.inclusion_confirmed_at) {
+    return "inclusion";
+  }
+  if (!prof.conditions || prof.conditions.length === 0) {
+    return "profile";
+  }
+  if (
+    !conn ||
+    (conn.mode !== "connected" && conn.mode !== "isolated" && conn.mode !== "fhir")
+  ) {
+    return "connection";
+  }
+  return "home";
+}
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [portal, setPortalState] = useState<PortalType>("landing");
@@ -347,13 +376,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               return;
             }
             setUserIdentifier(email);
-            // Check consent status for patient
+            // Determine patient screen dynamically based on server profile and connection status
             try {
               const prof = await api.getProfile();
               setLiveProfile(prof);
-              if (!prof.consent_granted_at) {
-                setScreenState("consent");
-              }
+              let conn: EHRConnectionResponse | null = null;
+              try {
+                conn = await api.getEHRConnection();
+                setLiveEhrConnection(conn);
+              } catch {}
+              const nextScreen = computeNextPatientScreen(prof, conn);
+              setScreenState(nextScreen);
             } catch {
               setScreenState("consent");
             }

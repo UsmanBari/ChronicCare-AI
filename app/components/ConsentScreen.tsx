@@ -23,7 +23,7 @@ export const ConsentScreen = () => {
         const updated = await api.setConsent(true, providerConsent);
         setLiveProfile(updated);
       }
-      setScreen("profile");
+      setScreen("inclusion");
     } catch (err: any) {
       if (err instanceof ApiError) {
         setError(err.getFriendlyMessage(isUrdu));
