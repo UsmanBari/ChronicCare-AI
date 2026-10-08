@@ -17,6 +17,8 @@ import {
   Sparkles,
   Loader2,
   Pill,
+  User,
+  Activity,
 } from "lucide-react";
 import { api, ApiError, ReviewDetailResponse } from "../../lib/api";
 import { describeSide, describeReviewReason, describeMedicationItem } from "../../lib/presentation";
@@ -230,6 +232,79 @@ export const ReconciliationAlertDetail = () => {
         <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
           <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {/* Patient Background Card (Self-Reported, Not Verified) */}
+      {liveDetail?.patient_background && (
+        <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-navy-800 flex items-center gap-1.5">
+              <User className="w-4 h-4 text-teal-700" />
+              <span>Background (reported by the patient, not verified)</span>
+            </span>
+            <span className="text-[10px] text-slate-500 font-medium italic">
+              Self-reported at enrolment
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-navy-900">
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Physical Metrics</span>
+              <span className="font-semibold">
+                {liveDetail.patient_background.height_cm ? `${liveDetail.patient_background.height_cm} cm` : "Height unrecorded"} •{" "}
+                {liveDetail.patient_background.weight_kg ? `${liveDetail.patient_background.weight_kg} kg` : "Weight unrecorded"}
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Clinician BMI</span>
+              <span className="font-bold text-teal-800">
+                {liveDetail.patient_background.bmi !== null && liveDetail.patient_background.bmi !== undefined
+                  ? `${liveDetail.patient_background.bmi} kg/m²`
+                  : "N/A"}
+              </span>
+              <span className="text-[9px] text-slate-400 block font-normal">(Clinician reference only)</span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Diagnosis Years</span>
+              <span className="font-semibold text-slate-700 block">
+                {liveDetail.patient_background.diagnosis_year_diabetes ? `T2D: ${liveDetail.patient_background.diagnosis_year_diabetes}` : "T2D: —"}{" "}
+                • {liveDetail.patient_background.diagnosis_year_hypertension ? `HTN: ${liveDetail.patient_background.diagnosis_year_hypertension}` : "HTN: —"}
+              </span>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">Smoking Status</span>
+              <span className="font-semibold capitalize text-slate-700">
+                {(liveDetail.patient_background.smoking_status || "prefer_not_to_say").replace(/_/g, " ")}
+              </span>
+            </div>
+          </div>
+
+          {/* Comorbidities */}
+          {liveDetail.patient_background.comorbidities && Object.keys(liveDetail.patient_background.comorbidities).length > 0 && (
+            <div className="pt-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Reported Comorbidities:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(liveDetail.patient_background.comorbidities)
+                  .filter(([_, val]) => Boolean(val))
+                  .map(([key]) => (
+                    <span key={key} className="px-2.5 py-0.5 bg-slate-200/80 text-navy-800 rounded-lg text-xs font-medium capitalize">
+                      {key.replace(/_/g, " ")}
+                    </span>
+                  ))}
+                {Object.values(liveDetail.patient_background.comorbidities).every((v) => !v) && (
+                  <span className="text-xs text-slate-500 italic">None reported</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          <p className="text-[10px] text-slate-400 italic pt-1">
+            {liveDetail.patient_background.disclaimer || "Self-reported background details provided by patient during enrolment. Not clinically verified."}
+          </p>
         </div>
       )}
 

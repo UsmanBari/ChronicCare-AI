@@ -18,6 +18,10 @@ import {
   Pill,
   ShieldCheck,
   User,
+  Mic,
+  MicOff,
+  Square,
+  Volume2,
 } from "lucide-react";
 import {
   api,
@@ -38,6 +42,7 @@ export const AdaptiveInterviewScreen = () => {
     checkIn,
     setCheckIn,
     isLiveMode,
+    liveProfile,
     activeLiveCheckin,
     setActiveLiveCheckin,
     setLiveCheckinResult,
@@ -57,6 +62,205 @@ export const AdaptiveInterviewScreen = () => {
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([]);
   const [currentStep, setCurrentStep] = useState<string | null>(activeLiveCheckin?.step || null);
   const [lastFailedAnswer, setLastFailedAnswer] = useState<string | null>(null);
+
+  // --- VOICE RECORDING STATE ---
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
+  const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
+  const [transcribedSafetyNotice, setTranscribedSafetyNotice] = useState<boolean>(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+
+  // Stop recording timer & stream cleanly
+  const cleanupMediaStream = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+  };
+
+  const handleStartRecording = async () => {
+    setVoiceError(null);
+
+    if (liveProfile && liveProfile.voice_enabled === false) {
+      setVoiceError(
+        isUrdu
+          ? "آواز کا فیچر سیٹنگز میں بند ہے۔ براہ کرم سیٹنگز میں جا کر اسے آن کریں۔"
+          : "Voice input is disabled in your profile. Enable it in Settings (Privacy & Consent) to speak your answers."
+      );
+      return;
+    }
+
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setVoiceError(
+        isUrdu
+          ? "آپ کے براؤزر میں مائیکروفون دستیاب نہیں ہے۔ براہ کرم جواب ٹائپ کریں۔"
+          : "Microphone recording is not supported in this browser. Please type your answer."
+      );
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      let mimeType = "";
+      if (typeof MediaRecorder !== "undefined") {
+        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+          mimeType = "audio/webm;codecs=opus";
+        } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+          mimeType = "audio/webm";
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        }
+      }
+
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const chunks = audioChunksRef.current;
+        cleanupMediaStream();
+        setIsRecording(false);
+
+        if (!chunks || chunks.length === 0) return;
+
+        const audioBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+
+        // Check 5MB limit
+        if (audioBlob.size > 5 * 1024 * 1024) {
+          setVoiceError(
+            isUrdu
+              ? "آواز کی فائل ۵ ایم بی سے زیادہ ہے۔ براہ کرم مختصر جواب ریکارڈ کریں۔"
+              : "Audio recording exceeds the 5MB limit. Please record a shorter answer."
+          );
+          return;
+        }
+
+        if (audioBlob.size < 100) {
+          setVoiceError(isUrdu ? "کوئی آواز ریکارڈ نہیں ہوئی۔" : "No audio detected. Please try again.");
+          return;
+        }
+
+        setIsTranscribing(true);
+        setVoiceError(null);
+
+        try {
+          const res = await api.transcribeVoice(audioBlob, "recording.webm");
+          const text = (res.text || "").trim();
+          if (text) {
+            setLiveAnswerInput((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
+            setTranscribedSafetyNotice(true);
+          } else {
+            setVoiceError(
+              isUrdu
+                ? "کوئی الفاظ سمجھ نہیں آئے۔ براہ کرم دوبارہ بولیں یا لکھ کر جواب دیں۔"
+                : "No speech recognized. Please try speaking clearly or type your answer."
+            );
+          }
+        } catch (err: any) {
+          if (err instanceof ApiError) {
+            if (err.status === 403) {
+              setVoiceError(
+                isUrdu
+                  ? "آواز کا فیچر آپ کی پروفائل میں بند ہے۔ سیٹنگز میں فعال کریں۔"
+                  : "Voice input is not enabled in your profile settings."
+              );
+            } else if (err.status === 429) {
+              setVoiceError(
+                isUrdu
+                  ? "آواز کی حد ختم ہو گئی ہے۔ براہ کرم کچھ دیر بعد کوشش کریں یا ٹائپ کریں۔"
+                  : "Voice transcription rate limit reached. Please type your answer or wait a minute."
+              );
+            } else if (err.status === 502 || err.status === 503) {
+              setVoiceError(
+                isUrdu
+                  ? "آواز کی سروس عارضی طور پر غیر فعال ہے۔ براہ کرم جواب ٹائپ کریں۔"
+                  : "Voice transcription service temporarily unavailable. Please type your answer."
+              );
+            } else {
+              setVoiceError(err.getFriendlyMessage(isUrdu));
+            }
+          } else {
+            setVoiceError(
+              isUrdu
+                ? "آواز کی منتقلی میں خرابی پیش آئی۔ براہ کرم جواب ٹائپ کریں۔"
+                : "Failed to transcribe voice audio. Please type your answer."
+            );
+          }
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start(1000); // 1s timeslices
+      setIsRecording(true);
+      setRecordingSeconds(0);
+
+      let sec = 0;
+      recordingTimerRef.current = setInterval(() => {
+        sec += 1;
+        setRecordingSeconds(sec);
+        if (sec >= 60) {
+          handleStopRecording();
+        }
+      }, 1000);
+    } catch (err: any) {
+      cleanupMediaStream();
+      setIsRecording(false);
+      setVoiceError(
+        isUrdu
+          ? "مائیکروفون تک رسائی کی اجازت نہیں ملی۔ براہ کرم براؤزر میں مائیک کی اجازت دیں یا ٹائپ کریں۔"
+          : "Microphone access denied. Please allow microphone permissions or type your answer."
+      );
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {
+        cleanupMediaStream();
+        setIsRecording(false);
+      }
+    } else {
+      cleanupMediaStream();
+      setIsRecording(false);
+    }
+  };
+
+  const handleCancelRecording = () => {
+    audioChunksRef.current = [];
+    cleanupMediaStream();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {
+        // ignore
+      }
+    }
+    setIsRecording(false);
+    setRecordingSeconds(0);
+    setVoiceError(null);
+  };
 
   // Ref guards to prevent double flights
   const isSendingRef = useRef<boolean>(false);
@@ -461,10 +665,49 @@ export const AdaptiveInterviewScreen = () => {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Voice Error Notice */}
+          {voiceError && (
+            <div className="p-3 text-xs bg-amber-50 border border-amber-800/30 text-amber-950 rounded-xl flex items-center justify-between gap-2 animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
+                <span>{voiceError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVoiceError(null)}
+                className="text-slate-400 hover:text-slate-700 text-xs px-1.5"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Transcribed Safety Review Banner */}
+          {transcribedSafetyNotice && (
+            <div className="p-3 rounded-xl bg-teal-50 border-2 border-teal-600 text-teal-950 text-xs font-bold flex items-center justify-between gap-2 animate-fadeIn shadow-xs">
+              <div className="flex items-center gap-2">
+                <Volume2 className="w-4 h-4 text-teal-700 shrink-0" />
+                <span>
+                  {isUrdu
+                    ? "آواز سے لکھا گیا — براہ کرم بھیجنے سے پہلے الفاظ کی تصدیق کر لیں۔"
+                    : "Transcribed from voice — check what was heard, then press Send"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTranscribedSafetyNotice(false)}
+                className="text-teal-700 hover:text-teal-900 text-xs px-1"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Active Input Area */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              setTranscribedSafetyNotice(false);
               handleLiveSendAnswer(liveAnswerInput);
             }}
             className="space-y-3 pt-2 border-t border-slate-200"
@@ -476,33 +719,95 @@ export const AdaptiveInterviewScreen = () => {
               </div>
             )}
 
-            <div className="relative">
-              <input
-                ref={inputRef}
-                type="text"
-                value={liveAnswerInput}
-                onChange={(e) => setLiveAnswerInput(e.target.value)}
-                disabled={isSending}
-                placeholder={isUrdu ? "اپنا جواب یہاں لکھیں..." : "Type your response..."}
-                className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white ${
-                  isUrdu ? "pr-4 pl-12" : "pl-4 pr-12"
-                } text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 shadow-xs`}
-              />
-              <button
-                type="submit"
-                disabled={!liveAnswerInput.trim() || isSending}
-                id="live-send-answer-btn"
-                className={`absolute ${
-                  isUrdu ? "left-1.5" : "right-1.5"
-                } top-1.5 bottom-1.5 px-3 bg-teal-700 hover:bg-teal-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-all flex items-center justify-center`}
-              >
-                {isSending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
-              </button>
-            </div>
+            {/* Recording in Progress UI */}
+            {isRecording ? (
+              <div className="p-3.5 rounded-2xl bg-red-50 border-2 border-red-500 flex items-center justify-between gap-3 animate-pulse">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-3 h-3 rounded-full bg-red-600 animate-ping shrink-0" />
+                  <span className="text-xs font-bold text-red-900">
+                    {isUrdu
+                      ? `ریکارڈنگ جاری ہے (${recordingSeconds}/۶۰ سیکنڈ)`
+                      : `Recording voice... (${recordingSeconds}s / 60s)`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCancelRecording}
+                    id="cancel-voice-btn"
+                    className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-300 rounded-lg bg-white"
+                  >
+                    {isUrdu ? "منسوخ" : "Cancel"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStopRecording}
+                    id="stop-voice-btn"
+                    className="px-3 py-1 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg flex items-center gap-1 shadow-xs"
+                  >
+                    <Square className="w-3 h-3 fill-current" />
+                    <span>{isUrdu ? "روکیں اور لکھیں" : "Done"}</span>
+                  </button>
+                </div>
+              </div>
+            ) : isTranscribing ? (
+              <div className="p-3.5 rounded-2xl bg-teal-50 border border-teal-300 flex items-center justify-center gap-2 text-xs font-bold text-teal-900 animate-fadeIn">
+                <Loader2 className="w-4 h-4 animate-spin text-teal-700" />
+                <span>{isUrdu ? "آواز کا متن تیار ہو رہا ہے..." : "Transcribing your audio with Whisper..."}</span>
+              </div>
+            ) : (
+              <div className="relative flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={liveAnswerInput}
+                    onChange={(e) => {
+                      setLiveAnswerInput(e.target.value);
+                    }}
+                    disabled={isSending}
+                    placeholder={isUrdu ? "اپنا جواب یہاں لکھیں یا مائیک دبائیں..." : "Type your response or tap mic..."}
+                    className={`w-full h-12 text-sm rounded-xl border ${
+                      transcribedSafetyNotice ? "border-teal-500 ring-2 ring-teal-200 bg-teal-50/20" : "border-slate-300 bg-white"
+                    } ${isUrdu ? "pr-4 pl-12" : "pl-4 pr-12"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 shadow-xs`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!liveAnswerInput.trim() || isSending}
+                    id="live-send-answer-btn"
+                    className={`absolute ${
+                      isUrdu ? "left-1.5" : "right-1.5"
+                    } top-1.5 bottom-1.5 px-3 bg-teal-700 hover:bg-teal-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-all flex items-center justify-center`}
+                  >
+                    {isSending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Voice Input Mic Button */}
+                <button
+                  type="button"
+                  onClick={handleStartRecording}
+                  disabled={isSending}
+                  id="interview-mic-btn"
+                  title={
+                    liveProfile?.voice_enabled === false
+                      ? (isUrdu ? "سیٹنگز میں آواز کا فیچر آن کریں" : "Voice disabled - enable in Settings")
+                      : (isUrdu ? "بول کر جواب دیں" : "Speak your answer")
+                  }
+                  className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 transition-all border shadow-xs ${
+                    liveProfile?.voice_enabled === false
+                      ? "bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200"
+                      : "bg-teal-50 text-teal-800 border-teal-300 hover:bg-teal-100 active:scale-95"
+                  }`}
+                >
+                  <Mic className="w-5 h-5" />
+                </button>
+              </div>
+            )}
 
             {/* Quick-answer buttons for Medication Check Step */}
             {currentStep?.startsWith("medication_check") && (

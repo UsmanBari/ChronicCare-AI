@@ -19,6 +19,14 @@ export interface UserResponse {
   mode: string | null;
 }
 
+export interface ComorbiditiesMap {
+  kidney_disease?: boolean | null;
+  heart_disease?: boolean | null;
+  stroke_or_tia?: boolean | null;
+  eye_problems?: boolean | null;
+  nerve_or_foot_problems?: boolean | null;
+}
+
 export interface ProfileUpdateRequest {
   conditions?: string[];
   on_insulin_or_sulfonylurea?: boolean;
@@ -27,6 +35,13 @@ export interface ProfileUpdateRequest {
   inclusion_confirmed?: boolean | null;
   sex_at_birth?: "female" | "male" | "prefer_not_to_say" | string | null;
   pregnancy_status?: "no" | "yes" | "not_sure" | "not_applicable" | string | null;
+  voice_enabled?: boolean | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  diagnosis_year_diabetes?: number | null;
+  diagnosis_year_hypertension?: number | null;
+  smoking_status?: "never" | "former" | "current" | "prefer_not_to_say" | string | null;
+  comorbidities?: ComorbiditiesMap | null;
 }
 
 export interface ProfileResponse {
@@ -38,11 +53,33 @@ export interface ProfileResponse {
   inclusion_confirmed_at?: string | null;
   sex_at_birth?: string | null;
   pregnancy_status?: string | null;
+  voice_enabled?: boolean | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  diagnosis_year_diabetes?: number | null;
+  diagnosis_year_hypertension?: number | null;
+  smoking_status?: string | null;
+  comorbidities?: Record<string, boolean> | null;
   consent_granted_at: string | null;
   consent_revoked_at: string | null;
   provider_notification_consent_at?: string | null;
   provider_notification_revoked_at?: string | null;
   updated_at: string | null;
+}
+
+export interface PatientBackgroundResponse {
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  bmi?: number | null;
+  smoking_status?: string | null;
+  diagnosis_year_diabetes?: number | null;
+  diagnosis_year_hypertension?: number | null;
+  comorbidities?: Record<string, boolean> | null;
+  disclaimer?: string | null;
+}
+
+export interface VoiceTranscribeResponse {
+  text: string;
 }
 
 export interface RecordConditionItem {
@@ -247,6 +284,7 @@ export interface ReviewDetailResponse {
   trigger_text?: string | null;
   trigger_reading?: Record<string, any> | string | null;
   escalated_at?: string | null;
+  patient_background?: PatientBackgroundResponse | null;
 }
 
 export interface AuditLogRow {
@@ -365,10 +403,14 @@ async function request<T>(
   const url = `${baseUrl}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
   const defaultHeaders = await getAuthHeaders();
 
-  const finalHeaders = {
+  const finalHeaders: Record<string, string> = {
     ...defaultHeaders,
     ...(options.headers as Record<string, string> | undefined),
   };
+
+  if (typeof FormData !== "undefined" && options.body instanceof FormData) {
+    delete finalHeaders["Content-Type"];
+  }
 
   try {
     const response = await fetch(url, {
@@ -680,6 +722,19 @@ export const api = {
     return request<UserResponse>(`/api/admin/users/${encodeURIComponent(user_id)}/role`, {
       method: "POST",
       body: JSON.stringify({ role }),
+    });
+  },
+
+  // 7. Voice Transcription
+  transcribeVoice: async (
+    file: Blob | File,
+    filename: string = "audio.webm"
+  ): Promise<VoiceTranscribeResponse> => {
+    const formData = new FormData();
+    formData.append("file", file, filename);
+    return request<VoiceTranscribeResponse>("/api/voice/transcribe", {
+      method: "POST",
+      body: formData,
     });
   },
 };

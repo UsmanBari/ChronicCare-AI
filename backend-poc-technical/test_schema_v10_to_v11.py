@@ -205,9 +205,9 @@ def test_sqlite_schema_v10_to_v11_migration(test_db_path):
     assert "sex_at_birth" in v11_cols
     assert "pregnancy_status" in v11_cols
 
-    # Verify schema_version is now 11
+    # Verify schema_version is at least 11 (migrated to latest)
     cur.execute("SELECT MAX(version) FROM schema_version")
-    assert cur.fetchone()[0] == 11
+    assert cur.fetchone()[0] >= 11
     conn.close()
 
     # 2. Verify existing row preserved all old values

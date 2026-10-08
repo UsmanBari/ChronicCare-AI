@@ -1,6 +1,6 @@
 # Clinical Rules Register
 
-> **STATUS: NOT REVIEWED BY A CLINICIAN.** Every number and rule in this document is illustrative and is **not clinical guidance**. This register describes exactly what the code does today; it was generated from the code so that the two cannot disagree. A clinician must review it, change what they disagree with, and sign the last section before anyone relies on the system for a real patient.
+> **Proposed, not reviewed by a clinician.** Every number and rule in this document is illustrative and is **not clinical guidance**. This register describes exactly what the code does today; it was generated from the code so that the two cannot disagree. A clinician must review it, change what they disagree with, and sign the last section before anyone relies on the system for a real patient.
 
 ChronicCare AI is decision support for a clinician. It never diagnoses, never gives treatment or dose advice, never changes a medication, and never ends a conversation about a possible emergency with reassurance.
 
@@ -225,6 +225,7 @@ After the interview (and the protocol, if one was needed) the patient is asked a
 | `_HARD_NO` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_DOSE_HINT` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_LEADING_YES` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_EASTERN_DIGITS_TABLE` | Unicode translation table for Eastern Arabic (٠-٩) and Urdu (۰-۹) digits | adaptive_interview_agent.py | Implementation detail (numeral normalisation) | Implementation detail for multilingual numeral parsing. |
 
 ## 7. Medication scope in Connected Mode
 

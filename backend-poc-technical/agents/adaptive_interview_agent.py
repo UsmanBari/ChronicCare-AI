@@ -95,10 +95,16 @@ class DiabetesStep(str, Enum):
     GREETING = "greeting"
     GLUCOSE_READING = "glucose_reading"
     MISSING_DATA_CHECKPOINT = "missing_data_checkpoint"
+    GLUCOSE_CONTEXT = "glucose_context"
+    HYPO_EVENTS_PAST_WEEK = "hypo_events_past_week"
+    SICK_DAY_FLAGS = "sick_day_flags"
     HYPERGLYCEMIA_SYMPTOMS = "hyperglycemia_symptoms"
     HYPOGLYCEMIA_SYMPTOMS = "hypoglycemia_symptoms"
+    FOOT_PROBLEMS = "foot_problems"
     ADHERENCE = "adherence"
+    MISSED_DOSES_REASON = "missed_doses_reason"
     LIFESTYLE = "lifestyle"
+    PATIENT_FREE_TEXT = "patient_free_text"
     COMPLETE = "complete"
 
 
@@ -106,9 +112,13 @@ class HypertensionStep(str, Enum):
     GREETING = "greeting"
     BP_READING = "bp_reading"
     MISSING_DATA_CHECKPOINT = "missing_data_checkpoint"
+    BP_TECHNIQUE = "bp_technique"
     ASSOCIATED_SYMPTOMS = "associated_symptoms"
+    OTC_MEDS_BP = "otc_meds_bp"
     ADHERENCE = "adherence"
+    MISSED_DOSES_REASON = "missed_doses_reason"
     LIFESTYLE = "lifestyle"
+    PATIENT_FREE_TEXT = "patient_free_text"
     COMPLETE = "complete"
 
 
@@ -127,6 +137,7 @@ class InterviewState:
     stage1_red_flag: bool = False
     stage1_reason: Optional[str] = None
     dual_diagnosis_pending: List[str] = field(default_factory=list)
+    interview_version: str = "v1"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -147,17 +158,17 @@ class InterviewState:
 # anyone relies on them. Urdu negation is NOT handled, so an Urdu match always flags.
 RED_FLAG_PATTERNS: Dict[str, List[str]] = {
     "chest_pain": ["chest pain", "chest tightness", "chest pressure", "chest hurts",
-                   "pain in my chest", "crushing chest", "سینے میں درد"],
+                   "pain in my chest", "crushing chest", "crushing chest pain", "heavy chest", "سینے میں درد"],
     "breathing": ["can't breathe", "cant breathe", "cannot breathe", "struggling to breathe",
-                  "severe shortness of breath", "gasping for air",
+                  "severe shortness of breath", "gasping for air", "suffocating",
                   "سانس لینے میں دشواری", "سانس نہیں آ رہی"],
     "confusion": ["confused", "slurred speech", "can't speak clearly", "cant speak clearly"],
-    "loss_of_consciousness": ["fainted", "passed out", "lost consciousness", "blacked out", "بے ہوش"],
+    "loss_of_consciousness": ["fainted", "passed out", "lost consciousness", "blacked out", "collapsed", "بے ہوش"],
     "one_sided_weakness": ["one side weak", "one-sided weakness", "can't move one side",
-                           "cant move one side", "face drooping"],
+                           "cant move one side", "can't move my arm", "face drooping"],
     "unable_to_keep_fluids": ["can't keep anything down", "cant keep anything down",
-                              "can't keep fluids down", "vomiting nonstop", "vomiting non-stop"],
-    "severe_headache": ["worst headache", "severe headache", "thunderclap headache"],
+                              "can't keep fluids down", "vomiting nonstop", "vomiting non-stop", "vomiting with high sugar"],
+    "severe_headache": ["worst headache", "severe headache", "thunderclap headache", "worst headache of my life", "sudden severe headache"],
     "vision_loss": ["sudden vision loss", "lost my vision", "went blind",
                     "can't see at all", "cannot see at all"],
 }
@@ -168,10 +179,11 @@ _NEGATION_CUES = frozenset({
     "haven't", "havent", "hasn't", "hasnt", "isn't", "isnt",
 })
 _CLAUSE_BREAK = re.compile(r"[.;,:!?\n]+|\b(?:but|however|although|though|and|while)\b")
+_EASTERN_DIGITS_TABLE = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 
 def _normalize(text: str) -> str:
-    return (text or "").replace("\u2019", "'").replace("\u2018", "'").lower()
+    return (text or "").replace("\u2019", "'").replace("\u2018", "'").translate(_EASTERN_DIGITS_TABLE).lower()
 
 
 def _is_negated(clause: str, start: int) -> bool:
@@ -217,10 +229,11 @@ def _try_parse_float(text: str, minimum: Optional[float] = None,
 
     None is returned when there is no number, a rejected unit is present, no number is
     inside [minimum, maximum], or MORE THAN ONE number is inside it (ambiguous)."""
-    lowered = text.lower()
-    if any(unit in lowered for unit in reject_units) or _has_negative_number(lowered):
+    lowered = (text or "").replace("\u2019", "'").replace("\u2018", "'").translate(_EASTERN_DIGITS_TABLE).lower()
+    if any(unit in lowered for unit in reject_units) or _has_negative_number(lowered) or "mmol" in lowered:
         return None
     cleaned = _TIME_OF_DAY.sub(" ", lowered)
+    cleaned = re.sub(r"(?<=\d),(?=\d)", ".", cleaned)
     values = [float(m) for m in re.findall(r"\d+(?:\.\d+)?", cleaned)]
     plausible = [v for v in values
                  if (minimum is None or v >= minimum) and (maximum is None or v <= maximum)]
@@ -231,8 +244,10 @@ def _try_parse_bp(text: str) -> Optional[List[int]]:
     """Returns [systolic, diastolic] if exactly one plausible pair is present, else None."""
     if _has_negative_number(text):
         return None
+    lowered = (text or "").replace("\u2019", "'").replace("\u2018", "'").translate(_EASTERN_DIGITS_TABLE).lower()
+    cleaned = _TIME_OF_DAY.sub(" ", lowered)
     pairs = []
-    for sys_s, dia_s in re.findall(r"(\d{2,3})\s*(?:/|over)\s*(\d{2,3})", text.lower()):
+    for sys_s, dia_s in re.findall(r"(\d{2,3})\s*(?:/|over)\s*(\d{2,3})", cleaned):
         sys_v, dia_v = int(sys_s), int(dia_s)
         if (SYSTOLIC_RANGE_MMHG[0] <= sys_v <= SYSTOLIC_RANGE_MMHG[1]
                 and DIASTOLIC_RANGE_MMHG[0] <= dia_v <= DIASTOLIC_RANGE_MMHG[1]
@@ -280,14 +295,26 @@ def _diabetes_next_question(step: DiabetesStep) -> str:
             "No problem. Can you tell me roughly how you've been feeling instead (for "
             "example more thirsty than usual, tired, or dizzy)? If you do have a "
             "reading, please give it in mg/dL.",
+        DiabetesStep.GLUCOSE_CONTEXT:
+            "Was this blood sugar reading fasting (before breakfast), before a meal, after a meal, or at bedtime?",
+        DiabetesStep.HYPO_EVENTS_PAST_WEEK:
+            "In the past 7 days, have you had any low blood sugar episodes, like shakiness, sweating, or feeling faint?",
+        DiabetesStep.SICK_DAY_FLAGS:
+            "Are you currently experiencing vomiting, diarrhoea, high fever, or unable to drink fluids?",
         DiabetesStep.HYPERGLYCEMIA_SYMPTOMS:
             "Have you noticed increased thirst, frequent urination, or blurred vision?",
         DiabetesStep.HYPOGLYCEMIA_SYMPTOMS:
             "Any shakiness, sweating, or confusion that improved after eating?",
+        DiabetesStep.FOOT_PROBLEMS:
+            "Do you have any new cuts, sores, blisters, pain, or numbness in your feet?",
         DiabetesStep.ADHERENCE:
             "Have you taken your diabetes medication as prescribed today?",
+        DiabetesStep.MISSED_DOSES_REASON:
+            "Can you share what caused you to miss your medication dose (for example side effects, running out, or forgot)?",
         DiabetesStep.LIFESTYLE:
             "Any changes in your diet, exercise, or stress levels recently?",
+        DiabetesStep.PATIENT_FREE_TEXT:
+            "Is there anything else you would like your clinician to know about your health today?",
     }[step]
 
 
@@ -302,13 +329,20 @@ def _hypertension_next_question(step: HypertensionStep) -> str:
             "That's okay. Can you describe how you've been feeling instead (for example "
             "headaches, dizziness, or palpitations)? If you do have a reading, please "
             "give it like 130/85.",
+        HypertensionStep.BP_TECHNIQUE:
+            "Before taking your blood pressure, did you rest quietly for 5 minutes with your back and arm supported?",
         HypertensionStep.ASSOCIATED_SYMPTOMS:
-            "Any dizziness, blurred vision, shortness of breath, or palpitations along "
-            "with that?",
+            "Do you have a severe headache, shortness of breath, ankle swelling, dizziness when standing, or palpitations?",
+        HypertensionStep.OTC_MEDS_BP:
+            "Have you taken any anti-inflammatory painkillers (like ibuprofen), cold/decongestant medicines, or herbal supplements recently?",
         HypertensionStep.ADHERENCE:
             "Did you take your blood pressure medication today?",
+        HypertensionStep.MISSED_DOSES_REASON:
+            "Can you share what caused you to miss your medication dose (for example side effects, running out, or forgot)?",
         HypertensionStep.LIFESTYLE:
             "How has your sodium intake, sleep, or stress been recently?",
+        HypertensionStep.PATIENT_FREE_TEXT:
+            "Is there anything else you would like your clinician to know about your health today?",
     }[step]
 
 
@@ -324,6 +358,155 @@ def get_current_question(state: InterviewState) -> Optional[str]:
 # -----------------------------------------------------------------------------
 # State machine (mutates the copy made by adaptive_interview_node)
 # -----------------------------------------------------------------------------
+def _has_glucose_context_in_text(text: str) -> bool:
+    lowered = _normalize(text)
+    return any(w in lowered for w in ["fasting", "before meal", "before breakfast", "after meal", "after lunch", "after dinner", "bedtime", "random"])
+
+
+def _has_bp_technique_in_text(text: str) -> bool:
+    lowered = _normalize(text)
+    return any(w in lowered for w in ["rested", "sitting", "seated", "clinic", "home"])
+
+
+def _diabetes_advance_v2_3(state: InterviewState, answer: str) -> InterviewState:
+    step = DiabetesStep(state.step)
+    answers = state.answers
+
+    if step == DiabetesStep.GREETING:
+        answers["greeting_response"] = answer
+        state.step = DiabetesStep.GLUCOSE_READING.value
+    elif step == DiabetesStep.GLUCOSE_READING:
+        reading = _try_parse_float(answer, *GLUCOSE_RANGE_MG_DL, reject_units=("mmol",))
+        if reading is None and not state.missing_data_asked_once:
+            state.missing_data_asked_once = True
+            state.step = DiabetesStep.MISSING_DATA_CHECKPOINT.value
+        else:
+            answers["glucose_reading"] = reading
+            if _has_glucose_context_in_text(answer):
+                answers["glucose_context"] = "extracted_from_reading"
+                if state.on_insulin_or_sulfonylurea or (reading is not None and reading < 70):
+                    state.step = DiabetesStep.HYPO_EVENTS_PAST_WEEK.value
+                elif reading is not None and reading >= 250:
+                    state.step = DiabetesStep.SICK_DAY_FLAGS.value
+                else:
+                    state.step = DiabetesStep.HYPERGLYCEMIA_SYMPTOMS.value
+            else:
+                state.step = DiabetesStep.GLUCOSE_CONTEXT.value
+    elif step == DiabetesStep.MISSING_DATA_CHECKPOINT:
+        reading = _try_parse_float(answer, *GLUCOSE_RANGE_MG_DL, reject_units=("mmol",))
+        answers["glucose_reading"] = reading
+        if reading is None:
+            answers["symptom_only_note"] = answer
+            state.step = DiabetesStep.SICK_DAY_FLAGS.value
+        else:
+            if _has_glucose_context_in_text(answer):
+                answers["glucose_context"] = "extracted_from_reading"
+                state.step = DiabetesStep.HYPERGLYCEMIA_SYMPTOMS.value
+            else:
+                state.step = DiabetesStep.GLUCOSE_CONTEXT.value
+    elif step == DiabetesStep.GLUCOSE_CONTEXT:
+        answers["glucose_context"] = answer
+        reading = answers.get("glucose_reading")
+        if state.on_insulin_or_sulfonylurea or (reading is not None and reading < 70):
+            state.step = DiabetesStep.HYPO_EVENTS_PAST_WEEK.value
+        elif reading is not None and reading >= 250:
+            state.step = DiabetesStep.SICK_DAY_FLAGS.value
+        else:
+            state.step = DiabetesStep.HYPERGLYCEMIA_SYMPTOMS.value
+    elif step == DiabetesStep.HYPO_EVENTS_PAST_WEEK:
+        answers["hypo_events_past_week"] = answer
+        state.step = DiabetesStep.HYPERGLYCEMIA_SYMPTOMS.value
+    elif step == DiabetesStep.SICK_DAY_FLAGS:
+        answers["sick_day_flags"] = answer
+        state.step = DiabetesStep.HYPERGLYCEMIA_SYMPTOMS.value
+    elif step == DiabetesStep.HYPERGLYCEMIA_SYMPTOMS:
+        answers["hyperglycemia_symptoms"] = answer
+        state.step = DiabetesStep.FOOT_PROBLEMS.value
+    elif step == DiabetesStep.FOOT_PROBLEMS:
+        answers["foot_problems"] = answer
+        state.step = DiabetesStep.ADHERENCE.value
+    elif step == DiabetesStep.ADHERENCE:
+        adh = _looks_affirmative(answer)
+        answers["adherence"] = adh
+        if adh is False:
+            state.step = DiabetesStep.MISSED_DOSES_REASON.value
+        else:
+            state.step = DiabetesStep.LIFESTYLE.value
+    elif step == DiabetesStep.MISSED_DOSES_REASON:
+        answers["missed_doses_reason"] = answer
+        state.step = DiabetesStep.LIFESTYLE.value
+    elif step == DiabetesStep.LIFESTYLE:
+        answers["lifestyle_notes"] = answer
+        state.step = DiabetesStep.PATIENT_FREE_TEXT.value
+    elif step == DiabetesStep.PATIENT_FREE_TEXT:
+        answers["patient_free_text"] = answer
+        state.step = DiabetesStep.COMPLETE.value
+    return state
+
+
+def _hypertension_advance_v2_3(state: InterviewState, answer: str) -> InterviewState:
+    step = HypertensionStep(state.step)
+    answers = state.answers
+
+    if step == HypertensionStep.GREETING:
+        answers["greeting_response"] = answer
+        state.step = HypertensionStep.BP_READING.value
+    elif step == HypertensionStep.BP_READING:
+        reading = _try_parse_bp(answer)
+        if reading is None and not state.missing_data_asked_once:
+            state.missing_data_asked_once = True
+            state.step = HypertensionStep.MISSING_DATA_CHECKPOINT.value
+        else:
+            answers["bp_reading"] = reading
+            if reading is not None and not _has_bp_technique_in_text(answer):
+                state.step = HypertensionStep.BP_TECHNIQUE.value
+            else:
+                answers["bp_technique"] = "extracted_or_missing"
+                state.step = HypertensionStep.ASSOCIATED_SYMPTOMS.value
+    elif step == HypertensionStep.MISSING_DATA_CHECKPOINT:
+        reading = _try_parse_bp(answer)
+        answers["bp_reading"] = reading
+        if reading is None:
+            answers["symptom_only_note"] = answer
+            state.step = HypertensionStep.ASSOCIATED_SYMPTOMS.value
+        else:
+            if not _has_bp_technique_in_text(answer):
+                state.step = HypertensionStep.BP_TECHNIQUE.value
+            else:
+                answers["bp_technique"] = "extracted_or_missing"
+                state.step = HypertensionStep.ASSOCIATED_SYMPTOMS.value
+    elif step == HypertensionStep.BP_TECHNIQUE:
+        answers["bp_technique"] = answer
+        state.step = HypertensionStep.ASSOCIATED_SYMPTOMS.value
+    elif step == HypertensionStep.ASSOCIATED_SYMPTOMS:
+        answers["associated_symptoms"] = answer
+        bp = answers.get("bp_reading")
+        if bp is None or bp[0] >= 140 or bp[1] >= 90:
+            state.step = HypertensionStep.OTC_MEDS_BP.value
+        else:
+            state.step = HypertensionStep.ADHERENCE.value
+    elif step == HypertensionStep.OTC_MEDS_BP:
+        answers["otc_meds_bp"] = answer
+        state.step = HypertensionStep.ADHERENCE.value
+    elif step == HypertensionStep.ADHERENCE:
+        adh = _looks_affirmative(answer)
+        answers["adherence"] = adh
+        if adh is False:
+            state.step = HypertensionStep.MISSED_DOSES_REASON.value
+        else:
+            state.step = HypertensionStep.LIFESTYLE.value
+    elif step == HypertensionStep.MISSED_DOSES_REASON:
+        answers["missed_doses_reason"] = answer
+        state.step = HypertensionStep.LIFESTYLE.value
+    elif step == HypertensionStep.LIFESTYLE:
+        answers["lifestyle_notes"] = answer
+        state.step = HypertensionStep.PATIENT_FREE_TEXT.value
+    elif step == HypertensionStep.PATIENT_FREE_TEXT:
+        answers["patient_free_text"] = answer
+        state.step = HypertensionStep.COMPLETE.value
+    return state
+
+
 def _diabetes_advance(state: InterviewState, answer: str) -> InterviewState:
     triggered, reason = run_stage1_red_flag_screen(answer)
     if triggered:
@@ -331,6 +514,9 @@ def _diabetes_advance(state: InterviewState, answer: str) -> InterviewState:
         state.stage1_reason = reason
         state.step = DiabetesStep.COMPLETE.value
         return state
+
+    if state.interview_version == "v2.3":
+        return _diabetes_advance_v2_3(state, answer)
 
     step = DiabetesStep(state.step)
     answers = state.answers
@@ -374,6 +560,9 @@ def _hypertension_advance(state: InterviewState, answer: str) -> InterviewState:
         state.stage1_reason = reason
         state.step = HypertensionStep.COMPLETE.value
         return state
+
+    if state.interview_version == "v2.3":
+        return _hypertension_advance_v2_3(state, answer)
 
     step = HypertensionStep(state.step)
     answers = state.answers
@@ -450,14 +639,20 @@ def _finalize_intake(state: InterviewState) -> InterviewState:
             value = answers.get("glucose_reading")
             readings = ([] if value is None else
                         [{"observation_type": "glucose", "value": value, "unit": "mg/dL"}])
-            symptom_keys = ("hyperglycemia_symptoms", "hypoglycemia_symptoms", "symptom_only_note")
+            symptom_keys = (
+                "hyperglycemia_symptoms", "hypoglycemia_symptoms", "symptom_only_note",
+                "glucose_context", "hypo_events_past_week", "sick_day_flags", "foot_problems"
+            )
         else:
             bp = answers.get("bp_reading")
             readings = ([] if bp is None else [
                 {"observation_type": "blood_pressure_systolic", "value": float(bp[0]), "unit": "mmHg"},
                 {"observation_type": "blood_pressure_diastolic", "value": float(bp[1]), "unit": "mmHg"},
             ])
-            symptom_keys = ("associated_symptoms", "symptom_only_note")
+            symptom_keys = (
+                "associated_symptoms", "symptom_only_note",
+                "bp_technique", "otc_meds_bp"
+            )
         missing = not readings
         intake = {
             "condition": condition,
@@ -465,7 +660,9 @@ def _finalize_intake(state: InterviewState) -> InterviewState:
             "readings": readings,
             "symptoms": {k: answers[k] for k in symptom_keys if k in answers},
             "adherence": answers.get("adherence"),
+            "missed_doses_reason": answers.get("missed_doses_reason"),
             "lifestyle_notes": answers.get("lifestyle_notes"),
+            "free_text_note": answers.get("patient_free_text"),
             "confidence": _compute_confidence(state, missing).value,
             "missing_data": missing,
         }

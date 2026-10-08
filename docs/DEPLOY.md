@@ -24,8 +24,9 @@
 | `FIREBASE_PROJECT_ID` | **Yes** | Firebase Project ID for JWT token verification. | Firebase Console -> Project Settings -> General. |
 | `CORS_ALLOWED_ORIGINS` | **Yes** | Comma-separated list of allowed frontend origins (e.g., Netlify domain). | Netlify Dashboard -> Site Overview (e.g., `https://example.netlify.app`). |
 | `DEMO_ROLE_MAP` | No | Comma-separated mapping of demo emails to roles (`email:role`). | Administrative setup. |
-| `GROQ_API_KEY` | No | API key for live LLM reasoning (Groq API). | Groq Console -> API Keys. |
-| `GROQ_MODEL` | No | LLM model name (required if `GROQ_API_KEY` is set, e.g., `llama-3.3-70b-versatile`). | Groq Documentation. |
+| `GROQ_API_KEY` | No | API key for live LLM reasoning and Groq Whisper speech-to-text. Never commit; set in Render dashboard only. | Groq Console -> API Keys. |
+| `GROQ_MODEL` | No | LLM model name (e.g., `llama-3.3-70b-versatile`). | Groq Documentation. |
+| `GROQ_STT_MODEL` | No | Whisper STT model name (defaults to `whisper-large-v3-turbo`). | Groq Documentation. |
 | `FHIR_BASE_URL` | No | Optional default FHIR server URL override. | Target hospital or sandbox endpoint. |
 | `REQUIRE_INCLUSION` | No | Enforces adult inclusion confirmation on check-in start (`1` or `0`). | Internal policy. |
 

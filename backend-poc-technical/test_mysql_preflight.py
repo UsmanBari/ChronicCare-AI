@@ -66,7 +66,7 @@ def test_mysql_preflight_signatures_and_constants():
         assert kw in sig_pymysql.parameters
 
     # 5. Expected schema version and tables (10 app tables + 3 local store tables)
-    assert mysql_preflight.LATEST_EXPECTED_SCHEMA_VERSION == 11
+    assert mysql_preflight.LATEST_EXPECTED_SCHEMA_VERSION == 12
     expected_tables = {
         "users",
         "audit_log",
