@@ -1,6 +1,6 @@
 # Clinical Rules Register
 
-> **STATUS: NOT REVIEWED BY A CLINICIAN.** Every number and rule in this document is illustrative and is **not clinical guidance**. This register describes exactly what the code does today; it was generated from the code so that the two cannot disagree. A clinician must review it, change what they disagree with, and sign the last section before anyone relies on the system for a real patient.
+> **Proposed, not reviewed by a clinician.** Every number and rule in this document is illustrative and is **not clinical guidance**. This register describes exactly what the code does today; it was generated from the code so that the two cannot disagree. A clinician must review it, change what they disagree with, and sign the last section before anyone relies on the system for a real patient.
 
 ChronicCare AI is decision support for a clinician. It never diagnoses, never gives treatment or dose advice, never changes a medication, and never ends a conversation about a possible emergency with reassurance.
 

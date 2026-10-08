@@ -1,6 +1,6 @@
 # Clinical Interview Protocol v2.3 Design Document
 
-> **STATUS: PROPOSED, NOT REVIEWED BY A CLINICIAN.**
+> **Proposed, not reviewed by a clinician.**
 > Every question, threshold, and clinical justification in this document is proposed decision support. It is **not clinical guidance**. This document defines the adaptive question state machine for Type 2 Diabetes and Hypertension check-ins in ChronicCare AI. A qualified clinician must review and approve this document before anyone relies on it for real patients.
 
 ---
