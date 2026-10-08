@@ -25,6 +25,8 @@ export interface ProfileUpdateRequest {
   language?: string;
   date_of_birth?: string | null;
   inclusion_confirmed?: boolean | null;
+  sex_at_birth?: "female" | "male" | "prefer_not_to_say" | string | null;
+  pregnancy_status?: "no" | "yes" | "not_sure" | "not_applicable" | string | null;
 }
 
 export interface ProfileResponse {
@@ -34,6 +36,8 @@ export interface ProfileResponse {
   language: string;
   date_of_birth?: string | null;
   inclusion_confirmed_at?: string | null;
+  sex_at_birth?: string | null;
+  pregnancy_status?: string | null;
   consent_granted_at: string | null;
   consent_revoked_at: string | null;
   provider_notification_consent_at?: string | null;

@@ -53,7 +53,9 @@ export type DemoScenario = "normal" | "conflict" | "emergency" | "ehr_update";
 export interface HealthProfile {
   conditions: string[];
   medications: string[];
-  age: string;
+  date_of_birth?: string | null;
+  sex_at_birth?: string | null;
+  pregnancy_status?: string | null;
 }
 
 export interface CheckInData {
@@ -182,6 +184,14 @@ export function computeNextPatientScreen(
   if (!prof.date_of_birth || !prof.inclusion_confirmed_at) {
     return "inclusion";
   }
+  if (
+    prof.pregnancy_status === "pregnant" ||
+    prof.pregnancy_status === "pregnancy_unconfirmed" ||
+    prof.pregnancy_status === "yes" ||
+    prof.pregnancy_status === "not_sure"
+  ) {
+    return "inclusion";
+  }
   if (!prof.conditions || prof.conditions.length === 0) {
     return "profile";
   }
@@ -235,7 +245,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       "Atorvastatin 20mg (0+1)",
       "Aspirin 81mg (1+0)",
     ],
-    age: "58",
+    date_of_birth: "1975-06-15",
+    sex_at_birth: "female",
+    pregnancy_status: "no",
   });
 
   // Transient check-in data

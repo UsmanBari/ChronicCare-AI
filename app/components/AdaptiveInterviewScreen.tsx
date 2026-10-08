@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Pill,
   ShieldCheck,
+  User,
 } from "lucide-react";
 import {
   api,
@@ -52,6 +53,7 @@ export const AdaptiveInterviewScreen = () => {
   const [isSending, setIsSending] = useState<boolean>(false);
   const [liveError, setLiveError] = useState<string | null>(null);
   const [isConsentError, setIsConsentError] = useState<boolean>(false);
+  const [isPregnancyIneligible, setIsPregnancyIneligible] = useState<boolean>(false);
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([]);
   const [currentStep, setCurrentStep] = useState<string | null>(activeLiveCheckin?.step || null);
   const [lastFailedAnswer, setLastFailedAnswer] = useState<string | null>(null);
@@ -69,13 +71,13 @@ export const AdaptiveInterviewScreen = () => {
     checkIn.missedMeds
   );
 
-  // Scroll to bottom & focus on question update (P3 requirement)
+  // Scroll to newest question within question list container only (prevent page jump)
   useEffect(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
     if (inputRef.current) {
-      inputRef.current.focus();
+      inputRef.current.focus({ preventScroll: true });
     }
   }, [conversationHistory, liveQuestion]);
 
@@ -122,7 +124,17 @@ export const AdaptiveInterviewScreen = () => {
         isSendingRef.current = false;
         if (err instanceof ApiError) {
           const detailStr = (err.detail || "").toLowerCase();
-          if (err.status === 403 || detailStr.includes("consent")) {
+          const reasonStr = (err.data?.reason || "").toLowerCase();
+          if (detailStr === "not_eligible" || reasonStr === "pregnant" || reasonStr === "pregnancy_unconfirmed") {
+            setIsPregnancyIneligible(true);
+            setLiveError(
+              isUrdu
+                ? "یہ سروس صرف غیر حاملہ بالغ افراد کے لیے ہے۔ دوران حمل بلڈ پریشر اور شوگر کے اہداف مختلف ہوتے ہیں۔ براہ کرم اپنے ڈاکٹر یا معالج سے رابطہ کریں۔"
+                : "ChronicCare AI is designed for non-pregnant adults. Target ranges and clinical protocols differ during pregnancy. Please consult your clinician or physician."
+            );
+            return;
+          }
+          if (err.status === 403 && detailStr.includes("consent")) {
             setIsConsentError(true);
           }
           setLiveError(err.getFriendlyMessage(isUrdu));
@@ -249,6 +261,21 @@ export const AdaptiveInterviewScreen = () => {
       setLastFailedAnswer(cleanAnswer);
       setLiveAnswerInput(cleanAnswer);
 
+      // Check for pregnancy ineligibility error from answer
+      if (err instanceof ApiError) {
+        const detailStr = (err.detail || "").toLowerCase();
+        const reasonStr = (err.data?.reason || "").toLowerCase();
+        if (detailStr === "not_eligible" || reasonStr === "pregnant" || reasonStr === "pregnancy_unconfirmed") {
+          setIsPregnancyIneligible(true);
+          setLiveError(
+            isUrdu
+              ? "چیک ان روک دیا گیا ہے۔ یہ سروس صرف غیر حاملہ بالغ افراد کے لیے ہے۔ دوران حمل اہداف مختلف ہوتے ہیں۔ براہ کرم اپنے معالج سے رابطہ کریں۔"
+              : "Check-in stopped. ChronicCare AI is designed for non-pregnant adults. Protocol guidelines differ during pregnancy. Please consult your clinician."
+          );
+          return;
+        }
+      }
+
       // Non-409 errors (network or 5xx): Fail-closed error with emergency notice
       const errorMsg = isUrdu
         ? "ہم آپ کا جواب نہیں بھیج سکے۔ اگر یہ ہنگامی صورتحال ہے تو فوراً اپنے مقامی ایمرجنسی نمبر پر کال کریں۔"
@@ -349,16 +376,29 @@ export const AdaptiveInterviewScreen = () => {
                 <span className="font-semibold leading-relaxed">{liveError}</span>
               </div>
               <div className="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleRetrySend}
-                  id="interview-retry-btn"
-                  className="px-3.5 py-1.5 bg-amber-800 hover:bg-amber-900 text-white font-bold text-xs rounded-xl transition-colors inline-flex items-center gap-1.5 shadow-xs"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>{isUrdu ? "دوبارہ کوشش کریں" : "Retry"}</span>
-                </button>
-                {isConsentError && (
+                {!isPregnancyIneligible && (
+                  <button
+                    type="button"
+                    onClick={handleRetrySend}
+                    id="interview-retry-btn"
+                    className="px-3.5 py-1.5 bg-amber-800 hover:bg-amber-900 text-white font-bold text-xs rounded-xl transition-colors inline-flex items-center gap-1.5 shadow-xs"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>{isUrdu ? "دوبارہ کوشش کریں" : "Retry"}</span>
+                  </button>
+                )}
+                {isPregnancyIneligible && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSettings(true)}
+                    id="interview-pregnancy-settings-btn"
+                    className="px-3.5 py-1.5 bg-navy-800 hover:bg-navy-900 text-white font-bold text-xs rounded-xl transition-colors inline-flex items-center gap-1.5 shadow-xs"
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>{isUrdu ? "ترتیبات میں تفصیلات اپ ڈیٹ کریں" : "Update Details in Settings"}</span>
+                  </button>
+                )}
+                {isConsentError && !isPregnancyIneligible && (
                   <button
                     type="button"
                     onClick={() => setShowSettings(true)}
