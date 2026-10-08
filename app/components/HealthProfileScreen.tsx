@@ -41,6 +41,32 @@ export const HealthProfileScreen = () => {
     liveProfile?.language || language || "en"
   );
 
+  const [heightCm, setHeightCm] = useState<string>(
+    liveProfile?.height_cm !== undefined && liveProfile?.height_cm !== null ? String(liveProfile.height_cm) : ""
+  );
+  const [weightKg, setWeightKg] = useState<string>(
+    liveProfile?.weight_kg !== undefined && liveProfile?.weight_kg !== null ? String(liveProfile.weight_kg) : ""
+  );
+  const [diagYearDiabetes, setDiagYearDiabetes] = useState<string>(
+    liveProfile?.diagnosis_year_diabetes !== undefined && liveProfile?.diagnosis_year_diabetes !== null ? String(liveProfile.diagnosis_year_diabetes) : ""
+  );
+  const [diagYearHtn, setDiagYearHtn] = useState<string>(
+    liveProfile?.diagnosis_year_hypertension !== undefined && liveProfile?.diagnosis_year_hypertension !== null ? String(liveProfile.diagnosis_year_hypertension) : ""
+  );
+  const [smokingStatus, setSmokingStatus] = useState<string>(
+    liveProfile?.smoking_status || "prefer_not_to_say"
+  );
+  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(
+    Boolean(liveProfile?.voice_enabled)
+  );
+
+  // Comorbidities checklist state
+  const [comorbKidney, setComorbKidney] = useState<boolean>(Boolean(liveProfile?.comorbidities?.kidney_disease));
+  const [comorbHeart, setComorbHeart] = useState<boolean>(Boolean(liveProfile?.comorbidities?.heart_disease));
+  const [comorbStroke, setComorbStroke] = useState<boolean>(Boolean(liveProfile?.comorbidities?.stroke_or_tia));
+  const [comorbEye, setComorbEye] = useState<boolean>(Boolean(liveProfile?.comorbidities?.eye_problems));
+  const [comorbNerve, setComorbNerve] = useState<boolean>(Boolean(liveProfile?.comorbidities?.nerve_or_foot_problems));
+
   const [medications, setMedications] = useState<string[]>(
     profile.medications && profile.medications.length > 0 ? profile.medications : ["Metformin 500mg (1+1)"]
   );
@@ -57,6 +83,31 @@ export const HealthProfileScreen = () => {
       setOnInsulin(Boolean(liveProfile.on_insulin_or_sulfonylurea));
       if (liveProfile.language) {
         setSelectedLang(liveProfile.language);
+      }
+      if (liveProfile.height_cm !== undefined && liveProfile.height_cm !== null) {
+        setHeightCm(String(liveProfile.height_cm));
+      }
+      if (liveProfile.weight_kg !== undefined && liveProfile.weight_kg !== null) {
+        setWeightKg(String(liveProfile.weight_kg));
+      }
+      if (liveProfile.diagnosis_year_diabetes !== undefined && liveProfile.diagnosis_year_diabetes !== null) {
+        setDiagYearDiabetes(String(liveProfile.diagnosis_year_diabetes));
+      }
+      if (liveProfile.diagnosis_year_hypertension !== undefined && liveProfile.diagnosis_year_hypertension !== null) {
+        setDiagYearHtn(String(liveProfile.diagnosis_year_hypertension));
+      }
+      if (liveProfile.smoking_status) {
+        setSmokingStatus(liveProfile.smoking_status);
+      }
+      if (liveProfile.voice_enabled !== undefined && liveProfile.voice_enabled !== null) {
+        setVoiceEnabled(Boolean(liveProfile.voice_enabled));
+      }
+      if (liveProfile.comorbidities) {
+        setComorbKidney(Boolean(liveProfile.comorbidities.kidney_disease));
+        setComorbHeart(Boolean(liveProfile.comorbidities.heart_disease));
+        setComorbStroke(Boolean(liveProfile.comorbidities.stroke_or_tia));
+        setComorbEye(Boolean(liveProfile.comorbidities.eye_problems));
+        setComorbNerve(Boolean(liveProfile.comorbidities.nerve_or_foot_problems));
       }
     }
   }, [isLiveMode, liveProfile]);
@@ -84,6 +135,8 @@ export const HealthProfileScreen = () => {
 
   const dob = liveProfile?.date_of_birth || profile.date_of_birth || null;
   const computedAge = calculateAgeFromDob(dob);
+  const birthYear = dob ? parseInt(dob.split("-")[0], 10) : null;
+  const currentYear = new Date().getFullYear();
 
   const handleContinue = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,6 +149,49 @@ export const HealthProfileScreen = () => {
           : "Please select at least one condition to continue."
       );
       return;
+    }
+
+    // Validate Height if provided
+    let parsedHeight: number | null = null;
+    if (heightCm.trim()) {
+      const h = parseFloat(heightCm.trim());
+      if (isNaN(h) || h < 50 || h > 250) {
+        setError(isUrdu ? "قد ۵۰ سے ۲۵۰ سینٹی میٹر کے درمیان ہونا چاہیے۔" : "Height must be between 50 and 250 cm.");
+        return;
+      }
+      parsedHeight = h;
+    }
+
+    // Validate Weight if provided
+    let parsedWeight: number | null = null;
+    if (weightKg.trim()) {
+      const w = parseFloat(weightKg.trim());
+      if (isNaN(w) || w < 20 || w > 400) {
+        setError(isUrdu ? "وزن ۲۰ سے ۴۰۰ کلوگرام کے درمیان ہونا چاہیے۔" : "Weight must be between 20 and 400 kg.");
+        return;
+      }
+      parsedWeight = w;
+    }
+
+    // Validate Diagnosis Years
+    let parsedDiagYearT2D: number | null = null;
+    if (hasT2D && diagYearDiabetes.trim()) {
+      const yr = parseInt(diagYearDiabetes.trim(), 10);
+      if (isNaN(yr) || yr < 1900 || yr > currentYear || (birthYear !== null && yr < birthYear)) {
+        setError(isUrdu ? `ذیابیطس کی تشخیص کا سال درست درج کریں (${birthYear || 1900}-${currentYear})` : `Diabetes diagnosis year must be between ${birthYear || 1900} and ${currentYear}.`);
+        return;
+      }
+      parsedDiagYearT2D = yr;
+    }
+
+    let parsedDiagYearHtn: number | null = null;
+    if (hasHTN && diagYearHtn.trim()) {
+      const yr = parseInt(diagYearHtn.trim(), 10);
+      if (isNaN(yr) || yr < 1900 || yr > currentYear || (birthYear !== null && yr < birthYear)) {
+        setError(isUrdu ? `بلڈ پریشر کی تشخیص کا سال درست درج کریں (${birthYear || 1900}-${currentYear})` : `Hypertension diagnosis year must be between ${birthYear || 1900} and ${currentYear}.`);
+        return;
+      }
+      parsedDiagYearHtn = yr;
     }
 
     setIsLoading(true);
@@ -121,6 +217,19 @@ export const HealthProfileScreen = () => {
           ),
           on_insulin_or_sulfonylurea: onInsulin,
           language: selectedLang,
+          height_cm: parsedHeight,
+          weight_kg: parsedWeight,
+          diagnosis_year_diabetes: parsedDiagYearT2D,
+          diagnosis_year_hypertension: parsedDiagYearHtn,
+          smoking_status: smokingStatus || "prefer_not_to_say",
+          voice_enabled: voiceEnabled,
+          comorbidities: {
+            kidney_disease: comorbKidney,
+            heart_disease: comorbHeart,
+            stroke_or_tia: comorbStroke,
+            eye_problems: comorbEye,
+            nerve_or_foot_problems: comorbNerve,
+          },
         };
 
         const updated = await api.updateProfile(payload);
@@ -223,6 +332,192 @@ export const HealthProfileScreen = () => {
                 : "Please select at least one condition to enable Save & Continue."}
             </p>
           )}
+        </div>
+
+        {/* Diagnosis Years (Optional) */}
+        {(hasT2D || hasHTN) && (
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-navy-800 block">
+              {isUrdu ? "تشخیص کا سال (اختیاری)" : "Diagnosis Years (Optional)"}
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {hasT2D && (
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                    {isUrdu ? "ذیابیطس کی تشخیص کا سال" : "Diabetes Year of Diagnosis"}
+                  </label>
+                  <input
+                    type="number"
+                    min="1900"
+                    max={currentYear}
+                    id="diag-year-diabetes-input"
+                    value={diagYearDiabetes}
+                    onChange={(e) => setDiagYearDiabetes(e.target.value)}
+                    placeholder="e.g. 2018"
+                    className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                  />
+                </div>
+              )}
+              {hasHTN && (
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                    {isUrdu ? "بلڈ پریشر کی تشخیص کا سال" : "Hypertension Year of Diagnosis"}
+                  </label>
+                  <input
+                    type="number"
+                    min="1900"
+                    max={currentYear}
+                    id="diag-year-htn-input"
+                    value={diagYearHtn}
+                    onChange={(e) => setDiagYearHtn(e.target.value)}
+                    placeholder="e.g. 2020"
+                    className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Physical Measurements: Height & Weight (Optional) */}
+        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+          <span className="text-xs font-bold uppercase tracking-wider text-navy-800 block">
+            {isUrdu ? "جسمانی پیمائش (اختیاری)" : "Body Measurements (Optional)"}
+          </span>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                {isUrdu ? "قد (سینٹی میٹر)" : "Height (cm)"}
+              </label>
+              <input
+                type="number"
+                min="50"
+                max="250"
+                step="0.1"
+                id="height-cm-input"
+                value={heightCm}
+                onChange={(e) => setHeightCm(e.target.value)}
+                placeholder="e.g. 175"
+                className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                {isUrdu ? "وزن (کلوگرام)" : "Weight (kg)"}
+              </label>
+              <input
+                type="number"
+                min="20"
+                max="400"
+                step="0.1"
+                id="weight-kg-input"
+                value={weightKg}
+                onChange={(e) => setWeightKg(e.target.value)}
+                placeholder="e.g. 78"
+                className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Smoking Status */}
+        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+          <label className="text-xs font-bold uppercase tracking-wider text-navy-800 block">
+            {isUrdu ? "تمباکو نوشی کی کیفیت" : "Smoking Status"}
+          </label>
+          <select
+            id="smoking-status-select"
+            value={smokingStatus}
+            onChange={(e) => setSmokingStatus(e.target.value)}
+            className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+          >
+            <option value="prefer_not_to_say">{isUrdu ? "بتانا مناسب نہیں" : "Prefer not to say"}</option>
+            <option value="never">{isUrdu ? "کبھی نہیں پی" : "Never smoked"}</option>
+            <option value="former">{isUrdu ? "سابقہ تمباکو نوش (چھوڑ چکے ہیں)" : "Former smoker"}</option>
+            <option value="current">{isUrdu ? "موجودہ تمباکو نوش" : "Current smoker"}</option>
+          </select>
+        </div>
+
+        {/* Comorbidities Checklist (Optional) */}
+        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+          <span className="text-xs font-bold uppercase tracking-wider text-navy-800 block">
+            {isUrdu ? "دیگر طبی کیفیات (اختیاری)" : "Other Medical History (Optional)"}
+          </span>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2.5 text-xs text-navy-800 cursor-pointer">
+              <input
+                type="checkbox"
+                id="comorb-kidney"
+                checked={comorbKidney}
+                onChange={(e) => setComorbKidney(e.target.checked)}
+                className="w-4 h-4 text-teal-700 rounded border-slate-300 focus:ring-teal-700"
+              />
+              <span>{isUrdu ? "گردے کی بیماری (Kidney Disease)" : "Kidney disease"}</span>
+            </label>
+            <label className="flex items-center gap-2.5 text-xs text-navy-800 cursor-pointer">
+              <input
+                type="checkbox"
+                id="comorb-heart"
+                checked={comorbHeart}
+                onChange={(e) => setComorbHeart(e.target.checked)}
+                className="w-4 h-4 text-teal-700 rounded border-slate-300 focus:ring-teal-700"
+              />
+              <span>{isUrdu ? "دل کی بیماری (Heart Disease / CAD)" : "Heart disease (Coronary Artery Disease)"}</span>
+            </label>
+            <label className="flex items-center gap-2.5 text-xs text-navy-800 cursor-pointer">
+              <input
+                type="checkbox"
+                id="comorb-stroke"
+                checked={comorbStroke}
+                onChange={(e) => setComorbStroke(e.target.checked)}
+                className="w-4 h-4 text-teal-700 rounded border-slate-300 focus:ring-teal-700"
+              />
+              <span>{isUrdu ? "فالج یا وقتی دورہ (Stroke / TIA)" : "Stroke or TIA"}</span>
+            </label>
+            <label className="flex items-center gap-2.5 text-xs text-navy-800 cursor-pointer">
+              <input
+                type="checkbox"
+                id="comorb-eye"
+                checked={comorbEye}
+                onChange={(e) => setComorbEye(e.target.checked)}
+                className="w-4 h-4 text-teal-700 rounded border-slate-300 focus:ring-teal-700"
+              />
+              <span>{isUrdu ? "آنکھوں کے مسائل (Diabetic Eye / Retinopathy)" : "Eye problems (Retinopathy)"}</span>
+            </label>
+            <label className="flex items-center gap-2.5 text-xs text-navy-800 cursor-pointer">
+              <input
+                type="checkbox"
+                id="comorb-nerve"
+                checked={comorbNerve}
+                onChange={(e) => setComorbNerve(e.target.checked)}
+                className="w-4 h-4 text-teal-700 rounded border-slate-300 focus:ring-teal-700"
+              />
+              <span>{isUrdu ? "اعصابی یا پاؤں کی تکلیف (Neuropathy / Foot Ulcers)" : "Nerve or foot problems (Neuropathy)"}</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Voice Input Privacy Toggle */}
+        <div className="p-4 rounded-2xl bg-teal-50/50 border border-teal-200 space-y-2">
+          <label className="flex items-center justify-between cursor-pointer">
+            <div>
+              <span className="text-xs font-bold text-navy-900 block">
+                {isUrdu ? "آواز سے جواب دینے کی سہولت فعال کریں" : "Enable Voice Input (Speech-to-Text)"}
+              </span>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                {isUrdu
+                  ? "آواز صرف عارضی طور پر ٹیکسٹ بنانے کے لیے میموری میں پراسیس کی جاتی ہے اور کبھی محفوظ نہیں ہوتی۔"
+                  : "Transcribed in memory only; audio is never stored on disk or server."}
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              id="voice-enabled-toggle"
+              checked={voiceEnabled}
+              onChange={(e) => setVoiceEnabled(e.target.checked)}
+              className="w-5 h-5 text-teal-700 rounded border-slate-300 focus:ring-teal-700"
+            />
+          </label>
         </div>
 
         {/* Insulin / Sulfonylurea Question (Stage 2B requirement) */}
