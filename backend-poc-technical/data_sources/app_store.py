@@ -47,7 +47,7 @@ APP_STORE_TABLES = {
     "schema_version",
 }
 
-LATEST_SCHEMA_VERSION = 11
+LATEST_SCHEMA_VERSION = 12
 
 
 def _utc_now_iso() -> str:
@@ -373,6 +373,13 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN sex_at_birth TEXT")
                 if "pregnancy_status" not in pp_cols:
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN pregnancy_status TEXT")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (11, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 12")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(patient_profiles)")
+                pp_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
                 if "voice_enabled" not in pp_cols:
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN voice_enabled INTEGER DEFAULT 0")
                 if "height_cm" not in pp_cols:
@@ -388,7 +395,7 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 if "comorbidities_json" not in pp_cols:
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN comorbidities_json TEXT DEFAULT NULL")
 
-                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (11, ?)", (now,))
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (12, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -703,9 +710,25 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
 
             cursor.execute("SELECT version FROM schema_version WHERE version = 11")
             if not cursor.fetchone():
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patient_profiles' AND COLUMN_NAME = 'sex_at_birth'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN sex_at_birth VARCHAR(32) NULL")
+
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patient_profiles' AND COLUMN_NAME = 'pregnancy_status'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN pregnancy_status VARCHAR(32) NULL")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (11, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 12")
+            if not cursor.fetchone():
                 for col_name, col_def in [
-                    ("sex_at_birth", "VARCHAR(32) NULL"),
-                    ("pregnancy_status", "VARCHAR(32) NULL"),
                     ("voice_enabled", "TINYINT(1) NOT NULL DEFAULT 0"),
                     ("height_cm", "FLOAT NULL"),
                     ("weight_kg", "FLOAT NULL"),
@@ -721,7 +744,7 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     if not cursor.fetchone():
                         cursor.execute(f"ALTER TABLE patient_profiles ADD COLUMN {col_name} {col_def}")
 
-                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (11, %s)", (now,))
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (12, %s)", (now,))
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
