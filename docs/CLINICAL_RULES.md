@@ -225,6 +225,7 @@ After the interview (and the protocol, if one was needed) the patient is asked a
 | `_HARD_NO` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_DOSE_HINT` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_LEADING_YES` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_EASTERN_DIGITS_TABLE` | Unicode translation table for Eastern Arabic (٠-٩) and Urdu (۰-۹) digits | adaptive_interview_agent.py | Implementation detail (numeral normalisation) | Implementation detail for multilingual numeral parsing. |
 
 ## 7. Medication scope in Connected Mode
 

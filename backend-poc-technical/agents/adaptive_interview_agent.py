@@ -147,17 +147,17 @@ class InterviewState:
 # anyone relies on them. Urdu negation is NOT handled, so an Urdu match always flags.
 RED_FLAG_PATTERNS: Dict[str, List[str]] = {
     "chest_pain": ["chest pain", "chest tightness", "chest pressure", "chest hurts",
-                   "pain in my chest", "crushing chest", "سینے میں درد"],
+                   "pain in my chest", "crushing chest", "crushing chest pain", "heavy chest", "سینے میں درد"],
     "breathing": ["can't breathe", "cant breathe", "cannot breathe", "struggling to breathe",
-                  "severe shortness of breath", "gasping for air",
+                  "severe shortness of breath", "gasping for air", "suffocating",
                   "سانس لینے میں دشواری", "سانس نہیں آ رہی"],
     "confusion": ["confused", "slurred speech", "can't speak clearly", "cant speak clearly"],
-    "loss_of_consciousness": ["fainted", "passed out", "lost consciousness", "blacked out", "بے ہوش"],
+    "loss_of_consciousness": ["fainted", "passed out", "lost consciousness", "blacked out", "collapsed", "بے ہوش"],
     "one_sided_weakness": ["one side weak", "one-sided weakness", "can't move one side",
-                           "cant move one side", "face drooping"],
+                           "cant move one side", "can't move my arm", "face drooping"],
     "unable_to_keep_fluids": ["can't keep anything down", "cant keep anything down",
-                              "can't keep fluids down", "vomiting nonstop", "vomiting non-stop"],
-    "severe_headache": ["worst headache", "severe headache", "thunderclap headache"],
+                              "can't keep fluids down", "vomiting nonstop", "vomiting non-stop", "vomiting with high sugar"],
+    "severe_headache": ["worst headache", "severe headache", "thunderclap headache", "worst headache of my life", "sudden severe headache"],
     "vision_loss": ["sudden vision loss", "lost my vision", "went blind",
                     "can't see at all", "cannot see at all"],
 }
@@ -168,10 +168,11 @@ _NEGATION_CUES = frozenset({
     "haven't", "havent", "hasn't", "hasnt", "isn't", "isnt",
 })
 _CLAUSE_BREAK = re.compile(r"[.;,:!?\n]+|\b(?:but|however|although|though|and|while)\b")
+_EASTERN_DIGITS_TABLE = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 
 def _normalize(text: str) -> str:
-    return (text or "").replace("\u2019", "'").replace("\u2018", "'").lower()
+    return (text or "").replace("\u2019", "'").replace("\u2018", "'").translate(_EASTERN_DIGITS_TABLE).lower()
 
 
 def _is_negated(clause: str, start: int) -> bool:
@@ -217,10 +218,11 @@ def _try_parse_float(text: str, minimum: Optional[float] = None,
 
     None is returned when there is no number, a rejected unit is present, no number is
     inside [minimum, maximum], or MORE THAN ONE number is inside it (ambiguous)."""
-    lowered = text.lower()
-    if any(unit in lowered for unit in reject_units) or _has_negative_number(lowered):
+    lowered = (text or "").replace("\u2019", "'").replace("\u2018", "'").translate(_EASTERN_DIGITS_TABLE).lower()
+    if any(unit in lowered for unit in reject_units) or _has_negative_number(lowered) or "mmol" in lowered:
         return None
     cleaned = _TIME_OF_DAY.sub(" ", lowered)
+    cleaned = re.sub(r"(?<=\d),(?=\d)", ".", cleaned)
     values = [float(m) for m in re.findall(r"\d+(?:\.\d+)?", cleaned)]
     plausible = [v for v in values
                  if (minimum is None or v >= minimum) and (maximum is None or v <= maximum)]
@@ -231,8 +233,10 @@ def _try_parse_bp(text: str) -> Optional[List[int]]:
     """Returns [systolic, diastolic] if exactly one plausible pair is present, else None."""
     if _has_negative_number(text):
         return None
+    lowered = (text or "").replace("\u2019", "'").replace("\u2018", "'").translate(_EASTERN_DIGITS_TABLE).lower()
+    cleaned = _TIME_OF_DAY.sub(" ", lowered)
     pairs = []
-    for sys_s, dia_s in re.findall(r"(\d{2,3})\s*(?:/|over)\s*(\d{2,3})", text.lower()):
+    for sys_s, dia_s in re.findall(r"(\d{2,3})\s*(?:/|over)\s*(\d{2,3})", cleaned):
         sys_v, dia_v = int(sys_s), int(dia_s)
         if (SYSTOLIC_RANGE_MMHG[0] <= sys_v <= SYSTOLIC_RANGE_MMHG[1]
                 and DIASTOLIC_RANGE_MMHG[0] <= dia_v <= DIASTOLIC_RANGE_MMHG[1]
