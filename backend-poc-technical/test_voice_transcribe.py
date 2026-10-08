@@ -37,7 +37,7 @@ from data_sources import app_store
 
 TEST_PROJECT_ID = "test-chroniccare-ai"
 TEST_KID = "test-key-id-1"
-TEST_GROQ_KEY = "gsk_test_mock_secret_key_12345"
+TEST_GROQ_KEY = "FAKE_STT_KEY_FOR_TESTS"
 
 
 @pytest.fixture(scope="session")
