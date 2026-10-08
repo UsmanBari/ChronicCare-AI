@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
-import { Plus, Trash2, ArrowRight, Activity, Pill, User, ShieldCheck, ShieldAlert, Loader2, Globe } from "lucide-react";
+import { Plus, Trash2, ArrowRight, Activity, Pill, User, ShieldCheck, ShieldAlert, Loader2, Globe, CheckCircle2 } from "lucide-react";
 import { api, ApiError, ProfileUpdateRequest } from "../lib/api";
 import { Language } from "../translations";
+import { calculateAgeFromDob } from "../lib/presentation";
 
 export const HealthProfileScreen = () => {
   const {
@@ -20,11 +21,15 @@ export const HealthProfileScreen = () => {
     isUrdu,
   } = useApp();
 
-  const [conditions, setConditions] = useState<string[]>(
-    liveProfile?.conditions && liveProfile.conditions.length > 0
-      ? liveProfile.conditions
-      : profile.conditions || ["Type 2 Diabetes"]
-  );
+  const [hasT2D, setHasT2D] = useState<boolean>(() => {
+    const conds = liveProfile?.conditions || profile.conditions || [];
+    return conds.some((c) => c.toLowerCase().includes("diabet"));
+  });
+
+  const [hasHTN, setHasHTN] = useState<boolean>(() => {
+    const conds = liveProfile?.conditions || profile.conditions || [];
+    return conds.some((c) => c.toLowerCase().includes("hyper"));
+  });
 
   const [onInsulin, setOnInsulin] = useState<boolean>(
     liveProfile?.on_insulin_or_sulfonylurea !== undefined
@@ -37,16 +42,17 @@ export const HealthProfileScreen = () => {
   );
 
   const [medications, setMedications] = useState<string[]>(
-    profile.medications.length > 0 ? profile.medications : ["Metformin 500mg (1+1)"]
+    profile.medications && profile.medications.length > 0 ? profile.medications : ["Metformin 500mg (1+1)"]
   );
-  const [age, setAge] = useState<string>(profile.age || "58");
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isLiveMode && liveProfile) {
-      if (liveProfile.conditions && liveProfile.conditions.length > 0) {
-        setConditions(liveProfile.conditions);
+      if (liveProfile.conditions) {
+        setHasT2D(liveProfile.conditions.some((c) => c.toLowerCase().includes("diabet")));
+        setHasHTN(liveProfile.conditions.some((c) => c.toLowerCase().includes("hyper")));
       }
       setOnInsulin(Boolean(liveProfile.on_insulin_or_sulfonylurea));
       if (liveProfile.language) {
@@ -55,23 +61,8 @@ export const HealthProfileScreen = () => {
     }
   }, [isLiveMode, liveProfile]);
 
-  const handleConditionToggle = (conditionValue: "t2d" | "htn" | "both") => {
-    if (conditionValue === "both") {
-      setConditions(["Type 2 Diabetes", "Hypertension"]);
-    } else if (conditionValue === "t2d") {
-      if (conditions.includes("Type 2 Diabetes") && conditions.length > 1) {
-        setConditions(conditions.filter((c) => c !== "Type 2 Diabetes"));
-      } else {
-        setConditions([...conditions.filter((c) => c !== "Type 2 Diabetes"), "Type 2 Diabetes"]);
-      }
-    } else if (conditionValue === "htn") {
-      if (conditions.includes("Hypertension") && conditions.length > 1) {
-        setConditions(conditions.filter((c) => c !== "Hypertension"));
-      } else {
-        setConditions([...conditions.filter((c) => c !== "Hypertension"), "Hypertension"]);
-      }
-    }
-  };
+  const hasBoth = hasT2D && hasHTN;
+  const canContinue = hasT2D || hasHTN;
 
   const handleAddMedication = () => {
     setMedications([...medications, ""]);
@@ -91,19 +82,35 @@ export const HealthProfileScreen = () => {
     setMedications(medications.filter((_, i) => i !== index));
   };
 
+  const dob = liveProfile?.date_of_birth || profile.date_of_birth || null;
+  const computedAge = calculateAgeFromDob(dob);
+
   const handleContinue = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError(null);
 
-    const cleanConditions = conditions.length > 0 ? conditions : ["Type 2 Diabetes"];
+    if (!canContinue) {
+      setError(
+        isUrdu
+          ? "آگے بڑھنے کے لیے براہ کرم کم از کم ایک بیماری کا انتخاب کریں۔"
+          : "Please select at least one condition to continue."
+      );
+      return;
+    }
+
+    setIsLoading(true);
+
+    const cleanConditions: string[] = [];
+    if (hasT2D) cleanConditions.push("Type 2 Diabetes");
+    if (hasHTN) cleanConditions.push("Hypertension");
+
     const cleanMeds = medications.filter((m) => m.trim().length > 0);
 
     // Save mock state representation
     setProfile({
+      ...profile,
       conditions: cleanConditions,
       medications: cleanMeds.length > 0 ? cleanMeds : ["Metformin 500mg (1+1)"],
-      age: age || "58",
     });
 
     if (isLiveMode) {
@@ -138,10 +145,6 @@ export const HealthProfileScreen = () => {
     setScreen("home");
   };
 
-  const hasT2D = conditions.some((c) => c.toLowerCase().includes("diabet"));
-  const hasHTN = conditions.some((c) => c.toLowerCase().includes("hyper"));
-  const hasBoth = hasT2D && hasHTN;
-
   return (
     <div className="w-full max-w-lg mx-auto bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
       {/* Header */}
@@ -152,13 +155,13 @@ export const HealthProfileScreen = () => {
 
       <form onSubmit={handleContinue} className="p-6 sm:p-7 space-y-6">
         {error && (
-          <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
+          <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2 animate-fadeIn">
             <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Conditions selection */}
+        {/* Independent Conditions Selection */}
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-navy-800 mb-3 flex items-center gap-1.5">
             <Activity className="w-4 h-4 text-teal-700" />
@@ -171,10 +174,17 @@ export const HealthProfileScreen = () => {
                 type="checkbox"
                 id="condition-t2d"
                 checked={hasT2D}
-                onChange={() => handleConditionToggle("t2d")}
+                onChange={(e) => {
+                  setHasT2D(e.target.checked);
+                  setError(null);
+                }}
                 className="w-4 h-4 text-teal-700 rounded border-slate-300 focus:ring-teal-700"
               />
-              <span className="text-sm font-medium text-navy-800">{t.type2Diabetes}</span>
+              <span className="text-sm font-medium text-navy-800">
+                {isUrdu
+                  ? "ٹائپ ۲ ذیابیطس (ٹائپ ۱ یا دوران حمل ذیابیطس کے علاوہ)"
+                  : "Type 2 diabetes (not Type 1 or pregnancy-related diabetes)"}
+              </span>
             </label>
 
             {/* Hypertension */}
@@ -183,24 +193,36 @@ export const HealthProfileScreen = () => {
                 type="checkbox"
                 id="condition-htn"
                 checked={hasHTN}
-                onChange={() => handleConditionToggle("htn")}
+                onChange={(e) => {
+                  setHasHTN(e.target.checked);
+                  setError(null);
+                }}
                 className="w-4 h-4 text-teal-700 rounded border-slate-300 focus:ring-teal-700"
               />
-              <span className="text-sm font-medium text-navy-800">{t.hypertension}</span>
+              <span className="text-sm font-medium text-navy-800">
+                {isUrdu ? "بلند فشار خون (ہائپر ٹینشن)" : "Hypertension"}
+              </span>
             </label>
 
-            {/* Both shortcut */}
-            <label className="flex items-center gap-3 p-3.5 rounded-xl border border-teal-200 bg-teal-50/50 hover:bg-teal-50 cursor-pointer transition-colors">
-              <input
-                type="checkbox"
-                id="condition-both"
-                checked={hasBoth}
-                onChange={() => handleConditionToggle("both")}
-                className="w-4 h-4 text-teal-700 rounded border-teal-300 focus:ring-teal-700"
-              />
-              <span className="text-sm font-semibold text-teal-900">{t.bothConditions}</span>
-            </label>
+            {/* Derived Both Summary Indicator */}
+            {hasBoth && (
+              <div className="p-3 rounded-xl border border-teal-200 bg-teal-50/70 text-xs font-semibold text-teal-900 flex items-center gap-2 animate-fadeIn">
+                <CheckCircle2 className="w-4 h-4 text-teal-700 shrink-0" />
+                <span>
+                  {isUrdu
+                    ? "دونوں تشخیصات منتخب ہیں: ٹائپ ۲ ذیابیطس اور ہائپر ٹینشن۔"
+                    : "Both conditions selected: Type 2 Diabetes and Hypertension (Dual Diagnosis Path)."}
+                </span>
+              </div>
+            )}
           </div>
+          {!canContinue && (
+            <p className="text-[11px] text-amber-800 mt-2 font-medium">
+              {isUrdu
+                ? "براہ کرم آگے بڑھنے کے لیے کم از کم ایک بیماری منتخب کریں۔"
+                : "Please select at least one condition to enable Save & Continue."}
+            </p>
+          )}
         </div>
 
         {/* Insulin / Sulfonylurea Question (Stage 2B requirement) */}
@@ -315,28 +337,34 @@ export const HealthProfileScreen = () => {
           </div>
         </div>
 
-        {/* Age */}
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-navy-800 mb-1.5 flex items-center gap-1.5" htmlFor="patient-age">
-            <User className="w-4 h-4 text-teal-700" />
-            <span>{t.ageLabel}</span>
-          </label>
-          <input
-            id="patient-age"
-            type="number"
-            value={age}
-            onChange={(e) => setAge(e.target.value)}
-            placeholder={t.agePlaceholder}
-            className="w-full text-sm rounded-xl border border-slate-300 bg-slate-50/50 py-2.5 px-3 text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700"
-          />
+        {/* Read-Only Computed Age from DOB */}
+        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1 text-left">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-navy-800 flex items-center gap-1.5">
+              <User className="w-4 h-4 text-teal-700" />
+              <span>{t.ageLabel}</span>
+            </label>
+            {dob && (
+              <span className="text-[11px] text-slate-500 font-mono">DOB: {dob}</span>
+            )}
+          </div>
+          <p className="text-sm font-semibold text-navy-900 pt-0.5">
+            {computedAge !== null
+              ? isUrdu
+                ? `عمر: ${computedAge} سال (آپ کی تاریخ پیدائش سے)`
+                : `Age ${computedAge}, from your date of birth`
+              : isUrdu
+              ? "تاریخ پیدائش شمولیت کے اسکرین پر فراہم کی گئی ہے"
+              : "Age calculated from your date of birth"}
+          </p>
         </div>
 
         {/* Continue Button */}
         <button
           type="submit"
           id="profile-continue-btn"
-          disabled={isLoading}
-          className="w-full min-h-[48px] py-3 px-4 bg-navy-800 hover:bg-navy-700 active:scale-[0.99] disabled:opacity-75 text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+          disabled={isLoading || !canContinue}
+          className="w-full min-h-[48px] py-3 px-4 bg-navy-800 hover:bg-navy-700 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
         >
           {isLoading ? (
             <>

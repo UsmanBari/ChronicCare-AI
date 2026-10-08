@@ -7,15 +7,13 @@ import {
   ArrowRight,
   ShieldAlert,
   FileText,
-  Hospital,
   HelpCircle,
   Info,
-  Scale,
   Activity,
   CheckCircle2,
+  Pill,
 } from "lucide-react";
 import { describeSide, describeMedicationItem } from "../lib/presentation";
-import { Pill } from "lucide-react";
 
 export const ConflictScreen = () => {
   const { setScreen, checkIn, liveCheckinResult, liveEhrConnection, isLiveMode, t, isUrdu } = useApp();
@@ -25,7 +23,7 @@ export const ConflictScreen = () => {
   const medComparisons = liveCheckinResult?.reconciliation?.medication_comparisons || [];
   const medVerifications = liveCheckinResult?.verification?.medication_verifications || [];
 
-  const medicationItems: Array<{
+  const allMedItems: Array<{
     desc: ReturnType<typeof describeMedicationItem>;
     comparison: any;
     verification: any;
@@ -33,23 +31,26 @@ export const ConflictScreen = () => {
     ? medComparisons.map((c: any) => {
         const v = medVerifications.find((ver: any) => ver.medication_name === c.medication_name);
         return {
-          desc: describeMedicationItem(c, v),
+          desc: describeMedicationItem(c, v, isUrdu),
           comparison: c,
           verification: v,
         };
       })
     : [];
 
+  const flaggedMedItems = allMedItems.filter((m) => !m.desc.isConfirmed);
+  const confirmedMedItems = allMedItems.filter((m) => m.desc.isConfirmed);
+
   let sideALabel = isLiveMode
-    ? describeSide("a", "local", "low", liveEhrConnection?.mode)
-    : "Source A: Patient Check-in";
+    ? describeSide("a", "local", "low", liveEhrConnection?.mode, null, null, isUrdu)
+    : (isUrdu ? "ماخذ ۱: پہلے درج کردہ ریکارڈ" : "Source A: Earlier Record");
   let sideBLabel = isLiveMode
-    ? describeSide("b", "local", "low", liveEhrConnection?.mode)
-    : "Source B: Hospital EHR";
+    ? describeSide("b", "local", "low", liveEhrConnection?.mode, null, null, isUrdu)
+    : (isUrdu ? "ماخذ ۲: آج کا چیک ان" : "Source B: Today's Check-in");
   let sideAValue = "180 mg/dL";
   let sideBValue = "140 mg/dL";
-  let sideADesc = t.conflictPatientReported;
-  let sideBDesc = t.conflictEhrRecord;
+  let sideADesc = isUrdu ? "خون میں شوگر (گلوکوز): 180 mg/dL" : "Glucose reading: 180 mg/dL";
+  let sideBDesc = isUrdu ? "آج کا جواب: 140 mg/dL" : "Today's check-in: 140 mg/dL";
   let severity = liveCheckinResult?.max_severity || "medium";
   let isAllPlainConflicts = true;
 
@@ -69,18 +70,18 @@ export const ConflictScreen = () => {
       ) || obsComparisons[0];
 
     if (conflictObs) {
-      sideALabel = describeSide("a", conflictObs.source_a, null, liveEhrConnection?.mode);
-      sideBLabel = describeSide("b", conflictObs.source_b, null, liveEhrConnection?.mode);
+      sideALabel = describeSide("a", conflictObs.source_a, null, liveEhrConnection?.mode, null, conflictObs.timestamp_a || conflictObs.timestamp, isUrdu);
+      sideBLabel = describeSide("b", conflictObs.source_b, null, liveEhrConnection?.mode, null, null, isUrdu);
       sideAValue =
         conflictObs.value_a !== null && conflictObs.value_a !== undefined
           ? `${conflictObs.value_a} ${conflictObs.unit_a || ""}`.trim()
-          : "Not on file";
+          : (isUrdu ? "ریکارڈ میں موجود نہیں" : "Not on file");
       sideBValue =
         conflictObs.value_b !== null && conflictObs.value_b !== undefined
           ? `${conflictObs.value_b} ${conflictObs.unit_b || ""}`.trim()
-          : "Not reported today";
-      sideADesc = `${conflictObs.observation_type || "Observation"}: ${sideAValue}`;
-      sideBDesc = `${conflictObs.observation_type || "Observation"}: ${sideBValue}`;
+          : (isUrdu ? "آج درج نہیں کیا گیا" : "Not reported today");
+      sideADesc = `${conflictObs.observation_type || (isUrdu ? "ریڈنگ" : "Reading")}: ${sideAValue}`;
+      sideBDesc = isUrdu ? `آج کا جواب: ${sideBValue}` : `Your answer today: ${sideBValue}`;
     }
   }
 
@@ -163,14 +164,38 @@ export const ConflictScreen = () => {
           </div>
         </div>
 
-        {/* Medication Comparison Items */}
-        {isLiveMode && medicationItems.length > 0 && (
+        {/* Confirmed Medicines Section (Part 7: Calm, never flagged) */}
+        {isLiveMode && confirmedMedItems.length > 0 && (
+          <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-300 text-left space-y-2 animate-fadeIn">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-950 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+              <span>{isUrdu ? "تصدیق شدہ ادویات:" : "Confirmed medicines:"}</span>
+            </span>
+            <div className="space-y-1.5">
+              {confirmedMedItems.map((item, idx) => (
+                <div key={idx} className="p-2.5 rounded-xl bg-white border border-emerald-200 text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Pill className="w-3.5 h-3.5 text-emerald-700" />
+                    <span className="font-bold text-navy-900">{item.desc.title}</span>
+                    <span className="text-slate-600">{item.desc.recordText.replace(/^Record:\s*/i, "")}</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-emerald-800">
+                    {item.desc.reason}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Medication Comparison Items Flagged for Review */}
+        {isLiveMode && flaggedMedItems.length > 0 && (
           <div className="space-y-3 pt-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
-              {isUrdu ? "ادویات کا موازنہ:" : "Medication Reconciliation:"}
+              {isUrdu ? "جائزے کے لیے بھیجی گئی ادویات:" : "Medications flagged for review:"}
             </span>
             <div className="space-y-3">
-              {medicationItems.map((item, idx) => {
+              {flaggedMedItems.map((item, idx) => {
                 const isHigh = item.desc.severity === "high";
                 return (
                   <div

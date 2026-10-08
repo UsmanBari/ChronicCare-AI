@@ -35,18 +35,46 @@ export interface MedicationItemDescription {
   todayText: string;
   reason: string;
   severity: string;
+  isConfirmed: boolean;
+}
+
+/**
+ * Calculates exact chronological age from DOB in YYYY-MM-DD format.
+ */
+export function calculateAgeFromDob(dobString?: string | null, asOfDateStr?: string): number | null {
+  if (!dobString || !/^\d{4}-\d{2}-\d{2}$/.test(dobString.trim())) return null;
+  const parts = dobString.trim().split("-").map(Number);
+  const birthDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  if (isNaN(birthDate.getTime())) return null;
+
+  let today: Date;
+  if (asOfDateStr && /^\d{4}-\d{2}-\d{2}$/.test(asOfDateStr.trim())) {
+    const refParts = asOfDateStr.trim().split("-").map(Number);
+    today = new Date(Date.UTC(refParts[0], refParts[1] - 1, refParts[2]));
+  } else {
+    today = new Date();
+  }
+
+  let age = today.getUTCFullYear() - birthDate.getUTCFullYear();
+  const m = today.getUTCMonth() - birthDate.getUTCMonth();
+  if (m < 0 || (m === 0 && today.getUTCDate() < birthDate.getUTCDate())) {
+    age--;
+  }
+  if (age < 0 || age > 120) return null;
+  return age;
 }
 
 /**
  * Describes a medication comparison & verification item in honest, plain language.
- * Follows clinical rules: never uses the word "hospital" unless source is "fhir".
+ * Follows clinical rules: matching medicines are confirmed calmly, not flagged.
  */
 export function describeMedicationItem(
   comparison?: MedicationComparison | null,
-  verification?: MedicationVerification | null
+  verification?: MedicationVerification | null,
+  isUrdu?: boolean
 ): MedicationItemDescription {
   const medName =
-    comparison?.medication_name || verification?.medication_name || "Medication";
+    comparison?.medication_name || verification?.medication_name || (isUrdu ? "دوا" : "Medication");
   const title = medName;
 
   const statusA = (comparison?.status_a || "active").toLowerCase();
@@ -61,6 +89,8 @@ export function describeMedicationItem(
     ""
   ).toLowerCase();
 
+  const isConfirmed = compStatus === "agree" || compStatus === "agreement";
+
   // 1. Record Text (Side A)
   let recordDetails = "";
   if (dosageA) {
@@ -68,42 +98,52 @@ export function describeMedicationItem(
   } else {
     recordDetails = `(${statusA})`;
   }
-  const recordText = `Record: ${medName}, ${recordDetails}`;
+  const recordText = isUrdu
+    ? `ریکارڈ: ${medName}، ${recordDetails}`
+    : `Record: ${medName}, ${recordDetails}`;
 
   // 2. Today's Text (Side B)
-  let todayText = "Not reported today";
+  let todayText = isUrdu ? "آج نہیں بتایا گیا" : "Not reported today";
   if (compStatus === "missing_in_b" || (!statusB && !dosageB)) {
-    todayText = "Not reported today";
+    todayText = isUrdu ? "آج نہیں بتایا گیا" : "Not reported today";
   } else if (statusB === "stopped") {
-    todayText = "Today: stopped";
+    todayText = isUrdu ? "آج: بند کر دی ہے" : "Today: stopped";
   } else if (statusB === "active") {
     if (dosageB && dosageA && dosageB.toLowerCase() !== dosageA.toLowerCase()) {
-      todayText = `Today: active, new dose: ${dosageB}`;
+      todayText = isUrdu
+        ? `آج: جاری، نئی مقدار: ${dosageB}`
+        : `Today: active, new dose: ${dosageB}`;
     } else if (dosageB) {
-      todayText = `Today: active, ${dosageB}`;
+      todayText = isUrdu ? `آج: جاری، ${dosageB}` : `Today: active, ${dosageB}`;
     } else if (dosageA) {
-      todayText = `Today: active, ${dosageA}`;
+      todayText = isUrdu ? `آج: جاری، ${dosageA}` : `Today: active, ${dosageA}`;
     } else {
-      todayText = "Today: active";
+      todayText = isUrdu ? "آج: جاری" : "Today: active";
     }
   } else if (dosageB) {
-    todayText = `Today: ${dosageB}`;
+    todayText = isUrdu ? `آج: ${dosageB}` : `Today: ${dosageB}`;
   }
 
   // 3. Reason
-  let reason = "Requires clinician review.";
-  if (compStatus === "conflict") {
+  let reason = isUrdu ? "طبی معالج کے جائزے کی ضرورت ہے۔" : "Requires clinician review.";
+  if (isConfirmed) {
+    reason = isUrdu ? "ریکارڈ کے مطابق ہے۔" : "Matches the record.";
+  } else if (compStatus === "conflict") {
     if (statusA === "active" && statusB === "stopped") {
-      reason = "The record says you take this medication; you said you stopped it.";
+      reason = isUrdu
+        ? "ریکارڈ کے مطابق آپ یہ دوا لیتے ہیں؛ آپ نے بتایا کہ آپ نے بند کر دی ہے۔"
+        : "The record says you take this medication; you said you stopped it.";
     } else if (dosageA && dosageB && dosageA.toLowerCase() !== dosageB.toLowerCase()) {
-      reason = "You reported a different dose from the record.";
+      reason = isUrdu
+        ? "آپ نے ریکارڈ سے مختلف مقدار بتائی ہے۔"
+        : "You reported a different dose from the record.";
     } else {
-      reason = "The record says you take this medication; you said you stopped it.";
+      reason = isUrdu
+        ? "ریکارڈ کے مطابق آپ یہ دوا لیتے ہیں؛ آپ نے بتایا کہ آپ نے بند کر دی ہے۔"
+        : "The record says you take this medication; you said you stopped it.";
     }
   } else if (compStatus === "missing_in_b") {
-    reason = "Not reported today.";
-  } else if (compStatus === "agree" || compStatus === "agreement") {
-    reason = "Matches the record.";
+    reason = isUrdu ? "آج نہیں بتایا گیا۔" : "Not reported today.";
   } else if (verification?.review_reason && verification.review_reason.trim()) {
     reason = verification.review_reason.trim();
   }
@@ -120,26 +160,30 @@ export function describeMedicationItem(
     todayText,
     reason,
     severity,
+    isConfirmed,
   };
 }
 
 /**
  * Returns a truthful, clinical source description for side A (prior baseline) or side B (today's check-in).
- * Rule: The word "hospital" appears ONLY when source is explicitly "fhir" or from server record_source_label.
+ * Rule: The words 'clinic', 'hospital' and 'FHIR' may appear only when the origin really is an EHR.
  */
 export function describeSide(
   side: "a" | "b" | string,
   source?: string | null,
   trustLevel?: "high" | "medium" | "low" | string | null,
   mode?: string | null,
-  recordSourceLabel?: string | null
+  recordSourceLabel?: string | null,
+  timestamp?: string | null,
+  isUrdu?: boolean
 ): string {
   const normSide = (side || "").toLowerCase();
   const normSource = (source || "").toLowerCase();
   const normTrust = (trustLevel || "").toLowerCase();
+  const normMode = (mode || "").toLowerCase();
 
   if (normSide === "b") {
-    return "Today's check-in (reported by you)";
+    return isUrdu ? "آج کا آپ کا جواب" : "Today's check-in (reported by you)";
   }
 
   // Side A: prioritize server-provided recordSourceLabel if available
@@ -147,29 +191,60 @@ export function describeSide(
     return recordSourceLabel.trim();
   }
 
-  if (normSource === "fhir") {
-    return "Hospital EHR (FHIR)";
+  const dateFormatted = timestamp ? timestamp.slice(0, 10) : "";
+  const dateSuffix = dateFormatted ? `, ${dateFormatted}` : "";
+
+  if (normSource === "fhir" || normMode === "connected" || normMode === "fhir") {
+    if (normMode === "simulated" || normSource === "simulated") {
+      return isUrdu
+        ? `ہسپتال کا مصنوعی ریکارڈ (مصنوعی ڈیٹا)${dateSuffix}`
+        : `Simulated hospital record (synthetic data)${dateSuffix}`;
+    }
+    if (dateFormatted) {
+      return isUrdu
+        ? `ہسپتال کا ریکارڈ, ${dateFormatted}`
+        : `Hospital record, ${dateFormatted}`;
+    }
+    return isUrdu ? "ہسپتال کا ریکارڈ" : "Hospital EHR (FHIR)";
+  }
+
+  if (normSource === "simulated" || normMode === "simulated") {
+    return isUrdu
+      ? `ہسپتال کا مصنوعی ریکارڈ (مصنوعی ڈیٹا)${dateSuffix}`
+      : `Simulated hospital record (synthetic data)${dateSuffix}`;
+  }
+
+  if (normSource === "checkin" || normSource === "prior_checkin") {
+    return isUrdu
+      ? `آپ کا پچھلا چیک ان, ${dateFormatted}`
+      : `Your check-in on ${dateFormatted || "previous check-in"}`;
+  }
+
+  if (dateFormatted) {
+    return isUrdu
+      ? `آپ کی بنیادی ریڈنگ جو آپ نے ${dateFormatted} کو درج کی`
+      : `Your baseline reading you entered on ${dateFormatted}`;
   }
 
   if (normSource === "local") {
     if (normTrust === "low") {
-      return "Your earlier self-reported record";
+      return isUrdu ? "آپ کا پہلے خود درج کردہ ریکارڈ" : "Your earlier self-reported record";
     }
     if (normTrust === "high") {
-      return "Clinician-entered record";
+      return isUrdu ? "طبی معالج کا درج کردہ ریکارڈ" : "Clinician-entered record";
     }
-    return "Saved record (unverified)";
+    return isUrdu ? "محفوظ شدہ ریکارڈ (غیر تصدیق شدہ)" : "Saved record (unverified)";
   }
 
   if (normTrust === "low") {
-    return "Your earlier self-reported record";
+    return isUrdu ? "آپ کا پہلے خود درج کردہ ریکارڈ" : "Your earlier self-reported record";
   }
 
   if (normTrust === "high") {
-    return "Clinician-entered record";
+    return isUrdu ? "طبی معالج کا درج کردہ ریکارڈ" : "Clinician-entered record";
   }
 
-  return "Saved record (unverified)";
+  return isUrdu ? "محفوظ شدہ ریکارڈ (غیر تصدیق شدہ)" : "Saved record (unverified)";
 }
 
 /**

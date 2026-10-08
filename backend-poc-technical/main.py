@@ -95,6 +95,11 @@ from auth.firebase_verify import verify_firebase_token, AuthError, get_firebase_
 from data_sources.medication_scope import select_chronic_care_medications
 from data_sources.fhir_client import get_fhir_patient, fhir_get, check_fhir_metadata, FHIRError, clear_fhir_cache
 from data_sources.fhir_sim import SAMPLE_PATIENTS
+from data_sources.validation import (
+    calculate_age,
+    validate_date_of_birth,
+    detect_pregnancy_statement,
+)
 from data_sources.app_store import (
     migrate,
     get_user_by_id,
@@ -327,6 +332,10 @@ class AuditLogRow(BaseModel):
     detail: Dict[str, Any] = Field(default_factory=dict)
 
 
+ALLOWED_SEX_AT_BIRTH = {"female", "male", "prefer_not_to_say"}
+ALLOWED_PREGNANCY_STATUS = {"no", "yes", "not_sure", "not_applicable"}
+
+
 class ProfileUpdateRequest(BaseModel):
     model_config = {"extra": "forbid"}
     conditions: Optional[List[str]] = None
@@ -334,6 +343,8 @@ class ProfileUpdateRequest(BaseModel):
     language: Optional[str] = None
     date_of_birth: Optional[str] = None
     inclusion_confirmed: Optional[bool] = None
+    sex_at_birth: Optional[str] = None
+    pregnancy_status: Optional[str] = None
 
     @field_validator("conditions")
     @classmethod
@@ -361,6 +372,26 @@ class ProfileUpdateRequest(BaseModel):
             raise ValueError(f"Invalid language '{v}'. Allowed languages: {sorted(list(ALLOWED_LANGUAGES))}")
         return clean
 
+    @field_validator("sex_at_birth")
+    @classmethod
+    def validate_sex_at_birth(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        clean = str(v).strip().lower()
+        if clean not in ALLOWED_SEX_AT_BIRTH:
+            raise ValueError(f"Invalid sex_at_birth '{v}'. Allowed values: {sorted(list(ALLOWED_SEX_AT_BIRTH))}")
+        return clean
+
+    @field_validator("pregnancy_status")
+    @classmethod
+    def validate_pregnancy_status(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        clean = str(v).strip().lower()
+        if clean not in ALLOWED_PREGNANCY_STATUS:
+            raise ValueError(f"Invalid pregnancy_status '{v}'. Allowed values: {sorted(list(ALLOWED_PREGNANCY_STATUS))}")
+        return clean
+
 
 class ProfileResponse(BaseModel):
     user_id: str
@@ -369,6 +400,8 @@ class ProfileResponse(BaseModel):
     language: str
     date_of_birth: Optional[str] = None
     inclusion_confirmed_at: Optional[str] = None
+    sex_at_birth: Optional[str] = None
+    pregnancy_status: Optional[str] = None
     consent_granted_at: Optional[str] = None
     consent_revoked_at: Optional[str] = None
     provider_notification_consent_at: Optional[str] = None
@@ -1116,6 +1149,8 @@ def get_profile_endpoint(current_user: Dict[str, Any] = Depends(require_role("pa
         language=profile["language"],
         date_of_birth=profile.get("date_of_birth"),
         inclusion_confirmed_at=profile.get("inclusion_confirmed_at"),
+        sex_at_birth=profile.get("sex_at_birth"),
+        pregnancy_status=profile.get("pregnancy_status"),
         consent_granted_at=profile.get("consent_granted_at"),
         consent_revoked_at=profile.get("consent_revoked_at"),
         provider_notification_consent_at=profile.get("provider_notification_consent_at"),
@@ -1129,44 +1164,23 @@ def update_profile_endpoint(
     body: ProfileUpdateRequest,
     current_user: Dict[str, Any] = Depends(require_role("patient")),
 ):
-    """Updates patient profile conditions, insulin/sulfonylurea flag, language, date of birth, and inclusion confirmation (patient only)."""
+    """Updates patient profile conditions, insulin/sulfonylurea flag, language, date of birth, sex, pregnancy status, and inclusion confirmation (patient only)."""
     user_id = current_user["user_id"]
 
     dob_clean = None
     if body.date_of_birth is not None:
-        dob_str = str(body.date_of_birth).strip()
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", dob_str):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="invalid_date_of_birth",
-            )
         try:
-            dob_dt = datetime.strptime(dob_str, "%Y-%m-%d").date()
-        except Exception:
+            dob_clean, _ = validate_date_of_birth(str(body.date_of_birth).strip())
+        except ValueError as ve:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="invalid_date_of_birth",
+                detail=str(ve),
             )
 
-        today = datetime.now(timezone.utc).date()
-        if dob_dt > today:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="invalid_date_of_birth",
-            )
-
-        age = today.year - dob_dt.year - ((today.month, today.day) < (dob_dt.month, dob_dt.day))
-        if age < 18:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="adults_only",
-            )
-        if age > 120:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="invalid_date_of_birth",
-            )
-        dob_clean = dob_str
+    final_sex = body.sex_at_birth
+    final_preg = body.pregnancy_status
+    if final_sex == "male" and final_preg is None:
+        final_preg = "not_applicable"
 
     updated = upsert_patient_profile(
         user_id=user_id,
@@ -1175,6 +1189,8 @@ def update_profile_endpoint(
         language=body.language,
         date_of_birth=dob_clean,
         inclusion_confirmed=body.inclusion_confirmed,
+        sex_at_birth=final_sex,
+        pregnancy_status=final_preg,
     )
 
     updated_fields = ["conditions", "on_insulin_or_sulfonylurea", "language"]
@@ -1182,6 +1198,10 @@ def update_profile_endpoint(
         updated_fields.append("date_of_birth")
     if body.inclusion_confirmed is not None:
         updated_fields.append("inclusion_confirmed")
+    if body.sex_at_birth is not None:
+        updated_fields.append("sex_at_birth")
+    if body.pregnancy_status is not None:
+        updated_fields.append("pregnancy_status")
 
     append_audit(
         actor_user_id=user_id,
@@ -1197,6 +1217,8 @@ def update_profile_endpoint(
         language=updated["language"],
         date_of_birth=updated.get("date_of_birth"),
         inclusion_confirmed_at=updated.get("inclusion_confirmed_at"),
+        sex_at_birth=updated.get("sex_at_birth"),
+        pregnancy_status=updated.get("pregnancy_status"),
         consent_granted_at=updated.get("consent_granted_at"),
         consent_revoked_at=updated.get("consent_revoked_at"),
         provider_notification_consent_at=updated.get("provider_notification_consent_at"),
@@ -2138,7 +2160,19 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
             detail="Provider notification consent is required to start a check-in (provider_notification_consent_required)",
         )
 
-    # 2. Inclusion verification (date of birth and inclusion confirmation)
+    # 2. Pregnancy eligibility & inclusion verification
+    preg_status = (profile.get("pregnancy_status") or "").lower()
+    if preg_status == "yes":
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": "not_eligible", "reason": "pregnant"},
+        )
+    if preg_status == "not_sure":
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": "not_eligible", "reason": "pregnancy_unconfirmed"},
+        )
+
     require_inclusion = os.environ.get("REQUIRE_INCLUSION", "1")
     if require_inclusion != "0":
         missing_items = []
@@ -2301,6 +2335,41 @@ def answer_checkin_endpoint(
     protocol_state = TriageProtocolState.from_dict(protocol_state_dict) if protocol_state_dict else None
     med_state_dict = checkin.get("med_state")
     med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
+
+    # Clinical Safety Rule: Typed pregnancy statement stops check-in immediately
+    answer_raw = (body.answer or "").strip()
+    if answer_raw and detect_pregnancy_statement(answer_raw):
+        completed_at = _utc_now_iso()
+        apply_checkin_answer_atomic(
+            checkin_id=checkin_id,
+            expected_version=current_version,
+            state_dict=current_state.to_dict(),
+            status="abandoned",
+            completed_at=completed_at,
+            emergency=False,
+            actor_user_id=current_user["user_id"],
+            protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
+            med_state_dict=med_state.to_dict() if med_state else None,
+        )
+        upsert_patient_profile(
+            user_id=current_user["user_id"],
+            pregnancy_status="yes",
+        )
+        append_audit(
+            actor_user_id=current_user["user_id"],
+            action="checkin_stopped_pregnancy",
+            target=checkin_id,
+            outcome="ok",
+            detail={"reason": "patient_reported_pregnancy"},
+        )
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "detail": "not_eligible",
+                "reason": "pregnant",
+                "message": "Check-in stopped. ChronicCare AI is designed for non-pregnant adults. Please consult your clinician.",
+            },
+        )
 
     # 1. TRIAGE PROTOCOL PHASE
     if protocol_state is not None and not protocol_state.complete:
@@ -2640,8 +2709,9 @@ def answer_checkin_endpoint(
             trigger = triggers[0]
             profile = get_patient_profile(current_user["user_id"]) or {}
             dob = profile.get("date_of_birth")
-            age_years = _compute_age_years(dob)
-            if age_years is None:
+            try:
+                age_years = calculate_age(dob) if dob else 40
+            except Exception:
                 age_years = 40
 
             new_proto = start_protocol(trigger, readings, age_years, baseline)

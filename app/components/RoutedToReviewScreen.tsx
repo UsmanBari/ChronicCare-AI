@@ -30,7 +30,8 @@ export const RoutedToReviewScreen = () => {
 
   const medComparisons = liveCheckinResult?.reconciliation?.medication_comparisons || [];
   const medVerifications = liveCheckinResult?.verification?.medication_verifications || [];
-  const flaggedMeds: Array<{
+
+  const allMeds: Array<{
     desc: ReturnType<typeof describeMedicationItem>;
     comparison: any;
     verification: any;
@@ -38,12 +39,15 @@ export const RoutedToReviewScreen = () => {
     ? medComparisons.map((c: any) => {
         const v = medVerifications.find((ver: any) => ver.medication_name === c.medication_name);
         return {
-          desc: describeMedicationItem(c, v),
+          desc: describeMedicationItem(c, v, isUrdu),
           comparison: c,
           verification: v,
         };
       })
     : [];
+
+  const flaggedMeds = allMeds.filter((m) => !m.desc.isConfirmed);
+  const confirmedMeds = allMeds.filter((m) => m.desc.isConfirmed);
 
   return (
     <div className="w-full max-w-lg mx-auto surface-raised rounded-3xl border border-slate-200 shadow-xl overflow-hidden animate-fadeIn text-center space-y-0" dir={isUrdu ? "rtl" : "ltr"}>
@@ -72,9 +76,36 @@ export const RoutedToReviewScreen = () => {
           <p>{description}</p>
         </div>
 
+        {/* Confirmed Medicines Section (Calm, separate line) */}
+        {isLiveMode && confirmedMeds.length > 0 && (
+          <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-300 text-left space-y-2 animate-fadeIn">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-950 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+              <span>{isUrdu ? "تصدیق شدہ ادویات:" : "Confirmed medicines:"}</span>
+            </span>
+            <div className="space-y-1.5">
+              {confirmedMeds.map((m, idx) => (
+                <div
+                  key={idx}
+                  className="p-2.5 rounded-xl bg-white border border-emerald-200 text-xs flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Pill className="w-3.5 h-3.5 text-emerald-700" />
+                    <span className="font-bold text-navy-900">{m.desc.title}</span>
+                    <span className="text-slate-600">{m.desc.recordText.replace(/^Record:\s*/i, "")}</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-emerald-800">
+                    {m.desc.reason}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Flagged Medication Review Items */}
         {isLiveMode && flaggedMeds.length > 0 && (
-          <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-300 text-left space-y-2.5">
+          <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-300 text-left space-y-2.5 animate-fadeIn">
             <span className="text-xs font-bold uppercase tracking-wider text-amber-950 block">
               {isUrdu ? "جائزے کے لیے بھیجی گئی ادویات:" : "Medications Flagged for Review:"}
             </span>
@@ -165,7 +196,7 @@ export const RoutedToReviewScreen = () => {
           className="w-full min-h-[48px] py-3.5 px-5 bg-navy-800 hover:bg-navy-900 active:scale-[0.99] text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
         >
           <Home className="w-4 h-4" />
-          <span>{t.finishBtn}</span>
+          <span>{isUrdu ? "ڈیش بورڈ پر واپس جائیں" : "Return to Home"}</span>
         </button>
       </div>
     </div>

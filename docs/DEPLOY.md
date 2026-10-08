@@ -84,6 +84,7 @@ In Firebase Console -> **Authentication** -> **Settings** -> **Authorized domain
    # In terminal with environment populated:
    python scripts/mysql_preflight.py
    ```
+   *Note: `mysql_preflight.py` is fully idempotent. After any schema change (such as Schema Version 11), it can be re-run safely at any time to assert schema readiness and verify table structures without data loss.*
 2. **Step 2: Deploy Backend to Render**:
    - Create Web Service in Render with the environment variables listed above.
    - Manually trigger first deploy.

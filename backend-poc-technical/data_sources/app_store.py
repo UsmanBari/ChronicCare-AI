@@ -47,6 +47,8 @@ APP_STORE_TABLES = {
     "schema_version",
 }
 
+LATEST_SCHEMA_VERSION = 11
+
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -362,6 +364,17 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 """, (default_fhir_url, default_fhir_url))
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (10, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 11")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(patient_profiles)")
+                pp_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "sex_at_birth" not in pp_cols:
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN sex_at_birth TEXT")
+                if "pregnancy_status" not in pp_cols:
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN pregnancy_status TEXT")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (11, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -674,6 +687,24 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (10, %s)", (now,))
 
+            cursor.execute("SELECT version FROM schema_version WHERE version = 11")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patient_profiles' AND COLUMN_NAME = 'sex_at_birth'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN sex_at_birth VARCHAR(32) NULL")
+
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patient_profiles' AND COLUMN_NAME = 'pregnancy_status'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN pregnancy_status VARCHAR(32) NULL")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (11, %s)", (now,))
+
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
                    mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -832,6 +863,7 @@ def get_patient_profile(user_id: str, backend: Optional[str] = None, db_path: Op
             f"""
             SELECT user_id, conditions_json, on_insulin_or_sulfonylurea, language,
                    date_of_birth, inclusion_confirmed_at,
+                   sex_at_birth, pregnancy_status,
                    consent_granted_at, consent_revoked_at,
                    conditions_basis_json, provider_notification_consent_at, provider_notification_revoked_at,
                    updated_at
@@ -860,6 +892,8 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                            on_insulin_or_sulfonylurea: Optional[bool] = None,
                            language: Optional[str] = "en", date_of_birth: Optional[str] = None,
                            inclusion_confirmed: Optional[bool] = None,
+                           sex_at_birth: Optional[str] = None,
+                           pregnancy_status: Optional[str] = None,
                            backend: Optional[str] = None, db_path: Optional[str] = None,
                            mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
     """Upserts conditions, medication flag, language, date_of_birth, and inclusion confirmation for a patient."""
@@ -884,6 +918,8 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
     now = _utc_now_iso()
 
     final_dob = date_of_birth if date_of_birth is not None else (existing.get("date_of_birth") if existing else None)
+    final_sex = sex_at_birth if sex_at_birth is not None else (existing.get("sex_at_birth") if existing else None)
+    final_preg = pregnancy_status if pregnancy_status is not None else (existing.get("pregnancy_status") if existing else None)
     if inclusion_confirmed is True:
         final_inc_at = now
     elif inclusion_confirmed is False:
@@ -895,32 +931,36 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
         if be == "sqlite":
             cursor.execute(
                 f"""
-                INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language, date_of_birth, inclusion_confirmed_at, updated_at)
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language, date_of_birth, inclusion_confirmed_at, sex_at_birth, pregnancy_status, updated_at)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON CONFLICT(user_id) DO UPDATE SET
                     conditions_json = excluded.conditions_json,
                     on_insulin_or_sulfonylurea = excluded.on_insulin_or_sulfonylurea,
                     language = excluded.language,
                     date_of_birth = excluded.date_of_birth,
                     inclusion_confirmed_at = excluded.inclusion_confirmed_at,
+                    sex_at_birth = excluded.sex_at_birth,
+                    pregnancy_status = excluded.pregnancy_status,
                     updated_at = excluded.updated_at
                 """,
-                (user_id, cond_json, insulin_val, clean_lang, final_dob, final_inc_at, now)
+                (user_id, cond_json, insulin_val, clean_lang, final_dob, final_inc_at, final_sex, final_preg, now)
             )
         else:
             cursor.execute(
                 f"""
-                INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language, date_of_birth, inclusion_confirmed_at, updated_at)
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language, date_of_birth, inclusion_confirmed_at, sex_at_birth, pregnancy_status, updated_at)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON DUPLICATE KEY UPDATE
                     conditions_json = VALUES(conditions_json),
                     on_insulin_or_sulfonylurea = VALUES(on_insulin_or_sulfonylurea),
                     language = VALUES(language),
                     date_of_birth = VALUES(date_of_birth),
                     inclusion_confirmed_at = VALUES(inclusion_confirmed_at),
+                    sex_at_birth = VALUES(sex_at_birth),
+                    pregnancy_status = VALUES(pregnancy_status),
                     updated_at = VALUES(updated_at)
                 """,
-                (user_id, cond_json, insulin_val, clean_lang, final_dob, final_inc_at, now)
+                (user_id, cond_json, insulin_val, clean_lang, final_dob, final_inc_at, final_sex, final_preg, now)
             )
     return get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
