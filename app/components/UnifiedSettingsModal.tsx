@@ -80,6 +80,25 @@ export const UnifiedSettingsModal = () => {
     }
   };
 
+  const hasVoiceEnabled = Boolean(liveProfile?.voice_enabled);
+
+  const handleToggleVoice = async () => {
+    setIsUpdatingConsent(true);
+    setConsentError(null);
+    try {
+      const updated = await api.updateProfile({ voice_enabled: !hasVoiceEnabled });
+      setLiveProfile(updated);
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        setConsentError(err.getFriendlyMessage(isUrdu));
+      } else {
+        setConsentError(err?.message || "Failed to update voice setting");
+      }
+    } finally {
+      setIsUpdatingConsent(false);
+    }
+  };
+
   const handleConfirmRevoke = async () => {
     if (!confirmRevokeType) return;
     setIsUpdatingConsent(true);
@@ -235,6 +254,33 @@ export const UnifiedSettingsModal = () => {
                     }`}
                   >
                     {hasProviderConsent ? (isUrdu ? "فعال ✓" : "Active ✓") : (isUrdu ? "اجازت نہیں دی گئی" : "Not given")}
+                  </button>
+                </div>
+
+                {/* Consent Toggle 3: Voice Input */}
+                <div className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0 flex-1">
+                    <span className="text-xs font-bold text-navy-900 block truncate">
+                      {isUrdu ? "آواز سے جواب (اسپیچ ٹو ٹیکسٹ)" : "Voice Input (Speech-to-Text)"}
+                    </span>
+                    <p className="text-[11px] text-slate-500 leading-snug">
+                      {isUrdu
+                        ? "آواز صرف عارضی طور پر ٹیکسٹ بنانے کے لیے میموری میں استعمال ہوتی ہے اور کبھی ڈسک یا ڈیٹا بیس پر محفوظ نہیں کی جاتی۔"
+                        : "Audio is transcribed in-memory only and is never stored on disk or server databases."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleVoice}
+                    disabled={isUpdatingConsent}
+                    id="toggle-voice-enabled-btn"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                      hasVoiceEnabled
+                        ? "bg-teal-100 text-teal-900 hover:bg-teal-200"
+                        : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                    }`}
+                  >
+                    {hasVoiceEnabled ? (isUrdu ? "فعال ✓" : "Enabled ✓") : (isUrdu ? "بند ہے" : "Disabled")}
                   </button>
                 </div>
               </div>
