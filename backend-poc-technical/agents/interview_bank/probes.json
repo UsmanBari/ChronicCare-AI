@@ -1,0 +1,155 @@
+{
+  "dizziness": [
+    {
+      "probe_id": "probe_dizziness_postural",
+      "slot": "dizziness_trigger",
+      "template_en": "Does the dizziness happen mainly when you stand up from sitting or lying down?",
+      "template_ur": "کیا چکر خاص طور پر بیٹھنے یا لیٹنے سے کھڑے ہونے پر آتے ہیں؟",
+      "template_roman_ur": "Kya chakkar khaas tor par baithne ya leitne se kharay hone par aate hain?",
+      "answer_type": "yes_no",
+      "why_text": "To check if low blood pressure when standing (postural hypotension) is causing dizziness."
+    },
+    {
+      "probe_id": "probe_dizziness_falls",
+      "slot": "dizziness_falls",
+      "template_en": "Has the dizziness caused you to stumble, fall, or lose your balance?",
+      "template_ur": "کیا چکروں کی وجہ سے آپ لڑکھڑائے، گرے، یا توازن کھو بیٹھے؟",
+      "template_roman_ur": "Kya chakkaro ki wajah se aap larkharaye, giray, ya balance kho baithay?",
+      "answer_type": "yes_no",
+      "why_text": "To check for fall risk and ensure safety."
+    }
+  ],
+  "headache": [
+    {
+      "probe_id": "probe_headache_onset",
+      "slot": "headache_onset",
+      "template_en": "Did this headache come on suddenly, or has it built up gradually?",
+      "template_ur": "کیا یہ سر درد اچانک شروع ہوا، یا آہستہ آہستہ بڑھا ہے؟",
+      "template_roman_ur": "Kya yeh sar dard achanak shuru hua, ya aahista aahista barha hai?",
+      "answer_type": "choice",
+      "choices": ["sudden", "gradual"],
+      "why_text": "Sudden onset severe headaches need urgent medical review."
+    },
+    {
+      "probe_id": "probe_headache_severity",
+      "slot": "headache_severity",
+      "template_en": "On a scale from 1 to 10 (where 10 is the most severe pain), how would you rate this headache?",
+      "template_ur": "1 سے 10 کے پیمانے پر (جہاں 10 شدید ترین درد ہے)، آپ اس سر درد کو کیا نمبر دیں گے؟",
+      "template_roman_ur": "1 se 10 ke scale par (jahan 10 shadeed tareen dard hai), aap is sar dard ko kya number dein ge?",
+      "answer_type": "number",
+      "valid_range": [1, 10],
+      "why_text": "To measure pain intensity for your doctor."
+    }
+  ],
+  "breathlessness": [
+    {
+      "probe_id": "probe_breathlessness_pattern",
+      "slot": "breathlessness_pattern",
+      "template_en": "Does the breathlessness happen while resting quietly, or only when you exert yourself?",
+      "template_ur": "کیا سانس آرام سے بیٹھے ہوئے بھی پھولتا ہے، یا صرف چلنے پھرنے پر؟",
+      "template_roman_ur": "Kya saans aaram se baithay hue bhi phoolta hai, ya sirf chalnay phirnay par?",
+      "answer_type": "choice",
+      "choices": ["at_rest", "on_exertion"],
+      "why_text": "Shortness of breath at rest requires higher clinical priority."
+    },
+    {
+      "probe_id": "probe_breathlessness_orthopnea",
+      "slot": "breathlessness_lying_flat",
+      "template_en": "Does your breathing feel noticeably worse when you lie completely flat in bed?",
+      "template_ur": "کیا بستر پر بالکل سیدھا لیٹنے سے سانس زیادہ خراب محسوس ہوتا ہے؟",
+      "template_roman_ur": "Kya bistar par bilkul seedha leitne se saans ziada kharab mehsoos hota hai?",
+      "answer_type": "yes_no",
+      "why_text": "To check for fluid accumulation signs."
+    }
+  ],
+  "vision_change": [
+    {
+      "probe_id": "probe_vision_type",
+      "slot": "vision_change_type",
+      "template_en": "Is your vision generally blurry, or are you seeing spots, floaters, or dark patches?",
+      "template_ur": "کیا عام طور پر دھندلا نظر آ رہا ہے، یا کالے دھبے اور پردے دکھائی دے رہے ہیں؟",
+      "template_roman_ur": "Kya aam tor par dhundla nazar aa raha hai, ya kaalay dhabay (spots) dikhayi de rahe hain?",
+      "answer_type": "choice",
+      "choices": ["blurry", "spots_floaters", "loss_of_vision"],
+      "why_text": "To distinguish general high-sugar blurriness from retinal issues."
+    }
+  ],
+  "foot_problem": [
+    {
+      "probe_id": "probe_foot_open_wound",
+      "slot": "foot_open_wound",
+      "template_en": "Is there an open wound, break in the skin, or bleeding on your foot?",
+      "template_ur": "کیا پاؤں پر کوئی کھلا زخم، جلد کا پھٹنا، یا خون کا بہاؤ ہے؟",
+      "template_roman_ur": "Kya paon par koi khula zakham, skin ka phatna, ya khoon ka bahao hai?",
+      "answer_type": "yes_no",
+      "why_text": "Open diabetic foot wounds need prompt medical attention."
+    },
+    {
+      "probe_id": "probe_foot_redness_warmth",
+      "slot": "foot_redness_warmth",
+      "template_en": "Is the area red, hot to touch, or swollen?",
+      "template_ur": "کیا وہ جگہ سرخ، چھونے پر گرم، یا سوجی ہوئی ہے؟",
+      "template_roman_ur": "Kya woh jagah surkh, chhoonay par garam, ya sooji hui hai?",
+      "answer_type": "yes_no",
+      "why_text": "Redness and warmth may indicate localized infection."
+    }
+  ],
+  "low_sugar_episode": [
+    {
+      "probe_id": "probe_hypo_recovery",
+      "slot": "hypo_recovery_food",
+      "template_en": "Did your symptoms improve within 15 minutes after eating or drinking fast-acting sugar (like juice or sweets)?",
+      "template_ur": "کیا میٹھا کھانے یا جوس پینے کے 15 منٹ کے اندر علامات بہتر ہو گئی تھیں؟",
+      "template_roman_ur": "Kya meetha khanay ya juice peenay ke 15 minute ke andar alamaat theek ho gayi theen?",
+      "answer_type": "yes_no",
+      "why_text": "To confirm recovery from hypoglycemia."
+    }
+  ],
+  "swelling": [
+    {
+      "probe_id": "probe_swelling_location",
+      "slot": "swelling_location",
+      "template_en": "Is the swelling in both ankles/feet, in one leg only, or in your hands/face?",
+      "template_ur": "کیا سوجن دونوں ٹخنوں اور پاؤں پر ہے، صرف ایک ٹانگ پر، یا ہاتھوں اور چہرے پر؟",
+      "template_roman_ur": "Kya sojan dono takhno/paon par hai, sirf aik taang par, ya haatho aur chehray par?",
+      "answer_type": "choice",
+      "choices": ["both_ankles", "one_leg_only", "face_hands"],
+      "why_text": "To help your doctor understand the cause of swelling."
+    }
+  ],
+  "tiredness": [
+    {
+      "probe_id": "probe_tiredness_duration",
+      "slot": "tiredness_duration",
+      "template_en": "Has this tiredness lasted just today, for a few days, or for several weeks?",
+      "template_ur": "کیا یہ تھکاوٹ صرف آج سے ہے، چند دنوں سے، یا کئی ہفتوں سے؟",
+      "template_roman_ur": "Kya yeh thakawat sirf aaj se hai, chand dino se, ya kai hafto se?",
+      "answer_type": "choice",
+      "choices": ["today_only", "few_days", "several_weeks"],
+      "why_text": "To assess duration for clinical review."
+    }
+  ],
+  "nausea_or_vomiting": [
+    {
+      "probe_id": "probe_vomiting_fluid_retention",
+      "slot": "vomiting_keep_fluids",
+      "template_en": "Are you able to keep sips of water or fluids down without vomiting?",
+      "template_ur": "کیا آپ پانی یا مائع چیزیں بغیر الٹی کے پی پا رہے ہیں؟",
+      "template_roman_ur": "Kya aap paani ya liquid cheezein baghair ulti ke pee pa rahe hain?",
+      "answer_type": "yes_no",
+      "why_text": "Inability to keep fluids down requires prompt medical review."
+    }
+  ],
+  "other_symptom": [
+    {
+      "probe_id": "probe_other_symptom_onset",
+      "slot": "symptom_onset",
+      "template_en": "When did you first notice this symptom (today, yesterday, or longer ago)?",
+      "template_ur": "آپ نے یہ علامت سب سے پہلے کب محسوس کی (آج، کل، یا اس سے پہلے)؟",
+      "template_roman_ur": "Aap ne yeh alamat sab se pehle kab mehsoos ki (aaj, kal, ya is se pehle)?",
+      "answer_type": "choice",
+      "choices": ["today", "yesterday", "few_days_ago", "over_a_week_ago"],
+      "why_text": "To document the timing of your symptom."
+    }
+  ]
+}

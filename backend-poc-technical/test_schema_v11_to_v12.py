@@ -274,3 +274,30 @@ def test_mysql_v12_ddl_and_duplicate_guard():
 def test_latest_schema_version_is_12():
     """Confirms LATEST_SCHEMA_VERSION constant is updated to 12."""
     assert LATEST_SCHEMA_VERSION == 12
+
+
+def test_sqlite_v12_non_duplicate_error_is_raised():
+    """
+    Task 0(a): Proves SQLite v12 migration does NOT swallow arbitrary operational errors.
+    If ALTER TABLE fails with disk I/O error or corruption, it must raise.
+    """
+    fake_cursor = MagicMock()
+    # Simulate schema_version at 11, v12 not applied
+    def execute_side_effect(query, *args):
+        if "SELECT version FROM schema_version WHERE version = 12" in query:
+            return None
+        if "PRAGMA table_info" in query:
+            return None
+        if "ALTER TABLE patient_profiles ADD COLUMN" in query:
+            raise sqlite3.OperationalError("disk I/O error")
+        return None
+
+    fake_cursor.execute.side_effect = execute_side_effect
+    fake_cursor.fetchone.return_value = None  # v12 not in schema_version
+    fake_cursor.fetchall.return_value = []  # no columns in table_info -> triggers ALTER TABLE
+
+    with patch("data_sources.app_store.get_db_cursor") as mock_get_cursor:
+        mock_get_cursor.return_value.__enter__.return_value = (fake_cursor, "sqlite", "?")
+        with pytest.raises(sqlite3.OperationalError, match="disk I/O error"):
+            migrate(backend="sqlite", db_path=":memory:")
+

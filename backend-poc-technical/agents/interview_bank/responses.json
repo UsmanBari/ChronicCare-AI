@@ -1,0 +1,67 @@
+{
+  "chitchat_joke": {
+    "reply_en": "Thank you. Let us focus on your health check-in for today so your doctor has your latest details.",
+    "reply_ur": "شکریہ۔ آئیے آج کے ہیلتھ چیک ان پر توجہ دیں تاکہ آپ کے ڈاکٹر کے پاس تازہ ترین معلومات ہوں۔",
+    "reply_roman_ur": "Shukriya. Aaiye aaj ke health check-in par tawajjo dein taake aap ke doctor ke paas taza tareen maloomat hon."
+  },
+  "romantic": {
+    "reply_en": "Thank you for your kind words. I am an automated health check-in assistant. Sometimes diabetes or blood pressure medications can affect intimacy or sexual wellbeing. Would you like to share if you have noticed any changes in sexual function or desire? (Optional - Yes/No/Skip)",
+    "reply_ur": "آپ کے اچھے الفاظ کا شکریہ۔ میں ایک خودکار ہیلتھ اسسٹنٹ ہوں۔ بعض اوقات شوگر یا بلڈ پریشر کی دوائیں ازدواجی صحت پر اثر ڈال سکتی ہیں۔ کیا آپ جنسی صحت یا خواہش میں کوئی تبدیلی نوٹ کر رہے ہیں؟ (اختیاری - ہاں/نہیں/چھوڑیں)",
+    "reply_roman_ur": "Aap ke ache alfaaz ka shukriya. Main aik automated health assistant hoon. Baaz auqat sugar ya BP ki dawaiyan azdawaji sehat par asar daal sakti hain. Kya aap jinsi sehat ya khwahish mein koi tabdeeli note kar rahe hain? (Optional - Haan/Nahi/Skip)"
+  },
+  "abuse": {
+    "reply_en": "We want to make sure your check-in is helpful and respectful. Let us return to your health questions.",
+    "reply_ur": "ہم چاہتے ہیں کہ آپ کا چیک ان مفید اور پرسکون رہے۔ آئیے صحت کے سوالات کی طرف واپس چلتے ہیں۔",
+    "reply_roman_ur": "Hum chahte hain ke aap ka check-in mufeed aur pursukoon rahe. Aaiye sehat ke sawalaat ki taraf wapis chalte hain."
+  },
+  "gibberish_emoji_empty": {
+    "reply_en": "I was not able to read that clearly. Please type your response using numbers or words.",
+    "reply_ur": "میں اسے واضح طور پر سمجھ نہیں سکا۔ براہ کرم الفاظ یا نمبرز کے ذریعے اپنا جواب درج کریں۔",
+    "reply_roman_ur": "Main isay wazeh tor par samajh nahi saka. Barah-e-karam alfaaz ya numbers ke zariye apna jawab darj karein."
+  },
+  "medical_advice_dose_request": {
+    "reply_en": "I am an automated assistant and cannot give medical advice or change your dosage. I have noted your question directly for your clinician's review. Let us continue with your check-in.",
+    "reply_ur": "میں ایک خودکار اسسٹنٹ ہوں اور طبی مشورہ یا دوا کی خوراک تبدیل نہیں کر سکتا۔ میں نے آپ کا سوال آپ کے ڈاکٹر کے لیے نوٹ کر لیا ہے۔ آئیے چیک ان جاری رکھیں۔",
+    "reply_roman_ur": "Main aik automated assistant hoon aur tibbi mashwara ya dawa ki dose tabdeel nahi kar sakta. Main ne aap ka sawal aap ke doctor ke liye note kar liya hai. Aaiye check-in jari rakhein."
+  },
+  "fear_prognosis": {
+    "reply_en": "It is completely understandable to feel concerned about your health. Your care team is reviewing your check-in to support you. Let us complete your details today so they have the full picture.",
+    "reply_ur": "صحت کے بارے میں فکرمند ہونا فطری بات ہے۔ آپ کی کیئر ٹیم آپ کی مدد کے لیے آپ کے چیک ان کا جائزہ لے رہی ہے۔ آئیے معلومات مکمل کریں تاکہ ان کے پاس پوری تفصیل ہو۔",
+    "reply_roman_ur": "Sehat ke baray mein fikarmand hona fitri baat hai. Aap ki care team aap ki madad ke liye aap ke check-in ka jaiza le rahi hai. Aaiye maloomat mukammal karein taake un ke paas poori tafseel ho."
+  },
+  "about_bot": {
+    "reply_en": "I am ChronicCare AI, an automated decision-support assistant that collects your daily readings and symptoms for your clinician.",
+    "reply_ur": "میں کرونک کیئر اے آئی ہوں، ایک خودکار اسسٹنٹ جو آپ کی روزانہ کی ریڈنگز اور علامات آپ کے ڈاکٹر کے لیے جمع کرتا ہے۔",
+    "reply_roman_ur": "Main ChronicCare AI hoon, aik automated assistant jo aap ki rozana ki readings aur alamaat aap ke doctor ke liye jama karta hai."
+  },
+  "third_party_report": {
+    "reply_en": "Thank you for helping with this check-in. We have noted that a family member or caregiver is assisting today.",
+    "reply_ur": "اس چیک ان میں مدد کرنے کا شکریہ۔ ہم نے درج کر لیا ہے کہ فیملی ممبر یا کیئرگیور مدد کر رہے ہیں۔",
+    "reply_roman_ur": "Is check-in mein madad karne ka shukriya. Hum ne darj kar liya hai ke family member ya caregiver madad kar rahe hain."
+  },
+  "prompt_injection": {
+    "reply_en": "Let us continue with your scheduled health check-in.",
+    "reply_ur": "آئیے آپ کے صحت کے چیک ان کو جاری رکھیں۔",
+    "reply_roman_ur": "Aaiye aap ke sehat ke check-in ko jari rakhein."
+  },
+  "non_answer": {
+    "reply_en": "Please provide a little more detail so we can accurately record how you are feeling.",
+    "reply_ur": "براہ کرم تھوڑی مزید تفصیل فراہم کریں تاکہ ہم صحیح طور پر نوٹ کر سکیں۔",
+    "reply_roman_ur": "Barah-e-karam thori mazeed tafseel faraham karein taake hum theek tor par note kar sakein."
+  },
+  "repeated_answer": {
+    "reply_en": "We recorded that answer. Did anything change, or should we move to the next question?",
+    "reply_ur": "ہم نے یہ جواب درج کر لیا ہے۔ کیا کوئی نئی بات ہے یا ہم اگلے سوال پر چلیں؟",
+    "reply_roman_ur": "Hum ne yeh jawab darj kar liya hai. Kya koi nayi baat hai ya hum aglay sawal par chalein?"
+  },
+  "wrong_language": {
+    "reply_en": "ChronicCare AI currently supports English and Urdu. You can answer in English or Urdu.",
+    "reply_ur": "کرونک کیئر اے آئی فی الوقت انگریزی اور اردو میں کام کرتا ہے۔ آپ انگریزی یا اردو میں جواب دے سکتے ہیں۔",
+    "reply_roman_ur": "ChronicCare AI fi alwaqt English aur Urdu mein kaam karta hai. Aap English ya Urdu mein jawab de sakte hain."
+  },
+  "self_harm": {
+    "reply_en": "If you are feeling overwhelmed, hopeless, or having thoughts of harming yourself, please know support is available. Please reach out to your emergency services or a national crisis helpline right now. Your care team has also been alerted.",
+    "reply_ur": "اگر آپ شدید مایوسی محسوس کر رہے ہیں یا خود کو نقصان پہنچانے کے خیالات آ رہے ہیں، تو فوری طور پر ایمرجنسی سروسز یا کرائسز ہیلپ لائن سے رابطہ کریں۔ آپ کی کیئر ٹیم کو بھی مطلع کیا جا رہا ہے۔",
+    "reply_roman_ur": "Agar aap shadeed mayoosi mehsoos kar rahe hain ya khud ko nuqsan pohanchane ke khayalaat aa rahe hain, toh foran emergency services ya helpline se rabta karein. Aap ki care team ko bhi alert kiya ja raha hai."
+  }
+}

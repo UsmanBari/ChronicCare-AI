@@ -1,0 +1,42 @@
+[
+  {
+    "id": "caregiver_answered_by",
+    "module": "caregiver",
+    "slot": "answered_by",
+    "why_text": "To record whether the patient themselves or a family member/caregiver is completing this check-in.",
+    "template_en": "Who is answering the questions today?",
+    "template_ur": "آج ان سوالات کے جوابات کون دے رہا ہے؟",
+    "template_roman_ur": "Aaj in sawalaat ke jawabaat kaun de raha hai?",
+    "answer_type": "choice",
+    "choices": ["patient", "caregiver", "family_member"],
+    "valid_range": null,
+    "unit_options": null,
+    "requires": {},
+    "priority_class": "open",
+    "can_raise_level": false,
+    "rule_id": null,
+    "source": "nice_cg138_patient_experience",
+    "review_status": "proposed, not reviewed by a clinician",
+    "bank_version": "3.0"
+  },
+  {
+    "id": "caregiver_relationship",
+    "module": "caregiver",
+    "slot": "caregiver_relationship",
+    "why_text": "To document the caregiver's relationship for the clinical record.",
+    "template_en": "What is your relationship to the patient (for example son, daughter, spouse)?",
+    "template_ur": "مریض کے ساتھ آپ کا کیا رشتہ ہے (مثلاً بیٹا، بیٹی، شریک حیات)؟",
+    "template_roman_ur": "Mareez ke sath aap ka kya rishta hai (maslan beta, beti, shareek-e-hayat)?",
+    "answer_type": "free_text",
+    "choices": null,
+    "valid_range": null,
+    "unit_options": null,
+    "requires": {"answered_by": "caregiver"},
+    "priority_class": "open",
+    "can_raise_level": false,
+    "rule_id": null,
+    "source": "nice_cg138_patient_experience",
+    "review_status": "proposed, not reviewed by a clinician",
+    "bank_version": "3.0"
+  }
+]
