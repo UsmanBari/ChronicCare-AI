@@ -51,7 +51,7 @@ _WORD_TO_NUMBER: Dict[str, int] = {
     "six": 6, "chhe": 6, "che": 6,
     "seven": 7, "saat": 7,
     "eight": 8, "aath": 8,
-    "nine": 9, "nau": 9, "no": 9,
+    "nine": 9, "nau": 9, "noo": 9,
     "ten": 10, "das": 10, "dass": 10,
     "eleven": 11, "gyarah": 11,
     "twelve": 12, "barah": 12,

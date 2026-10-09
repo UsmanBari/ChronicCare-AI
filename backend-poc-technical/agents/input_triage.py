@@ -555,7 +555,7 @@ def classify_input(text: str, consecutive_odd_count: int = 0) -> TriageInputResu
         )
 
     # 5j. Non-answer fillers
-    if lowered in ("hmm", "hmmm", "ok", "okay", "haan", "acha", "acha theek", "idk", "dunno"):
+    if lowered in ("hmm", "hmmm", "idk", "dunno"):
         return TriageInputResult(
             category="odd_input",
             odd_class="non_answer",

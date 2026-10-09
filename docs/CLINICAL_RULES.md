@@ -248,15 +248,15 @@ In Connected Mode, an EHR patient record may contain dozens of active medication
 > **Proposed, not reviewed by a clinician.**
 > Every rule and trigger described below was added in v2.3 to capture richer clinical context. Triage level transitions are strictly monotonic (they can only raise a level, never lower a level).
 
-| Question ID | Answer / Trigger Pattern | Level Before | Level After | Code Location | Status |
-|---|---|---|---|---|---|
-| `stage1_red_flag` (all questions + free text) | Danger phrase in raw text (e.g. chest pain, breathing difficulty, confusion/stroke, collapse, thunderclap headache, sudden vision loss) | `routine` / `review` / `urgent` | `emergency` | `agents/adaptive_interview_agent.py:194` (`run_stage1_red_flag_screen`) | Proposed, not reviewed by a clinician |
-| `hypo_events_past_week` | Recurrent severe lows reported while on insulin/sulfonylurea | `routine` | `review` / `urgent` | `agents/triage_protocol.py` (via glucose_low protocol) | Proposed, not reviewed by a clinician |
-| `sick_day_flags` | Acute vomiting / fluid intolerance with high glucose ($\ge 250$ mg/dL) | `routine` / `review` | `urgent` / `emergency` | `agents/triage_protocol.py` (via glucose_high protocol) | Proposed, not reviewed by a clinician |
-| `foot_problems` | Open wound, ulcer, or spreading infection in foot | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
-| `associated_symptoms` | Severe headache, shortness of breath with elevated BP | `routine` / `review` | `urgent` / `emergency` | `agents/triage_protocol.py` (via bp_severe protocol) | Proposed, not reviewed by a clinician |
-| `otc_meds_bp` | Decongestants / NSAIDs reported with elevated BP | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
-| `missed_doses_reason` | Side effects / cost barriers causing missed doses | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
+| Question ID | Plain Rule Sentence | Trigger Pattern | Level Before | Level After | Code Location | Status |
+|---|---|---|---|---|---|---|
+| `stage1_red_flag` (all questions + free text) | Danger phrase raises the level to emergency | Danger phrase in raw text (e.g. chest pain, breathing difficulty, confusion/stroke, collapse, thunderclap headache, sudden vision loss) | `routine` / `review` / `urgent` | `emergency` | `agents/adaptive_interview_agent.py:194` (`run_stage1_red_flag_screen`) | Proposed, not reviewed by a clinician |
+| `hypo_events_past_week` | Answer yes raises the level to urgent | Recurrent severe lows reported while on insulin/sulfonylurea | `routine` | `review` / `urgent` | `agents/triage_protocol.py` (via glucose_low protocol) | Proposed, not reviewed by a clinician |
+| `sick_day_flags` | Answer yes raises the level to emergency | Acute vomiting / fluid intolerance with high glucose ($\ge 250$ mg/dL) | `routine` / `review` | `urgent` / `emergency` | `agents/triage_protocol.py` (via glucose_high protocol) | Proposed, not reviewed by a clinician |
+| `foot_problems` | Answer yes raises the level to review | Open wound, ulcer, or spreading infection in foot | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
+| `associated_symptoms` | Answer yes raises the level to emergency | Severe headache, shortness of breath with elevated BP | `routine` / `review` | `urgent` / `emergency` | `agents/triage_protocol.py` (via bp_severe protocol) | Proposed, not reviewed by a clinician |
+| `otc_meds_bp` | Answer yes raises the level to review | Decongestants / NSAIDs reported with elevated BP | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
+| `missed_doses_reason` | Answer yes raises the level to review | Side effects / cost barriers causing missed doses | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
 
 ## 10. Proposed additional danger screen patterns (from interview engine v3 input triage)
 

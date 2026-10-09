@@ -374,6 +374,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
 
     if decision.action == "finish":
         session_state["completed"] = True
+        session_state["complete"] = True
         session_state["step"] = "COMPLETE"
         session_state["current_question"] = None
         return session_state

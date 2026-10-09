@@ -80,6 +80,10 @@ from agents.triage_protocol import (
     compute_baseline,
     TriageProtocolState,
     _raise_level,
+    _decide,
+    GLUCOSE,
+    SYSTOLIC,
+    DIASTOLIC,
 )
 from data_sources.data_source import get_patient_bundle
 from data_sources.local_store import (
@@ -2682,7 +2686,7 @@ def answer_checkin_endpoint(
                     success = apply_checkin_answer_atomic(
                         checkin_id=checkin_id,
                         expected_version=current_version,
-                        state_dict=current_state.to_dict(),
+                        state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
                         status=new_status,
                         completed_at=completed_at,
                         emergency=False,
@@ -2721,7 +2725,7 @@ def answer_checkin_endpoint(
                 success = apply_checkin_answer_atomic(
                     checkin_id=checkin_id,
                     expected_version=current_version,
-                    state_dict=current_state.to_dict(),
+                    state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
                     status="in_progress",
                     completed_at=None,
                     emergency=False,
@@ -2790,7 +2794,7 @@ def answer_checkin_endpoint(
                 success = apply_checkin_answer_atomic(
                     checkin_id=checkin_id,
                     expected_version=current_version,
-                    state_dict=current_state.to_dict(),
+                    state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
                     status="emergency",
                     completed_at=completed_at,
                     emergency=True,
@@ -2834,7 +2838,7 @@ def answer_checkin_endpoint(
             success = apply_checkin_answer_atomic(
                 checkin_id=checkin_id,
                 expected_version=current_version,
-                state_dict=current_state.to_dict(),
+                state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
                 status=new_status,
                 completed_at=completed_at,
                 emergency=False,
@@ -2904,7 +2908,7 @@ def answer_checkin_endpoint(
             next_question_str = None
             next_phase = None
             new_protocol_state_dict = None
-        elif next_state.get("completed"):
+        elif next_state.get("complete") or next_state.get("completed"):
             readings = {}
             for k, v in next_state.get("readings", {}).items():
                 if k in ("glucose", "blood_pressure_systolic", "blood_pressure_diastolic") and v is not None:
@@ -3215,12 +3219,50 @@ def complete_checkin_endpoint(
         v3_summary = finish_v3_session(raw_state)
         intakes = v3_summary.get("intakes", [])
         state = InterviewState(
-            patient_id=raw_state.get("patient_id") or current_user["user_id"],
+            patient_id=checkin["record_patient_id"],
             conditions_on_file=raw_state.get("conditions_on_file") or ["diabetes"],
             step=INTERVIEW_COMPLETE,
             intakes=intakes,
         )
-        protocol_state = None
+        # Construct protocol_state for v3 if readings triggered triage
+        readings_map = {}
+        for intake_item in intakes:
+            for r_item in intake_item.get("readings", []):
+                obs_t = r_item.get("observation_type")
+                if obs_t == "glucose":
+                    readings_map[GLUCOSE] = float(r_item["value"])
+                elif obs_t == "blood_pressure_systolic":
+                    readings_map[SYSTOLIC] = float(r_item["value"])
+                elif obs_t == "blood_pressure_diastolic":
+                    readings_map[DIASTOLIC] = float(r_item["value"])
+
+        triggers = evaluate_triggers(readings_map)
+        if triggers:
+            primary_trig = triggers[0]
+            raw_answers = raw_state.get("raw_answers", {})
+            findings = raw_state.get("findings", [])
+            finding_labels = {f.get("finding_type") for f in findings if isinstance(f, dict)}
+
+            proto_answers = {
+                "dka_symptoms": bool("nausea_or_vomiting" in finding_labels),
+                "can_swallow": True,
+                "neuro": False,
+                "symptoms": bool(finding_labels),
+                "recheck": None,
+                "substances": False,
+                "circumstances": False,
+            }
+            p_state = TriageProtocolState(
+                protocol=primary_trig.protocol,
+                age_band="adult",
+                trigger_reason=primary_trig.reason,
+                readings=readings_map,
+                answers=proto_answers,
+            )
+            p_state.result = _decide(p_state)
+            protocol_state = p_state
+        else:
+            protocol_state = None
         med_state = None
     else:
         state = InterviewState.from_dict(checkin["state"])
@@ -3373,6 +3415,7 @@ def complete_checkin_endpoint(
     else:
         verif_max_severity = "none"
 
+    intake_requires_review = any(it.get("requires_review") for it in (state.intakes or []))
     if protocol_state and protocol_state.complete:
         triage_res = dict(protocol_state.result)
         profile = get_patient_profile(current_user["user_id"]) or {}
@@ -3380,12 +3423,12 @@ def complete_checkin_endpoint(
             triage_res["age_assumed"] = True
 
         proto_level = triage_res.get("level", "routine")
-        if verif_requires_review:
+        if verif_requires_review or intake_requires_review:
             final_triage_level = _raise_level(proto_level, "review")
         else:
             final_triage_level = proto_level
 
-        final_requires_review = (final_triage_level in ("review", "urgent", "emergency") or verif_requires_review)
+        final_requires_review = (final_triage_level in ("review", "urgent", "emergency") or verif_requires_review or intake_requires_review)
 
         SEV_ORDER = {"none": 0, "low": 1, "moderate": 2, "high": 3}
         if final_triage_level == "urgent":
@@ -3432,16 +3475,27 @@ def complete_checkin_endpoint(
             record_source_label=record_label,
         )
     else:
-        review_status = "open" if verif_requires_review else "resolved"
+        final_requires_review = (verif_requires_review or intake_requires_review)
+        final_triage_level = "review" if final_requires_review else "routine"
+        review_status = "open" if final_requires_review else "resolved"
+        final_max_sev = "moderate" if (intake_requires_review and verif_max_severity == "none") else verif_max_severity
+        triage_dict = {
+            "level": final_triage_level,
+            "guidance": "Low blood sugar safety review required. If you feel shaky, sweaty, or confused, consume fast-acting sugar immediately.",
+            "summary": "Check-in flagged for clinician review."
+        } if intake_requires_review else None
+
         create_checkin_result(
             checkin_id=checkin_id,
             emergency=False,
             intakes=state.intakes,
             reconciliation=recon_result.to_dict(),
             verification=verif_result.to_dict(),
-            requires_review=verif_requires_review,
-            max_severity=verif_max_severity,
+            requires_review=final_requires_review,
+            max_severity=final_max_sev,
             review_status=review_status,
+            triage_level=final_triage_level,
+            triage=triage_dict,
         )
         update_checkin_state(
             checkin_id=checkin_id,
@@ -3457,8 +3511,9 @@ def complete_checkin_endpoint(
             intakes=state.intakes,
             reconciliation=recon_result.to_dict(),
             verification=verif_result.to_dict(),
-            requires_review=verif_requires_review,
-            max_severity=verif_max_severity,
+            requires_review=final_requires_review,
+            max_severity=final_max_sev,
+            triage=triage_dict,
             record_source_label=record_label,
         )
 
