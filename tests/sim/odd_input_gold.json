@@ -1111,5 +1111,600 @@
     "expected_class": null,
     "language": "ur",
     "author": "engineer"
+  },
+  {
+    "text": "my wife says I look romantic when I smile",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I feel sick and tired today",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I love my morning walk in the park",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "the doctor said my sugar is bad",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I am scared of needles but I took my insulin",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "my father has the same problem with his blood pressure",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I read that I should stop salt, is that right",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I took 10 units of glargine at bedtime",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "blood pressure was 128/82 this morning",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "my glucose was 115 mg/dL after fasting for 10 hours",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I had oatmeal and unsweetened tea for breakfast",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "my feet feel a little dry but no ulcers or sores",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I walked 30 minutes yesterday evening",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "no missed doses this whole week",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I had a mild headache yesterday but it went away after drinking water",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I am eating more vegetables and less white rice",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "my doctor adjusted my metformin dose last month",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I checked my blood pressure while sitting quietly for 5 minutes",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "no dizziness when standing up",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I keep my insulin pens in the refrigerator",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I drank 2 litres of water today",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I took my amlodipine pill after breakfast",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "fasting sugar was 98 this morning",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "no chest discomfort or breathing trouble",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I felt a bit hungry before lunch but had an apple",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I have a doctor appointment next Tuesday",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "my vision is clear, no blurriness or spots",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I had fish and salad for dinner",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "no swelling in my ankles or legs",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "I slept 7 hours last night without waking up",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "en",
+    "author": "engineer"
+  },
+  {
+    "text": "meri biwi kehti hai ke subah ki sair zaroor kiya karo",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "mujhe subah ki sair bohat pasand hai",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "aaj subah sugar 125 fasting aayi thi",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "BP 130/85 tha subah sukoon se baith kar check kiya",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "dawa waqt par le li thi nashte ke baad",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "koi chhati mein dard ya jalan nahi hai",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "saans bilkul theek hai koi takleef nahi",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "chakkar nahi aate kharay hone par",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "paon par koi zakham ya kharash nahi hai",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "doctor ne bola tha meetha kam khana",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "kal raat ko 8 baje insulin lagai thi 12 units",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "pani 8 se 10 glass rozana peeta hoon",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "neend theek aayi thi raat ko",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "aaj subah nashte mein daliya aur anda khaya tha",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "metformin subah shaam le raha hoon khane ke sath",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "kal sham ko 20 minute paidal chala tha",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "mere walid ko bhi sugar thi lekin main parhez kar raha hoon",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "dawa ki koi dose miss nahi hui pichle haftay",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "sugar 140 thi khana khane ke do ghante baad",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "aankhon ke aagay andhera ya dhabay nahi hain",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "takhno par koi sojan nahi hai",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "gardan ya kamar mein halka dard tha jo aaram se theek ho gaya",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "BP ki machine sahi kaam kar rahi hai",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "namak kam istemal kar raha hoon doctor ke mashwaray par",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "thori thakawat thi lekin ab behtar mehsoos ho raha hai",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "insulin fridge mein rakhi hui hai",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "sugar check karne ki strips khatam hone wali hain",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "aaj tabiat theek hai shukriya",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "subah se koi ulti ya matli nahi hui",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "peshab mein koi jalan ya takleef nahi hai",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "roman_ur",
+    "author": "engineer"
+  },
+  {
+    "text": "صبح کی سیر بہت پسند ہے اور روزانہ جاتا ہوں",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "آج صبح نہار منہ شوگر 118 تھی",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "بلڈ پریشر 125/80 تھا پرسکون بیٹھ کر چیک کیا",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "ناشتے کے بعد شوگر کی گولی وقت پر لی تھی",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "سینے میں کوئی درد یا دباؤ نہیں ہے",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "سانس بالکل بحال ہے کوئی دشواری نہیں",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "کھڑے ہونے پر چکر نہیں آتے",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "پاؤں پر کوئی سوجن یا زخم نہیں ہے",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "ڈاکٹر صاحب نے نمک اور میٹھا کم کرنے کا کہا تھا",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "رات کو انسولین کے دس یونٹ لگائے تھے",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "روزانہ آٹھ سے دس گلاس پانی پیتا ہوں",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "پچھلے ایک ہفتے میں دوا کی کوئی خوراک نہیں چھوٹی",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "کھانے کے دو گھنٹے بعد شوگر 145 تھی",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "بینائی بالکل ٹھیک ہے دھندلا پن نہیں ہے",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "ٹخنوں پر کوئی ورم یا سوجن نہیں ہے",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "رات کو پرسکون نیند آئی تھی",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "صبح ناشتے میں دلیہ اور ابلے ہوئے انڈے کھائے تھے",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "میٹفارمین دن میں دو بار کھانے کے ساتھ لیتا ہوں",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "شام کو پارک میں آدھا گھنٹہ واک کی تھی",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "والد صاحب کو بھی ہائی بلڈ پریشر کا مسئلہ تھا",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "انسولین کو فریج میں محفوظ رکھا ہوا ہے",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "طبیعت اب پہلے سے کافی بہتر ہے",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "متلی یا قے کی کوئی شکایت نہیں ہے",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "پیشاب معمول کے مطابق آ رہا ہے",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
+  },
+  {
+    "text": "کھانے پینے میں مکمل پرہیز کر رہا ہوں",
+    "expected_category": "none",
+    "expected_class": "none",
+    "language": "ur",
+    "author": "engineer"
   }
 ]
