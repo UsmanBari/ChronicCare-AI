@@ -369,14 +369,11 @@ def _has_bp_technique_in_text(text: str) -> bool:
     return any(w in lowered for w in ["rested", "sitting", "seated", "clinic", "home"])
 
 
-def _process_glucose_input(answer: str, previously_asked: bool = False, allow_mmol_conversion: bool = True) -> Tuple[Optional[float], Optional[str], bool, Optional[str], Optional[str]]:
+def _process_glucose_input(answer: str, previously_asked: bool = False) -> Tuple[Optional[float], Optional[str], bool, Optional[str], Optional[str]]:
     v_res = validate_glucose_input(answer, previously_asked_unit=previously_asked)
     if v_res.valid:
         val = v_res.value
         if v_res.unit == "mmol/L":
-            if allow_mmol_conversion:
-                val_mgdl = round(float(val) * 18.0182, 1)
-                return val_mgdl, "mg/dL", False, None, None
             return None, None, True, None, None
         return float(val), v_res.unit, False, None, None
     if v_res.needs_unit_clarification:
