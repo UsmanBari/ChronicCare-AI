@@ -4,12 +4,13 @@ Generates docs/INTERVIEW_QUESTION_BANK.md from the modular JSON Question Bank.
 
 import os
 import sys
+from pathlib import Path
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.dirname(SCRIPT_DIR)
-BACKEND_DIR = os.path.join(REPO_ROOT, "backend-poc-technical")
-if BACKEND_DIR not in sys.path:
-    sys.path.insert(0, BACKEND_DIR)
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+BACKEND_DIR = REPO_ROOT / "backend-poc-technical"
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 from agents.interview_bank.loader import get_default_bank
 
@@ -76,8 +77,8 @@ def generate_bank_markdown() -> str:
 
 def main():
     content = generate_bank_markdown()
-    doc_path = os.path.join(REPO_ROOT, "docs", "INTERVIEW_QUESTION_BANK.md")
-    with open(doc_path, "w", encoding="utf-8") as f:
+    doc_path = REPO_ROOT / "docs" / "INTERVIEW_QUESTION_BANK.md"
+    with open(doc_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(content)
     print(f"Question Bank documentation written to {doc_path}")
 
