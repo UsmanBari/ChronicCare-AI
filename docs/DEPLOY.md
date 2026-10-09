@@ -29,6 +29,7 @@
 | `GROQ_STT_MODEL` | No | Whisper STT model name (defaults to `whisper-large-v3-turbo`). | Groq Documentation. |
 | `FHIR_BASE_URL` | No | Optional default FHIR server URL override. | Target hospital or sandbox endpoint. |
 | `REQUIRE_INCLUSION` | No | Enforces adult inclusion confirmation on check-in start (`1` or `0`). | Internal policy. |
+| `INTERVIEW_ENGINE` | No | Check-in engine version: `v2` (default legacy engine) or `v3` (Adaptive modular engine). | Set to `v3` to activate Adaptive Interview v3. |
 
 ### B. Netlify (Frontend Site)
 

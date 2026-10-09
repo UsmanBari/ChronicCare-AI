@@ -258,19 +258,30 @@ In Connected Mode, an EHR patient record may contain dozens of active medication
 | `otc_meds_bp` | Decongestants / NSAIDs reported with elevated BP | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
 | `missed_doses_reason` | Side effects / cost barriers causing missed doses | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
 
-## 9. Clinician review
+## 10. Proposed additional danger screen patterns (from interview engine v3 input triage)
 
-| Section | Reviewer | Date | Decision (accept, change, reject) | Notes |
-|---|---|---|---|---|
-| 1. Levels | | | PENDING | |
-| 2. Triggers and baseline | | | PENDING | |
-| 3. Questions and decisions | | | PENDING | |
-| 4. Age and exclusions | | | PENDING | |
-| 5. Danger phrases and readings | | | PENDING | |
-| 6. Medication confirmation | | | PENDING | |
-| 7. Medication scope | | | PENDING | |
-| 8. New rules in v2.3 | | | PENDING | |
-| 9. Constants | | | PENDING | |
+> **Proposed, not reviewed by a clinician.**
+> In Interview Engine v3, the safety screen authoritatively runs `run_stage1_red_flag_screen` FIRST. The following additional multilingual patterns are added defensively to catch edge-case phrasing across English, Urdu, and Roman Urdu.
+
+| Category | Additional Patterns (English / Roman Urdu / Urdu) | Level Action | Status |
+|---|---|---|---|
+| Direct Inability Emergencies | `can't breathe`, `cannot breathe`, `can't move`, `can't see`, `cannot see`, `can't keep`, `saans nahi aa rahi`, `bol nahi pa raha`, `ulti ruk nahi rahi`, `paani bhi nahi rukta`, `سانس نہیں آ رہی`, `بول نہیں پا رہا`, `الٹی رک نہیں رہی`, `پانی بھی نہیں رک رہا` | `emergency` | Proposed, not reviewed by a clinician |
+| DKA / Severe Vomiting with High Glucose | `vomiting continuously`, `musalsal ultiyan`, `مسلسل الٹیاں`, `مسلسل قے اور الٹی` | `emergency` | Proposed, not reviewed by a clinician |
+| Multilingual Chest Pain | `crushing chest pain`, `heavy chest`, `chest pressure`, `pain in my chest` | `emergency` | Proposed, not reviewed by a clinician |
+| Urgent Safety / Self-Harm | Explicit self-harm or hopelessness phrases (e.g. `want to end my life`, `zindagi khatam karni hai`) | `emergency` + crisis support guidance + urgent clinician alert | Proposed, not reviewed by a clinician |
+
+## 11. Proposed glucose unit safety rule (from interview engine v3 answer validation)
+
+> **Proposed, not reviewed by a clinician.**
+> Clinical Rationale: Under ADA Standards of Care (2026 Section 6), blood glucose values $\le 40$ mg/dL represent severe, life-threatening hypoglycemia requiring urgent intervention. If a patient enters a number $\le 40$ without a unit (e.g. "7" meaning 7.0 mmol/L $\approx$ 126 mg/dL vs 7 mg/dL), assuming either unit without verification creates risk.
+
+- **Disambiguation Question:** If a patient enters a value between $2.0$ and $40.0$ with no unit, the engine asks ONE unit clarification question ("Did you mean X mmol/L or X mg/dL?").
+- **Unanswered Unit Safety Fallback:** If the unit question is unanswered, repeated, or unclear, the engine:
+  1. Sets the check-in triage level to AT LEAST `review` (so a clinician reviews it today).
+  2. Provides immediate low-sugar safety guidance ("If you feel shaky, sweaty, dizzy, or unwell, please consume fast-acting sugar...").
+  3. Records a note for the provider: "glucose value unit unclear, possible low".
+  4. Continues interview questions (symptom exploration continues to check for neuroglycopenia or autonomic symptoms).
+- **Values $> 40$:** Numbers $> 40$ without an explicit unit default to mg/dL (physiologic upper limit for mmol/L is $\approx 33.3$ mmol/L).
 
 
 
