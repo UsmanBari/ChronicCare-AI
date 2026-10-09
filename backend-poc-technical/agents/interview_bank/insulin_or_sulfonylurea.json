@@ -1,0 +1,42 @@
+[
+  {
+    "id": "insulin_hypo_events_past_week",
+    "module": "insulin_or_sulfonylurea",
+    "slot": "hypo_events_past_week",
+    "why_text": "People on insulin or sulfonylureas have a higher risk of low blood sugar, which needs safe prevention.",
+    "template_en": "In the past 7 days, have you had any low blood sugar episodes (like sudden shakiness, cold sweat, hunger, or feeling faint)?",
+    "template_ur": "گزشتہ 7 دنوں میں، کیا آپ کی شوگر کم (لو) ہوئی تھی (جیسے کپکپاہٹ، ٹھنڈے پسینے، شدید بھوک، یا غشی)؟",
+    "template_roman_ur": "Pichle 7 dino mein, kya aap ki sugar kam (low) hui thi (jaise kapkapahat, thanday paseenay, shadeed bhook, ya ghashi)?",
+    "answer_type": "yes_no",
+    "choices": ["yes", "no"],
+    "valid_range": null,
+    "unit_options": null,
+    "requires": {"on_insulin_or_sulfonylurea": true},
+    "priority_class": "safety",
+    "can_raise_level": true,
+    "rule_id": "hypo_events_past_week_triage",
+    "source": "ada_2026_soc_sec6",
+    "review_status": "proposed, not reviewed by a clinician",
+    "bank_version": "3.0"
+  },
+  {
+    "id": "insulin_hypo_symptoms_acute",
+    "module": "insulin_or_sulfonylurea",
+    "slot": "hypo_symptoms_acute",
+    "why_text": "To check if you are currently feeling symptoms of a low blood sugar.",
+    "template_en": "Are you currently feeling any shakiness, sweating, dizziness, or confusion that gets better when you eat something sweet?",
+    "template_ur": "کیا آپ اس وقت کپکپاہٹ، پسینہ، چکر، یا الجھن محسوس کر رہے ہیں جو میٹھا کھانے سے بہتر ہوتی ہو؟",
+    "template_roman_ur": "Kya aap is waqt kapkapahat, paseena, chakkar, ya uljhan mehsoos kar rahe hain jo meetha khanay se theek hoti ho?",
+    "answer_type": "yes_no",
+    "choices": ["yes", "no"],
+    "valid_range": null,
+    "unit_options": null,
+    "requires": {"on_insulin_or_sulfonylurea": true},
+    "priority_class": "safety",
+    "can_raise_level": true,
+    "rule_id": "hypoglycemia_symptoms_triage",
+    "source": "ada_2026_soc_sec6",
+    "review_status": "proposed, not reviewed by a clinician",
+    "bank_version": "3.0"
+  }
+]
