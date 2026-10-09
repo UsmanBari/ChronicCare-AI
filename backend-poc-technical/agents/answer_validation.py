@@ -108,9 +108,12 @@ class ValidationResult:
     unit: Optional[str] = None
     is_ambiguous: bool = False
     needs_unit_clarification: bool = False
+    is_possible_severe_low: bool = False
     is_minimiser: bool = False
     is_unclear: bool = False
     needs_review: bool = False
+    review_reason: Optional[str] = None
+    safety_guidance: Optional[str] = None
     confidence: str = "High"
     raw_quote: str = ""
     clarification_prompt: Optional[str] = None
@@ -119,11 +122,13 @@ class ValidationResult:
 def validate_glucose_input(text: str, previously_asked_unit: bool = False) -> ValidationResult:
     """
     Parses and validates glucose input:
-    - If explicit 'mmol' or 'mmol/L', converts or validates in mmol/L range.
-    - If explicit 'mg/dL', validates in mg/dL range.
+    - If explicit 'mmol' or 'mmol/L', validates in mmol/L range (1.1 to 33.3).
+    - If explicit 'mg/dL' / 'mg', validates in mg/dL range (20 to 600).
     - If number is 2.0 to 40.0 with NO unit:
       - If first time: returns needs_unit_clarification=True.
-      - If second time (previously_asked_unit=True): stores as unknown + needs_review.
+      - If second time (previously_asked_unit=True): treated as POSSIBLE SEVERE LOW (<= 40 mg/dL):
+        level is at least Review, provider card shows 'glucose value unit unclear, possible low',
+        low-sugar safety guidance is attached, symptom questions continue. Never lowers any level.
     - If number > 40: treated as mg/dL.
     """
     if not text or not text.strip():
@@ -131,6 +136,25 @@ def validate_glucose_input(text: str, previously_asked_unit: bool = False) -> Va
 
     clean = text.strip().translate(_EASTERN_DIGITS_TABLE)
     lowered = clean.lower()
+
+    # Check for skip or unknown
+    if any(k in lowered for k in ["don't know", "dont know", "skip", "not sure", "prefer not to say", "maloom nahi", "nahi pata"]):
+        if previously_asked_unit:
+            # If answering "I don't know" to unit clarification, and original value was <= 40, treat as possible low
+            return ValidationResult(
+                valid=True,
+                value=None,
+                unit="unclear",
+                is_unclear=True,
+                needs_review=True,
+                is_possible_severe_low=True,
+                review_reason="glucose value unit unclear, possible low",
+                safety_guidance="If you feel shaky, sweaty, dizzy, or unwell, please consume fast-acting sugar (fruit juice or sweets) and re-check, or seek medical advice.",
+                confidence="Low",
+                raw_quote=clean,
+                clarification_prompt="Glucose unit unclear. Treated as possible low sugar for safety review."
+            )
+        return ValidationResult(valid=False, is_unclear=True, needs_review=True, confidence="Low", raw_quote=clean)
 
     # Verbal number words check
     num_from_words = _parse_number_words(lowered)
@@ -170,19 +194,24 @@ def validate_glucose_input(text: str, previously_asked_unit: bool = False) -> Va
         if previously_asked_unit:
             return ValidationResult(
                 valid=False,
-                value=None,
+                value=val,
+                unit="unclear",
                 is_unclear=True,
                 needs_review=True,
+                is_possible_severe_low=True,
+                review_reason="glucose value unit unclear, possible low",
+                safety_guidance="If you feel shaky, sweaty, dizzy, or unwell, please consume fast-acting sugar (fruit juice or sweets) and re-check, or seek medical advice.",
                 confidence="Low",
                 raw_quote=clean,
-                clarification_prompt="Unit remained unconfirmed. Stored for clinician review."
+                clarification_prompt="Glucose unit unclear. Treated as possible low sugar for safety review."
             )
         return ValidationResult(
             valid=False,
             value=val,
+            is_ambiguous=True,
             needs_unit_clarification=True,
             raw_quote=clean,
-            clarification_prompt=f"I heard {val}. Is that mmol/L or mg/dL?"
+            clarification_prompt=f"I heard {val:g}. Is that mmol/L or mg/dL?"
         )
 
     if PLAUSIBILITY_RANGES["glucose_mg_dl"]["min"] <= val <= PLAUSIBILITY_RANGES["glucose_mg_dl"]["max"]:
@@ -270,3 +299,6 @@ def detect_cross_checks_and_contradictions(
             }
 
     return None
+
+
+check_contradiction = detect_cross_checks_and_contradictions
