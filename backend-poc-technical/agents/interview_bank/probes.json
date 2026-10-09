@@ -74,6 +74,17 @@
       "why_text": "To distinguish general high-sugar blurriness from retinal issues."
     }
   ],
+  "thirst_or_urination": [
+    {
+      "probe_id": "probe_thirst_intensity",
+      "slot": "thirst_intensity",
+      "template_en": "Are you feeling much thirstier than usual, or needing to get up multiple times at night to pass urine?",
+      "template_ur": "کیا آپ کو معمول سے بہت زیادہ پیاس لگ رہی ہے یا رات کو بار بار پیشاب کے لیے اٹھنا پڑ رہا ہے؟",
+      "template_roman_ur": "Kya aap ko mamool se bohat ziada pyas lag rahi hai ya raat ko bar bar peshab ke liye uthna par raha hai?",
+      "answer_type": "yes_no",
+      "why_text": "To check for signs of high blood glucose levels."
+    }
+  ],
   "foot_problem": [
     {
       "probe_id": "probe_foot_open_wound",
@@ -103,6 +114,18 @@
       "template_roman_ur": "Kya meetha khanay ya juice peenay ke 15 minute ke andar alamaat theek ho gayi theen?",
       "answer_type": "yes_no",
       "why_text": "To confirm recovery from hypoglycemia."
+    }
+  ],
+  "missed_dose": [
+    {
+      "probe_id": "probe_missed_dose_reason",
+      "slot": "missed_dose_reason",
+      "template_en": "What made it hard to take your medicine (for example: ran out, side effects, cost, or forgot)?",
+      "template_ur": "دوا لینے میں کیا مشکل پیش آئی (مثلاً: دوا ختم ہو گئی، سائیڈ ایفیکٹس، لاگت، یا بھول گئے)؟",
+      "template_roman_ur": "Dawa lene mein kya mushkil pesh aayi (maslan: dawa khatam ho gayi, side effects, qeemat, ya bhool gaye)?",
+      "answer_type": "choice",
+      "choices": ["ran_out", "side_effects", "cost_barrier", "forgot", "other"],
+      "why_text": "To help your care team support you with barriers to taking medication."
     }
   ],
   "swelling": [
@@ -138,6 +161,41 @@
       "template_roman_ur": "Kya aap paani ya liquid cheezein baghair ulti ke pee pa rahe hain?",
       "answer_type": "yes_no",
       "why_text": "Inability to keep fluids down requires prompt medical review."
+    }
+  ],
+  "pain_elsewhere": [
+    {
+      "probe_id": "probe_pain_location_severity",
+      "slot": "pain_severity",
+      "template_en": "On a scale from 1 to 10, how severe is this pain?",
+      "template_ur": "1 سے 10 کے پیمانے پر، یہ درد کتنا شدید ہے؟",
+      "template_roman_ur": "1 se 10 ke scale par, yeh dard kitna shadeed hai?",
+      "answer_type": "number",
+      "valid_range": [1, 10],
+      "why_text": "To document pain severity for clinical review."
+    }
+  ],
+  "sleep_disturbance": [
+    {
+      "probe_id": "probe_sleep_cause",
+      "slot": "sleep_disruption_cause",
+      "template_en": "Is difficulty sleeping mainly due to pain, shortness of breath, anxiety, or needing to pass urine?",
+      "template_ur": "کیا نیند میں دشواری کی وجہ درد، سانس کی تنگی، بے چینی یا بار بار پیشاب آنا ہے؟",
+      "template_roman_ur": "Kya neend mein dushwari ki wajah dard, saans ki tangi, be chaini ya bar bar peshab aana hai?",
+      "answer_type": "choice",
+      "choices": ["pain", "breathlessness", "anxiety", "urination", "other"],
+      "why_text": "To identify clinical factors affecting sleep."
+    }
+  ],
+  "low_mood": [
+    {
+      "probe_id": "probe_low_mood_frequency",
+      "slot": "low_mood_frequency",
+      "template_en": "Have you been feeling down or discouraged nearly every day over the past two weeks?",
+      "template_ur": "کیا آپ گزشتہ دو ہفتوں کے دوران تقریباً روزانہ اداسی یا مایوسی محسوس کر رہے ہیں؟",
+      "template_roman_ur": "Kya aap pichle do hafto ke dauran taqreeban rozana udasi ya mayoosi mehsoos kar rahe hain?",
+      "answer_type": "yes_no",
+      "why_text": "To screen for mood changes impacting daily chronic disease management."
     }
   ],
   "other_symptom": [
