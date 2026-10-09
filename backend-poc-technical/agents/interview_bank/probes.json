@@ -62,6 +62,18 @@
       "why_text": "To check for fluid accumulation signs."
     }
   ],
+  "chest_discomfort": [
+    {
+      "probe_id": "probe_chest_discomfort_exertion",
+      "slot": "chest_discomfort_pattern",
+      "template_en": "Does the discomfort happen with physical exertion, or when resting quietly?",
+      "template_ur": "کیا یہ تکلیف جسمانی مشقت کے وقت ہوتی ہے یا آرام سے بیٹھے ہوئے بھی؟",
+      "template_roman_ur": "Kya yeh takleef jismani mushaqat ke waqt hoti hai ya aaram se baithay hue bhi?",
+      "answer_type": "choice",
+      "choices": ["on_exertion", "at_rest"],
+      "why_text": "To distinguish exertional symptoms from resting symptoms for clinical review."
+    }
+  ],
   "vision_change": [
     {
       "probe_id": "probe_vision_type",
