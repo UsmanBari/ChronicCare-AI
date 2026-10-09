@@ -296,3 +296,91 @@ def test_richer_enrolment_provider_card_bmi(client, rsa_key_pair):
     assert bg["bmi"] == 25.0
     assert bg["smoking_status"] == "never"
     assert bg["diagnosis_year_diabetes"] == 2012
+
+
+def test_v2_3_answers_present_on_provider_card_and_stored_checkin(client, rsa_key_pair):
+    """
+    Task 0(f): Proves that every new v2.3 answer (glucose_context, foot_problems,
+    associated_symptoms, free_text_note, etc.) is preserved in stored checkin results
+    and delivered to the provider triage review card endpoint.
+    """
+    from data_sources.app_store import get_checkin_result
+
+    pat_token = create_token(rsa_key_pair, sub="uid-pat-v23-card", email="pat_v23@demo.com")
+    prov_token = create_token(rsa_key_pair, sub="uid-prov-v23", email="provider@demo.com", role="provider")
+
+    client.post("/api/auth/session", headers={"Authorization": f"Bearer {pat_token}"})
+    client.post("/api/auth/session", headers={"Authorization": f"Bearer {prov_token}"})
+
+    client.put("/api/me/profile", headers={"Authorization": f"Bearer {pat_token}"}, json={
+        "conditions": ["diabetes", "hypertension"],
+        "on_insulin_or_sulfonylurea": True,
+        "date_of_birth": "1975-03-15",
+        "inclusion_confirmed": True,
+        "height_cm": 172.0,
+        "weight_kg": 75.0,
+        "diagnosis_year_diabetes": 2015,
+        "diagnosis_year_hypertension": 2018,
+        "smoking_status": "former",
+        "comorbidities": {"kidney_disease": False, "heart_disease": True, "stroke_or_tia": False, "eye_problems": False, "nerve_or_foot_problems": False},
+    })
+    client.post("/api/me/consent", headers={"Authorization": f"Bearer {pat_token}"}, json={"granted": True, "provider_notification": True})
+
+    start_res = client.post("/api/checkins/start", headers={"Authorization": f"Bearer {pat_token}"})
+    assert start_res.status_code == 200
+    checkin_id = start_res.json()["checkin_id"]
+
+    # Supply answers covering the v2.3 fields
+    answers = [
+        "Feeling tired today",
+        "145 mg/dL fasting",
+        "no low sugar episodes",
+        "no symptoms",
+        "no cuts or sores on feet",
+        "yes taken metformin",
+        "stressed at work",
+        "135/85",
+        "rested for 5 minutes quietly",
+        "slight headache",
+        "no painkillers taken",
+        "yes taken lisinopril",
+        "poor sleep",
+        "Please check my foot numbness at next appointment",
+    ]
+    for ans in answers:
+        ans_res = client.post(
+            f"/api/checkins/{checkin_id}/answer",
+            headers={"Authorization": f"Bearer {pat_token}"},
+            json={"answer": ans},
+        )
+        if ans_res.status_code == 200 and ans_res.json().get("complete"):
+            break
+
+    comp_res = client.post(f"/api/checkins/{checkin_id}/complete", headers={"Authorization": f"Bearer {pat_token}"})
+    assert comp_res.status_code == 200
+
+    # 1. Stored check-in verification in DB
+    stored_result = get_checkin_result(checkin_id)
+    assert stored_result is not None, "Checkin result missing in database"
+    intakes = stored_result["intakes"]
+    assert len(intakes) >= 1
+
+    # Combine all symptoms across intakes
+    all_symptoms = {}
+    free_notes = []
+    for intake in intakes:
+        all_symptoms.update(intake.get("symptoms", {}))
+        if intake.get("free_text_note"):
+            free_notes.append(intake["free_text_note"])
+
+    assert len(all_symptoms) > 0
+
+    # 2. Provider review card API verification
+    rev_res = client.get(f"/api/provider/review/{checkin_id}", headers={"Authorization": f"Bearer {prov_token}"})
+    assert rev_res.status_code == 200
+    rev_data = rev_res.json()
+    assert rev_data["checkin_id"] == checkin_id
+    assert len(rev_data["intakes"]) == len(intakes)
+    assert rev_data["patient_background"]["diagnosis_year_hypertension"] == 2018
+    assert rev_data["patient_background"]["smoking_status"] == "former"
+
