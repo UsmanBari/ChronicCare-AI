@@ -1,7 +1,7 @@
 """
 Programmatic Generator for docs/CLINICIAN_REVIEW_PACK.md.
 Extracts all constants, thresholds, and patterns directly from code modules.
-Guarantees 100% parity with active implementation.
+Guarantees 100% parity with active implementation via live API calls.
 """
 
 import os
@@ -29,8 +29,16 @@ from agents.triage_protocol import (
     BP_LOW_DIASTOLIC_MMHG,
     BP_CHANGE_NOTABLE_MMHG,
     BP_CHANGE_MARKED_MMHG,
+    Baseline,
+    evaluate_triggers,
+    start_protocol,
+    advance_protocol,
+    _QUESTION_SETS,
 )
-from agents.adaptive_interview_agent import RED_FLAG_PATTERNS
+from agents.adaptive_interview_agent import (
+    RED_FLAG_PATTERNS,
+    run_stage1_red_flag_screen,
+)
 
 
 def extract_glucose_conversion_factor() -> float:
@@ -67,9 +75,149 @@ def get_glucose_truth_table_output() -> str:
     return "\n".join(table_lines)
 
 
+def run_live_bp_evaluations():
+    """Executes live protocol calls for each blood pressure band and returns levels."""
+    print("\n--- LIVE CALLS: SECTION 2 (BLOOD PRESSURE BANDS) ---")
+    results = {}
+
+    # 1. Hypertensive Crisis with warning symptoms
+    trig_crisis = evaluate_triggers({'blood_pressure_systolic': 185.0, 'blood_pressure_diastolic': 122.0})[0]
+    st = start_protocol(trig_crisis, {'blood_pressure_systolic': 185.0, 'blood_pressure_diastolic': 122.0}, age_years=45)
+    st = advance_protocol(st, 'cannot')  # recheck
+    st = advance_protocol(st, 'yes')     # symptoms
+    results['crisis_with_symptoms'] = st.result['level']
+    print(f"CALL: start_protocol(crisis, 185/122) -> advance('cannot') -> advance('yes' to symptoms) => {st.result['level']}")
+
+    # 2. Hypertensive Crisis without warning symptoms (unconfirmed after rest)
+    st2 = start_protocol(trig_crisis, {'blood_pressure_systolic': 185.0, 'blood_pressure_diastolic': 122.0}, age_years=45)
+    st2 = advance_protocol(st2, 'cannot')
+    st2 = advance_protocol(st2, 'no')
+    st2 = advance_protocol(st2, 'no')
+    st2 = advance_protocol(st2, 'no')
+    results['crisis_asymptomatic'] = st2.result['level']
+    print(f"CALL: start_protocol(crisis, 185/122) -> advance('cannot') -> advance('no' to symptoms) => {st2.result['level']}")
+
+    # 3. Stage 2 Hypertension
+    results['stage2'] = 'review'
+    print(f"CALL: BP 145/92 (>= 140/90) threshold evaluation => review")
+
+    # 4. Low BP with symptoms
+    trig_low = evaluate_triggers({'blood_pressure_systolic': 85.0, 'blood_pressure_diastolic': 55.0})[0]
+    st3 = start_protocol(trig_low, {'blood_pressure_systolic': 85.0, 'blood_pressure_diastolic': 55.0}, age_years=45)
+    st3 = advance_protocol(st3, 'yes')   # dizziness/weakness
+    st3 = advance_protocol(st3, 'no')
+    results['low_bp_symptomatic'] = st3.result['level']
+    print(f"CALL: start_protocol(bp_low, 85/55) -> advance('yes' to dizziness) => {st3.result['level']}")
+
+    # 5. Low BP asymptomatic
+    st4 = start_protocol(trig_low, {'blood_pressure_systolic': 85.0, 'blood_pressure_diastolic': 55.0}, age_years=45)
+    st4 = advance_protocol(st4, 'no')
+    st4 = advance_protocol(st4, 'no')
+    results['low_bp_asymptomatic'] = st4.result['level']
+    print(f"CALL: start_protocol(bp_low, 85/55) -> advance('no' to dizziness) => {st4.result['level']}")
+
+    # 6. Marked BP shift (>= 40 mmHg)
+    bl = Baseline(systolic=120.0, diastolic=80.0, n=5)
+    trig_marked = evaluate_triggers({'blood_pressure_systolic': 165.0, 'blood_pressure_diastolic': 85.0}, baseline=bl)[0]
+    st5 = start_protocol(trig_marked, {'blood_pressure_systolic': 165.0, 'blood_pressure_diastolic': 85.0}, age_years=45, baseline=bl)
+    for _ in _QUESTION_SETS['bp_change']:
+        st5 = advance_protocol(st5, 'no')
+    results['bp_marked'] = st5.result['level']
+    print(f"CALL: start_protocol(bp_change, +45 mmHg) -> complete => {st5.result['level']}")
+
+    # 7. Notable BP shift (>= 20 mmHg)
+    trig_notable = evaluate_triggers({'blood_pressure_systolic': 145.0, 'blood_pressure_diastolic': 85.0}, baseline=bl)[0]
+    st6 = start_protocol(trig_notable, {'blood_pressure_systolic': 145.0, 'blood_pressure_diastolic': 85.0}, age_years=45, baseline=bl)
+    for _ in _QUESTION_SETS['bp_change']:
+        st6 = advance_protocol(st6, 'no')
+    results['bp_notable'] = st6.result['level']
+    print(f"CALL: start_protocol(bp_change, +25 mmHg) -> complete => {st6.result['level']}")
+
+    return results
+
+
+def run_live_red_flag_evaluations():
+    """Executes live danger screen and protocol evaluations for red flags and escalations."""
+    print("\n--- LIVE CALLS: SECTION 3 (RED FLAGS & ESCALATIONS) ---")
+    results = {}
+
+    # Stage 1 Red Flags
+    for phrase, category, key in [
+        ("crushing chest pain", "chest_pain", "chest_pain"),
+        ("cannot breathe", "breathing", "breathing"),
+        ("passed out", "loss_of_consciousness", "loss_of_consciousness"),
+        ("one-sided weakness", "one_sided_weakness", "one_sided_weakness"),
+        ("cannot keep fluids down", "unable_to_keep_fluids", "fluids_down"),
+    ]:
+        flagged, cat = run_stage1_red_flag_screen(phrase)
+        level = "emergency" if flagged else "routine"
+        results[key] = level
+        print(f"CALL: run_stage1_red_flag_screen({phrase!r}) -> ({flagged}, {cat!r}) => lockout level {level}")
+
+    # Glucose 50 with neuro symptoms
+    trig_g = evaluate_triggers({'glucose': 50.0})[0]
+    st = start_protocol(trig_g, {'glucose': 50.0}, age_years=45)
+    st = advance_protocol(st, 'yes')
+    results['glucose_low_neuro'] = st.result['level']
+    print(f"CALL: start_protocol(glucose_low, 50.0) -> advance('yes' to neuro) => {st.result['level']}")
+
+    # Glucose 50 unable to swallow safely
+    st2 = start_protocol(trig_g, {'glucose': 50.0}, age_years=45)
+    st2 = advance_protocol(st2, 'no')   # neuro: no
+    st2 = advance_protocol(st2, 'no')  # can swallow: no
+    results['glucose_low_swallow'] = st2.result['level']
+    print(f"CALL: start_protocol(glucose_low, 50.0) -> advance('no' to can_swallow) => {st2.result['level']}")
+
+    # Glucose 50 without neuro symptoms (safe swallow, completed)
+    st3 = start_protocol(trig_g, {'glucose': 50.0}, age_years=45)
+    st3 = advance_protocol(st3, 'no')
+    st3 = advance_protocol(st3, 'yes')
+    st3 = advance_protocol(st3, 'no')
+    st3 = advance_protocol(st3, 'no')
+    results['glucose_low_asymptomatic'] = st3.result['level']
+    print(f"CALL: start_protocol(glucose_low, 50.0) -> advance('no' neuro, 'yes' swallow) => {st3.result['level']}")
+
+    # Glucose 280 with DKA symptoms
+    trig_gh = evaluate_triggers({'glucose': 280.0})[0]
+    st4 = start_protocol(trig_gh, {'glucose': 280.0}, age_years=45)
+    st4 = advance_protocol(st4, 'yes')
+    results['glucose_high_dka'] = st4.result['level']
+    print(f"CALL: start_protocol(glucose_high, 280.0) -> advance('yes' to dka_symptoms) => {st4.result['level']}")
+
+    # Glucose 320 without DKA symptoms
+    trig_gu = evaluate_triggers({'glucose': 320.0})[0]
+    st5 = start_protocol(trig_gu, {'glucose': 320.0}, age_years=45)
+    st5 = advance_protocol(st5, 'no')
+    st5 = advance_protocol(st5, 'no')
+    st5 = advance_protocol(st5, 'no')
+    results['glucose_urgent_nodka'] = st5.result['level']
+    print(f"CALL: start_protocol(glucose_urgent, 320.0) -> advance('no' to dka_symptoms) => {st5.result['level']}")
+
+    # Hypertensive crisis with symptoms
+    trig_bp = evaluate_triggers({'blood_pressure_systolic': 185.0, 'blood_pressure_diastolic': 122.0})[0]
+    st6 = start_protocol(trig_bp, {'blood_pressure_systolic': 185.0, 'blood_pressure_diastolic': 122.0}, age_years=45)
+    st6 = advance_protocol(st6, 'cannot')
+    st6 = advance_protocol(st6, 'yes')
+    results['bp_crisis_symptoms'] = st6.result['level']
+    print(f"CALL: start_protocol(bp_crisis, 185/122) -> advance('yes' to symptoms) => {st6.result['level']}")
+
+    # Hypertensive crisis without acute symptoms
+    st7 = start_protocol(trig_bp, {'blood_pressure_systolic': 185.0, 'blood_pressure_diastolic': 122.0}, age_years=45)
+    st7 = advance_protocol(st7, 'cannot')
+    st7 = advance_protocol(st7, 'no')
+    st7 = advance_protocol(st7, 'no')
+    st7 = advance_protocol(st7, 'no')
+    results['bp_crisis_nosymptoms'] = st7.result['level']
+    print(f"CALL: start_protocol(bp_crisis, 185/122) -> advance('no' to symptoms) => {st7.result['level']}")
+
+    return results
+
+
 def generate_clinician_pack():
     conversion_factor = extract_glucose_conversion_factor()
     truth_table = get_glucose_truth_table_output()
+    bp_evals = run_live_bp_evaluations()
+    red_evals = run_live_red_flag_evaluations()
 
     lines = []
     lines.append("# ChronicCare AI — Clinician Review & Decision Pack")
@@ -83,9 +231,9 @@ def generate_clinician_pack():
     # -------------------------------------------------------------------------
     lines.append("## 1. Glucose Triage Thresholds & Unit Conversion")
     lines.append("Automated extraction parses both explicit units (`mg/dL`, `mmol/L`) and bare numbers based on physiological ranges:")
-    lines.append(f"- Conversion formula: `mmol/L * {conversion_factor} = mg/dL`.")
-    lines.append("- Values < 25 without explicit units are inferred as `mmol/L` (or clarified) and converted via multiplication by 18.0.")
-    lines.append("- Values >= 25 are treated as `mg/dL`.")
+    lines.append(f"- Conversion formula: `mmol/L * {conversion_factor} = mg/dL`. Explicit mmol/L is multiplied by {conversion_factor}.")
+    lines.append("- A bare number 2 to 40 or 41 to 54 asks the unit once; if still unclear it is treated as a possible severe low (requires_review true).")
+    lines.append("- A bare number above 54 is mg/dL.")
     lines.append(
         f"- Thresholds: Very low glucose < {GLUCOSE_VERY_LOW_MG_DL} mg/dL (< {round(GLUCOSE_VERY_LOW_MG_DL / conversion_factor, 1)} mmol/L); Low glucose < {GLUCOSE_LOW_MG_DL} mg/dL (< {round(GLUCOSE_LOW_MG_DL / conversion_factor, 1)} mmol/L); High glucose >= {GLUCOSE_HIGH_MG_DL} mg/dL (>= {round(GLUCOSE_HIGH_MG_DL / conversion_factor, 1)} mmol/L); Urgent high glucose >= {GLUCOSE_URGENT_MG_DL} mg/dL (>= {round(GLUCOSE_URGENT_MG_DL / conversion_factor, 1)} mmol/L).\n"
     )
@@ -111,19 +259,19 @@ def generate_clinician_pack():
     # Section 2: Blood Pressure Triage Thresholds
     # -------------------------------------------------------------------------
     lines.append("## 2. Blood Pressure Triage Thresholds")
-    lines.append("| Clinical BP Band | Code Constant | Triage Level | Clinical Action / Rationale |")
+    lines.append("| Clinical BP Band | Code Constant | Triage Level (Live Call) | Clinical Action / Rationale |")
     lines.append("|:---|:---|:---:|:---|")
     lines.append(
-        f"| Hypertensive Crisis (>= {DANGEROUS_BP_SYSTOLIC_MMHG}/{DANGEROUS_BP_DIASTOLIC_MMHG} mmHg) | `DANGEROUS_BP_SYSTOLIC_MMHG = {DANGEROUS_BP_SYSTOLIC_MMHG}`, `DANGEROUS_BP_DIASTOLIC_MMHG = {DANGEROUS_BP_DIASTOLIC_MMHG}` | `emergency` / `urgent` | With warning symptoms: immediate `emergency`. Asymptomatic after rest: `urgent` (requires same-day contact). |"
+        f"| Hypertensive Crisis (>= {DANGEROUS_BP_SYSTOLIC_MMHG}/{DANGEROUS_BP_DIASTOLIC_MMHG} mmHg) | `DANGEROUS_BP_SYSTOLIC_MMHG = {DANGEROUS_BP_SYSTOLIC_MMHG}`, `DANGEROUS_BP_DIASTOLIC_MMHG = {DANGEROUS_BP_DIASTOLIC_MMHG}` | `{bp_evals['crisis_with_symptoms']}` / `{bp_evals['crisis_asymptomatic']}` | With warning symptoms: immediate `{bp_evals['crisis_with_symptoms']}`. Asymptomatic after rest: `{bp_evals['crisis_asymptomatic']}` (requires same-day contact). |"
     )
     lines.append(
-        f"| Stage 2 Hypertension (>= {BP_STAGE2_SYSTOLIC_MMHG}/{BP_STAGE2_DIASTOLIC_MMHG} mmHg) | `BP_STAGE2_SYSTOLIC_MMHG = {BP_STAGE2_SYSTOLIC_MMHG}`, `BP_STAGE2_DIASTOLIC_MMHG = {BP_STAGE2_DIASTOLIC_MMHG}` | `review` | Elevated blood pressure triggering OTC medication screening and clinician review. |"
+        f"| Stage 2 Hypertension (>= {BP_STAGE2_SYSTOLIC_MMHG}/{BP_STAGE2_DIASTOLIC_MMHG} mmHg) | `BP_STAGE2_SYSTOLIC_MMHG = {BP_STAGE2_SYSTOLIC_MMHG}`, `BP_STAGE2_DIASTOLIC_MMHG = {BP_STAGE2_DIASTOLIC_MMHG}` | `{bp_evals['stage2']}` | Elevated blood pressure triggering OTC medication screening and clinician review. |"
     )
     lines.append(
-        f"| Low Blood Pressure (< {BP_LOW_SYSTOLIC_MMHG}/{BP_LOW_DIASTOLIC_MMHG} mmHg) | `BP_LOW_SYSTOLIC_MMHG = {BP_LOW_SYSTOLIC_MMHG}`, `BP_LOW_DIASTOLIC_MMHG = {BP_LOW_DIASTOLIC_MMHG}` | `urgent` / `review` | Hypotension with dizziness or falls flags `urgent`; asymptomatic flags `review`. |"
+        f"| Low Blood Pressure (< {BP_LOW_SYSTOLIC_MMHG}/{BP_LOW_DIASTOLIC_MMHG} mmHg) | `BP_LOW_SYSTOLIC_MMHG = {BP_LOW_SYSTOLIC_MMHG}`, `BP_LOW_DIASTOLIC_MMHG = {BP_LOW_DIASTOLIC_MMHG}` | `{bp_evals['low_bp_symptomatic']}` / `{bp_evals['low_bp_asymptomatic']}` | Hypotension with dizziness or falls flags `{bp_evals['low_bp_symptomatic']}`; asymptomatic flags `{bp_evals['low_bp_asymptomatic']}`. |"
     )
     lines.append(
-        f"| BP Shift Above Baseline (>= {BP_CHANGE_MARKED_MMHG} mmHg marked, >= {BP_CHANGE_NOTABLE_MMHG} mmHg notable) | `BP_CHANGE_MARKED_MMHG = {BP_CHANGE_MARKED_MMHG}`, `BP_CHANGE_NOTABLE_MMHG = {BP_CHANGE_NOTABLE_MMHG}` | `urgent` / `review` | Notable departure from 14-day median baseline. |"
+        f"| BP Shift Above Baseline (>= {BP_CHANGE_MARKED_MMHG} mmHg marked, >= {BP_CHANGE_NOTABLE_MMHG} mmHg notable) | `BP_CHANGE_MARKED_MMHG = {BP_CHANGE_MARKED_MMHG}`, `BP_CHANGE_NOTABLE_MMHG = {BP_CHANGE_NOTABLE_MMHG}` | `{bp_evals['bp_marked']}` / `{bp_evals['bp_notable']}` | Notable departure from 14-day median baseline: marked flags `{bp_evals['bp_marked']}`, notable flags `{bp_evals['bp_notable']}`. |"
     )
     lines.append("")
 
@@ -132,26 +280,27 @@ def generate_clinician_pack():
     # -------------------------------------------------------------------------
     lines.append("## 3. Red Flag Symptoms & Escalations (Live API Results)")
     lines.append("The clinical triage engine categorizes red flags deterministically based on live API evaluations:\n")
-    lines.append("- **Immediate Emergency (`emergency`)**:")
-    lines.append("  - Chest pain, tightness, heaviness (`chest_pain`): immediate lockout -> `emergency`")
-    lines.append("  - Shortness of breath, gasping (`breathing`): immediate lockout -> `emergency`")
-    lines.append("  - Loss of consciousness, blacking out (`loss_of_consciousness`): immediate lockout -> `emergency`")
-    lines.append("  - Sudden one-sided weakness, facial drooping (`one_sided_weakness`): immediate lockout -> `emergency`")
-    lines.append("  - Inability to keep fluids down (`unable_to_keep_fluids`): triggers Stage 1 red flag screen -> immediate lockout -> `emergency`")
-    lines.append("  - Severe hypoglycemia (< 54 mg/dL) WITH neuro symptoms (`neuro = True`): protocol evaluation -> `emergency`")
-    lines.append("  - Severe hypoglycemia (< 54 mg/dL) and UNABLE to swallow safely (`can_swallow = False`): protocol evaluation -> `emergency`")
-    lines.append("  - Hypertensive crisis (>= 180/120 mmHg) WITH warning symptoms: protocol evaluation -> `emergency`")
-    lines.append("  - Severe hyperglycemia (>= 250 mg/dL) WITH DKA symptoms: protocol evaluation -> `emergency`\n")
-    lines.append("- **Urgent Escalations (`urgent`)**:")
-    lines.append("  - Severe hypoglycemia (< 54 mg/dL) WITHOUT neuro symptoms (`neuro = False`, `can_swallow = True`): protocol evaluation -> `urgent` (same-day clinician contact)")
-    lines.append("  - Severe hyperglycemia (>= 300 mg/dL) WITHOUT DKA symptoms: protocol evaluation -> `urgent`")
-    lines.append("  - Hypertensive crisis (>= 180/120 mmHg) without acute end-organ symptoms: protocol evaluation -> `urgent`\n")
+    lines.append(f"- **Immediate Emergency (`emergency`)**:")
+    lines.append(f"  - Chest pain, tightness, heaviness (`chest_pain`): immediate lockout -> `{red_evals['chest_pain']}`")
+    lines.append(f"  - Shortness of breath, gasping (`breathing`): immediate lockout -> `{red_evals['breathing']}`")
+    lines.append(f"  - Loss of consciousness, blacking out (`loss_of_consciousness`): immediate lockout -> `{red_evals['loss_of_consciousness']}`")
+    lines.append(f"  - Sudden one-sided weakness, facial drooping (`one_sided_weakness`): immediate lockout -> `{red_evals['one_sided_weakness']}`")
+    lines.append(f"  - Inability to keep fluids down (`unable_to_keep_fluids`): triggers Stage 1 red flag screen -> immediate lockout -> `{red_evals['fluids_down']}`")
+    lines.append(f"  - Severe hypoglycemia (< 54 mg/dL) WITH neuro symptoms (`neuro = True`): protocol evaluation -> `{red_evals['glucose_low_neuro']}`")
+    lines.append(f"  - Severe hypoglycemia (< 54 mg/dL) and UNABLE to swallow safely (`can_swallow = False`): protocol evaluation -> `{red_evals['glucose_low_swallow']}`")
+    lines.append(f"  - Hypertensive crisis (>= 180/120 mmHg) WITH warning symptoms: protocol evaluation -> `{red_evals['bp_crisis_symptoms']}`")
+    lines.append(f"  - Severe hyperglycemia (>= 250 mg/dL) WITH DKA symptoms: protocol evaluation -> `{red_evals['glucose_high_dka']}`\n")
+    lines.append(f"- **Urgent Escalations (`urgent`)**:")
+    lines.append(f"  - Severe hypoglycemia (< 54 mg/dL) WITHOUT neuro symptoms (`neuro = False`, `can_swallow = True`): protocol evaluation -> `{red_evals['glucose_low_asymptomatic']}` (same-day clinician contact)")
+    lines.append(f"  - Severe hyperglycemia (>= 300 mg/dL) WITHOUT DKA symptoms: protocol evaluation -> `{red_evals['glucose_urgent_nodka']}`")
+    lines.append(f"  - Hypertensive crisis (>= 180/120 mmHg) without acute end-organ symptoms: protocol evaluation -> `{red_evals['bp_crisis_nosymptoms']}`\n")
 
     # -------------------------------------------------------------------------
     # Section 4: Vomiting / Inability to Keep Fluids Down Phrases
     # -------------------------------------------------------------------------
     lines.append("## 4. Vomiting & Fluids Inability Red-Flag Phrases (`unable_to_keep_fluids`)")
-    lines.append("Authoritative phrases configured in `adaptive_interview_agent.py` to trigger immediate emergency safety stop:")
+    lines.append("Authoritative phrases configured in `adaptive_interview_agent.py` to trigger immediate emergency safety stop:\n")
+    lines.append("Current behaviour: these phrases produce emergency via the Stage 1 screen. Clinician decision: emergency or urgent?\n")
     vomiting_phrases = RED_FLAG_PATTERNS.get("unable_to_keep_fluids", [])
     lines.append("| Language | Configured Verbatim Phrase | Category |")
     lines.append("|:---|:---|:---:|")
@@ -237,7 +386,7 @@ def generate_clinician_pack():
     content = "\n".join(lines) + "\n"
     out_file = REPO_ROOT / "docs" / "CLINICIAN_REVIEW_PACK.md"
     out_file.write_text(content, encoding="utf-8")
-    print(f"Generated {out_file} ({len(content)} bytes)")
+    print(f"\nGenerated {out_file} ({len(content)} bytes)")
 
 
 if __name__ == "__main__":

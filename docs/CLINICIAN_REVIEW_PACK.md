@@ -5,9 +5,9 @@
 
 ## 1. Glucose Triage Thresholds & Unit Conversion
 Automated extraction parses both explicit units (`mg/dL`, `mmol/L`) and bare numbers based on physiological ranges:
-- Conversion formula: `mmol/L * 18.0 = mg/dL`.
-- Values < 25 without explicit units are inferred as `mmol/L` (or clarified) and converted via multiplication by 18.0.
-- Values >= 25 are treated as `mg/dL`.
+- Conversion formula: `mmol/L * 18.0 = mg/dL`. Explicit mmol/L is multiplied by 18.0.
+- A bare number 2 to 40 or 41 to 54 asks the unit once; if still unclear it is treated as a possible severe low (requires_review true).
+- A bare number above 54 is mg/dL.
 - Thresholds: Very low glucose < 54 mg/dL (< 3.0 mmol/L); Low glucose < 70 mg/dL (< 3.9 mmol/L); High glucose >= 250 mg/dL (>= 13.9 mmol/L); Urgent high glucose >= 300 mg/dL (>= 16.7 mmol/L).
 
 | Clinical Glucose Band | Code Constant | Triage Level | Clinical Action / Rationale |
@@ -112,12 +112,12 @@ Automated extraction parses both explicit units (`mg/dL`, `mmol/L`) and bare num
 | `explicit_mmol` | `7.0 mmol/L` | 126.0 | `routine` | 0 | EQUIVALENT (OK) | (none) |
 
 ## 2. Blood Pressure Triage Thresholds
-| Clinical BP Band | Code Constant | Triage Level | Clinical Action / Rationale |
+| Clinical BP Band | Code Constant | Triage Level (Live Call) | Clinical Action / Rationale |
 |:---|:---|:---:|:---|
 | Hypertensive Crisis (>= 180/120 mmHg) | `DANGEROUS_BP_SYSTOLIC_MMHG = 180`, `DANGEROUS_BP_DIASTOLIC_MMHG = 120` | `emergency` / `urgent` | With warning symptoms: immediate `emergency`. Asymptomatic after rest: `urgent` (requires same-day contact). |
 | Stage 2 Hypertension (>= 140/90 mmHg) | `BP_STAGE2_SYSTOLIC_MMHG = 140`, `BP_STAGE2_DIASTOLIC_MMHG = 90` | `review` | Elevated blood pressure triggering OTC medication screening and clinician review. |
 | Low Blood Pressure (< 90/60 mmHg) | `BP_LOW_SYSTOLIC_MMHG = 90`, `BP_LOW_DIASTOLIC_MMHG = 60` | `urgent` / `review` | Hypotension with dizziness or falls flags `urgent`; asymptomatic flags `review`. |
-| BP Shift Above Baseline (>= 40 mmHg marked, >= 20 mmHg notable) | `BP_CHANGE_MARKED_MMHG = 40`, `BP_CHANGE_NOTABLE_MMHG = 20` | `urgent` / `review` | Notable departure from 14-day median baseline. |
+| BP Shift Above Baseline (>= 40 mmHg marked, >= 20 mmHg notable) | `BP_CHANGE_MARKED_MMHG = 40`, `BP_CHANGE_NOTABLE_MMHG = 20` | `urgent` / `review` | Notable departure from 14-day median baseline: marked flags `urgent`, notable flags `review`. |
 
 ## 3. Red Flag Symptoms & Escalations (Live API Results)
 The clinical triage engine categorizes red flags deterministically based on live API evaluations:
@@ -140,6 +140,9 @@ The clinical triage engine categorizes red flags deterministically based on live
 
 ## 4. Vomiting & Fluids Inability Red-Flag Phrases (`unable_to_keep_fluids`)
 Authoritative phrases configured in `adaptive_interview_agent.py` to trigger immediate emergency safety stop:
+
+Current behaviour: these phrases produce emergency via the Stage 1 screen. Clinician decision: emergency or urgent?
+
 | Language | Configured Verbatim Phrase | Category |
 |:---|:---|:---:|
 | English (en) | "can't keep anything down" | `unable_to_keep_fluids` |
