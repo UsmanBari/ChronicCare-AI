@@ -10,9 +10,9 @@
 | Metric | Measured Value | Standard / Target |
 |---|---|---|
 | **Total Simulated Personas Tested** | `52` | $\ge 50$ personas |
-| **Average Questions Per Check-in** | `7.31` | $\le 10$ normal, $\le 14$ hard cap |
-| **Average Slots Captured Per Session** | `7.27` | Comprehensive profile capture |
-| **Clarifications & Odd Input Reroutes** | `4` | Handled via fixed response bank |
+| **Average Questions Per Check-in** | `7.29` | $\le 10$ normal, $\le 14$ hard cap |
+| **Average Slots Captured Per Session** | `7.25` | Comprehensive profile capture |
+| **Clarifications & Odd Input Reroutes** | `5` | Handled via fixed response bank |
 | **Early Safety / Eligibility Exits** | `5` (4 emergencies, 1 pregnancy) | Immediate safety bypass |
 | **LLM Fallback Rate (Stage 9A)** | `100.0% (Templates Default)` | 100% operational with LLM off |
 
@@ -62,7 +62,7 @@
 | `refusal` | 1 | 8.0 | 8.0 |
 | `roman_urdu` | 1 | 8.0 | 8.0 |
 | `roman_urdu_hypo` | 1 | 8.0 | 8.0 |
-| `romantic` | 1 | 8.0 | 8.0 |
+| `romantic` | 1 | 7.0 | 7.0 |
 | `severe_hypo` | 1 | 8.0 | 8.0 |
 | `side_effects` | 1 | 8.0 | 8.0 |
 | `stoic_minimiser` | 1 | 8.0 | 8.0 |
