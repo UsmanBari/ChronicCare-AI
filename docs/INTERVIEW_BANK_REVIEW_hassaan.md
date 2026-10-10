@@ -144,3 +144,14 @@ Reviewed from `backend-poc-technical/agents/interview_bank/core.json`. Review fo
 | `wellbeing_overwhelmed` | English | Have you felt overwhelmed by the daily demands of managing your condition? (Optional - you can skip) | Unclear | “Overwhelmed” and “daily demands” are formal. Use “Have the daily tasks of looking after your condition felt like too much?” and keep the skip option explicit. |
 | `wellbeing_overwhelmed` | Roman Urdu | Kya aap apni bimari ki rozana dekh bhaal aur dawaiyon se bojh mehsoos kar rahe hain? (Optional) | Unclear | “Bojh mehsoos karna” is understandable but the sentence can sound like the medicines themselves are a burden. Use “Kya rozana bimari ki dekh bhaal aur dawai lena aap ko bahut zyada mushkil lagta hai?” and translate the optional note. |
 | `wellbeing_overwhelmed` | Urdu | کیا آپ اپنی بیماری کی روزانہ دیکھ بھال اور دوائیوں سے بیزاری یا بوجھ محسوس کر رہے ہیں؟ (اختیاری سوال) | Unclear | “بیزاری” suggests dislike or aversion and is stronger than “overwhelmed.” Use “کیا بیماری کی روزانہ دیکھ بھال اور دوائی لینا آپ کو بہت زیادہ مشکل یا بوجھ لگتا ہے؟” and add “آپ یہ سوال چھوڑ سکتے ہیں.” |
+
+## Caregiver
+
+| Item id | Language | Wording | OK / Unclear / Wrong | Suggested fix |
+|---|---|---|---|---|
+| `caregiver_answered_by` | English | Who is answering the questions today? | OK | Short, clear, and neutral. The answer choices should use familiar labels such as “patient,” “family member,” or “caregiver.” |
+| `caregiver_answered_by` | Roman Urdu | Aaj in sawalaat ke jawabaat kaun de raha hai? | OK | Natural and easy to understand. A gender-neutral “kaun jawab de raha hai?” is also acceptable in conversation. |
+| `caregiver_answered_by` | Urdu | آج ان سوالات کے جوابات کون دے رہا ہے؟ | OK | Clear and neutral. No medical or frightening wording. |
+| `caregiver_relationship` | English | What is your relationship to the patient (for example son, daughter, spouse)? | Unclear | “Spouse” is formal. Use “husband or wife” or “partner” if that matches the intended choices; include other family or non-family caregivers. |
+| `caregiver_relationship` | Roman Urdu | Mareez ke sath aap ka kya rishta hai (maslan beta, beti, shareek-e-hayat)? | Unclear | “Mareez” can sound clinical and “shareek-e-hayat” is formal. Use “jis shakhs ke liye aap jawab de rahe hain, un se aap ka kya rishta hai? (beta, beti, shohar, biwi, ya koi aur)” |
+| `caregiver_relationship` | Urdu | مریض کے ساتھ آپ کا کیا رشتہ ہے (مثلاً بیٹا، بیٹی، شریک حیات)؟ | Unclear | “مریض” is clinical and “شریک حیات” is formal. Consider “جس شخص کے لیے آپ جواب دے رہے ہیں، ان سے آپ کا کیا رشتہ ہے؟ (بیٹا، بیٹی، شوہر، بیوی، یا کوئی اور)” |
