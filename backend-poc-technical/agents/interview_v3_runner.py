@@ -279,13 +279,13 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         ans_lower = clean_answer.lower()
         if "mmol" in ans_lower:
             # Patient confirmed mmol/L -> convert to mg/dL
-            mg_dl_val = round(float(unclarified_val) * 18.0182, 1)
+            mg_dl_val = round(float(unclarified_val) * 18.0, 1)
             readings["glucose"] = mg_dl_val
             known_slots["glucose_reading"] = mg_dl_val
             if mg_dl_val < 70:
                 session_state["possible_severe_low"] = True
         elif "mg" in ans_lower or "dl" in ans_lower:
-            # Patient confirmed mg/dL (severe hypoglycemia < 40)
+            # Patient confirmed mg/dL (severe hypoglycemia <= 54)
             readings["glucose"] = float(unclarified_val)
             known_slots["glucose_reading"] = float(unclarified_val)
             session_state["possible_severe_low"] = True
@@ -316,8 +316,25 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             session_state["options"] = ["mmol/L", "mg/dL"]
             return session_state
         elif val_res.valid and val_res.value is not None:
-            readings["glucose"] = val_res.value
-            known_slots["glucose_reading"] = val_res.value
+            clean_low = clean_answer.lower()
+            has_unit = any(u in clean_low for u in ["mg", "dl", "mmol"])
+            if not has_unit and 41.0 <= float(val_res.value) <= 54.0:
+                session_state["awaiting_glucose_unit"] = True
+                session_state["raw_unclarified_glucose"] = val_res.value
+                session_state["current_question"] = (
+                    f"Did you mean {val_res.value:g} mmol/L or {val_res.value:g} mg/dL?"
+                )
+                session_state["why_text"] = "Clarifying unit to ensure patient safety against severe low blood sugar."
+                session_state["options"] = ["mmol/L", "mg/dL"]
+                return session_state
+
+            if val_res.unit == "mmol/L":
+                glucose_val = round(float(val_res.value) * 18.0, 1)
+            else:
+                glucose_val = float(val_res.value)
+
+            readings["glucose"] = glucose_val
+            known_slots["glucose_reading"] = glucose_val
             if val_res.is_possible_severe_low:
                 session_state["possible_severe_low"] = True
                 session_state["possible_severe_low_guidance"] = val_res.safety_guidance

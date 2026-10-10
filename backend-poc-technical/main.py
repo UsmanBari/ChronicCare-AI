@@ -2634,7 +2634,7 @@ def answer_checkin_endpoint(
                     success = apply_checkin_answer_atomic(
                         checkin_id=checkin_id,
                         expected_version=current_version,
-                        state_dict=current_state.to_dict(),
+                        state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
                         status="emergency",
                         completed_at=completed_at,
                         emergency=True,
