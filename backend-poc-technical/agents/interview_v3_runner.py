@@ -218,6 +218,12 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     if triage_res.category == "odd_input":
         odd_count = session_state.get("consecutive_odd_count", 0) + 1
         session_state["consecutive_odd_count"] = odd_count
+        session_state.setdefault("odd_classes_seen", []).append(triage_res.odd_class)
+        session_state["last_odd_class"] = triage_res.odd_class
+
+        if triage_res.odd_class == "third_party_report":
+            session_state["answered_by"] = "caregiver"
+            session_state.setdefault("known_slots", {})["answered_by"] = "caregiver"
 
         resp_key = triage_res.response_key or triage_res.odd_class or "chitchat_joke"
         reply_dict = bank.get_responses().get(resp_key, {})
@@ -254,6 +260,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     # Valid / substantive answer received -> reset odd input counter & system note
     session_state["consecutive_odd_count"] = 0
     session_state["system_note"] = None
+    session_state["last_odd_class"] = None
 
     # =========================================================================
     # 2. GLUCOSE UNIT SAFETY & CLINICAL ANSWER VALIDATION
@@ -388,6 +395,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     step_id = decision.target_slot or "question"
 
     if decision.item:
+        session_state["is_probe"] = False
         step_id = decision.item.slot
         question_text = _get_localized_text(decision.item, lang)
         why_text = decision.item.why_text
@@ -401,7 +409,10 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         options = decision.probe.get("choices")
         can_skip = True
         can_say_unknown = True
+        session_state.setdefault("probes_asked", []).append(decision.probe.get("probe_id") or step_id)
+        session_state["is_probe"] = True
     elif decision.action == "summary_confirm":
+        session_state["is_probe"] = False
         step_id = "summary_confirmation"
         if decision.item:
             question_text = _get_localized_text(decision.item, lang)

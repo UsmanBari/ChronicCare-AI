@@ -760,6 +760,7 @@ class CheckinStartResponse(BaseModel):
     language: Optional[str] = None
     can_skip: Optional[bool] = None
     can_say_unknown: Optional[bool] = None
+    engine: Optional[str] = None
 
 
 class CheckinAnswerRequest(BaseModel):
@@ -785,6 +786,9 @@ class CheckinAnswerResponse(BaseModel):
     language: Optional[str] = None
     can_skip: Optional[bool] = None
     can_say_unknown: Optional[bool] = None
+    engine: Optional[str] = None
+    last_odd_class: Optional[str] = None
+    is_probe: Optional[bool] = None
 
 
 class CheckinCompleteResponse(BaseModel):
@@ -2471,6 +2475,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
             ehr_system_id=active_conn["ehr_system_id"] if active_conn else None,
         )
         return CheckinStartResponse(
+            engine="v3",
             checkin_id=checkin_id,
             question=v3_state.get("current_question"),
             mode=mode,
@@ -2509,6 +2514,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
     question = get_current_question(initial_state)
 
     return CheckinStartResponse(
+        engine="v2",
         checkin_id=checkin_id,
         question=question,
         mode=mode,
@@ -2991,6 +2997,7 @@ def answer_checkin_endpoint(
         next_version = current_version + 1
 
         return CheckinAnswerResponse(
+            engine="v3",
             question=next_question_str,
             complete=is_complete,
             emergency=is_emergency,
@@ -3006,6 +3013,8 @@ def answer_checkin_endpoint(
             language=next_state.get("language"),
             can_skip=next_state.get("can_skip"),
             can_say_unknown=next_state.get("can_say_unknown"),
+            last_odd_class=next_state.get("last_odd_class"),
+            is_probe=next_state.get("is_probe"),
         )
 
     # v2 Interview node path
@@ -3125,6 +3134,7 @@ def answer_checkin_endpoint(
     next_version = current_version + 1
 
     return CheckinAnswerResponse(
+        engine="v2",
         question=next_question_str,
         complete=is_complete,
         emergency=is_emergency,
