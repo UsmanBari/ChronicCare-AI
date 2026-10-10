@@ -226,6 +226,7 @@ After the interview (and the protocol, if one was needed) the patient is asked a
 | `_DOSE_HINT` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_LEADING_YES` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_EASTERN_DIGITS_TABLE` | Unicode translation table for Eastern Arabic (٠-٩) and Urdu (۰-۹) digits | adaptive_interview_agent.py | Implementation detail (numeral normalisation) | Implementation detail for multilingual numeral parsing. |
+| `_MMOL_RE` | Regular expression matching mmol/L in English, Roman-Urdu, and Urdu forms | adaptive_interview_agent.py | Implementation detail (unit detection) | Recognises explicit mmol/L units for 18.0 conversion to mg/dL. |
 
 ## 7. Medication scope in Connected Mode
 
@@ -256,6 +257,9 @@ In Connected Mode, an EHR patient record may contain dozens of active medication
 | `all Stage 8b steps` | `unknown` | `routine` | `routine` | NO | `[]` | `[]` | NO (Intake context only) | `adaptive_interview_agent.py` |
 | `all Stage 8b steps` | `skip` | `routine` | `routine` | NO | `[]` | `[]` | NO (Intake context only) | `adaptive_interview_agent.py` |
 | `all Stage 8b steps` | `danger_phrase` | `routine` | `emergency` | YES | `['chest_pain']` (v2) / `['chest_pain', 'red_flag_emergency']` (v3) | `[]` | YES (Stage 1 Red-Flag) | `adaptive_interview_agent.py:194` / `input_triage.py:440` |
+
+### KNOWN GAP FOR CLINICIAN:
+Answering "yes" to `hypo_events_past_week`, `sick_day_flags`, `associated_symptoms`, and `foot_problems` leaves the triage level at `routine` when blood pressure and glucose readings are in the normal physiological range. While the patient's narrative answers and affirmative flags are stored in the intake payload (`symptoms` and `lifestyle_notes`) for subsequent clinician review, the automated protocol does not escalate the check-in level beyond `routine`. Consequently, an acute patient who reports a clinically significant symptom (for example, stating *"I have been vomiting and cannot keep fluids down"*) with a normal glucose reading (e.g. 120 mg/dL) will complete the interview classified as `routine` unless an exact verbatim phrase in the Stage 1 emergency red-flag screen catches the text. Clinician sign-off is required to determine whether affirmative responses to these four steps must mandate escalation to `review` or `urgent`.
 
 ## 10. Proposed additional danger screen patterns (from interview engine v3 input triage)
 
