@@ -200,6 +200,15 @@ MUTATIONS = [
         "replacement": "            \"free_text_note\": None,",
         "test_node": "backend-poc-technical/test_interview_v2_3_questions.py::test_diabetes_v2_3_full_path",
     },
+    # --- Stage 9A-7 Vomiting Red Flag Mutation ---
+    {
+        "id": "MUT-9A7-1",
+        "name": "Stage 9A-7: Cannot Keep Fluids Down Red Flag Rule",
+        "file": BACKEND_DIR / "agents" / "adaptive_interview_agent.py",
+        "target": "        \"cannot keep fluids down\",",
+        "replacement": "        # \"cannot keep fluids down\",",
+        "test_node": "backend-poc-technical/test_vomiting_fluids_red_flags.py::test_mutation_proof_vomiting_fluids",
+    },
 ]
 
 

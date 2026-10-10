@@ -152,3 +152,45 @@ def test_strike_rule_progression():
     # 4th consecutive odd answer -> flags end early off-topic
     r4 = classify_input("😂😂😂", consecutive_odd_count=3)
     assert r4.is_off_topic is True
+
+
+def test_weather_and_symptoms_not_swallowed_by_romantic():
+    # Weather and symptom statements containing 'so hot' must remain normal clinical
+    s1 = classify_input("It is so hot today and I feel dizzy")
+    assert s1.category == "normal_clinical"
+    assert s1.odd_class is None
+
+    s2 = classify_input("so hot outside, sugar 110")
+    assert s2.category == "normal_clinical"
+    assert s2.odd_class is None
+
+    s3 = classify_input("my feet feel so hot and burning")
+    assert s3.category == "normal_clinical"
+    assert s3.odd_class is None
+
+    # Third party compliment on baby must not be classified as romantic towards bot
+    s4 = classify_input("the baby is so cute")
+    assert s4.category == "normal_clinical"
+    assert s4.odd_class is None
+
+    # Bot compliments must be classified as romantic
+    s5 = classify_input("you are so cute")
+    assert s5.category == "odd_input"
+    assert s5.odd_class == "romantic"
+
+
+def test_non_medication_questions_not_classified_as_dose_request():
+    # Lifestyle and administrative queries must not trigger dose change advice
+    s1 = classify_input("Can I skip breakfast?")
+    assert s1.category == "normal_clinical"
+    assert s1.odd_class is None
+
+    s2 = classify_input("Can I change my appointment?")
+    assert s2.category == "normal_clinical"
+    assert s2.odd_class is None
+
+    # Medication discontinuation query must trigger advice request
+    s3 = classify_input("can I stop taking metformin since my sugar is normal")
+    assert s3.category == "odd_input"
+    assert s3.odd_class == "medical_advice_dose_request"
+    assert s3.needs_clinician_flag is True

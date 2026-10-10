@@ -80,15 +80,17 @@ MULTILINGUAL_DANGER_CATEGORIES: Dict[str, List[str]] = {
     ],
     "dka_vomiting_high_glucose": [
         "vomiting nonstop", "vomiting non-stop", "can't keep anything down", "can't keep fluids down",
+        "cannot keep anything down", "cannot keep fluids down", "unable to keep fluids down",
+        "throwing up everything", "keep nothing down", "vomiting all day",
         "vomiting continuously", "vomiting with high sugar",
-        "musalsal ultiyan", "ulti ruk nahi rahi",
-        "مسلسل الٹیاں", "الٹی رک نہیں رہی", "مسلسل قے اور الٹی",
+        "musalsal ultiyan", "ulti ruk nahi rahi", "paani bhi nahi rukta",
+        "مسلسل الٹیاں", "الٹی رک نہیں رہی", "مسلسل قے اور الٹی", "پانی بھی نہیں رک رہا",
     ],
 }
 
 INABILITY_EXCEPTIONS = [
     "can't breathe", "cannot breathe", "can't move", "can't see", "cannot see", "can't keep",
-    "won't move", "unable to drink",
+    "cannot keep", "unable to keep", "won't stay down", "won't move", "unable to drink",
     "saans nahi aa rahi", "bol nahi pa raha", "ulti ruk nahi rahi", "paani bhi nahi rukta",
     "سانس نہیں آ رہی", "بول نہیں پا رہا", "الٹی رک نہیں رہی", "پانی بھی نہیں رک رہا",
 ]
@@ -245,6 +247,20 @@ PROMPT_INJECTION_PATTERNS = [
 ROMANTIC_PATTERNS = [
     "you are cute",
     "you are hot",
+    "you are so cute",
+    "you are so hot",
+    "you are cute and hot",
+    "you are so cute and hot",
+    "u are cute",
+    "u are hot",
+    "u are so cute",
+    "u are so hot",
+    "u are cute and hot",
+    "u are so cute and hot",
+    "you're cute",
+    "you're hot",
+    "you're so cute",
+    "you're so hot",
     "you are beautiful",
     "you are gorgeous",
     "i love you",
@@ -272,6 +288,12 @@ _ROMANTIC_NEAR_MISSES = [
     "sair bohat pasand",
     "صبح کی سیر بہت پسند",
     "biwi kehti hai",
+    "baby is so cute",
+    "baby is cute",
+    "so hot today",
+    "so hot outside",
+    "feet feel so hot",
+    "it is so hot",
 ]
 
 CHITCHAT_PATTERNS = [
@@ -313,7 +335,9 @@ ADVICE_PATTERNS = [
     "should i increase my dose",
     "should i double my medicine",
     "should i stop taking",
+    "can i stop taking",
     "can i stop my medicine",
+    "stop taking metformin",
     "what medicine should i take",
     "prescribe me",
     "what dose should i take",
