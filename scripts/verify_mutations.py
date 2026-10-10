@@ -216,6 +216,9 @@ def run_mutation(mut: dict) -> dict:
     if "\r\n" in orig_text and "\r\n" not in target:
         target = target.replace("\n", "\r\n")
         replacement = replacement.replace("\n", "\r\n")
+    elif "\r\n" not in orig_text and "\r\n" in target:
+        target = target.replace("\r\n", "\n")
+        replacement = replacement.replace("\r\n", "\n")
 
     # Assert exact match occurs exactly once
     occurrences = orig_text.count(target)
@@ -223,6 +226,15 @@ def run_mutation(mut: dict) -> dict:
         raise ValueError(
             f"Target string error in {file_path.name} for {mut['id']}: expected 1 occurrence, found {occurrences}"
         )
+
+    # Invalidate and remove any stale bytecode cache before mutation
+    pycache_dir = file_path.parent / "__pycache__"
+    if pycache_dir.is_dir():
+        for pyc in pycache_dir.glob(f"{file_path.stem}.*.pyc"):
+            try:
+                pyc.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     # Find line number (1-indexed)
     lines_before = orig_text[:orig_text.find(target)].splitlines()
@@ -244,20 +256,32 @@ def run_mutation(mut: dict) -> dict:
     )
     diff_str = "".join(diff)
 
-    # Run pytest subprocess on exact test node
-    cmd = [sys.executable, "-m", "pytest", mut["test_node"], "-x", "--tb=line", "-q"]
-    proc = subprocess.run(
-        cmd,
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    try:
+        # Run pytest subprocess on exact test node with -B and PYTHONDONTWRITEBYTECODE
+        cmd = [sys.executable, "-B", "-m", "pytest", mut["test_node"], "-x", "--tb=line", "-q"]
+        sub_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        proc = subprocess.run(
+            cmd,
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=60,
+            env=sub_env,
+        )
+    finally:
+        # Restore original bytes immediately under all circumstances
+        file_path.write_bytes(orig_bytes)
+        restored_sha = hashlib.sha256(file_path.read_bytes()).hexdigest()
+        assert restored_sha == orig_sha, f"SHA mismatch on restore for {mut['id']}"
 
-    # Restore original bytes immediately
-    file_path.write_bytes(orig_bytes)
-    restored_sha = hashlib.sha256(file_path.read_bytes()).hexdigest()
-    assert restored_sha == orig_sha, f"SHA mismatch on restore for {mut['id']}"
+        # Clean any bytecode written during test
+        if pycache_dir.is_dir():
+            for pyc in pycache_dir.glob(f"{file_path.stem}.*.pyc"):
+                try:
+                    pyc.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     failing_line = ""
     for line in proc.stdout.splitlines():
