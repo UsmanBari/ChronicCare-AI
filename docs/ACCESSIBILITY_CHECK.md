@@ -20,3 +20,14 @@ URL: https://chronicare-ai.netlify.app/
 | Check-in chat | Keyboard only | NOT DONE | The chat screen could not be reached. The public “Launch Patient Portal Demo” control left the portal-selection screen unchanged, and the live login rejected the non-empty test credentials with `Invalid credentials. Please check your email and password.` |
 | Check-in chat | Browser zoom 200% | NOT DONE | The chat screen could not be reached because authentication blocked entry. No chat-screen zoom observation was recorded. |
 | Check-in chat | Narrow window 320px | NOT DONE | The chat screen could not be reached because authentication blocked entry. No chat-screen narrow-viewport observation was recorded. |
+
+## Result Screen
+
+Test date: 2026-10-10
+URL: https://chronicare-ai.netlify.app/
+
+| Screen | Test | Result | What I saw |
+|---|---|---|---|
+| Result screen | Keyboard only | NOT DONE | The result screen could not be reached. The public patient-demo entry did not leave the portal-selection screen, and the live login rejected the non-empty test credentials with `Invalid credentials. Please check your email and password.` |
+| Result screen | Browser zoom 200% | NOT DONE | Authentication blocked entry to the result screen, so no zoom observation was recorded. |
+| Result screen | Narrow window 320px | NOT DONE | Authentication blocked entry to the result screen, so no narrow-viewport observation was recorded. |
