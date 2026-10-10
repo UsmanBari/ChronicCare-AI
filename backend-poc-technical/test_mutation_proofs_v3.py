@@ -164,3 +164,18 @@ def test_mutation_proof_13_safety_priority_first():
     )
     assert decision.item is not None
     assert decision.item.priority_class == "safety"
+
+
+def test_mutation_proof_14_answered_by_third_party():
+    """Rule 14: Third-party report must set answered_by to caregiver."""
+    s = start_v3_session("mut_14", "p1", ["hypertension"])
+    s = next_turn(s, "filling this checkin for my mother")
+    assert s.get("answered_by") == "caregiver"
+    assert s.get("known_slots", {}).get("answered_by") == "caregiver"
+
+
+def test_mutation_proof_15_extra_danger_detections():
+    """Rule 15: Extra multilingual danger patterns must be active (not just base screen)."""
+    res = classify_input("zindagi ka shadeed tareen sar dard")
+    assert res.is_emergency is True
+    assert res.category == "danger_phrase"

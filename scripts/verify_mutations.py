@@ -105,10 +105,10 @@ MUTATIONS = [
     },
     {
         "id": "MUT-11",
-        "name": "Romantic Remark Not Recorded as Clinical Symptom",
-        "file": BACKEND_DIR / "agents" / "input_triage.py",
-        "target": "        if any(p in lowered for p in ROMANTIC_PATTERNS):",
-        "replacement": "        if False and any(p in lowered for p in ROMANTIC_PATTERNS):",
+        "name": "Romantic Remark Recorded as Finding Without Yes",
+        "file": BACKEND_DIR / "agents" / "interview_v3_runner.py",
+        "target": "        session_state.setdefault(\"odd_classes_seen\", []).append(triage_res.odd_class)\n        session_state[\"last_odd_class\"] = triage_res.odd_class",
+        "replacement": "        session_state.setdefault(\"odd_classes_seen\", []).append(triage_res.odd_class)\n        session_state[\"last_odd_class\"] = triage_res.odd_class\n        if triage_res.odd_class == \"romantic\":\n            session_state.setdefault(\"findings\", []).append({\"kind\": \"romantic\", \"quote\": clean_answer})",
         "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_11_romantic_remark_not_symptom",
     },
     {
@@ -127,6 +127,79 @@ MUTATIONS = [
         "replacement": "        if False and item.priority_class == \"safety\" and item.slot not in asked_slots:",
         "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_13_safety_priority_first",
     },
+    {
+        "id": "MUT-14",
+        "name": "Answered_By Not Set For Third-Party Report",
+        "file": BACKEND_DIR / "agents" / "interview_v3_runner.py",
+        "target": "        if triage_res.odd_class == \"third_party_report\":\n            session_state[\"answered_by\"] = \"caregiver\"",
+        "replacement": "        if triage_res.odd_class == \"third_party_report\":\n            session_state[\"answered_by\"] = None",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_14_answered_by_third_party",
+    },
+    {
+        "id": "MUT-15",
+        "name": "Extra Danger Detections Removed from Input Triage",
+        "file": BACKEND_DIR / "agents" / "input_triage.py",
+        "target": "        for category, patterns in MULTILINGUAL_DANGER_CATEGORIES.items():",
+        "replacement": "        for category, patterns in {}.items():",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_15_extra_danger_detections",
+    },
+    # --- Seven Stage 8b Rule Mutations ---
+    {
+        "id": "MUT-8B-1",
+        "name": "Stage 8b: Glucose Context Skip Rule",
+        "file": BACKEND_DIR / "agents" / "adaptive_interview_agent.py",
+        "target": "            if _has_glucose_context_in_text(answer):\n                answers[\"glucose_context\"] = \"extracted_from_reading\"\n                if state.on_insulin_or_sulfonylurea or (reading is not None and reading < 70):",
+        "replacement": "            if False and _has_glucose_context_in_text(answer):\n                answers[\"glucose_context\"] = \"extracted_from_reading\"\n                if state.on_insulin_or_sulfonylurea or (reading is not None and reading < 70):",
+        "test_node": "backend-poc-technical/test_interview_v2_3_questions.py::test_diabetes_v2_3_fast_path_skip_rules",
+    },
+    {
+        "id": "MUT-8B-2",
+        "name": "Stage 8b: Hypo-Events Question Rule",
+        "file": BACKEND_DIR / "agents" / "adaptive_interview_agent.py",
+        "target": "        if state.on_insulin_or_sulfonylurea or (reading is not None and reading < 70):\n            state.step = DiabetesStep.HYPO_EVENTS_PAST_WEEK.value",
+        "replacement": "        if state.on_insulin_or_sulfonylurea or (reading is not None and reading < 70):\n            state.step = DiabetesStep.HYPERGLYCEMIA_SYMPTOMS.value",
+        "test_node": "backend-poc-technical/test_interview_v2_3_questions.py::test_diabetes_v2_3_full_path",
+    },
+    {
+        "id": "MUT-8B-3",
+        "name": "Stage 8b: Sick-Day Flags Prompt Rule",
+        "file": BACKEND_DIR / "agents" / "adaptive_interview_agent.py",
+        "target": "        elif reading is not None and reading >= 250:\n            state.step = DiabetesStep.SICK_DAY_FLAGS.value",
+        "replacement": "        elif False and reading is not None and reading >= 250:\n            state.step = DiabetesStep.SICK_DAY_FLAGS.value",
+        "test_node": "backend-poc-technical/test_interview_v2_3_questions.py::test_diabetes_v2_3_sick_day_prompt_on_high_reading",
+    },
+    {
+        "id": "MUT-8B-4",
+        "name": "Stage 8b: BP Technique Question Rule",
+        "file": BACKEND_DIR / "agents" / "adaptive_interview_agent.py",
+        "target": "            if reading is not None and not _has_bp_technique_in_text(answer):\n                state.step = HypertensionStep.BP_TECHNIQUE.value",
+        "replacement": "            if False and reading is not None and not _has_bp_technique_in_text(answer):\n                state.step = HypertensionStep.BP_TECHNIQUE.value",
+        "test_node": "backend-poc-technical/test_interview_v2_3_questions.py::test_hypertension_v2_3_full_path",
+    },
+    {
+        "id": "MUT-8B-5",
+        "name": "Stage 8b: OTC Meds BP Check Rule",
+        "file": BACKEND_DIR / "agents" / "adaptive_interview_agent.py",
+        "target": "        if bp is None or bp[0] >= 140 or bp[1] >= 90:\n            state.step = HypertensionStep.OTC_MEDS_BP.value",
+        "replacement": "        if False and (bp is None or bp[0] >= 140 or bp[1] >= 90):\n            state.step = HypertensionStep.OTC_MEDS_BP.value",
+        "test_node": "backend-poc-technical/test_interview_v2_3_questions.py::test_hypertension_v2_3_full_path",
+    },
+    {
+        "id": "MUT-8B-6",
+        "name": "Stage 8b: Missed-Dose Reason Rule",
+        "file": BACKEND_DIR / "agents" / "adaptive_interview_agent.py",
+        "target": "        if adh is False:\n            state.step = DiabetesStep.MISSED_DOSES_REASON.value",
+        "replacement": "        if False and adh is False:\n            state.step = DiabetesStep.MISSED_DOSES_REASON.value",
+        "test_node": "backend-poc-technical/test_interview_v2_3_questions.py::test_diabetes_v2_3_full_path",
+    },
+    {
+        "id": "MUT-8B-7",
+        "name": "Stage 8b: Free-Text Note Passed Through",
+        "file": BACKEND_DIR / "agents" / "adaptive_interview_agent.py",
+        "target": "            \"free_text_note\": answers.get(\"patient_free_text\"),",
+        "replacement": "            \"free_text_note\": None,",
+        "test_node": "backend-poc-technical/test_interview_v2_3_questions.py::test_diabetes_v2_3_full_path",
+    },
 ]
 
 
@@ -140,6 +213,9 @@ def run_mutation(mut: dict) -> dict:
 
     target = mut["target"]
     replacement = mut["replacement"]
+    if "\r\n" in orig_text and "\r\n" not in target:
+        target = target.replace("\n", "\r\n")
+        replacement = replacement.replace("\n", "\r\n")
 
     # Assert exact match occurs exactly once
     occurrences = orig_text.count(target)
@@ -154,7 +230,7 @@ def run_mutation(mut: dict) -> dict:
 
     # Mutate text
     mutated_text = orig_text.replace(target, replacement, 1)
-    file_path.write_text(mutated_text, encoding="utf-8")
+    file_path.write_bytes(mutated_text.encode("utf-8"))
 
     # Generate unified diff with 3 lines of context
     diff = list(
@@ -247,7 +323,7 @@ def main():
         print(f"PASS: Harness caught missing target with expected ValueError: {e}")
 
     print("=" * 105)
-    print(f"All 13 Mutations Verified & Killed: {'YES' if all_passed else 'NO'}")
+    print(f"All {len(MUTATIONS)} Mutations Verified & Killed: {'YES' if all_passed else 'NO'}")
     return 0 if all_passed else 1
 
 
