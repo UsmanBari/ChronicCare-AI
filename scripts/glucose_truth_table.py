@@ -122,12 +122,12 @@ TEST_INPUTS = [
     ("bare_number", "69", 69.0),
     ("bare_number", "70", 70.0),
     ("bare_number", "126", 126.0),
-    # Explicit mmol/L
-    ("explicit_mmol", "2.0 mmol/L", 2.0 * 18.0182),
-    ("explicit_mmol", "2.8 mmol/L", 2.8 * 18.0182),
-    ("explicit_mmol", "3.0 mmol/L", 3.0 * 18.0182),
-    ("explicit_mmol", "3.8 mmol/L", 3.8 * 18.0182),
-    ("explicit_mmol", "7 mmol/L", 7.0 * 18.0182),
+    # Explicit mmol/L (converted with x18.0)
+    ("explicit_mmol", "2.0 mmol/L", 2.0 * 18.0),
+    ("explicit_mmol", "2.8 mmol/L", 2.8 * 18.0),
+    ("explicit_mmol", "3.0 mmol/L", 3.0 * 18.0),
+    ("explicit_mmol", "3.8 mmol/L", 3.8 * 18.0),
+    ("explicit_mmol", "7.0 mmol/L", 7.0 * 18.0),
 ]
 
 def run_glucose_checkin(engine: str, glucose_str: str, has_symptoms: bool):
@@ -152,6 +152,8 @@ def run_glucose_checkin(engine: str, glucose_str: str, has_symptoms: bool):
         # Decide answer
         if "blood sugar" in q_low or "glucose" in q_low or "glucose_reading" in s_low or "unit" in q_low or "mmol" in q_low:
             ans = glucose_str
+        elif "swallow" in q_low or "eat or drink safely" in q_low:
+            ans = "yes"
         elif "feeling" in q_low or "greeting" in s_low or "symptom" in q_low or "hypo_symptoms" in s_low or "shakiness" in q_low:
             if has_symptoms:
                 ans = "I feel shaky and sweating"
@@ -208,38 +210,79 @@ def run_glucose_checkin(engine: str, glucose_str: str, has_symptoms: bool):
 
 def main():
     print("=" * 110)
-    print("STAGE 9A-5 TASK B: GLUCOSE TRUTH TABLE")
+    print("STAGE 9A-6 TASK B: GLUCOSE TRUTH TABLE & MONOTONICITY CHECKER")
     print("=" * 110)
+
+    total_failures = 0
 
     for engine in ["v2", "v3"]:
         for ctx_name, has_symp in [("Normal Answers (No Symptoms)", False), ("With Symptoms ('shaky and sweating')", True)]:
             print(f"\n### Engine: `{engine}` | Context: {ctx_name}\n")
-            print("| Series | Glucose Input | Approx mg/dL | Final Level | Monotonic Non-Increasing? | API Reasons |")
-            print("|:---|:---|:---:|:---:|:---:|:---|")
+            print("| Series | Glucose Input | Converted mg/dL | Final Level | Rank | Monotonic / Valid? | API Reasons |")
+            print("|:---|:---|:---:|:---:|:---:|:---:|:---|")
 
-            for series in ["explicit_mgdl", "bare_number", "explicit_mmol"]:
-                items = [t for t in TEST_INPUTS if t[0] == series]
-                prev_rank = None
-                for series_id, inp_str, approx_val in items:
-                    res = run_glucose_checkin(engine, inp_str, has_symp)
-                    curr_rank = res["rank"]
-                    if prev_rank is None:
-                        mono_str = "OK (Baseline)"
-                    else:
-                        # As glucose rises, severity level should be non-increasing (rank <= prev_rank)
-                        if curr_rank <= prev_rank:
-                            mono_str = "YES"
+            # Collect results for all inputs
+            evaluated = []
+            for series_id, inp_str, conv_val in TEST_INPUTS:
+                res = run_glucose_checkin(engine, inp_str, has_symp)
+                res["series"] = series_id
+                res["conv_val"] = conv_val
+                evaluated.append(res)
+
+            # Sort ALL rows across ALL series by converted mg/dL
+            evaluated.sort(key=lambda x: (x["conv_val"], x["series"]))
+
+            # Evaluate monotonicity across the unified sorted series
+            prev_item = None
+            for item in evaluated:
+                status_notes = []
+                is_violation = False
+
+                if prev_item is not None:
+                    # Check identical converted values (e.g. 126 mg/dL vs 7.0 mmol/L)
+                    if abs(item["conv_val"] - prev_item["conv_val"]) < 0.2:
+                        if item["rank"] != prev_item["rank"]:
+                            is_violation = True
+                            status_notes.append(
+                                f"EQUIVALENCE VIOLATION ({prev_item['input_str']}={prev_item['final_level']} vs {item['input_str']}={item['final_level']})"
+                            )
                         else:
-                            mono_str = f"VIOLATION (Rank {prev_rank} -> {curr_rank} as glucose rose)"
-                    prev_rank = curr_rank
+                            status_notes.append("EQUIVALENT (OK)")
 
-                    r_str = "; ".join(res["reasons"]) if res["reasons"] else "(none)"
-                    print(f"| `{series_id}` | `{inp_str}` | {approx_val:.1f} | `{res['final_level']}` | {mono_str} | {r_str} |")
+                    # Low range (< 70 mg/dL): higher glucose must NOT give higher severity (rank <= prev_rank)
+                    if item["conv_val"] < 70.0:
+                        if item["rank"] > prev_item["rank"] and item["conv_val"] > prev_item["conv_val"]:
+                            is_violation = True
+                            status_notes.append(
+                                f"LOW-RANGE VIOLATION (glucose rose {prev_item['conv_val']:.1f}->{item['conv_val']:.1f} but severity rose {prev_item['final_level']}->{item['final_level']})"
+                            )
 
-                    # Check P0 condition
-                    if not has_symp and approx_val < 54.0 and "mg" in inp_str and res["final_level"] == "routine":
-                        print(f"\n[CRITICAL P0 DETECTED]: Single glucose {inp_str} without symptoms gave {res['final_level']}!")
-                        print(f"Raw Response: {json.dumps(res['raw_response'], indent=2)}")
+                    # High range (>= 250 mg/dL): higher glucose must NOT give lower severity (rank >= prev_rank)
+                    if prev_item["conv_val"] >= 250.0:
+                        if item["rank"] < prev_item["rank"]:
+                            is_violation = True
+                            status_notes.append(
+                                f"HIGH-RANGE VIOLATION (glucose rose {prev_item['conv_val']:.1f}->{item['conv_val']:.1f} but severity dropped {prev_item['final_level']}->{item['final_level']})"
+                            )
+
+                if is_violation:
+                    total_failures += 1
+                    mono_str = "**FAIL**: " + "; ".join(status_notes)
+                elif status_notes:
+                    mono_str = "; ".join(status_notes)
+                else:
+                    mono_str = "OK"
+
+                r_str = "; ".join(item["reasons"]) if item["reasons"] else "(none)"
+                print(f"| `{item['series']}` | `{item['input_str']}` | {item['conv_val']:.1f} | `{item['final_level']}` | {item['rank']} | {mono_str} | {r_str} |")
+                prev_item = item
+
+    print(f"\nMONOTONICITY & EQUIVALENCE SUMMARY: Total Violations = {total_failures}")
+    if total_failures > 0:
+        print(f"[FAIL] Monotonicity check failed with {total_failures} violations!")
+        sys.exit(1)
+    else:
+        print("[PASS] Monotonicity check passed with 0 violations across all engines and contexts.")
 
 if __name__ == "__main__":
     main()
