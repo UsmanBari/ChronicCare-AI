@@ -79,17 +79,18 @@ def generate_clinician_pack():
     )
 
     # -------------------------------------------------------------------------
-    # Section 1: Level-Raising Rules (v2.3)
+    # Section 1: Glucose Triage Thresholds & Unit Conversion
     # -------------------------------------------------------------------------
-    lines.append("## 1. Level-Raising Rules (Interview Engine v2.3)")
+    lines.append("## 1. Glucose Triage Thresholds & Unit Conversion")
+    lines.append("Automated extraction parses both explicit units (`mg/dL`, `mmol/L`) and bare numbers based on physiological ranges:")
+    lines.append(f"- Conversion formula: `mmol/L * {conversion_factor} = mg/dL`.")
+    lines.append("- Values < 25 without explicit units are inferred as `mmol/L` (or clarified) and converted via multiplication by 18.0.")
+    lines.append("- Values >= 25 are treated as `mg/dL`.")
     lines.append(
-        "The clinical intake interview protocol operates four categorical triage levels: `routine`, `review`, `urgent`, and `emergency`.\n"
+        f"- Thresholds: Very low glucose < {GLUCOSE_VERY_LOW_MG_DL} mg/dL (< {round(GLUCOSE_VERY_LOW_MG_DL / conversion_factor, 1)} mmol/L); Low glucose < {GLUCOSE_LOW_MG_DL} mg/dL (< {round(GLUCOSE_LOW_MG_DL / conversion_factor, 1)} mmol/L); High glucose >= {GLUCOSE_HIGH_MG_DL} mg/dL (>= {round(GLUCOSE_HIGH_MG_DL / conversion_factor, 1)} mmol/L); Urgent high glucose >= {GLUCOSE_URGENT_MG_DL} mg/dL (>= {round(GLUCOSE_URGENT_MG_DL / conversion_factor, 1)} mmol/L).\n"
     )
-    lines.append("| Trigger Condition | Code Threshold / Constant | Evaluated Level | Clinical Rationale / Behavior |")
+    lines.append("| Clinical Glucose Band | Code Constant | Triage Level | Clinical Action / Rationale |")
     lines.append("|:---|:---|:---:|:---|")
-    lines.append(
-        "| Red-Flag Danger Screen Match | `run_stage1_red_flag_screen()` | `emergency` | Immediate safety danger hard-stop (e.g. crushing chest pain, inability to keep fluids down, stroke symptoms). |"
-    )
     lines.append(
         f"| Severe Hypoglycemia (< {GLUCOSE_VERY_LOW_MG_DL} mg/dL) | `GLUCOSE_VERY_LOW_MG_DL = {GLUCOSE_VERY_LOW_MG_DL}` | `urgent` | Very low glucose without acute neuro symptoms triggers urgent clinician contact today. If neuro symptoms (confusion/drowsiness) or unable to swallow, escalates to `emergency`. |"
     )
@@ -102,6 +103,16 @@ def generate_clinician_pack():
     lines.append(
         f"| Elevated Glucose (>= {GLUCOSE_HIGH_MG_DL} mg/dL) | `GLUCOSE_HIGH_MG_DL = {GLUCOSE_HIGH_MG_DL}` | `review` | Elevated glucose triggering provider review queue and hydration inquiry. |"
     )
+    lines.append("\n### Monotonic Truth Table (Live API Output)")
+    lines.append(truth_table)
+    lines.append("")
+
+    # -------------------------------------------------------------------------
+    # Section 2: Blood Pressure Triage Thresholds
+    # -------------------------------------------------------------------------
+    lines.append("## 2. Blood Pressure Triage Thresholds")
+    lines.append("| Clinical BP Band | Code Constant | Triage Level | Clinical Action / Rationale |")
+    lines.append("|:---|:---|:---:|:---|")
     lines.append(
         f"| Hypertensive Crisis (>= {DANGEROUS_BP_SYSTOLIC_MMHG}/{DANGEROUS_BP_DIASTOLIC_MMHG} mmHg) | `DANGEROUS_BP_SYSTOLIC_MMHG = {DANGEROUS_BP_SYSTOLIC_MMHG}`, `DANGEROUS_BP_DIASTOLIC_MMHG = {DANGEROUS_BP_DIASTOLIC_MMHG}` | `emergency` / `urgent` | With warning symptoms: immediate `emergency`. Asymptomatic after rest: `urgent` (requires same-day contact). |"
     )
@@ -114,30 +125,32 @@ def generate_clinician_pack():
     lines.append(
         f"| BP Shift Above Baseline (>= {BP_CHANGE_MARKED_MMHG} mmHg marked, >= {BP_CHANGE_NOTABLE_MMHG} mmHg notable) | `BP_CHANGE_MARKED_MMHG = {BP_CHANGE_MARKED_MMHG}`, `BP_CHANGE_NOTABLE_MMHG = {BP_CHANGE_NOTABLE_MMHG}` | `urgent` / `review` | Notable departure from 14-day median baseline. |"
     )
-    lines.append(
-        "| Reported Medication Non-Adherence | `adherence` slot | `review` | Missed medication doses flag provider review queue for adherence barrier evaluation. |"
-    )
     lines.append("")
 
     # -------------------------------------------------------------------------
-    # Section 2: Glucose Unit Rule and Thresholds with Truth Table
+    # Section 3: Red Flag Symptoms & Escalations
     # -------------------------------------------------------------------------
-    lines.append("## 2. Glucose Unit Rules, Conversion Thresholds & Truth Table")
-    lines.append("Automated extraction parses both explicit units (`mg/dL`, `mmol/L`) and bare numbers based on physiological ranges:")
-    lines.append(f"- Conversion formula: `mmol/L * {conversion_factor} = mg/dL`.")
-    lines.append("- Values < 25 without explicit units are inferred as `mmol/L` (or clarified) and converted via multiplication by 18.0.")
-    lines.append("- Values >= 25 are treated as `mg/dL`.")
-    lines.append(
-        f"- Thresholds: Very low glucose < {GLUCOSE_VERY_LOW_MG_DL} mg/dL (< {round(GLUCOSE_VERY_LOW_MG_DL / conversion_factor, 1)} mmol/L); Low glucose < {GLUCOSE_LOW_MG_DL} mg/dL (< {round(GLUCOSE_LOW_MG_DL / conversion_factor, 1)} mmol/L); High glucose >= {GLUCOSE_HIGH_MG_DL} mg/dL (>= {round(GLUCOSE_HIGH_MG_DL / conversion_factor, 1)} mmol/L); Urgent high glucose >= {GLUCOSE_URGENT_MG_DL} mg/dL (>= {round(GLUCOSE_URGENT_MG_DL / conversion_factor, 1)} mmol/L).\n"
-    )
-    lines.append("### Monotonic Truth Table (Live API Output)")
-    lines.append(truth_table)
-    lines.append("")
+    lines.append("## 3. Red Flag Symptoms & Escalations (Live API Results)")
+    lines.append("The clinical triage engine categorizes red flags deterministically based on live API evaluations:\n")
+    lines.append("- **Immediate Emergency (`emergency`)**:")
+    lines.append("  - Chest pain, tightness, heaviness (`chest_pain`): immediate lockout -> `emergency`")
+    lines.append("  - Shortness of breath, gasping (`breathing`): immediate lockout -> `emergency`")
+    lines.append("  - Loss of consciousness, blacking out (`loss_of_consciousness`): immediate lockout -> `emergency`")
+    lines.append("  - Sudden one-sided weakness, facial drooping (`one_sided_weakness`): immediate lockout -> `emergency`")
+    lines.append("  - Inability to keep fluids down (`unable_to_keep_fluids`): triggers Stage 1 red flag screen -> immediate lockout -> `emergency`")
+    lines.append("  - Severe hypoglycemia (< 54 mg/dL) WITH neuro symptoms (`neuro = True`): protocol evaluation -> `emergency`")
+    lines.append("  - Severe hypoglycemia (< 54 mg/dL) and UNABLE to swallow safely (`can_swallow = False`): protocol evaluation -> `emergency`")
+    lines.append("  - Hypertensive crisis (>= 180/120 mmHg) WITH warning symptoms: protocol evaluation -> `emergency`")
+    lines.append("  - Severe hyperglycemia (>= 250 mg/dL) WITH DKA symptoms: protocol evaluation -> `emergency`\n")
+    lines.append("- **Urgent Escalations (`urgent`)**:")
+    lines.append("  - Severe hypoglycemia (< 54 mg/dL) WITHOUT neuro symptoms (`neuro = False`, `can_swallow = True`): protocol evaluation -> `urgent` (same-day clinician contact)")
+    lines.append("  - Severe hyperglycemia (>= 300 mg/dL) WITHOUT DKA symptoms: protocol evaluation -> `urgent`")
+    lines.append("  - Hypertensive crisis (>= 180/120 mmHg) without acute end-organ symptoms: protocol evaluation -> `urgent`\n")
 
     # -------------------------------------------------------------------------
-    # Section 3: Vomiting & Inability to Keep Fluids Down Phrases
+    # Section 4: Vomiting / Inability to Keep Fluids Down Phrases
     # -------------------------------------------------------------------------
-    lines.append("## 3. Vomiting & Fluids Inability Red-Flag Phrases (`unable_to_keep_fluids`)")
+    lines.append("## 4. Vomiting & Fluids Inability Red-Flag Phrases (`unable_to_keep_fluids`)")
     lines.append("Authoritative phrases configured in `adaptive_interview_agent.py` to trigger immediate emergency safety stop:")
     vomiting_phrases = RED_FLAG_PATTERNS.get("unable_to_keep_fluids", [])
     lines.append("| Language | Configured Verbatim Phrase | Category |")
@@ -155,12 +168,14 @@ def generate_clinician_pack():
     )
 
     # -------------------------------------------------------------------------
-    # Section 4: 'Confused' Pattern with 3 Options
+    # Section 5: 'Confused' Pattern with 3 Options
     # -------------------------------------------------------------------------
-    lines.append("## 4. Neurological 'Confused' Pattern — Clinician Options")
-    lines.append("Currently, `RED_FLAG_PATTERNS[\"confusion\"]` includes `\"confused\"`, `\"slurred speech\"`, `\"can't speak clearly\"`, `\"cant speak clearly\"`.")
+    lines.append("## 5. Neurological 'Confused' Pattern — Clinician Options")
+    lines.append("Exact pattern line in code: `backend-poc-technical/agents/adaptive_interview_agent.py:166:`")
+    lines.append("```python\n    \"confusion\": [\"confused\", \"slurred speech\", \"can't speak clearly\", \"cant speak clearly\"],\n```")
+    lines.append("Current behaviour: any message containing the word confused gives emergency.\n")
     lines.append(
-        "In clinical practice, patients frequently use 'confused' colloquially (*\"Feeling a bit confused by all my morning pills\"*) rather than reporting acute stroke, delirium, or severe neuroglycopenia.\n"
+        "In clinical practice, patients frequently use 'confused' colloquially (*\"Feeling a bit confused by all my morning pills\"*) rather than reporting acute stroke, delirium, or severe neuroglycopenia. The clinician must decide which approach to adopt:\n"
     )
     lines.append(
         "1. **Option 1 (Keep As-Is / High Sensitivity)**: Maintain the existing conservative screen. Any mention of confusion in a diabetic/hypertensive elderly population defaults to acute stroke/hypoglycemia emergency. Advantage: Zero risk of missing acute confusion. Disadvantage: High false-alarm rate for conversational confusion."
@@ -173,9 +188,10 @@ def generate_clinician_pack():
     )
 
     # -------------------------------------------------------------------------
-    # Section 5: The Four Narrative-Yes Questions (KNOWN GAP)
+    # Section 6: Known Gaps & Limitations
     # -------------------------------------------------------------------------
-    lines.append("## 5. The Four Narrative-Yes Questions (KNOWN GAP)")
+    lines.append("## 6. Known Gaps & Limitations")
+    lines.append("### A. The Four Narrative-Yes Questions (Engine Limitation)")
     lines.append(
         "In the current interview flow, four clinical symptom questions record affirmative narrative findings in the patient profile, but under the Stage 8b clinical rules, they do NOT escalate the triage level if physiological vitals (glucose and BP) remain in normal range:\n"
     )
@@ -193,12 +209,7 @@ def generate_clinician_pack():
     lines.append(
         "| `foot_problems` | Diabetic Foot Ulcer / Wound | Stored in findings | `routine` | Patient reports open sore or blister on foot. Should this escalate to `review` or `urgent`? |"
     )
-    lines.append("")
-
-    # -------------------------------------------------------------------------
-    # Section 6: Input-Triage Known Misses & Design Limits
-    # -------------------------------------------------------------------------
-    lines.append("## 6. Input-Triage Known Misses & Design Limits")
+    lines.append("\n### B. Input-Triage Known Misses & Design Limits")
     lines.append(
         "1. **Conversational Affirmations (`ok`, `haan`, `acha theek`)**: These utterances are non-answers if presented in response to open-ended clinical questions, but serve as valid affirmative confirmations to yes/no prompts (e.g. *\"Did you take your medicine?\"*). They are intentionally NOT globally filtered as non-answers without dialogue context."
     )
@@ -213,14 +224,15 @@ def generate_clinician_pack():
     # Section 7: Clinical Sign-Off Table
     # -------------------------------------------------------------------------
     lines.append("## 7. Clinical Sign-Off & Governance Record")
-    lines.append("\n| Review Section | Clinician Name | Medical License / Role | Review Date | Decision (Approved / Rejected / Modified) | Notes & Clinical Directives |")
-    lines.append("|:---|:---|:---|:---|:---|:---|")
-    lines.append("| 1. Level-Raising Rules (v2.3) | | | | | |")
-    lines.append("| 2. Glucose Unit & Truth Table | | | | | |")
-    lines.append("| 3. Vomiting / Fluids Phrases | | | | | |")
-    lines.append("| 4. 'Confused' Pattern Option | | | | | |")
-    lines.append("| 5. Narrative-Yes 4-Question Gap | | | | | |")
-    lines.append("| 6. Input Triage Design Limits | | | | | |")
+    lines.append("\n| Item | Clinician Name | Date | Decision | Comment |")
+    lines.append("|:---|:---|:---|:---|:---|")
+    lines.append("| 1. Glucose Triage Thresholds & Conversion Factor (18.0) | | | | |")
+    lines.append("| 2. Blood Pressure Triage Thresholds | | | | |")
+    lines.append("| 3. Red Flag Symptoms & Escalation Levels | | | | |")
+    lines.append("| 4. Vomiting / Fluids Inability Phrases | | | | |")
+    lines.append("| 5. 'Confused' Pattern Handling Option (1, 2, or 3) | | | | |")
+    lines.append("| 6. Narrative-Yes 4-Question Gap (hypo, sick-day, symptoms, foot) | | | | |")
+    lines.append("| 7. Input Triage Handling (ok/haan, historical chest pain, dose requests) | | | | |")
 
     content = "\n".join(lines) + "\n"
     out_file = REPO_ROOT / "docs" / "CLINICIAN_REVIEW_PACK.md"
