@@ -79,3 +79,20 @@ Reviewed from `backend-poc-technical/agents/interview_bank/core.json`. Review fo
 | `insulin_hypo_symptoms_acute` | English | Are you currently feeling any shakiness, sweating, dizziness, or confusion that gets better when you eat something sweet? | Unclear | The symptom list is clear, but the conditional is long. Split it: “Are you shaking, sweating, dizzy, or confused now? Does it improve after you eat or drink something sugary?” |
 | `insulin_hypo_symptoms_acute` | Roman Urdu | Kya aap is waqt kapkapahat, paseena, chakkar, ya uljhan mehsoos kar rahe hain jo meetha khanay se theek hoti ho? | Unclear | The meaning is understandable but the sentence is long. Use “Kya abhi kapkapahat, paseena, chakkar ya uljhan hai? Kya meetha khane ya peene se behtari hoti hai?” |
 | `insulin_hypo_symptoms_acute` | Urdu | کیا آپ اس وقت کپکپاہٹ، پسینہ، چکر، یا الجھن محسوس کر رہے ہیں جو میٹھا کھانے سے بہتر ہوتی ہو؟ | Unclear | Correct but long and slightly awkward. Use “کیا ابھی آپ کو کپکپاہٹ، پسینہ، چکر یا الجھن ہو رہی ہے؟ کیا میٹھا کھانے یا پینے سے یہ بہتر ہوتی ہے؟” |
+
+## Fasting
+
+| Item id | Language | Wording | OK / Unclear / Wrong | Suggested fix |
+|---|---|---|---|---|
+| `fasting_is_fasting` | English | Are you fasting today (for Ramadan or another fast)? | OK | Clear and respectful. Mentioning Ramadan and other fasts makes the question inclusive. |
+| `fasting_is_fasting` | Roman Urdu | Kya aap ne aaj roza rakha hua hai? | Unclear | Natural for Ramadan, but it assumes “roza” rather than any kind of fasting. Use “Kya aap aaj roza ya koi aur fast rakh rahe hain?” if non-Ramadan fasting matters. |
+| `fasting_is_fasting` | Urdu | کیا آپ نے آج روزہ رکھا ہوا ہے؟ | Unclear | Natural Urdu for Ramadan, but it does not reflect the English “another fast.” Consider “کیا آپ آج روزہ یا کوئی اور فاسٹنگ کر رہے ہیں؟” if other fasting is supported. |
+| `fasting_predawn_meal` | English | Did you eat a pre-dawn meal (Sehri/Suhoor) before starting your fast today? | OK | Clear, and the parenthetical terms help patients using either spelling. |
+| `fasting_predawn_meal` | Roman Urdu | Kya aap ne aaj roza shuru karne se pehle Sehri ki thi? | OK | Natural and easy to understand for a patient observing Ramadan. |
+| `fasting_predawn_meal` | Urdu | کیا آپ نے آج روزہ شروع کرنے سے پہلے سحری کی تھی؟ | OK | Natural and clear for Ramadan. If other fasts are supported, add a version for a pre-dawn meal without assuming Sehri. |
+| `fasting_symptoms` | English | Have you felt severe dizziness, confusion, extreme thirst, or heavy sweating during your fast today? | OK | The symptoms are clear and the question is appropriately direct. “Severe” and “extreme” communicate importance without naming a frightening diagnosis. |
+| `fasting_symptoms` | Roman Urdu | Kya roze ke dauran aap ko shadeed chakkar, uljhan, shadeed pyas, ya bohat ziada paseena mehsoos hua? | Unclear | “Shadeed” is formal and repeated. Use “bahut zyada chakkar, uljhan, bahut zyada pyas, ya bohat paseena” for more natural patient language. |
+| `fasting_symptoms` | Urdu | کیا روزے کے دوران آپ کو شدید چکر، الجھن، شدید پیاس، یا بہت زیادہ پسینہ محسوس ہوا؟ | Unclear | The meaning is correct, but “شدید” is formal. “بہت زیادہ چکر” and “بہت زیادہ پیاس” may be easier for some older patients. |
+| `fasting_broke_fast` | English | Did you need to break your fast early today for any reason, such as feeling unwell or low blood sugar? | Unclear | “Break your fast” may sound like criticism. Use “Did you need to stop fasting early today because you felt unwell or had low blood sugar?” |
+| `fasting_broke_fast` | Roman Urdu | Kya aap ko tabiyat kharab hone ya sugar low hone ki wajah se waqt se pehle roza torna para? | Unclear | “Roza torna” can sound blameful or religiously sensitive. Use “Kya tabiyat kharab hone ya sugar low hone ki wajah se aap ko waqt se pehle roza kholna para?” |
+| `fasting_broke_fast` | Urdu | کیا آپ کو طبیعت خراب ہونے یا شوگر کم ہونے کی وجہ سے وقت سے پہلے روزہ توڑنا پڑا؟ | Unclear | “روزہ توڑنا” is understood but can feel judgmental. “کیا طبیعت خراب ہونے یا شوگر کم ہونے کی وجہ سے آپ کو وقت سے پہلے روزہ کھولنا پڑا؟” is gentler. |
