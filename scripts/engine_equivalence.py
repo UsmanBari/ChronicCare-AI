@@ -97,7 +97,7 @@ def answer_for_scenario(sc: dict, q_text: str, step: str) -> str:
     q_lower = (q_text or "").lower()
     step_lower = (step or "").lower()
 
-    if sc["id"] == "POC-7":
+    if sc["id"] == "CS-7":
         return "I have crushing chest pain"
 
     if "how are you feeling" in q_lower or "greeting" in step_lower:
@@ -187,7 +187,7 @@ def run_scenario(engine: str, sc: dict):
 
 SCENARIOS = [
     {
-        "id": "POC-1",
+        "id": "CS-1",
         "description": "T2D Routine Controlled (120 mg/dL)",
         "conditions": ["diabetes"],
         "glucose_str": "120 mg/dL",
@@ -195,7 +195,7 @@ SCENARIOS = [
         "source": "test_triage_protocol.py::test_ordinary_readings_start_nothing",
     },
     {
-        "id": "POC-2",
+        "id": "CS-2",
         "description": "HTN Stage 1 Baseline (135/85 mmHg)",
         "conditions": ["hypertension"],
         "bp_sys_str": "135",
@@ -204,7 +204,7 @@ SCENARIOS = [
         "source": "test_triage_protocol.py::test_ordinary_readings_start_nothing",
     },
     {
-        "id": "POC-3",
+        "id": "CS-3",
         "description": "Dual Dx Controlled (125 mg/dL, 128/82 mmHg)",
         "conditions": ["diabetes", "hypertension"],
         "glucose_str": "125 mg/dL",
@@ -214,7 +214,7 @@ SCENARIOS = [
         "source": "test_triage_protocol.py::test_ordinary_readings_start_nothing",
     },
     {
-        "id": "POC-4",
+        "id": "CS-4",
         "description": "T2D Hypoglycemia Episode (62 mg/dL, treated)",
         "conditions": ["diabetes"],
         "glucose_str": "62 mg/dL",
@@ -222,7 +222,7 @@ SCENARIOS = [
         "source": "test_triage_protocol.py::test_low_glucose_that_the_patient_can_treat_is_reviewed_or_urgent_by_depth",
     },
     {
-        "id": "POC-5",
+        "id": "CS-5",
         "description": "HTN Stage 2 Elevation (155/95 mmHg)",
         "conditions": ["hypertension"],
         "bp_sys_str": "155",
@@ -231,7 +231,7 @@ SCENARIOS = [
         "source": "test_triage_protocol.py::test_ordinary_readings_start_nothing",
     },
     {
-        "id": "POC-6",
+        "id": "CS-6",
         "description": "Severe High Glucose (280 mg/dL, no symptoms)",
         "conditions": ["diabetes"],
         "glucose_str": "280 mg/dL",
@@ -240,7 +240,7 @@ SCENARIOS = [
         "source": "test_triage_protocol.py::test_high_glucose_without_symptoms_is_reviewed_below_300_and_urgent_from_300",
     },
     {
-        "id": "POC-7",
+        "id": "CS-7",
         "description": "Emergency Chest Pain Red Flag",
         "conditions": ["diabetes"],
         "expected": "emergency",

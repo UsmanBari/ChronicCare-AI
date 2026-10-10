@@ -102,13 +102,13 @@ def run_scenarios_equivalence():
     print("|:---|:---:|:---:|:---:|:---:|:---:|")
 
     scenarios = [
-        ("POC-1: T2D Routine Controlled", ["diabetes"], "120", "routine"),
-        ("POC-2: HTN Stage 1 Baseline", ["hypertension"], "135/85", "routine"),
-        ("POC-3: Dual Dx Controlled", ["diabetes", "hypertension"], "125", "routine"),
-        ("POC-4: T2D Hypoglycemia Episode", ["diabetes"], "62", "review"),
-        ("POC-5: HTN Stage 2 Elevation", ["hypertension"], "155/95", "review"),
-        ("POC-6: Severe High Glucose", ["diabetes"], "280", "review"),
-        ("POC-7: Emergency Chest Pain", ["diabetes"], "130", "emergency"),
+        ("CS-1: T2D Routine Controlled", ["diabetes"], "120", "routine"),
+        ("CS-2: HTN Stage 1 Baseline", ["hypertension"], "135/85", "routine"),
+        ("CS-3: Dual Dx Controlled", ["diabetes", "hypertension"], "125", "routine"),
+        ("CS-4: T2D Hypoglycemia Episode", ["diabetes"], "62", "review"),
+        ("CS-5: HTN Stage 2 Elevation", ["hypertension"], "155/95", "review"),
+        ("CS-6: Severe High Glucose", ["diabetes"], "280", "review"),
+        ("CS-7: Emergency Chest Pain", ["diabetes"], "130", "emergency"),
     ]
 
     for name, conditions, reading, expected in scenarios:

@@ -1,7 +1,7 @@
 """
 Pytest integration suite for Engine Equivalence (Stage 9A-4 Task A).
 Asserts that v2 and v3 produce identical, clinically safe triage levels
-matching established test baselines across all 7 POC scenarios.
+matching established test baselines across all 7 Check-in Scenarios (CS-1 to CS-7).
 """
 
 import pytest
