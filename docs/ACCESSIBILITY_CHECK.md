@@ -42,3 +42,14 @@ URL: https://chronicare-ai.netlify.app/
 | Provider view | Keyboard only | NOT DONE | The provider entry opened the Firebase sign-in screen instead of the provider view. No provider controls could be tested without valid credentials. |
 | Provider view | Browser zoom 200% | NOT DONE | Authentication blocked entry to the provider view, so no zoom observation was recorded. |
 | Provider view | Narrow window 320px | NOT DONE | Authentication blocked entry to the provider view, so no narrow-viewport observation was recorded. |
+
+## Settings and Language Switch
+
+Test date: 2026-10-10
+URL: https://chronicare-ai.netlify.app/
+
+| Screen | Test | Result | What I saw |
+|---|---|---|---|
+| Settings and language switch | Keyboard only | PASS | Tab focus reached the Urdu language button, the privacy and clinician-review consent buttons, the voice-input toggle, and Close. The focused controls were reported as active, with no focus trap observed. |
+| Settings and language switch | Browser zoom 200% | PASS | At 200% zoom, the settings panel and language controls remained available. The page body had no horizontal overflow: scroll width and client width were both 1012 pixels. |
+| Settings and language switch | Narrow window 320px | PASS | At a 320px viewport, the settings panel remained present, the compact navigation control appeared, and the language/settings controls remained available. The page body had no horizontal overflow: scroll width and client width were both 244 pixels. |
