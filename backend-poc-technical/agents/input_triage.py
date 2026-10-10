@@ -108,7 +108,8 @@ _URDU_ROMAN_NEGATIONS = [
 def screen_multilingual_danger_phrases(text: str) -> Tuple[bool, Optional[str]]:
     """
     Screens for life-threatening danger phrases across English, Urdu, and Roman Urdu.
-    Strictly negation-aware with 100% recall on danger phrases gold dataset.
+    Calls run_stage1_red_flag_screen FIRST as authoritative, then checks extra multilingual patterns,
+    while ensuring Urdu/Roman Urdu post-negations are respected.
     """
     if not text or not text.strip():
         return False, None
@@ -129,7 +130,15 @@ def screen_multilingual_danger_phrases(text: str) -> Tuple[bool, Optional[str]]:
                 return True, "dka_vomiting_high_glucose"
             return True, "danger_phrase"
 
-    # Split text by clauses/commas to inspect each thought independently
+    # 2. Authoritative base screen from clinical module FIRST
+    base_flagged, base_cat = run_stage1_red_flag_screen(clean_text)
+    if base_flagged:
+        # Check if there is a Roman Urdu or Urdu negation present in the text that base screen missed
+        has_ur_neg = any(neg in lowered for neg in _URDU_ROMAN_NEGATIONS)
+        if not has_ur_neg:
+            return True, base_cat or "danger_phrase"
+
+    # 3. Multilingual and negation-aware inspection across clauses
     clauses = re.split(r"[,;.\n]+", lowered)
 
     for clause in clauses:
@@ -152,34 +161,6 @@ def screen_multilingual_danger_phrases(text: str) -> Tuple[bool, Optional[str]]:
 
     return False, None
 
-
-# =============================================================================
-# Self-Harm & Hopelessness Patterns (Strict Negation-Aware Screening)
-# =============================================================================
-SELF_HARM_PATTERNS: List[str] = [
-    "kill myself",
-    "end it all",
-    "ending my life",
-    "want to die",
-    "better off dead",
-    "suicide",
-    "suicidal",
-    "hang myself",
-    "cut my wrists",
-    "take all my pills at once",
-    "khudkushi",
-    "jaan de dunga",
-    "marne ka dil",
-    "mar jana chahta",
-    "marna chahta",
-    "zindagi khatam",
-    "apni jaan khatam",
-    "خودکشی",
-    "مرنا چاہتا ہوں",
-    "زندگی ختم کرنا چاہتا ہوں",
-    "زندگی ختم کرنا",
-    "جان دینا چاہتا ہوں",
-]
 
 # =============================================================================
 # Self-Harm & Hopelessness Patterns (Strict Negation-Aware Screening)
@@ -574,7 +555,7 @@ def classify_input(text: str, consecutive_odd_count: int = 0) -> TriageInputResu
         )
 
     # 5j. Non-answer fillers
-    if lowered in ("hmm", "hmmm", "ok", "okay", "haan", "acha", "acha theek", "idk", "dunno"):
+    if lowered in ("hmm", "hmmm", "idk", "dunno"):
         return TriageInputResult(
             category="odd_input",
             odd_class="non_answer",

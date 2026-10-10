@@ -10,10 +10,10 @@
 | Metric | Measured Value | Standard / Target |
 |---|---|---|
 | **Total Simulated Personas Tested** | `52` | $\ge 50$ personas |
-| **Average Questions Per Check-in** | `7.56` | $\le 10$ normal, $\le 14$ hard cap |
-| **Average Slots Captured Per Session** | `7.5` | Comprehensive profile capture |
-| **Clarifications & Odd Input Reroutes** | `5` | Handled via fixed response bank |
-| **Early Safety / Eligibility Exits** | `4` (3 emergencies, 1 pregnancy) | Immediate safety bypass |
+| **Average Questions Per Check-in** | `7.31` | $\le 10$ normal, $\le 14$ hard cap |
+| **Average Slots Captured Per Session** | `7.27` | Comprehensive profile capture |
+| **Clarifications & Odd Input Reroutes** | `4` | Handled via fixed response bank |
+| **Early Safety / Eligibility Exits** | `5` (4 emergencies, 1 pregnancy) | Immediate safety bypass |
 | **LLM Fallback Rate (Stage 9A)** | `100.0% (Templates Default)` | 100% operational with LLM off |
 
 ---
@@ -37,7 +37,7 @@
 | `dont_know` | 1 | 7.0 | 7.0 |
 | `dual_normal` | 1 | 10.0 | 9.0 |
 | `dyspnea_exertion` | 1 | 8.0 | 8.0 |
-| `elderly_complex` | 1 | 14.0 | 13.0 |
+| `elderly_complex` | 1 | 0.0 | 0.0 |
 | `elderly_slow` | 1 | 8.0 | 8.0 |
 | `fasting_broke` | 1 | 8.0 | 8.0 |
 | `fasting_low` | 1 | 8.0 | 8.0 |
@@ -67,7 +67,7 @@
 | `side_effects` | 1 | 8.0 | 8.0 |
 | `stoic_minimiser` | 1 | 8.0 | 8.0 |
 | `swollen_ankles` | 1 | 8.0 | 8.0 |
-| `terse_yes_no` | 1 | 7.0 | 7.0 |
+| `terse_yes_no` | 1 | 8.0 | 8.0 |
 | `urdu_script` | 1 | 7.0 | 7.0 |
 | `urdu_script_htn` | 1 | 8.0 | 8.0 |
 | `voice_transcript` | 1 | 8.0 | 8.0 |

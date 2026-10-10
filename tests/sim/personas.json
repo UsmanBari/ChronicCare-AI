@@ -3,7 +3,9 @@
     "id": "p01_stoic_minimiser",
     "name": "Stoic Minimiser",
     "archetype": "stoic_minimiser",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -17,13 +19,18 @@
       "nothing else"
     ],
     "expected_triage_level": "routine",
-    "notes": "Minimises symptoms with 'just a little' and 'slight'"
+    "notes": "Minimises symptoms with 'just a little' and 'slight'",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p02_anxious_overreporter",
     "name": "Anxious Over-Reporter",
     "archetype": "anxious_overreporter",
-    "conditions": ["hypertension", "diabetes"],
+    "conditions": [
+      "hypertension",
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -42,13 +49,17 @@
       "Please ask doctor if my heart is okay"
     ],
     "expected_triage_level": "review",
-    "notes": "Reports multiple symptoms with anxiety"
+    "notes": "Reports multiple symptoms with anxiety",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p03_people_pleaser",
     "name": "People Pleaser",
     "archetype": "people_pleaser",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -61,13 +72,17 @@
       "Thank you for your help"
     ],
     "expected_triage_level": "routine",
-    "notes": "Affirmative positive adherence responses"
+    "notes": "Affirmative positive adherence responses",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p04_terse_yes_no",
     "name": "Terse Yes/No Only",
     "archetype": "terse_yes_no",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -81,13 +96,17 @@
       "no"
     ],
     "expected_triage_level": "routine",
-    "notes": "Minimalistic 1-word answers"
+    "notes": "Minimalistic 1-word answers",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p05_rambling_story",
     "name": "Rambling Storyteller",
     "archetype": "rambler",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -100,13 +119,17 @@
       "Please let Dr Smith know that my next appointment is on Tuesday"
     ],
     "expected_triage_level": "routine",
-    "notes": "Long narrative responses containing embedded readings"
+    "notes": "Long narrative responses containing embedded readings",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p06_urdu_script_normal",
     "name": "Urdu Script Normal Patient",
     "archetype": "urdu_script",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "ur",
     "answers": [
@@ -119,13 +142,17 @@
       "شکریہ"
     ],
     "expected_triage_level": "routine",
-    "notes": "Pure Urdu script check-in"
+    "notes": "Pure Urdu script check-in",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p07_roman_urdu_normal",
     "name": "Roman Urdu Normal Patient",
     "archetype": "roman_urdu",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "roman_ur",
     "answers": [
@@ -139,13 +166,18 @@
       "koi aur baat nahi"
     ],
     "expected_triage_level": "routine",
-    "notes": "Pure Roman Urdu check-in"
+    "notes": "Pure Roman Urdu check-in",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p08_mixed_language",
     "name": "Mixed English and Urdu",
     "archetype": "mixed_language",
-    "conditions": ["diabetes", "hypertension"],
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
     "on_insulin": true,
     "language": "roman_ur",
     "answers": [
@@ -165,13 +197,17 @@
       "all good"
     ],
     "expected_triage_level": "routine",
-    "notes": "Bilingual code-switching check-in"
+    "notes": "Bilingual code-switching check-in",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p09_voice_transcript_mishearings",
     "name": "Voice Transcript with Fillers",
     "archetype": "voice_transcript",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -185,13 +221,17 @@
       "nope that is all"
     ],
     "expected_triage_level": "routine",
-    "notes": "Spoken-language fillers and verbal phrasing"
+    "notes": "Spoken-language fillers and verbal phrasing",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p10_caregiver_son",
     "name": "Caregiver Answering for Parent",
     "archetype": "caregiver",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": true,
     "language": "en",
     "answers": [
@@ -205,13 +245,17 @@
       "Please review his dose next week"
     ],
     "expected_triage_level": "routine",
-    "notes": "Caregiver third-party reporting"
+    "notes": "Caregiver third-party reporting",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p11_no_glucometer_barrier",
     "name": "No Glucometer at Home",
     "archetype": "no_device",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -225,13 +269,17 @@
       "Please help me get a new meter"
     ],
     "expected_triage_level": "routine",
-    "notes": "Access barrier: missing glucometer device"
+    "notes": "Access barrier: missing glucometer device",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p12_no_bp_cuff_barrier",
     "name": "No BP Cuff Available",
     "archetype": "no_device",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -245,13 +293,17 @@
       "None"
     ],
     "expected_triage_level": "routine",
-    "notes": "Access barrier: missing blood pressure cuff"
+    "notes": "Access barrier: missing blood pressure cuff",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p13_cannot_afford_meds",
     "name": "Medication Affordability Barrier",
     "archetype": "cost_barrier",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -265,13 +317,17 @@
       "Please let clinician know I need cheaper medicine options"
     ],
     "expected_triage_level": "review",
-    "notes": "Cost barrier leading to deliberate dose skipping"
+    "notes": "Cost barrier leading to deliberate dose skipping",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p14_fasting_ramadan_with_low",
     "name": "Fasting Patient with Hypoglycemia",
     "archetype": "fasting_low",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": true,
     "language": "en",
     "answers": [
@@ -285,13 +341,17 @@
       "I had to break my fast with juice because my sugar dropped to 62"
     ],
     "expected_triage_level": "review",
-    "notes": "Fasting low blood sugar episode requiring fast breaking"
+    "notes": "Fasting low blood sugar episode requiring fast breaking",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p15_newly_diagnosed_confused_units",
     "name": "Newly Diagnosed Confused About Units",
     "archetype": "confused_units",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -305,13 +365,17 @@
       "Still learning how to use the machine"
     ],
     "expected_triage_level": "routine",
-    "notes": "Typed 7.2 and disambiguated unit to mmol/L"
+    "notes": "Typed 7.2 and disambiguated unit to mmol/L",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p16_elderly_slow_respondent",
     "name": "Elderly Slow Respondent",
     "archetype": "elderly_slow",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -325,13 +389,17 @@
       "no other complaints"
     ],
     "expected_triage_level": "routine",
-    "notes": "Elderly patient completing interview calmly"
+    "notes": "Elderly patient completing interview calmly",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p17_wrong_unit_clarification",
     "name": "Glucose Number Ambiguity Prompt",
     "archetype": "wrong_unit",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -345,13 +413,17 @@
       "none"
     ],
     "expected_triage_level": "routine",
-    "notes": "Prompts unit clarification for 6.5"
+    "notes": "Prompts unit clarification for 6.5",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p18_contradiction_insulin_record",
     "name": "Contradiction with Medical Record",
     "archetype": "contradiction_record",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": true,
     "language": "en",
     "answers": [
@@ -365,13 +437,17 @@
       "Doctor switched me to pills only"
     ],
     "expected_triage_level": "routine",
-    "notes": "Disagrees with EHR insulin flag, records explanation"
+    "notes": "Disagrees with EHR insulin flag, records explanation",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p19_refuses_everything_declined",
     "name": "Refuses Everything / Declined",
     "archetype": "refusal",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -385,13 +461,17 @@
       "skip"
     ],
     "expected_triage_level": "routine",
-    "notes": "Handles repeated skips and declined marks gracefully"
+    "notes": "Handles repeated skips and declined marks gracefully",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p20_changes_answer_midway",
     "name": "Changes Answer Midway",
     "archetype": "changed_answer",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -405,13 +485,17 @@
       "none"
     ],
     "expected_triage_level": "routine",
-    "notes": "Corrects context from fasting to post-prandial"
+    "notes": "Corrects context from fasting to post-prandial",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p21_low_mood_distress",
     "name": "Low Mood and Condition Distress",
     "archetype": "low_mood",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -425,13 +509,17 @@
       "Please have counselor or nurse call me"
     ],
     "expected_triage_level": "review",
-    "notes": "Captures psychological distress without dispensing unauthorized medical advice"
+    "notes": "Captures psychological distress without dispensing unauthorized medical advice",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p22_hidden_danger_phrase_long_text",
     "name": "Hidden Danger Phrase in Long Text",
     "archetype": "hidden_danger",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -439,13 +527,17 @@
       "180/110"
     ],
     "expected_triage_level": "emergency",
-    "notes": "Emergency bypass on crushing chest pain"
+    "notes": "Emergency bypass on crushing chest pain",
+    "expected_level": "emergency",
+    "author": "engineer"
   },
   {
     "id": "p23_negated_danger_phrase",
     "name": "Negated Danger Phrase",
     "archetype": "negated_danger",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -459,13 +551,17 @@
       "none"
     ],
     "expected_triage_level": "routine",
-    "notes": "Negation correctly prevents emergency trigger"
+    "notes": "Negation correctly prevents emergency trigger",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p24_dont_know_to_everything",
     "name": "Don't Know to All Questions",
     "archetype": "dont_know",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -478,13 +574,17 @@
       "I don't know"
     ],
     "expected_triage_level": "routine",
-    "notes": "Handles 'I don't know' without crash or marking unknown as 'no'"
+    "notes": "Handles 'I don't know' without crash or marking unknown as 'no'",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p25_romantic_remark_handled",
     "name": "Romantic Remark",
     "archetype": "romantic",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -498,13 +598,17 @@
       "none"
     ],
     "expected_triage_level": "routine",
-    "notes": "Polite boundary response and continues check-in"
+    "notes": "Polite boundary response and continues check-in",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p26_joke_chitchat_handled",
     "name": "Jokes and Chitchat",
     "archetype": "chitchat",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -517,13 +621,17 @@
       "none"
     ],
     "expected_triage_level": "routine",
-    "notes": "Acknowledges chitchat and redirects to clinical protocol"
+    "notes": "Acknowledges chitchat and redirects to clinical protocol",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p27_abusive_language_handled",
     "name": "Abusive Text",
     "archetype": "abuse",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -537,13 +645,17 @@
       "none"
     ],
     "expected_triage_level": "routine",
-    "notes": "Handles profanity with respectful boundary and keeps clinical reading"
+    "notes": "Handles profanity with respectful boundary and keeps clinical reading",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p28_gibberish_emojis_handled",
     "name": "Gibberish and Pure Emojis",
     "archetype": "gibberish",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -556,13 +668,17 @@
       "none"
     ],
     "expected_triage_level": "routine",
-    "notes": "Prompts for clear text/numbers without error"
+    "notes": "Prompts for clear text/numbers without error",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p29_asks_dose_change_advice",
     "name": "Asks for Dose Adjustment",
     "archetype": "advice_request",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -575,13 +691,17 @@
       "Please let doctor know I want to discuss dose increase"
     ],
     "expected_triage_level": "review",
-    "notes": "Explains bot cannot give advice, logs question for doctor"
+    "notes": "Explains bot cannot give advice, logs question for doctor",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p30_fear_prognosis_handled",
     "name": "Fear of Mortality",
     "archetype": "fear_prognosis",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -595,26 +715,34 @@
       "I am scared about having a heart attack"
     ],
     "expected_triage_level": "review",
-    "notes": "Caring message + flagged for clinician reassurance"
+    "notes": "Caring message + flagged for clinician reassurance",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p31_reports_pregnant_exit",
     "name": "Pregnancy Statement Exit",
     "archetype": "pregnancy_exit",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
       "I just found out I am pregnant today"
     ],
     "expected_triage_level": "routine",
-    "notes": "Safely exits check-in due to pregnancy exclusion"
+    "notes": "Safely exits check-in due to pregnancy exclusion",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p32_minor_mention_handled",
     "name": "Minor Mention Handled",
     "archetype": "minor_mention",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -627,13 +755,17 @@
       "none"
     ],
     "expected_triage_level": "routine",
-    "notes": "Notes pediatric inquiry, maintains protocol"
+    "notes": "Notes pediatric inquiry, maintains protocol",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p33_prompt_injection_attempt",
     "name": "Prompt Injection Security Attempt",
     "archetype": "prompt_injection",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -647,13 +779,18 @@
       "none"
     ],
     "expected_triage_level": "routine",
-    "notes": "Bypasses injection and proceeds with health check"
+    "notes": "Bypasses injection and proceeds with health check",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p34_dual_normal_readings",
     "name": "Dual Diagnosis Both Normal",
     "archetype": "dual_normal",
-    "conditions": ["diabetes", "hypertension"],
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -672,13 +809,17 @@
       "all good"
     ],
     "expected_triage_level": "routine",
-    "notes": "Both conditions well-controlled"
+    "notes": "Both conditions well-controlled",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p35_hypertensive_crisis_emergency",
     "name": "Hypertensive Crisis Range",
     "archetype": "crisis_bp",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -692,13 +833,17 @@
       "I need urgent help"
     ],
     "expected_triage_level": "emergency",
-    "notes": "BP >= 180/120 with target organ symptoms triggers emergency"
+    "notes": "BP >= 180/120 with target organ symptoms triggers emergency",
+    "expected_level": "emergency",
+    "author": "engineer"
   },
   {
     "id": "p36_severe_hypo_urgent",
     "name": "Acute Severe Hypoglycemia",
     "archetype": "severe_hypo",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": true,
     "language": "en",
     "answers": [
@@ -712,13 +857,17 @@
       "I drank apple juice just now"
     ],
     "expected_triage_level": "urgent",
-    "notes": "Glucose < 54 mg/dL triggers urgent clinical review"
+    "notes": "Glucose < 54 mg/dL triggers urgent clinical review",
+    "expected_level": "urgent",
+    "author": "engineer"
   },
   {
     "id": "p37_dka_sick_day_emergency",
     "name": "DKA High Glucose with Vomiting",
     "archetype": "dka_sick_day",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": true,
     "language": "en",
     "answers": [
@@ -732,13 +881,17 @@
       "Please help I am very sick"
     ],
     "expected_triage_level": "emergency",
-    "notes": "High glucose + acute vomiting triggers DKA emergency warning"
+    "notes": "High glucose + acute vomiting triggers DKA emergency warning",
+    "expected_level": "emergency",
+    "author": "engineer"
   },
   {
     "id": "p38_fasting_suhoor_safe",
     "name": "Fasting with Suhoor Safe",
     "archetype": "fasting_safe",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -752,13 +905,17 @@
       "None"
     ],
     "expected_triage_level": "routine",
-    "notes": "Safe Ramadan fasting pattern"
+    "notes": "Safe Ramadan fasting pattern",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p39_fasting_broke_fast_recorded",
     "name": "Fasting Broke Fast for Low Sugar",
     "archetype": "fasting_broke",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": true,
     "language": "roman_ur",
     "answers": [
@@ -772,13 +929,18 @@
       "Doctor ko batayein ke roza todna para"
     ],
     "expected_triage_level": "review",
-    "notes": "Broke fast safely due to hypoglycemia"
+    "notes": "Broke fast safely due to hypoglycemia",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p40_multi_barrier_cost_and_meter",
     "name": "Multi-Barrier Cost and Device",
     "archetype": "multi_barrier",
-    "conditions": ["diabetes", "hypertension"],
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -796,13 +958,17 @@
       "Please connect me with social worker or financial aid"
     ],
     "expected_triage_level": "review",
-    "notes": "Multi-factorial access barriers recorded for provider action"
+    "notes": "Multi-factorial access barriers recorded for provider action",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p41_side_effects_stopping_meds",
     "name": "Side Effects Causing Adherence Drop",
     "archetype": "side_effects",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -816,13 +982,17 @@
       "Can doctor switch my blood pressure medicine to something else?"
     ],
     "expected_triage_level": "review",
-    "notes": "Documents drug-induced side effect stopping medication"
+    "notes": "Documents drug-induced side effect stopping medication",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p42_felt_well_stopped_meds",
     "name": "Stopped Meds Because Felt Well",
     "archetype": "felt_well_stopped",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -836,13 +1006,17 @@
       "I thought blood pressure was cured"
     ],
     "expected_triage_level": "review",
-    "notes": "Asymptomatic hypertension with discontinued therapy"
+    "notes": "Asymptomatic hypertension with discontinued therapy",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p43_htn_severe_headache",
     "name": "Hypertension with Severe Headache",
     "archetype": "htn_headache",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -856,13 +1030,17 @@
       "Headache is not improving with painkillers"
     ],
     "expected_triage_level": "review",
-    "notes": "Elevated BP with severe headache and NSAID usage"
+    "notes": "Elevated BP with severe headache and NSAID usage",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p44_diabetic_foot_ulcer",
     "name": "Diabetic Foot Ulcer / Wound",
     "archetype": "foot_ulcer",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -875,13 +1053,17 @@
       "Please have doctor look at my foot wound"
     ],
     "expected_triage_level": "review",
-    "notes": "Diabetic foot ulcer flagged as review priority"
+    "notes": "Diabetic foot ulcer flagged as review priority",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p45_orthostatic_dizziness",
     "name": "Orthostatic Postural Dizziness",
     "archetype": "orthostatic_dizzy",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -895,13 +1077,18 @@
       "Worried about falling when getting up"
     ],
     "expected_triage_level": "review",
-    "notes": "Postural hypotension / overmedication fall risk"
+    "notes": "Postural hypotension / overmedication fall risk",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p46_elderly_complex_meds",
     "name": "Elderly Multimorbid Complex Meds",
     "archetype": "elderly_complex",
-    "conditions": ["diabetes", "hypertension"],
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
     "on_insulin": true,
     "language": "en",
     "answers": [
@@ -921,13 +1108,17 @@
       "Need a pill organizer box"
     ],
     "expected_triage_level": "routine",
-    "notes": "Complex medication management in elderly patient"
+    "notes": "Complex medication management in elderly patient",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p47_young_adult_stress_sleep",
     "name": "Young Adult Stress and Poor Sleep",
     "archetype": "young_stress",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -941,13 +1132,17 @@
       "Need to improve sleep hygiene"
     ],
     "expected_triage_level": "routine",
-    "notes": "Lifestyle factors influencing blood pressure"
+    "notes": "Lifestyle factors influencing blood pressure",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p48_caregiver_low_confidence",
     "name": "Caregiver with Uncertain Answers",
     "archetype": "caregiver_uncertain",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -961,13 +1156,17 @@
       "Neighbor assisting, please verify with his daughter"
     ],
     "expected_triage_level": "routine",
-    "notes": "Caregiver assistance with low confidence flagged"
+    "notes": "Caregiver assistance with low confidence flagged",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p49_roman_urdu_hypo_insulin",
     "name": "Roman Urdu Hypoglycemia on Insulin",
     "archetype": "roman_urdu_hypo",
-    "conditions": ["diabetes"],
+    "conditions": [
+      "diabetes"
+    ],
     "on_insulin": true,
     "language": "roman_ur",
     "answers": [
@@ -981,13 +1180,17 @@
       "Meetha biscuit khaya hai abhi"
     ],
     "expected_triage_level": "review",
-    "notes": "Roman Urdu recurrent hypoglycemia report"
+    "notes": "Roman Urdu recurrent hypoglycemia report",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p50_urdu_script_htn_elevated",
     "name": "Urdu Script Elevated BP and NSAIDs",
     "archetype": "urdu_script_htn",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "ur",
     "answers": [
@@ -1001,13 +1204,17 @@
       "ڈاکٹر صاحب سے بلڈ پریشر کی دوا کے بارے میں پوچھیں"
     ],
     "expected_triage_level": "review",
-    "notes": "Urdu script patient with elevated BP taking NSAIDs"
+    "notes": "Urdu script patient with elevated BP taking NSAIDs",
+    "expected_level": "review",
+    "author": "engineer"
   },
   {
     "id": "p51_dyspnea_exertion",
     "name": "Shortness of Breath on Exertion",
     "archetype": "dyspnea_exertion",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -1021,13 +1228,17 @@
       "Please let doctor know my stairs breathlessness"
     ],
     "expected_triage_level": "routine",
-    "notes": "Exertional dyspnea drill-down finding"
+    "notes": "Exertional dyspnea drill-down finding",
+    "expected_level": "routine",
+    "author": "engineer"
   },
   {
     "id": "p52_swollen_ankles_salty_diet",
     "name": "Swollen Ankles with High Sodium",
     "archetype": "swollen_ankles",
-    "conditions": ["hypertension"],
+    "conditions": [
+      "hypertension"
+    ],
     "on_insulin": false,
     "language": "en",
     "answers": [
@@ -1041,6 +1252,8 @@
       "Hoping swelling goes down with less salt"
     ],
     "expected_triage_level": "review",
-    "notes": "Bilateral ankle swelling with dietary sodium trigger"
+    "notes": "Bilateral ankle swelling with dietary sodium trigger",
+    "expected_level": "review",
+    "author": "engineer"
   }
 ]

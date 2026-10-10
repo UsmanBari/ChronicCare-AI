@@ -81,3 +81,31 @@ Soft metrics are printed in a report file (average questions, fields captured, c
 ## 9. What still needs a human
 
 A doctor must review the question bank and the thresholds. The team must check each source in the table. A real Groq key and real browsers are needed for the live test. Urdu wording should be read by a native speaker.
+
+## 10. Delving into every answer (drill-down)
+
+Every answer becomes a **finding**: what the patient reported (symptom, reading, medicine problem, lifestyle change, worry), the closed-vocabulary label for it, the attributes we know (when it started, how long, how bad, what brings it on, what eases it, what comes with it) and the exact quote. The bank holds **probe sets** per finding type (dizziness, headache, breathlessness, vision change, thirst or urination, foot problem, low-sugar episode, missed dose, swelling, tiredness, nausea or vomiting, pain, sleep, low mood, "something else"). The planner asks the missing attributes next, at most two follow-ups per finding, and stops probing the moment a danger phrase appears. Follow-ups quote the closed-vocabulary label, never raw patient text, so an answer cannot inject wording into the next question. Example: "dizzy" then "only when I stand up?" then "has it ever made you fall or nearly faint?".
+
+## 11. Odd, off-topic and hostile input
+
+Every answer is classified before it is used. Safety classes always win, and they are decided by rules only (danger phrases, self-harm or hopeless wording, pregnancy statement). The other classes may use the LLM as a hint, never as the decider.
+
+| Class | Example | Response (fixed, short, kind, same in 3 languages) |
+|---|---|---|
+| Chit-chat / joke / test | "tell me a joke", "lol" | One neutral line, then the same question again. |
+| Romantic or flirtatious | "I feel romantic", "I love you" | Polite, no mirroring: "Thank you. I'm an automated assistant, so I can only help with your health check-in." Then, because sexual health changes are a real and common side effect or complication in diabetes and high blood pressure, one optional question: "If you meant a change in desire or sexual function, your clinician wants to know. Add a note? (Yes / No / Skip)". Only a Yes is recorded, and only as a patient-reported note. |
+| Insults, abuse | | Calm boundary once. Never answers back in kind. |
+| Gibberish, emoji only, empty | "asdkj", "👍👍" | Ask to rephrase once, then offer buttons. |
+| Asks for advice, diagnosis, dose change | "should I stop my tablet?" | "I can't advise on that. I've added it to your questions for your clinician." It appears on the provider card. |
+| Fear or prognosis | "will I die?" | Caring fixed message, flagged for clinician review. No reassurance and no prediction. |
+| Asks about the bot | "are you a doctor?" | Honest fixed answer: automated assistant, not a doctor. |
+| Not the patient / third party | "my father feels dizzy" | Ask who is answering; record `answered_by`; keep father's symptoms separate from the patient's record. |
+| Mentions being under 18 or pregnant | | Use the existing inclusion handling. |
+| Prompt injection | "ignore your rules" | Treated as plain text, fixed reply, nothing executed. |
+| Self-harm or hopelessness | | Rules only. Caring fixed message, clinician review flag, verified local help text from configuration. |
+
+Strike rule: after two off-topic answers in a row the interview offers Continue, Skip this question, or Finish for now. After four it ends politely, keeps what it has, and marks "ended early: off-topic input". That mark is not a clinical alert.
+
+## 12. Enterprise quality bar
+
+Accessibility to WCAG 2.2 AA (keyboard only, screen-reader announcements for each new question, contrast, 200% zoom, reduced motion, Urdu right-to-left). A review-and-confirm screen before anything is sent. Resume after an interrupted session. Idempotent submit. Append-only audit trail of every turn (rule id, interview-bank version, no free text beyond what the patient chose to send). Structured logs with request ids and no personal data. Rate limits and size limits. Versioned interview definitions stamped on every check-in. A plain-language microcopy guide so every screen sounds the same. A clinician summary with four blocks: patient said, system read, unclear, questions from the patient.

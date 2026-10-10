@@ -226,6 +226,7 @@ After the interview (and the protocol, if one was needed) the patient is asked a
 | `_DOSE_HINT` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_LEADING_YES` | (see the sections above) | medication_confirmation.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_EASTERN_DIGITS_TABLE` | Unicode translation table for Eastern Arabic (٠-٩) and Urdu (۰-۹) digits | adaptive_interview_agent.py | Implementation detail (numeral normalisation) | Implementation detail for multilingual numeral parsing. |
+| `_MMOL_RE` | Regular expression matching mmol/L in English, Roman-Urdu, and Urdu forms | adaptive_interview_agent.py | Implementation detail (unit detection) | Recognises explicit mmol/L units for 18.0 conversion to mg/dL. |
 
 ## 7. Medication scope in Connected Mode
 
@@ -245,32 +246,45 @@ In Connected Mode, an EHR patient record may contain dozens of active medication
 
 ## 8. New rules in v2.3 needing clinician sign-off
 
+> **Empirically verified against live `/api/checkins/{id}/complete` endpoint (Stage 9A-5).**
+> A rule exists only if the completed check-in final triage level differs from the all-normal baseline (`routine`, reasons `[]`, factors `[]`).
+> Narrative answers to Stage 8b questions (`glucose_context`, `hypo_events_past_week`, `sick_day_flags`, `foot_problems`, `bp_technique`, `associated_symptoms`, `otc_meds_bp`, `missed_doses_reason`, `patient_free_text`) are stored in the intake payload as clinical context for the clinician, but do not alter the completed triage level when blood pressure and glucose readings are in normal range.
+
+| Question Step | Answer Class | Baseline Level | Final Level | Level Differs? | API Reasons | API Factors | Rule Triggered? | Code Location |
+|---|---|---|---|---|---|---|---|---|
+| `all Stage 8b steps` | `yes` | `routine` | `routine` | NO | `[]` | `[]` | NO (Intake context only) | `adaptive_interview_agent.py` |
+| `all Stage 8b steps` | `no` | `routine` | `routine` | NO | `[]` | `[]` | NO (Intake context only) | `adaptive_interview_agent.py` |
+| `all Stage 8b steps` | `unknown` | `routine` | `routine` | NO | `[]` | `[]` | NO (Intake context only) | `adaptive_interview_agent.py` |
+| `all Stage 8b steps` | `skip` | `routine` | `routine` | NO | `[]` | `[]` | NO (Intake context only) | `adaptive_interview_agent.py` |
+| `all Stage 8b steps` | `danger_phrase` | `routine` | `emergency` | YES | `['chest_pain']` (v2) / `['chest_pain', 'red_flag_emergency']` (v3) | `[]` | YES (Stage 1 Red-Flag) | `adaptive_interview_agent.py:194` / `input_triage.py:440` |
+
+### KNOWN GAP FOR CLINICIAN:
+Answering "yes" to `hypo_events_past_week`, `sick_day_flags`, `associated_symptoms`, and `foot_problems` leaves the triage level at `routine` when blood pressure and glucose readings are in the normal physiological range. While the patient's narrative answers and affirmative flags are stored in the intake payload (`symptoms` and `lifestyle_notes`) for subsequent clinician review, the automated protocol does not escalate the check-in level beyond `routine`. Consequently, an acute patient who reports a clinically significant symptom (for example, stating *"I have been vomiting and cannot keep fluids down"*) with a normal glucose reading (e.g. 120 mg/dL) will complete the interview classified as `routine` unless an exact verbatim phrase in the Stage 1 emergency red-flag screen catches the text. Clinician sign-off is required to determine whether affirmative responses to these four steps must mandate escalation to `review` or `urgent`.
+
+## 10. Proposed additional danger screen patterns (from interview engine v3 input triage)
+
 > **Proposed, not reviewed by a clinician.**
-> Every rule and trigger described below was added in v2.3 to capture richer clinical context. Triage level transitions are strictly monotonic (they can only raise a level, never lower a level).
+> In Interview Engine v3, the safety screen authoritatively runs `run_stage1_red_flag_screen` FIRST. The following additional multilingual patterns are added defensively to catch edge-case phrasing across English, Urdu, and Roman Urdu.
 
-| Question ID | Answer / Trigger Pattern | Level Before | Level After | Code Location | Status |
-|---|---|---|---|---|---|
-| `stage1_red_flag` (all questions + free text) | Danger phrase in raw text (e.g. chest pain, breathing difficulty, confusion/stroke, collapse, thunderclap headache, sudden vision loss) | `routine` / `review` / `urgent` | `emergency` | `agents/adaptive_interview_agent.py:194` (`run_stage1_red_flag_screen`) | Proposed, not reviewed by a clinician |
-| `hypo_events_past_week` | Recurrent severe lows reported while on insulin/sulfonylurea | `routine` | `review` / `urgent` | `agents/triage_protocol.py` (via glucose_low protocol) | Proposed, not reviewed by a clinician |
-| `sick_day_flags` | Acute vomiting / fluid intolerance with high glucose ($\ge 250$ mg/dL) | `routine` / `review` | `urgent` / `emergency` | `agents/triage_protocol.py` (via glucose_high protocol) | Proposed, not reviewed by a clinician |
-| `foot_problems` | Open wound, ulcer, or spreading infection in foot | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
-| `associated_symptoms` | Severe headache, shortness of breath with elevated BP | `routine` / `review` | `urgent` / `emergency` | `agents/triage_protocol.py` (via bp_severe protocol) | Proposed, not reviewed by a clinician |
-| `otc_meds_bp` | Decongestants / NSAIDs reported with elevated BP | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
-| `missed_doses_reason` | Side effects / cost barriers causing missed doses | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
+| Category | Additional Patterns (English / Roman Urdu / Urdu) | Level Action | Status |
+|---|---|---|---|
+| Direct Inability Emergencies | `can't breathe`, `cannot breathe`, `can't move`, `can't see`, `cannot see`, `can't keep`, `saans nahi aa rahi`, `bol nahi pa raha`, `ulti ruk nahi rahi`, `paani bhi nahi rukta`, `سانس نہیں آ رہی`, `بول نہیں پا رہا`, `الٹی رک نہیں رہی`, `پانی بھی نہیں رک رہا` | `emergency` | Proposed, not reviewed by a clinician |
+| DKA / Severe Vomiting with High Glucose | `vomiting continuously`, `musalsal ultiyan`, `مسلسل الٹیاں`, `مسلسل قے اور الٹی` | `emergency` | Proposed, not reviewed by a clinician |
+| Multilingual Chest Pain | `crushing chest pain`, `heavy chest`, `chest pressure`, `pain in my chest` | `emergency` | Proposed, not reviewed by a clinician |
+| Urgent Safety / Self-Harm | Explicit self-harm or hopelessness phrases (e.g. `want to end my life`, `zindagi khatam karni hai`) | `emergency` + crisis support guidance + urgent clinician alert | Proposed, not reviewed by a clinician |
 
-## 9. Clinician review
+## 11. Proposed glucose unit safety rule (from interview engine v3 answer validation)
 
-| Section | Reviewer | Date | Decision (accept, change, reject) | Notes |
-|---|---|---|---|---|
-| 1. Levels | | | PENDING | |
-| 2. Triggers and baseline | | | PENDING | |
-| 3. Questions and decisions | | | PENDING | |
-| 4. Age and exclusions | | | PENDING | |
-| 5. Danger phrases and readings | | | PENDING | |
-| 6. Medication confirmation | | | PENDING | |
-| 7. Medication scope | | | PENDING | |
-| 8. New rules in v2.3 | | | PENDING | |
-| 9. Constants | | | PENDING | |
+> **Proposed, not reviewed by a clinician.**
+> Clinical Rationale: Under ADA Standards of Care (2026 Section 6), blood glucose values $\le 40$ mg/dL represent severe, life-threatening hypoglycemia requiring urgent intervention. If a patient enters a number $\le 40$ without a unit (e.g. "7" meaning 7.0 mmol/L $\approx$ 126 mg/dL vs 7 mg/dL), assuming either unit without verification creates risk.
+
+- **Disambiguation Question:** If a patient enters a value between $2.0$ and $40.0$ with no unit, the engine asks ONE unit clarification question ("Did you mean X mmol/L or X mg/dL?").
+- **Unanswered Unit Safety Fallback:** If the unit question is unanswered, repeated, or unclear, the engine:
+  1. Sets the check-in triage level to AT LEAST `review` (so a clinician reviews it today).
+  2. Provides immediate low-sugar safety guidance ("If you feel shaky, sweaty, dizzy, or unwell, please consume fast-acting sugar...").
+  3. Records a note for the provider: "glucose value unit unclear, possible low".
+  4. Continues interview questions (symptom exploration continues to check for neuroglycopenia or autonomic symptoms).
+- **Values $> 40$:** Numbers $> 40$ without an explicit unit default to mg/dL (physiologic upper limit for mmol/L is $\approx 33.3$ mmol/L).
 
 
 

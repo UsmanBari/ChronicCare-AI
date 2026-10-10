@@ -67,6 +67,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from data_sources.models import NormalizedObservation, NormalizedPatient
+from agents.answer_validation import validate_glucose_input
 
 # -----------------------------------------------------------------------------
 # Configuration
@@ -368,6 +369,78 @@ def _has_bp_technique_in_text(text: str) -> bool:
     return any(w in lowered for w in ["rested", "sitting", "seated", "clinic", "home"])
 
 
+_MMOL_RE = re.compile(
+    r"\b(?:mmol(?:/l)?|millimoles?|milli\s*moles?|mili\s*moles?|milli\s*mol|mili\s*mol)\b|ملی\s*مول|میلی\s*مول",
+    re.IGNORECASE,
+)
+
+
+def _process_glucose_input(answer: str, previously_asked: bool = False) -> Tuple[Optional[float], Optional[str], bool, Optional[str], Optional[str]]:
+    clean = (answer or "").strip().translate(_EASTERN_DIGITS_TABLE)
+    is_mmol = bool(_MMOL_RE.search(clean))
+    has_mg = bool(re.search(r"\b(?:mg/dl|mgdl|mg)\b", clean, re.IGNORECASE))
+
+    v_res = validate_glucose_input(clean, previously_asked_unit=previously_asked)
+
+    # 1. Recognise mmol, mmol/l, mmol/L and Urdu/Roman-Urdu forms (Stage 9A-6 Point 3a)
+    if is_mmol or (v_res.unit == "mmol/L"):
+        val = v_res.value
+        if val is None:
+            nums = [float(n) for n in re.findall(r"\d+(?:\.\d+)?", re.sub(r"(?<=\d),(?=\d)", ".", clean.lower()))]
+            if nums:
+                val = nums[0]
+        if val is not None and 1.1 <= float(val) <= 33.3:
+            if not previously_asked:
+                return None, "mmol/L", True, None, None
+            conv_mg = round(float(val) * 18.0, 1)
+            guidance = None
+            reason = None
+            if conv_mg < 54.0:
+                guidance = "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume 15g fast-acting sugar immediately."
+                reason = "glucose_very_low"
+            elif conv_mg < 70.0:
+                guidance = "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume fast-acting sugar."
+                reason = "glucose_low"
+            return conv_mg, "mg/dL", False, guidance, reason
+
+    # 2. Bare numbers 41 to 54 handling (Stage 9A-6 Point 3b)
+    if not is_mmol and not has_mg:
+        num_val = v_res.value
+        if num_val is None:
+            nums = [float(n) for n in re.findall(r"\d+(?:\.\d+)?", re.sub(r"(?<=\d),(?=\d)", ".", clean.lower()))]
+            if nums:
+                num_val = nums[0]
+        if num_val is not None and 41.0 <= float(num_val) <= 54.0:
+            if not previously_asked:
+                return None, None, True, None, None
+            else:
+                val = float(num_val)
+                guidance = "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume 15g fast-acting sugar immediately."
+                reason = "glucose value unit unclear, possible low"
+                return val, "unclear", False, guidance, reason
+
+    # 3. Standard validate_glucose_input flow
+    if v_res.valid:
+        val = v_res.value
+        if v_res.unit == "mmol/L":
+            if not previously_asked:
+                return None, None, True, None, None
+            conv_mg = round(float(val) * 18.0, 1)
+            return conv_mg, "mg/dL", False, None, None
+        return float(val), v_res.unit, False, None, None
+
+    if v_res.needs_unit_clarification:
+        return None, None, True, None, None
+
+    if v_res.is_possible_severe_low or (previously_asked and v_res.value is not None and float(v_res.value) <= 54):
+        val = float(v_res.value) if v_res.value is not None else 35.0
+        guidance = v_res.safety_guidance or "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume 15g fast-acting sugar immediately."
+        reason = v_res.review_reason or "glucose value unit unclear, possible low"
+        return val, "unclear", False, guidance, reason
+
+    return None, None, False, None, None
+
+
 def _diabetes_advance_v2_3(state: InterviewState, answer: str) -> InterviewState:
     step = DiabetesStep(state.step)
     answers = state.answers
@@ -376,12 +449,20 @@ def _diabetes_advance_v2_3(state: InterviewState, answer: str) -> InterviewState
         answers["greeting_response"] = answer
         state.step = DiabetesStep.GLUCOSE_READING.value
     elif step == DiabetesStep.GLUCOSE_READING:
-        reading = _try_parse_float(answer, *GLUCOSE_RANGE_MG_DL, reject_units=("mmol",))
-        if reading is None and not state.missing_data_asked_once:
+        reading, unit, needs_clarify, guidance, rev_reason = _process_glucose_input(answer, previously_asked=False)
+        if needs_clarify and not state.missing_data_asked_once:
+            state.missing_data_asked_once = True
+            answers["_glucose_pending_raw"] = answer
+            state.step = DiabetesStep.MISSING_DATA_CHECKPOINT.value
+        elif reading is None and not state.missing_data_asked_once:
             state.missing_data_asked_once = True
             state.step = DiabetesStep.MISSING_DATA_CHECKPOINT.value
         else:
             answers["glucose_reading"] = reading
+            if guidance:
+                answers["possible_severe_low"] = True
+                answers["safety_guidance"] = guidance
+                answers["review_reason"] = rev_reason
             if _has_glucose_context_in_text(answer):
                 answers["glucose_context"] = "extracted_from_reading"
                 if state.on_insulin_or_sulfonylurea or (reading is not None and reading < 70):
@@ -393,9 +474,25 @@ def _diabetes_advance_v2_3(state: InterviewState, answer: str) -> InterviewState
             else:
                 state.step = DiabetesStep.GLUCOSE_CONTEXT.value
     elif step == DiabetesStep.MISSING_DATA_CHECKPOINT:
-        reading = _try_parse_float(answer, *GLUCOSE_RANGE_MG_DL, reject_units=("mmol",))
+        pending_raw = answers.pop("_glucose_pending_raw", None)
+        combined_answer = f"{pending_raw} {answer}" if pending_raw else answer
+        reading, unit, _, guidance, rev_reason = _process_glucose_input(combined_answer, previously_asked=True)
+        if reading is None and pending_raw:
+            reading, unit, _, guidance, rev_reason = _process_glucose_input(answer, previously_asked=True)
+        if reading is None and pending_raw:
+            reading, unit, _, guidance, rev_reason = _process_glucose_input(pending_raw, previously_asked=True)
+
         answers["glucose_reading"] = reading
-        if reading is None:
+        if guidance:
+            answers["possible_severe_low"] = True
+            answers["safety_guidance"] = guidance
+            answers["review_reason"] = rev_reason
+        if pending_raw and _MMOL_RE.search(pending_raw):
+            answers["glucose_original_text"] = pending_raw
+        elif _MMOL_RE.search(answer):
+            answers["glucose_original_text"] = answer
+
+        if reading is None and not answers.get("possible_severe_low"):
             answers["symptom_only_note"] = answer
             state.step = DiabetesStep.SICK_DAY_FLAGS.value
         else:
@@ -524,17 +621,41 @@ def _diabetes_advance(state: InterviewState, answer: str) -> InterviewState:
         answers["greeting_response"] = answer
         state.step = DiabetesStep.GLUCOSE_READING.value
     elif step == DiabetesStep.GLUCOSE_READING:
-        reading = _try_parse_float(answer, *GLUCOSE_RANGE_MG_DL, reject_units=("mmol",))
-        if reading is None and not state.missing_data_asked_once:
+        reading, unit, needs_clarify, guidance, rev_reason = _process_glucose_input(answer, previously_asked=False)
+        if needs_clarify and not state.missing_data_asked_once:
+            state.missing_data_asked_once = True
+            answers["_glucose_pending_raw"] = answer
+            state.step = DiabetesStep.MISSING_DATA_CHECKPOINT.value
+        elif reading is None and not state.missing_data_asked_once:
             state.missing_data_asked_once = True
             state.step = DiabetesStep.MISSING_DATA_CHECKPOINT.value
         else:
             answers["glucose_reading"] = reading
+            if guidance:
+                answers["possible_severe_low"] = True
+                answers["safety_guidance"] = guidance
+                answers["review_reason"] = rev_reason
             state.step = DiabetesStep.HYPERGLYCEMIA_SYMPTOMS.value
     elif step == DiabetesStep.MISSING_DATA_CHECKPOINT:
-        reading = _try_parse_float(answer, *GLUCOSE_RANGE_MG_DL, reject_units=("mmol",))
+        pending_raw = answers.pop("_glucose_pending_raw", None)
+        combined_answer = f"{pending_raw} {answer}" if pending_raw else answer
+        reading, unit, _, guidance, rev_reason = _process_glucose_input(combined_answer, previously_asked=True)
+        if reading is None and pending_raw:
+            reading, unit, _, guidance, rev_reason = _process_glucose_input(answer, previously_asked=True)
+        if reading is None and pending_raw:
+            reading, unit, _, guidance, rev_reason = _process_glucose_input(pending_raw, previously_asked=True)
+
         answers["glucose_reading"] = reading
-        if reading is None:
+        if guidance:
+            answers["possible_severe_low"] = True
+            answers["safety_guidance"] = guidance
+            answers["review_reason"] = rev_reason
+        if pending_raw and _MMOL_RE.search(pending_raw):
+            answers["glucose_original_text"] = pending_raw
+        elif _MMOL_RE.search(answer):
+            answers["glucose_original_text"] = answer
+
+        if reading is None and not answers.get("possible_severe_low"):
             answers["symptom_only_note"] = answer
         state.step = DiabetesStep.HYPERGLYCEMIA_SYMPTOMS.value
     elif step == DiabetesStep.HYPERGLYCEMIA_SYMPTOMS:
@@ -643,6 +764,18 @@ def _finalize_intake(state: InterviewState) -> InterviewState:
                 "hyperglycemia_symptoms", "hypoglycemia_symptoms", "symptom_only_note",
                 "glucose_context", "hypo_events_past_week", "sick_day_flags", "foot_problems"
             )
+            symptoms = {k: answers[k] for k in symptom_keys if k in answers}
+            if answers.get("possible_severe_low"):
+                symptoms["possible_severe_low"] = True
+                symptoms["safety_guidance"] = answers.get("safety_guidance")
+                symptoms["review_reason"] = answers.get("review_reason")
+            if answers.get("glucose_original_text"):
+                symptoms["glucose_original_text"] = answers["glucose_original_text"]
+                orig_note = f"Reported reading: {answers['glucose_original_text']}"
+                if answers.get("lifestyle_notes"):
+                    answers["lifestyle_notes"] = f"{orig_note}. {answers['lifestyle_notes']}"
+                else:
+                    answers["lifestyle_notes"] = orig_note
         else:
             bp = answers.get("bp_reading")
             readings = ([] if bp is None else [
@@ -653,18 +786,23 @@ def _finalize_intake(state: InterviewState) -> InterviewState:
                 "associated_symptoms", "symptom_only_note",
                 "bp_technique", "otc_meds_bp"
             )
+            symptoms = {k: answers[k] for k in symptom_keys if k in answers}
         missing = not readings
+        confidence = _compute_confidence(state, missing).value
+        if answers.get("possible_severe_low"):
+            confidence = Confidence.LOW.value
         intake = {
             "condition": condition,
             "emergency": False,
             "readings": readings,
-            "symptoms": {k: answers[k] for k in symptom_keys if k in answers},
+            "symptoms": symptoms,
             "adherence": answers.get("adherence"),
             "missed_doses_reason": answers.get("missed_doses_reason"),
             "lifestyle_notes": answers.get("lifestyle_notes"),
             "free_text_note": answers.get("patient_free_text"),
-            "confidence": _compute_confidence(state, missing).value,
+            "confidence": confidence,
             "missing_data": missing,
+            "requires_review": True if answers.get("possible_severe_low") else False,
         }
 
     state.intake = intake
