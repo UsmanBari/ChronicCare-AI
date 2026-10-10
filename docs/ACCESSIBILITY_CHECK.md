@@ -31,3 +31,14 @@ URL: https://chronicare-ai.netlify.app/
 | Result screen | Keyboard only | NOT DONE | The result screen could not be reached. The public patient-demo entry did not leave the portal-selection screen, and the live login rejected the non-empty test credentials with `Invalid credentials. Please check your email and password.` |
 | Result screen | Browser zoom 200% | NOT DONE | Authentication blocked entry to the result screen, so no zoom observation was recorded. |
 | Result screen | Narrow window 320px | NOT DONE | Authentication blocked entry to the result screen, so no narrow-viewport observation was recorded. |
+
+## Provider View
+
+Test date: 2026-10-10
+URL: https://chronicare-ai.netlify.app/
+
+| Screen | Test | Result | What I saw |
+|---|---|---|---|
+| Provider view | Keyboard only | NOT DONE | The provider entry opened the Firebase sign-in screen instead of the provider view. No provider controls could be tested without valid credentials. |
+| Provider view | Browser zoom 200% | NOT DONE | Authentication blocked entry to the provider view, so no zoom observation was recorded. |
+| Provider view | Narrow window 320px | NOT DONE | Authentication blocked entry to the provider view, so no narrow-viewport observation was recorded. |
