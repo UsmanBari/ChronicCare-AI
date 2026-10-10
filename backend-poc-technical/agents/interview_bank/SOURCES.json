@@ -1,0 +1,57 @@
+{
+  "ada_2026_soc_sec6": {
+    "title": "ADA Standards of Care in Diabetes 2026 - Section 6: Glycemic Goals and Hypoglycemia",
+    "status": "title exists, claim not checked",
+    "notes": "Hypoglycemia levels (Level 1 <70 mg/dL, Level 2 <54 mg/dL), CGM metrics, and hypoglycemia frequency screening."
+  },
+  "ada_2026_soc_sec5": {
+    "title": "ADA Standards of Care in Diabetes 2026 - Section 5: Facilitating Positive Health Behaviors",
+    "status": "title exists, claim not checked",
+    "notes": "Psychosocial screening, diabetes distress, and adherence barriers."
+  },
+  "ada_2026_soc_sec12": {
+    "title": "ADA Standards of Care in Diabetes 2026 - Section 12: Retinopathy, Neuropathy, and Foot Care",
+    "status": "title exists, claim not checked",
+    "notes": "Comprehensive foot evaluation, peripheral neuropathy, and early ulcer identification."
+  },
+  "aha_acc_2025_hypertension": {
+    "title": "2025 AHA/ACC Clinical Practice Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults",
+    "status": "title exists, claim not checked",
+    "notes": "Standardized home BP measurement protocol (5-minute rest, arm support, validated cuff), crisis thresholds, and medication-induced hypertension."
+  },
+  "idf_dar_2021_ramadan": {
+    "title": "IDF-DAR Diabetes and Ramadan: Practical Guidelines 2021",
+    "status": "title exists, claim not checked",
+    "notes": "Risk stratification during fasting, pre-dawn meal timing, hypoglycemia symptoms while fasting, and criteria for breaking the fast."
+  },
+  "nice_ng28_t2d": {
+    "title": "NICE Guideline NG28: Type 2 Diabetes in Adults: Management",
+    "status": "title exists, claim not checked",
+    "notes": "Sick-day rules during acute intercurrent illness, fluid maintenance, and ketone monitoring alert triggers."
+  },
+  "nice_ng136_hypertension": {
+    "title": "NICE Guideline NG136: Hypertension in Adults: Diagnosis and Management",
+    "status": "title exists, claim not checked",
+    "notes": "Postural hypotension screening, target-organ damage red flags, and associated symptom evaluation."
+  },
+  "nice_cg138_patient_experience": {
+    "title": "NICE Clinical Guideline CG138: Patient Experience in Adult NHS Services",
+    "status": "title exists, claim not checked",
+    "notes": "Person-centered communication, open-ended free-text elicitation, and shared decision making."
+  },
+  "phq2_kroenke_2003": {
+    "title": "Patient Health Questionnaire-2 (PHQ-2) - Kroenke et al., 2003 (Public Domain)",
+    "status": "title exists, claim not checked",
+    "notes": "Two-item screener for depressed mood and anhedonia over the past 2 weeks."
+  },
+  "diabetes_distress_dds2": {
+    "title": "Diabetes Distress Screening Items (Adapted DDS-2 Framework)",
+    "status": "clinician review needed",
+    "notes": "Feeling overwhelmed by the demands of living with diabetes."
+  },
+  "clinical_team_illustrative": {
+    "title": "ChronicCare AI Decision Support Prototype - Clinical Team Illustrative Rule",
+    "status": "clinician review needed",
+    "notes": "Illustrative threshold or question written for prototype decision support; requires formal clinician review and approval."
+  }
+}

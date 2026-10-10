@@ -19,6 +19,7 @@ import os
 import re
 import uuid
 import time
+import copy
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
@@ -54,6 +55,12 @@ from agents.adaptive_interview_agent import (
     INTERVIEW_COMPLETE,
     run_stage1_red_flag_screen,
 )
+from agents.interview_v3_runner import (
+    start_v3_session as v3_start_session,
+    next_turn as v3_next_turn,
+    finish_v3_session as v3_finish,
+    finish_v3_session,
+)
 from agents.medication_confirmation import (
     start_medication_check,
     current_medication_question,
@@ -73,6 +80,10 @@ from agents.triage_protocol import (
     compute_baseline,
     TriageProtocolState,
     _raise_level,
+    _decide,
+    GLUCOSE,
+    SYSTOLIC,
+    DIASTOLIC,
 )
 from data_sources.data_source import get_patient_bundle
 from data_sources.local_store import (
@@ -334,6 +345,14 @@ class AuditLogRow(BaseModel):
 
 ALLOWED_SEX_AT_BIRTH = {"female", "male", "prefer_not_to_say"}
 ALLOWED_PREGNANCY_STATUS = {"no", "yes", "not_sure", "not_applicable"}
+ALLOWED_SMOKING_STATUS = {"never", "former", "current", "prefer_not_to_say"}
+ALLOWED_COMORBIDITIES = {
+    "kidney_disease",
+    "heart_disease",
+    "stroke_or_tia",
+    "eye_problems",
+    "nerve_or_foot_problems",
+}
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -345,6 +364,13 @@ class ProfileUpdateRequest(BaseModel):
     inclusion_confirmed: Optional[bool] = None
     sex_at_birth: Optional[str] = None
     pregnancy_status: Optional[str] = None
+    voice_enabled: Optional[bool] = None
+    height_cm: Optional[float] = None
+    weight_kg: Optional[float] = None
+    diagnosis_year_diabetes: Optional[int] = None
+    diagnosis_year_hypertension: Optional[int] = None
+    smoking_status: Optional[str] = None
+    comorbidities: Optional[Dict[str, bool]] = None
 
     @field_validator("conditions")
     @classmethod
@@ -392,6 +418,79 @@ class ProfileUpdateRequest(BaseModel):
             raise ValueError(f"Invalid pregnancy_status '{v}'. Allowed values: {sorted(list(ALLOWED_PREGNANCY_STATUS))}")
         return clean
 
+    @field_validator("height_cm")
+    @classmethod
+    def validate_height_cm(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return None
+        try:
+            val = float(v)
+        except (ValueError, TypeError):
+            raise ValueError("Height must be a valid number")
+        if val < 50.0 or val > 250.0:
+            raise ValueError("Height must be between 50 and 250 cm")
+        return round(val, 1)
+
+    @field_validator("weight_kg")
+    @classmethod
+    def validate_weight_kg(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return None
+        try:
+            val = float(v)
+        except (ValueError, TypeError):
+            raise ValueError("Weight must be a valid number")
+        if val < 20.0 or val > 400.0:
+            raise ValueError("Weight must be between 20 and 400 kg")
+        return round(val, 1)
+
+    @field_validator("diagnosis_year_diabetes")
+    @classmethod
+    def validate_diag_year_dm(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return None
+        current_year = datetime.now(timezone.utc).year
+        if v < 1900 or v > current_year:
+            raise ValueError(f"Diagnosis year for diabetes must be between 1900 and {current_year}")
+        return v
+
+    @field_validator("diagnosis_year_hypertension")
+    @classmethod
+    def validate_diag_year_htn(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return None
+        current_year = datetime.now(timezone.utc).year
+        if v < 1900 or v > current_year:
+            raise ValueError(f"Diagnosis year for hypertension must be between 1900 and {current_year}")
+        return v
+
+    @field_validator("smoking_status")
+    @classmethod
+    def validate_smoking_status(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        clean = str(v).strip().lower()
+        if clean not in ALLOWED_SMOKING_STATUS:
+            raise ValueError(f"Invalid smoking_status '{v}'. Allowed values: {sorted(list(ALLOWED_SMOKING_STATUS))}")
+        return clean
+
+    @field_validator("comorbidities", mode="before")
+    @classmethod
+    def validate_comorbidities(cls, v: Any) -> Optional[Dict[str, bool]]:
+        if v is None:
+            return None
+        if not isinstance(v, dict):
+            raise ValueError("comorbidities must be a dictionary")
+        cleaned: Dict[str, bool] = {}
+        for k, val in v.items():
+            k_clean = str(k).strip().lower()
+            if k_clean not in ALLOWED_COMORBIDITIES:
+                raise ValueError(f"Invalid comorbidity key '{k}'. Allowed: {sorted(list(ALLOWED_COMORBIDITIES))}")
+            if not isinstance(val, bool):
+                raise ValueError(f"Comorbidity value for '{k}' must be a boolean (True/False)")
+            cleaned[k_clean] = val
+        return cleaned
+
 
 class ProfileResponse(BaseModel):
     user_id: str
@@ -402,6 +501,13 @@ class ProfileResponse(BaseModel):
     inclusion_confirmed_at: Optional[str] = None
     sex_at_birth: Optional[str] = None
     pregnancy_status: Optional[str] = None
+    voice_enabled: bool = False
+    height_cm: Optional[float] = None
+    weight_kg: Optional[float] = None
+    diagnosis_year_diabetes: Optional[int] = None
+    diagnosis_year_hypertension: Optional[int] = None
+    smoking_status: Optional[str] = None
+    comorbidities: Optional[Dict[str, bool]] = None
     consent_granted_at: Optional[str] = None
     consent_revoked_at: Optional[str] = None
     provider_notification_consent_at: Optional[str] = None
@@ -647,6 +753,14 @@ class CheckinStartResponse(BaseModel):
     is_cold_start: bool
     step: Optional[str] = None
     version: int = 0
+    why_text: Optional[str] = None
+    options: Optional[List[str]] = None
+    system_note: Optional[str] = None
+    progress_hint: Optional[str] = None
+    language: Optional[str] = None
+    can_skip: Optional[bool] = None
+    can_say_unknown: Optional[bool] = None
+    engine: Optional[str] = None
 
 
 class CheckinAnswerRequest(BaseModel):
@@ -665,6 +779,16 @@ class CheckinAnswerResponse(BaseModel):
     escalation_recorded: Optional[bool] = None
     phase: Optional[str] = None
     triage: Optional[Dict[str, Any]] = None
+    why_text: Optional[str] = None
+    options: Optional[List[str]] = None
+    system_note: Optional[str] = None
+    progress_hint: Optional[str] = None
+    language: Optional[str] = None
+    can_skip: Optional[bool] = None
+    can_say_unknown: Optional[bool] = None
+    engine: Optional[str] = None
+    last_odd_class: Optional[str] = None
+    is_probe: Optional[bool] = None
 
 
 class CheckinCompleteResponse(BaseModel):
@@ -750,6 +874,11 @@ class ReviewDetailResponse(BaseModel):
     triage: Optional[Dict[str, Any]] = None
     actions: List[ReviewActionResponse]
     record_source_label: Optional[str] = None
+    patient_background: Optional[Dict[str, Any]] = None
+
+
+class VoiceTranscribeResponse(BaseModel):
+    text: str
 
 
 class ReviewActionRequest(BaseModel):
@@ -1136,6 +1265,7 @@ def get_profile_endpoint(current_user: Dict[str, Any] = Depends(require_role("pa
             conditions=[],
             on_insulin_or_sulfonylurea=False,
             language="en",
+            voice_enabled=False,
             consent_granted_at=None,
             consent_revoked_at=None,
             provider_notification_consent_at=None,
@@ -1151,6 +1281,13 @@ def get_profile_endpoint(current_user: Dict[str, Any] = Depends(require_role("pa
         inclusion_confirmed_at=profile.get("inclusion_confirmed_at"),
         sex_at_birth=profile.get("sex_at_birth"),
         pregnancy_status=profile.get("pregnancy_status"),
+        voice_enabled=profile.get("voice_enabled", False),
+        height_cm=profile.get("height_cm"),
+        weight_kg=profile.get("weight_kg"),
+        diagnosis_year_diabetes=profile.get("diagnosis_year_diabetes"),
+        diagnosis_year_hypertension=profile.get("diagnosis_year_hypertension"),
+        smoking_status=profile.get("smoking_status"),
+        comorbidities=profile.get("comorbidities"),
         consent_granted_at=profile.get("consent_granted_at"),
         consent_revoked_at=profile.get("consent_revoked_at"),
         provider_notification_consent_at=profile.get("provider_notification_consent_at"),
@@ -1164,7 +1301,7 @@ def update_profile_endpoint(
     body: ProfileUpdateRequest,
     current_user: Dict[str, Any] = Depends(require_role("patient")),
 ):
-    """Updates patient profile conditions, insulin/sulfonylurea flag, language, date of birth, sex, pregnancy status, and inclusion confirmation (patient only)."""
+    """Updates patient profile conditions, insulin/sulfonylurea flag, language, date of birth, sex, pregnancy status, and richer background fields (patient only)."""
     user_id = current_user["user_id"]
 
     dob_clean = None
@@ -1176,6 +1313,25 @@ def update_profile_endpoint(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=str(ve),
             )
+
+    # Cross-field validation with birth year
+    existing_prof = get_patient_profile(user_id) or {}
+    effective_dob = dob_clean or existing_prof.get("date_of_birth")
+    if effective_dob:
+        try:
+            birth_year = int(effective_dob.split("-")[0])
+            if body.diagnosis_year_diabetes is not None and body.diagnosis_year_diabetes < birth_year:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Diagnosis year for diabetes cannot be before birth year",
+                )
+            if body.diagnosis_year_hypertension is not None and body.diagnosis_year_hypertension < birth_year:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Diagnosis year for hypertension cannot be before birth year",
+                )
+        except (ValueError, IndexError):
+            pass
 
     final_sex = body.sex_at_birth
     final_preg = body.pregnancy_status
@@ -1191,6 +1347,13 @@ def update_profile_endpoint(
         inclusion_confirmed=body.inclusion_confirmed,
         sex_at_birth=final_sex,
         pregnancy_status=final_preg,
+        voice_enabled=body.voice_enabled,
+        height_cm=body.height_cm,
+        weight_kg=body.weight_kg,
+        diagnosis_year_diabetes=body.diagnosis_year_diabetes,
+        diagnosis_year_hypertension=body.diagnosis_year_hypertension,
+        smoking_status=body.smoking_status,
+        comorbidities=body.comorbidities,
     )
 
     updated_fields = ["conditions", "on_insulin_or_sulfonylurea", "language"]
@@ -1202,6 +1365,20 @@ def update_profile_endpoint(
         updated_fields.append("sex_at_birth")
     if body.pregnancy_status is not None:
         updated_fields.append("pregnancy_status")
+    if body.voice_enabled is not None:
+        updated_fields.append("voice_enabled")
+    if body.height_cm is not None:
+        updated_fields.append("height_cm")
+    if body.weight_kg is not None:
+        updated_fields.append("weight_kg")
+    if body.diagnosis_year_diabetes is not None:
+        updated_fields.append("diagnosis_year_diabetes")
+    if body.diagnosis_year_hypertension is not None:
+        updated_fields.append("diagnosis_year_hypertension")
+    if body.smoking_status is not None:
+        updated_fields.append("smoking_status")
+    if body.comorbidities is not None:
+        updated_fields.append("comorbidities")
 
     append_audit(
         actor_user_id=user_id,
@@ -1219,6 +1396,13 @@ def update_profile_endpoint(
         inclusion_confirmed_at=updated.get("inclusion_confirmed_at"),
         sex_at_birth=updated.get("sex_at_birth"),
         pregnancy_status=updated.get("pregnancy_status"),
+        voice_enabled=updated.get("voice_enabled", False),
+        height_cm=updated.get("height_cm"),
+        weight_kg=updated.get("weight_kg"),
+        diagnosis_year_diabetes=updated.get("diagnosis_year_diabetes"),
+        diagnosis_year_hypertension=updated.get("diagnosis_year_hypertension"),
+        smoking_status=updated.get("smoking_status"),
+        comorbidities=updated.get("comorbidities"),
         consent_granted_at=updated.get("consent_granted_at"),
         consent_revoked_at=updated.get("consent_revoked_at"),
         provider_notification_consent_at=updated.get("provider_notification_consent_at"),
@@ -2265,7 +2449,49 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
     med_state = start_medication_check(meds_for_check)
     med_state_dict = med_state.to_dict()
 
-    # 7. Initialize InterviewState and run first node
+    checkin_id = str(uuid.uuid4())
+    engine_ver = os.environ.get("INTERVIEW_ENGINE", "v2").lower()
+
+    if engine_ver == "v3":
+        history = get_user_baseline_history(user_id=user_id)
+        baseline = compute_baseline(history)
+        v3_state = v3_start_session(
+            checkin_id=checkin_id,
+            patient_id=user_id,
+            conditions=conditions,
+            on_insulin_or_sulfonylurea=profile.get("on_insulin_or_sulfonylurea", False),
+            is_cold_start=is_cold_start,
+            baseline=baseline,
+            language=profile.get("preferred_language") or profile.get("language") or "en",
+        )
+        create_checkin(
+            checkin_id=checkin_id,
+            user_id=user_id,
+            mode=mode,
+            record_patient_id=record_patient_id,
+            state_dict=v3_state,
+            status="in_progress",
+            med_state_dict=med_state_dict,
+            ehr_system_id=active_conn["ehr_system_id"] if active_conn else None,
+        )
+        return CheckinStartResponse(
+            engine="v3",
+            checkin_id=checkin_id,
+            question=v3_state.get("current_question"),
+            mode=mode,
+            is_cold_start=is_cold_start,
+            step=v3_state.get("step"),
+            version=0,
+            why_text=v3_state.get("why_text"),
+            options=v3_state.get("options"),
+            system_note=v3_state.get("system_note"),
+            progress_hint=v3_state.get("progress_hint"),
+            language=v3_state.get("language"),
+            can_skip=v3_state.get("can_skip"),
+            can_say_unknown=v3_state.get("can_say_unknown"),
+        )
+
+    # 7. Initialize InterviewState and run first node (v2 default)
     state = InterviewState(
         patient_id=record_patient_id,
         conditions_on_file=conditions,
@@ -2275,7 +2501,6 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
     initial_state = adaptive_interview_node(state, patient_response=None)
 
     # 8. Persist session
-    checkin_id = str(uuid.uuid4())
     create_checkin(
         checkin_id=checkin_id,
         user_id=user_id,
@@ -2289,6 +2514,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
     question = get_current_question(initial_state)
 
     return CheckinStartResponse(
+        engine="v2",
         checkin_id=checkin_id,
         question=question,
         mode=mode,
@@ -2329,7 +2555,9 @@ def answer_checkin_endpoint(
             detail="Check-in session is not in progress",
         )
 
-    current_state = InterviewState.from_dict(checkin["state"])
+    raw_state = checkin["state"]
+    is_v3_session = isinstance(raw_state, dict) and (raw_state.get("engine") == "v3" or raw_state.get("is_v3") is True or "known_slots" in raw_state)
+    current_state = raw_state if is_v3_session else InterviewState.from_dict(raw_state)
     current_version = checkin.get("version", 0)
     protocol_state_dict = checkin.get("protocol_state")
     protocol_state = TriageProtocolState.from_dict(protocol_state_dict) if protocol_state_dict else None
@@ -2343,7 +2571,7 @@ def answer_checkin_endpoint(
         apply_checkin_answer_atomic(
             checkin_id=checkin_id,
             expected_version=current_version,
-            state_dict=current_state.to_dict(),
+            state_dict=current_state if is_v3_session else current_state.to_dict(),
             status="abandoned",
             completed_at=completed_at,
             emergency=False,
@@ -2406,7 +2634,7 @@ def answer_checkin_endpoint(
                     success = apply_checkin_answer_atomic(
                         checkin_id=checkin_id,
                         expected_version=current_version,
-                        state_dict=current_state.to_dict(),
+                        state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
                         status="emergency",
                         completed_at=completed_at,
                         emergency=True,
@@ -2464,7 +2692,7 @@ def answer_checkin_endpoint(
                     success = apply_checkin_answer_atomic(
                         checkin_id=checkin_id,
                         expected_version=current_version,
-                        state_dict=current_state.to_dict(),
+                        state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
                         status=new_status,
                         completed_at=completed_at,
                         emergency=False,
@@ -2503,7 +2731,7 @@ def answer_checkin_endpoint(
                 success = apply_checkin_answer_atomic(
                     checkin_id=checkin_id,
                     expected_version=current_version,
-                    state_dict=current_state.to_dict(),
+                    state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
                     status="in_progress",
                     completed_at=None,
                     emergency=False,
@@ -2535,7 +2763,7 @@ def answer_checkin_endpoint(
             )
 
     # 2. MEDICATION CHECK PHASE
-    in_med_phase = (current_state.step == INTERVIEW_COMPLETE and (protocol_state is None or protocol_state.complete) and med_state is not None and not med_state.complete)
+    in_med_phase = (not is_v3_session and current_state.step == INTERVIEW_COMPLETE and (protocol_state is None or protocol_state.complete) and med_state is not None and not med_state.complete)
 
     if in_med_phase:
         expected_step = f"medication_check:{med_state.index}:{med_state.attempts}"
@@ -2572,7 +2800,7 @@ def answer_checkin_endpoint(
                 success = apply_checkin_answer_atomic(
                     checkin_id=checkin_id,
                     expected_version=current_version,
-                    state_dict=current_state.to_dict(),
+                    state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
                     status="emergency",
                     completed_at=completed_at,
                     emergency=True,
@@ -2616,7 +2844,7 @@ def answer_checkin_endpoint(
             success = apply_checkin_answer_atomic(
                 checkin_id=checkin_id,
                 expected_version=current_version,
-                state_dict=current_state.to_dict(),
+                state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
                 status=new_status,
                 completed_at=completed_at,
                 emergency=False,
@@ -2662,6 +2890,134 @@ def answer_checkin_endpoint(
             )
 
     # 3. INTERVIEW PHASE
+    if is_v3_session:
+        current_step_id = current_state.get("step")
+        if body.step is not None and body.step != current_step_id:
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={
+                    "detail": "stale_step",
+                    "step": current_step_id,
+                    "question": current_state.get("current_question"),
+                },
+            )
+
+        next_state = v3_next_turn(copy.deepcopy(current_state), body.answer)
+        is_emergency = bool(next_state.get("emergency"))
+        emergency_reason = next_state.get("emergency_reason")
+
+        if is_emergency:
+            new_status = "emergency"
+            completed_at = _utc_now_iso()
+            is_complete = True
+            next_step_str = next_state.get("step", "COMPLETE")
+            next_question_str = None
+            next_phase = None
+            new_protocol_state_dict = None
+        elif next_state.get("complete") or next_state.get("completed"):
+            readings = {}
+            for k, v in next_state.get("readings", {}).items():
+                if k in ("glucose", "blood_pressure_systolic", "blood_pressure_diastolic") and v is not None:
+                    readings[k] = float(v)
+
+            history = get_user_baseline_history(user_id=current_user["user_id"], exclude_checkin_id=checkin_id)
+            baseline = compute_baseline(history)
+            triggers = evaluate_triggers(readings, baseline)
+
+            if triggers:
+                trigger = triggers[0]
+                profile = get_patient_profile(current_user["user_id"]) or {}
+                dob = profile.get("date_of_birth")
+                try:
+                    age_years = calculate_age(dob) if dob else 40
+                except Exception:
+                    age_years = 40
+
+                new_proto = start_protocol(trigger, readings, age_years, baseline)
+                new_protocol_state_dict = new_proto.to_dict()
+                new_status = "in_progress"
+                completed_at = None
+                is_complete = False
+                next_step_str = current_protocol_step(new_proto)
+                next_question_str = current_protocol_question(new_proto)
+                next_phase = "triage"
+            else:
+                new_protocol_state_dict = None
+                has_med_items = bool(med_state and len(med_state.items) > 0 and not med_state.complete)
+                if has_med_items:
+                    new_status = "in_progress"
+                    completed_at = None
+                    is_complete = False
+                    next_step_str = f"medication_check:{med_state.index}:{med_state.attempts}"
+                    next_question_str = current_medication_question(med_state)
+                    next_phase = "medication"
+                else:
+                    new_status = "complete"
+                    completed_at = _utc_now_iso()
+                    is_complete = True
+                    next_step_str = next_state.get("step", "COMPLETE")
+                    next_question_str = None
+                    next_phase = None
+        else:
+            new_protocol_state_dict = None
+            new_status = "in_progress"
+            completed_at = None
+            is_complete = False
+            next_step_str = next_state.get("step")
+            next_question_str = next_state.get("current_question")
+            next_phase = None
+
+        try:
+            success = apply_checkin_answer_atomic(
+                checkin_id=checkin_id,
+                expected_version=current_version,
+                state_dict=next_state,
+                status=new_status,
+                completed_at=completed_at,
+                emergency=is_emergency,
+                trigger_category=emergency_reason,
+                trigger_text=body.answer,
+                actor_user_id=current_user["user_id"],
+                med_state_dict=med_state.to_dict() if med_state else None,
+                protocol_state_dict=new_protocol_state_dict,
+            )
+        except Exception as e:
+            logger.error(f"Persistence error during answer: {type(e).__name__}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save check-in answer. Please try again.",
+            )
+
+        if not success:
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={"detail": "concurrent_update"},
+            )
+
+        next_version = current_version + 1
+
+        return CheckinAnswerResponse(
+            engine="v3",
+            question=next_question_str,
+            complete=is_complete,
+            emergency=is_emergency,
+            emergency_reason=emergency_reason,
+            step=next_step_str,
+            version=next_version,
+            escalation_recorded=True if is_emergency else None,
+            phase=next_phase,
+            why_text=next_state.get("why_text"),
+            options=next_state.get("options"),
+            system_note=next_state.get("system_note"),
+            progress_hint=next_state.get("progress_hint"),
+            language=next_state.get("language"),
+            can_skip=next_state.get("can_skip"),
+            can_say_unknown=next_state.get("can_say_unknown"),
+            last_odd_class=next_state.get("last_odd_class"),
+            is_probe=next_state.get("is_probe"),
+        )
+
+    # v2 Interview node path
     if body.step is not None:
         if body.step != current_state.step:
             return JSONResponse(
@@ -2778,6 +3134,7 @@ def answer_checkin_endpoint(
     next_version = current_version + 1
 
     return CheckinAnswerResponse(
+        engine="v2",
         question=next_question_str,
         complete=is_complete,
         emergency=is_emergency,
@@ -2820,68 +3177,166 @@ def complete_checkin_endpoint(
             record_source_label=record_label,
         )
 
-    state = InterviewState.from_dict(checkin["state"])
-    protocol_state_dict = checkin.get("protocol_state")
-    protocol_state = TriageProtocolState.from_dict(protocol_state_dict) if protocol_state_dict else None
-    med_state_dict = checkin.get("med_state")
-    med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
+    raw_state = checkin.get("state") or {}
+    is_v3_session = bool(raw_state.get("engine") == "v3" or raw_state.get("completed") is not None)
 
-    # Check incomplete checkin
-    if not state.stage1_red_flag and checkin["status"] != "emergency":
-        if state.step != INTERVIEW_COMPLETE:
+    if is_v3_session:
+        is_completed = bool(raw_state.get("completed"))
+        is_emergency = bool(raw_state.get("stage1_red_flag") or raw_state.get("emergency") or checkin["status"] == "emergency")
+        if not is_completed and not is_emergency:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Interview is not complete",
             )
-        if protocol_state and not protocol_state.complete:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="triage_incomplete",
+        if is_emergency:
+            emergency_reason = raw_state.get("emergency_reason") or raw_state.get("stage1_reason")
+            intakes = raw_state.get("intakes") or ([{"condition": "general", "emergency": True, "reason": emergency_reason}] if emergency_reason else [])
+            now_iso = _utc_now_iso()
+            create_checkin_result(
+                checkin_id=checkin_id,
+                emergency=True,
+                intakes=intakes,
+                reconciliation=None,
+                verification=None,
+                requires_review=True,
+                max_severity="high",
+                review_status="open",
+                trigger_category=emergency_reason or "emergency",
+                trigger_text=None,
+                escalated_at=now_iso,
+                triage_level="emergency",
+                triage=None,
             )
-        if med_state and not med_state.complete:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="medication_check_incomplete",
+            update_checkin_state(
+                checkin_id=checkin_id,
+                state_dict=raw_state,
+                status="emergency",
+                completed_at=now_iso,
+                med_state_dict=None,
+                protocol_state_dict=None,
+            )
+            return CheckinCompleteResponse(
+                emergency=True,
+                intakes=intakes,
+                reconciliation=None,
+                verification=None,
+                requires_review=True,
+                max_severity="high",
+                triage=None,
+                record_source_label=record_label,
             )
 
-    # 1. Emergency Flow
-    if state.stage1_red_flag or checkin["status"] == "emergency":
-        intakes = state.intakes if state.intakes else ([{"condition": state.active_condition or "general", "emergency": True, "reason": state.stage1_reason}] if state.stage1_reason else [])
-        now_iso = _utc_now_iso()
-        triage_dict = protocol_state.result if (protocol_state and protocol_state.complete) else None
-        create_checkin_result(
-            checkin_id=checkin_id,
-            emergency=True,
+        v3_summary = finish_v3_session(raw_state)
+        intakes = v3_summary.get("intakes", [])
+        state = InterviewState(
+            patient_id=checkin["record_patient_id"],
+            conditions_on_file=raw_state.get("conditions_on_file") or ["diabetes"],
+            step=INTERVIEW_COMPLETE,
             intakes=intakes,
-            reconciliation=None,
-            verification=None,
-            requires_review=True,
-            max_severity="high",
-            review_status="open",
-            trigger_category=state.stage1_reason or (f"triage:{protocol_state.protocol}" if protocol_state else None),
-            trigger_text=triage_dict.get("summary") if triage_dict else None,
-            escalated_at=now_iso,
-            triage_level="emergency" if triage_dict else None,
-            triage=triage_dict,
         )
-        update_checkin_state(
-            checkin_id=checkin_id,
-            state_dict=state.to_dict(),
-            status="emergency",
-            completed_at=now_iso,
-            med_state_dict=med_state.to_dict() if med_state else None,
-            protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
-        )
-        return CheckinCompleteResponse(
-            emergency=True,
-            intakes=intakes,
-            reconciliation=None,
-            verification=None,
-            requires_review=True,
-            max_severity="high",
-            triage=triage_dict,
-            record_source_label=record_label,
-        )
+        # Construct protocol_state for v3 if readings triggered triage
+        readings_map = {}
+        for intake_item in intakes:
+            for r_item in intake_item.get("readings", []):
+                obs_t = r_item.get("observation_type")
+                if obs_t == "glucose":
+                    readings_map[GLUCOSE] = float(r_item["value"])
+                elif obs_t == "blood_pressure_systolic":
+                    readings_map[SYSTOLIC] = float(r_item["value"])
+                elif obs_t == "blood_pressure_diastolic":
+                    readings_map[DIASTOLIC] = float(r_item["value"])
+
+        triggers = evaluate_triggers(readings_map)
+        if triggers:
+            primary_trig = triggers[0]
+            raw_answers = raw_state.get("raw_answers", {})
+            findings = raw_state.get("findings", [])
+            finding_labels = {f.get("finding_type") for f in findings if isinstance(f, dict)}
+
+            proto_answers = {
+                "dka_symptoms": bool("nausea_or_vomiting" in finding_labels),
+                "can_swallow": True,
+                "neuro": False,
+                "symptoms": bool(finding_labels),
+                "recheck": None,
+                "substances": False,
+                "circumstances": False,
+            }
+            p_state = TriageProtocolState(
+                protocol=primary_trig.protocol,
+                age_band="adult",
+                trigger_reason=primary_trig.reason,
+                readings=readings_map,
+                answers=proto_answers,
+            )
+            p_state.result = _decide(p_state)
+            protocol_state = p_state
+        else:
+            protocol_state = None
+        med_state = None
+    else:
+        state = InterviewState.from_dict(checkin["state"])
+        protocol_state_dict = checkin.get("protocol_state")
+        protocol_state = TriageProtocolState.from_dict(protocol_state_dict) if protocol_state_dict else None
+        med_state_dict = checkin.get("med_state")
+        med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
+
+        # Check incomplete checkin
+        if not state.stage1_red_flag and checkin["status"] != "emergency":
+            if state.step != INTERVIEW_COMPLETE:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Interview is not complete",
+                )
+            if protocol_state and not protocol_state.complete:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="triage_incomplete",
+                )
+            if med_state and not med_state.complete:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="medication_check_incomplete",
+                )
+
+        # 1. Emergency Flow
+        if state.stage1_red_flag or checkin["status"] == "emergency":
+            intakes = state.intakes if state.intakes else ([{"condition": state.active_condition or "general", "emergency": True, "reason": state.stage1_reason}] if state.stage1_reason else [])
+            now_iso = _utc_now_iso()
+            triage_dict = protocol_state.result if (protocol_state and protocol_state.complete) else None
+            create_checkin_result(
+                checkin_id=checkin_id,
+                emergency=True,
+                intakes=intakes,
+                reconciliation=None,
+                verification=None,
+                requires_review=True,
+                max_severity="high",
+                review_status="open",
+                trigger_category=state.stage1_reason or (f"triage:{protocol_state.protocol}" if protocol_state else None),
+                trigger_text=triage_dict.get("summary") if triage_dict else None,
+                escalated_at=now_iso,
+                triage_level="emergency" if triage_dict else None,
+                triage=triage_dict,
+            )
+            update_checkin_state(
+                checkin_id=checkin_id,
+                state_dict=state.to_dict(),
+                status="emergency",
+                completed_at=now_iso,
+                med_state_dict=med_state.to_dict() if med_state else None,
+                protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
+            )
+            return CheckinCompleteResponse(
+                emergency=True,
+                intakes=intakes,
+                reconciliation=None,
+                verification=None,
+                requires_review=True,
+                max_severity="high",
+                triage=triage_dict,
+                record_source_label=record_label,
+            )
 
     # 2. Non-Emergency Flow
     base_url = None
@@ -2970,6 +3425,7 @@ def complete_checkin_endpoint(
     else:
         verif_max_severity = "none"
 
+    intake_requires_review = any(it.get("requires_review") for it in (state.intakes or []))
     if protocol_state and protocol_state.complete:
         triage_res = dict(protocol_state.result)
         profile = get_patient_profile(current_user["user_id"]) or {}
@@ -2977,12 +3433,12 @@ def complete_checkin_endpoint(
             triage_res["age_assumed"] = True
 
         proto_level = triage_res.get("level", "routine")
-        if verif_requires_review:
+        if verif_requires_review or intake_requires_review:
             final_triage_level = _raise_level(proto_level, "review")
         else:
             final_triage_level = proto_level
 
-        final_requires_review = (final_triage_level in ("review", "urgent", "emergency") or verif_requires_review)
+        final_requires_review = (final_triage_level in ("review", "urgent", "emergency") or verif_requires_review or intake_requires_review)
 
         SEV_ORDER = {"none": 0, "low": 1, "moderate": 2, "high": 3}
         if final_triage_level == "urgent":
@@ -3029,16 +3485,27 @@ def complete_checkin_endpoint(
             record_source_label=record_label,
         )
     else:
-        review_status = "open" if verif_requires_review else "resolved"
+        final_requires_review = (verif_requires_review or intake_requires_review)
+        final_triage_level = "review" if final_requires_review else "routine"
+        review_status = "open" if final_requires_review else "resolved"
+        final_max_sev = "moderate" if (intake_requires_review and verif_max_severity == "none") else verif_max_severity
+        triage_dict = {
+            "level": final_triage_level,
+            "guidance": "Low blood sugar safety review required. If you feel shaky, sweaty, or confused, consume fast-acting sugar immediately.",
+            "summary": "Check-in flagged for clinician review."
+        } if intake_requires_review else None
+
         create_checkin_result(
             checkin_id=checkin_id,
             emergency=False,
             intakes=state.intakes,
             reconciliation=recon_result.to_dict(),
             verification=verif_result.to_dict(),
-            requires_review=verif_requires_review,
-            max_severity=verif_max_severity,
+            requires_review=final_requires_review,
+            max_severity=final_max_sev,
             review_status=review_status,
+            triage_level=final_triage_level,
+            triage=triage_dict,
         )
         update_checkin_state(
             checkin_id=checkin_id,
@@ -3054,8 +3521,9 @@ def complete_checkin_endpoint(
             intakes=state.intakes,
             reconciliation=recon_result.to_dict(),
             verification=verif_result.to_dict(),
-            requires_review=verif_requires_review,
-            max_severity=verif_max_severity,
+            requires_review=final_requires_review,
+            max_severity=final_max_sev,
+            triage=triage_dict,
             record_source_label=record_label,
         )
 
@@ -3126,6 +3594,31 @@ def get_provider_review_queue_endpoint(
     return [ReviewQueueItemResponse(**item) for item in items]
 
 
+def _build_patient_background(user_id: str) -> Optional[Dict[str, Any]]:
+    profile = get_patient_profile(user_id)
+    if not profile:
+        return None
+    height_cm = profile.get("height_cm")
+    weight_kg = profile.get("weight_kg")
+    bmi = None
+    if height_cm and weight_kg and height_cm > 0:
+        h_m = height_cm / 100.0
+        bmi = round(weight_kg / (h_m * h_m), 1)
+    return {
+        "height_cm": height_cm,
+        "weight_kg": weight_kg,
+        "bmi": bmi,
+        "diagnosis_year_diabetes": profile.get("diagnosis_year_diabetes"),
+        "diagnosis_year_hypertension": profile.get("diagnosis_year_hypertension"),
+        "smoking_status": profile.get("smoking_status"),
+        "comorbidities": profile.get("comorbidities"),
+        "on_insulin_or_sulfonylurea": profile.get("on_insulin_or_sulfonylurea", False),
+        "sex_at_birth": profile.get("sex_at_birth"),
+        "pregnancy_status": profile.get("pregnancy_status"),
+        "date_of_birth": profile.get("date_of_birth"),
+    }
+
+
 @app.get("/api/provider/review/{checkin_id}", response_model=ReviewDetailResponse, tags=["Provider Review"])
 def get_provider_review_detail_endpoint(
     checkin_id: str,
@@ -3158,6 +3651,8 @@ def get_provider_review_detail_endpoint(
             trigger_reading = intake["trigger_reading"]
             break
 
+    patient_bg = _build_patient_background(checkin["user_id"])
+
     return ReviewDetailResponse(
         checkin_id=checkin_id,
         patient_id=checkin["record_patient_id"],
@@ -3178,6 +3673,7 @@ def get_provider_review_detail_endpoint(
         triage=result.get("triage"),
         actions=[ReviewActionResponse(**a) for a in actions],
         record_source_label=record_label,
+        patient_background=patient_bg,
     )
 
 
@@ -3228,6 +3724,7 @@ def post_provider_review_action_endpoint(
             break
 
     record_label = _compute_record_source_label(checkin["mode"], checkin.get("ehr_system_id"))
+    patient_bg = _build_patient_background(checkin["user_id"])
     return ReviewDetailResponse(
         checkin_id=checkin_id,
         patient_id=checkin["record_patient_id"],
@@ -3248,6 +3745,7 @@ def post_provider_review_action_endpoint(
         triage=updated_result.get("triage"),
         actions=[ReviewActionResponse(**a) for a in actions],
         record_source_label=record_label,
+        patient_background=patient_bg,
     )
 
 
@@ -3372,3 +3870,163 @@ def verify_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Verification error: {str(e)}",
         )
+
+
+# =============================================================================
+# VOICE INPUT / TRANSCRIPTION ENDPOINTS
+# =============================================================================
+
+_voice_rate_limit_store: Dict[str, List[float]] = {}
+
+
+def _check_voice_rate_limit(user_id: str, limit: int = 10, window_seconds: float = 60.0) -> None:
+    now = time.time()
+    history = [t for t in _voice_rate_limit_store.get(user_id, []) if now - t < window_seconds]
+    if len(history) >= limit:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="voice is busy, please type",
+        )
+    history.append(now)
+    _voice_rate_limit_store[user_id] = history
+
+
+def transcribe_audio_groq(
+    audio_bytes: bytes,
+    content_type: str,
+    language: Optional[str] = None,
+) -> str:
+    groq_api_key = os.environ.get("GROQ_API_KEY", "").strip()
+    if not groq_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Voice transcription service is not configured",
+        )
+
+    model = os.environ.get("GROQ_STT_MODEL", "").strip() or "whisper-large-v3-turbo"
+    ext = "webm"
+    if "wav" in content_type:
+        ext = "wav"
+    elif "mp4" in content_type or "m4a" in content_type:
+        ext = "m4a"
+    elif "ogg" in content_type:
+        ext = "ogg"
+    elif "mpeg" in content_type or "mp3" in content_type:
+        ext = "mp3"
+
+    url = "https://api.groq.com/openai/v1/audio/transcriptions"
+    headers = {
+        "Authorization": f"Bearer {groq_api_key}",
+    }
+    data: Dict[str, Any] = {
+        "model": model,
+        "response_format": "json",
+    }
+    if language in ("en", "ur"):
+        data["language"] = language
+
+    last_resp = None
+    for attempt in range(2):
+        try:
+            files = {
+                "file": (f"audio.{ext}", audio_bytes, content_type or "audio/webm"),
+            }
+            resp = requests.post(url, headers=headers, data=data, files=files, timeout=20)
+            if resp.status_code == 200:
+                res_json = resp.json()
+                return str(res_json.get("text", "")).strip()
+            elif resp.status_code == 429:
+                logger.warning("Groq STT returned 429 rate limit")
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="voice is busy, please type",
+                )
+            elif resp.status_code >= 500:
+                logger.warning("Groq STT server error %d (attempt %d/2)", resp.status_code, attempt + 1)
+                last_resp = resp
+                if attempt == 0:
+                    time.sleep(0.5)
+                    continue
+            else:
+                logger.error("Groq STT returned client error status %d", resp.status_code)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Voice transcription service error",
+                )
+        except requests.Timeout:
+            logger.warning("Groq STT request timed out on attempt %d/2", attempt + 1)
+            if attempt == 0:
+                continue
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Voice transcription timed out",
+            )
+        except requests.RequestException as re:
+            logger.error("Groq STT connection error: %s", type(re).__name__)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Voice transcription connection error",
+            )
+
+    if last_resp is not None:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Voice transcription service error",
+        )
+    raise HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail="Voice transcription service error",
+    )
+
+
+@app.post("/api/voice/transcribe", response_model=VoiceTranscribeResponse, tags=["Voice"])
+async def voice_transcribe_endpoint(
+    request: Request,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """
+    Transcribes a short audio clip (max 60s / 5MB) using Groq Whisper.
+    Memory only: audio is not saved to disk or database.
+    Rate limited to 10 requests/minute per patient.
+    """
+    user_id = current_user["user_id"]
+    profile = get_patient_profile(user_id) or {}
+    if not profile.get("voice_enabled", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Voice input is not enabled in settings",
+        )
+
+    # Per-user rate limit check
+    _check_voice_rate_limit(user_id)
+
+    raw_content_type = request.headers.get("content-type", "").lower()
+    content_type = raw_content_type.split(";")[0].strip()
+    if not content_type or not (content_type.startswith("audio/") or content_type == "application/octet-stream"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid audio content type. Expected audio/*",
+        )
+
+    audio_bytes = await request.body()
+    if not audio_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Empty audio data received",
+        )
+    if len(audio_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Audio file too large (max 5 MB)",
+        )
+
+    lang = profile.get("language", "en")
+    start_t = time.time()
+    text = transcribe_audio_groq(audio_bytes, content_type=content_type, language=lang)
+    duration_s = round(time.time() - start_t, 2)
+    logger.info("Voice transcription finished (duration=%ss, size=%d bytes)", duration_s, len(audio_bytes))
+
+    del audio_bytes
+
+    return VoiceTranscribeResponse(text=text)
+
