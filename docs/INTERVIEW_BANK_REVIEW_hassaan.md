@@ -116,3 +116,17 @@ Reviewed from `backend-poc-technical/agents/interview_bank/core.json`. Review fo
 | `barrier_side_effects` | English | Did any side effects or unpleasant symptoms make you stop taking your medication? | Unclear | “Make you stop” may sound blaming. Use “Did you stop taking your medicine because of any side effect or unpleasant symptom?” |
 | `barrier_side_effects` | Roman Urdu | Kya kisi side effect ya takleef ki wajah se aap ne dawa lena band ki? | OK | Natural and understandable. “Side effect” is familiar; adding “dawai ka” before it can make the phrase more explicit. |
 | `barrier_side_effects` | Urdu | کیا کسی مضر اثر (سائیڈ ایفیکٹ) یا تکلیف کی وجہ سے آپ نے دوا لینا بند کی؟ | Unclear | “مضر اثر” is formal and can sound alarming, although the parenthetical helps. Use “کیا دوا کے کسی سائیڈ ایفیکٹ یا تکلیف کی وجہ سے آپ نے دوا لینا بند کی؟” |
+
+## Sick Day
+
+| Item id | Language | Wording | OK / Unclear / Wrong | Suggested fix |
+|---|---|---|---|---|
+| `sick_vomiting_diarrhea` | English | Are you currently experiencing vomiting, diarrhoea, or inability to keep fluids down? | Unclear | “Inability to keep fluids down” is medically accurate but formal. Say “Are you vomiting, having diarrhoea, or unable to keep water or other drinks down?” |
+| `sick_vomiting_diarrhea` | Roman Urdu | Kya aap ko is waqt ultiyan (vomiting), dast (diarrhea), ya paani na peene ki takleef ho rahi hai? | Unclear | “Paani na peene” means not drinking water, not vomiting fluids back up. Use “paani ya koi mashroob andar na thehrne” or explain “peene ke baad ulti ho jana.” |
+| `sick_vomiting_diarrhea` | Urdu | کیا آپ کو اس وقت الٹیاں، دست، یا پانی نہ پینے کی تکلیف ہو رہی ہے؟ | Wrong | The final phrase changes the meaning to difficulty not drinking water. Use “کیا آپ کو اس وقت الٹیاں، دست، یا پانی یا کوئی مشروب پینے کے بعد اندر نہ ٹھہرنے کی تکلیف ہے؟” |
+| `sick_fever` | English | Do you currently have a high fever or chills? | OK | Short, clear, and not frightening. “Chills” is a familiar symptom word. |
+| `sick_fever` | Roman Urdu | Kya aap ko is waqt taiz bukhaar ya thand lag rahi hai? | OK | Natural and understandable. “Taiz bukhaar” clearly means high fever. |
+| `sick_fever` | Urdu | کیا آپ کو اس وقت تیز بخار یا کپکپی ہے؟ | OK | Correct and clear. No scary or incorrect medical wording. |
+| `sick_fluid_intake` | English | Are you able to drink water and fluids normally today? | Unclear | “Fluids” is formal. Ask “Can you drink water and other drinks normally today?” |
+| `sick_fluid_intake` | Roman Urdu | Kya aap aaj mamool ke mutabiq paani aur liquid cheezein pee pa rahe hain? | Unclear | “Liquid cheezein” is awkward English-heavy wording. Use “paani aur doosray mashroobaat mamool ke mutabiq pee pa rahe hain?” |
+| `sick_fluid_intake` | Urdu | کیا آپ آج معمول کے مطابق پانی اور مائع چیزیں پی پا رہے ہیں؟ | Unclear | “مائع چیزیں” is formal. Use “کیا آپ آج معمول کے مطابق پانی اور دوسرے مشروبات پی پا رہے ہیں؟” |
