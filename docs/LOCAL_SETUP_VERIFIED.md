@@ -28,6 +28,9 @@ The browser also requested `/favicon.ico`, which returned HTTP 404. This did not
 
 - The planned `/health` URL returned HTTP 404 because the backend route is `/api/health`. Verified the working endpoint at `http://127.0.0.1:8000/api/health`.
 - `/favicon.ico` returned HTTP 404 from the browser request. This was unrelated to the API health check.
+- Running `npm run dev` from `C:\Users\Dell\Documents` produced `npm error Missing script: "dev"` because the command was outside the repository. Fixed by running it from `C:\Users\Dell\Documents\ChronicCare-AI`.
+- Running `npm run dev` from the repository root before installing dependencies produced `'next' is not recognized as an internal or external command, operable program or batch file.` Fixed by running `npm install` from the repository root.
+- `npm install` printed deprecation warnings, including `eslint@8.57.1`; setup continued and the frontend and tests ran successfully. The generated `package-lock.json` change was discarded to keep this branch documentation-only.
 
 ## Frontend setup
 
