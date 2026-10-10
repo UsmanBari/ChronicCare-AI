@@ -155,3 +155,68 @@ Reviewed from `backend-poc-technical/agents/interview_bank/core.json`. Review fo
 | `caregiver_relationship` | English | What is your relationship to the patient (for example son, daughter, spouse)? | Unclear | “Spouse” is formal. Use “husband or wife” or “partner” if that matches the intended choices; include other family or non-family caregivers. |
 | `caregiver_relationship` | Roman Urdu | Mareez ke sath aap ka kya rishta hai (maslan beta, beti, shareek-e-hayat)? | Unclear | “Mareez” can sound clinical and “shareek-e-hayat” is formal. Use “jis shakhs ke liye aap jawab de rahe hain, un se aap ka kya rishta hai? (beta, beti, shohar, biwi, ya koi aur)” |
 | `caregiver_relationship` | Urdu | مریض کے ساتھ آپ کا کیا رشتہ ہے (مثلاً بیٹا، بیٹی، شریک حیات)؟ | Unclear | “مریض” is clinical and “شریک حیات” is formal. Consider “جس شخص کے لیے آپ جواب دے رہے ہیں، ان سے آپ کا کیا رشتہ ہے؟ (بیٹا، بیٹی، شوہر، بیوی، یا کوئی اور)” |
+
+## Probes
+
+| Item id | Language | Wording | OK / Unclear / Wrong | Suggested fix |
+|---|---|---|---|---|
+| `probe_dizziness_postural` | English | Does the dizziness happen mainly when you stand up from sitting or lying down? | OK | Clear. “Stand up from sitting or lying down” is understandable for older patients. |
+| `probe_dizziness_postural` | Roman Urdu | Kya chakkar khaas tor par baithne ya leitne se kharay hone par aate hain? | OK | Natural and clear. “Leitne” may also be spelled “letne,” but the meaning is understandable. |
+| `probe_dizziness_postural` | Urdu | کیا چکر خاص طور پر بیٹھنے یا لیٹنے سے کھڑے ہونے پر آتے ہیں؟ | OK | Clear and medically appropriate without alarming language. |
+| `probe_dizziness_falls` | English | Has the dizziness caused you to stumble, fall, or lose your balance? | OK | Direct and easy to answer. “Stumble” may be less familiar than “nearly fall,” but the list clarifies it. |
+| `probe_dizziness_falls` | Roman Urdu | Kya chakkaro ki wajah se aap larkharaye, giray, ya balance kho baithay? | Unclear | “Balance” is common but English-heavy. Use “larhkharaaye, giray, ya apna tawazun kho diya?” |
+| `probe_dizziness_falls` | Urdu | کیا چکروں کی وجہ سے آپ لڑکھڑائے، گرے، یا توازن کھو بیٹھے؟ | OK | Correct and understandable. “توازن کھو بیٹھے” is slightly formal but clear. |
+| `probe_headache_onset` | English | Did this headache come on suddenly, or has it built up gradually? | OK | Clear contrast between sudden and gradual onset. |
+| `probe_headache_onset` | Roman Urdu | Kya yeh sar dard achanak shuru hua, ya aahista aahista barha hai? | OK | Natural and easy to understand. |
+| `probe_headache_onset` | Urdu | کیا یہ سر درد اچانک شروع ہوا، یا آہستہ آہستہ بڑھا ہے؟ | OK | Clear and accurate. |
+| `probe_headache_severity` | English | On a scale from 1 to 10 (where 10 is the most severe pain), how would you rate this headache? | Unclear | The scale is standard but may need a simple explanation: “1 means very little pain and 10 means the worst pain.” |
+| `probe_headache_severity` | Roman Urdu | 1 se 10 ke scale par (jahan 10 shadeed tareen dard hai), aap is sar dard ko kya number dein ge? | Unclear | “Shadeed tareen” is formal. Explain the endpoints as “1 bahut halka dard, 10 sab se zyada dard.” |
+| `probe_headache_severity` | Urdu | 1 سے 10 کے پیمانے پر (جہاں 10 شدید ترین درد ہے)، آپ اس سر درد کو کیا نمبر دیں گے؟ | Unclear | “پیمانہ” and “شدید ترین” are formal. Explain “1 ہلکا درد اور 10 سب سے زیادہ درد” for older patients. |
+| `probe_breathlessness_pattern` | English | Does the breathlessness happen while resting quietly, or only when you exert yourself? | Unclear | “Exert yourself” is formal. Use “when you are walking or doing something” for clearer patient language. |
+| `probe_breathlessness_pattern` | Roman Urdu | Kya saans aaram se baithay hue bhi phoolta hai, ya sirf chalnay phirnay par? | OK | Natural and clear. |
+| `probe_breathlessness_pattern` | Urdu | کیا سانس آرام سے بیٹھے ہوئے بھی پھولتا ہے، یا صرف چلنے پھرنے پر؟ | OK | Clear and suitable for an older patient. |
+| `probe_breathlessness_orthopnea` | English | Does your breathing feel noticeably worse when you lie completely flat in bed? | Unclear | “Noticeably worse” and “completely flat” are slightly formal. Say “Does it become harder to breathe when you lie flat in bed?” |
+| `probe_breathlessness_orthopnea` | Roman Urdu | Kya bistar par bilkul seedha leitne se saans ziada kharab mehsoos hota hai? | Unclear | “Saans zyada kharab” can sound vague. Use “kya bistar par seedha letne se saans lena mushkil ho jata hai?” |
+| `probe_breathlessness_orthopnea` | Urdu | کیا بستر پر بالکل سیدھا لیٹنے سے سانس زیادہ خراب محسوس ہوتا ہے؟ | Unclear | “سانس زیادہ خراب” is understandable but awkward. Use “کیا بستر پر سیدھا لیٹنے سے سانس لینا مشکل ہو جاتا ہے؟” |
+| `probe_chest_discomfort_exertion` | English | Does the discomfort happen with physical exertion, or when resting quietly? | Unclear | “Physical exertion” is medical/formal. Use “when walking or doing physical work, or while resting?” |
+| `probe_chest_discomfort_exertion` | Roman Urdu | Kya yeh takleef jismani mushaqat ke waqt hoti hai ya aaram se baithay hue bhi? | Unclear | “Jismani mushaqat” is formal. Use “chalne ya mehnat karne ke waqt” for natural speech. |
+| `probe_chest_discomfort_exertion` | Urdu | کیا یہ تکلیف جسمانی مشقت کے وقت ہوتی ہے یا آرام سے بیٹھے ہوئے بھی؟ | Unclear | “جسمانی مشقت” is correct but formal. “چلنے یا کام کرنے کے وقت” may be easier. |
+| `probe_vision_type` | English | Is your vision generally blurry, or are you seeing spots, floaters, or dark patches? | Unclear | “Floaters” is technical. Explain it as “small moving spots or lines” if that option is shown to patients. |
+| `probe_vision_type` | Roman Urdu | Kya aam tor par dhundla nazar aa raha hai, ya kaalay dhabay (spots) dikhayi de rahe hain? | Unclear | The source lists floaters but the wording only says dark spots. Add “chaltay hue nuqtay ya dhabay” if floaters are intended. |
+| `probe_vision_type` | Urdu | کیا عام طور پر دھندلا نظر آ رہا ہے، یا کالے دھبے اور پردے دکھائی دے رہے ہیں؟ | Unclear | “پردے” may sound like a curtain and could be confusing. Say “کالے دھبے، تیرتے ہوئے نقطے، یا نظر کے آگے سایہ” if clinically intended. |
+| `probe_thirst_intensity` | English | Are you feeling much thirstier than usual, or needing to get up multiple times at night to pass urine? | OK | Clear, though “pass urine” could be “urinate” in formal English; the current version is patient-friendly. |
+| `probe_thirst_intensity` | Roman Urdu | Kya aap ko mamool se bohat ziada pyas lag rahi hai ya raat ko bar bar peshab ke liye uthna par raha hai? | OK | Natural and understandable. |
+| `probe_thirst_intensity` | Urdu | کیا آپ کو معمول سے بہت زیادہ پیاس لگ رہی ہے یا رات کو بار بار پیشاب کے لیے اٹھنا پڑ رہا ہے؟ | OK | Clear and respectful. |
+| `probe_foot_open_wound` | English | Is there an open wound, break in the skin, or bleeding on your foot? | Unclear | “Break in the skin” is formal. Say “an open cut, wound, or bleeding on your foot?” |
+| `probe_foot_open_wound` | Roman Urdu | Kya paon par koi khula zakham, skin ka phatna, ya khoon ka bahao hai? | Unclear | “Skin ka phatna” is English-heavy and “khoon ka bahao” is formal. Use “khula zakhm, jild par cut, ya khoon nikal raha hai?” |
+| `probe_foot_open_wound` | Urdu | کیا پاؤں پر کوئی کھلا زخم، جلد کا پھٹنا، یا خون کا بہاؤ ہے؟ | Unclear | “جلد کا پھٹنا” and “خون کا بہاؤ” are formal. Use “کوئی کھلا زخم، جلد پر کٹ، یا خون نکل رہا ہے؟” |
+| `probe_foot_redness_warmth` | English | Is the area red, hot to touch, or swollen? | OK | Short and clear. |
+| `probe_foot_redness_warmth` | Roman Urdu | Kya woh jagah surkh, chhoonay par garam, ya sooji hui hai? | OK | Understandable. “Surkh” could be replaced with “laal” for more conversational speech. |
+| `probe_foot_redness_warmth` | Urdu | کیا وہ جگہ سرخ، چھونے پر گرم، یا سوجی ہوئی ہے؟ | OK | Clear and natural. |
+| `probe_hypo_recovery` | English | Did your symptoms improve within 15 minutes after eating or drinking fast-acting sugar (like juice or sweets)? | Unclear | “Fast-acting sugar” is technical. Say “something sugary that works quickly, such as juice or sweets.” |
+| `probe_hypo_recovery` | Roman Urdu | Kya meetha khanay ya juice peenay ke 15 minute ke andar alamaat theek ho gayi theen? | OK | Clear and easy to understand. “Alamat” is slightly formal but the examples are concrete. |
+| `probe_hypo_recovery` | Urdu | کیا میٹھا کھانے یا جوس پینے کے 15 منٹ کے اندر علامات بہتر ہو گئی تھیں؟ | OK | Clear and appropriately specific. |
+| `probe_missed_dose_reason` | English | What made it hard to take your medicine (for example: ran out, side effects, cost, or forgot)? | Unclear | The list is useful, but “ran out” needs an object. Say “your medicine ran out, side effects, cost, or forgetting?” |
+| `probe_missed_dose_reason` | Roman Urdu | Dawa lene mein kya mushkil pesh aayi (maslan: dawa khatam ho gayi, side effects, qeemat, ya bhool gaye)? | Unclear | “Mushkil pesh aayi” is formal. Use “dawa lena mushkil kyun hua? Dawa khatam ho gayi, side effect, qeemat, ya bhool ki wajah se?” |
+| `probe_missed_dose_reason` | Urdu | دوا لینے میں کیا مشکل پیش آئی (مثلاً: دوا ختم ہو گئی، سائیڈ ایفیکٹس، لاگت، یا بھول گئے)؟ | Unclear | “مشکل پیش آئی” and “لاگت” are formal. Use “دوا لینا مشکل کیوں ہوا؟ دوا ختم ہو گئی، سائیڈ ایفیکٹ، قیمت، یا بھولنے کی وجہ سے؟” |
+| `probe_swelling_location` | English | Is the swelling in both ankles/feet, in one leg only, or in your hands/face? | OK | Clear location choices. “Ankles/feet” could be shown as separate choices if precision matters. |
+| `probe_swelling_location` | Roman Urdu | Kya sojan dono takhno/paon par hai, sirf aik taang par, ya haatho aur chehray par? | OK | Understandable. Use “dono takhnon ya paon par” for more natural grammar. |
+| `probe_swelling_location` | Urdu | کیا سوجن دونوں ٹخنوں اور پاؤں پر ہے، صرف ایک ٹانگ پر، یا ہاتھوں اور چہرے پر؟ | OK | Clear and accurate. |
+| `probe_tiredness_duration` | English | Has this tiredness lasted just today, for a few days, or for several weeks? | OK | Simple and easy to answer. |
+| `probe_tiredness_duration` | Roman Urdu | Kya yeh thakawat sirf aaj se hai, chand dino se, ya kai hafto se? | OK | Natural and clear. |
+| `probe_tiredness_duration` | Urdu | کیا یہ تھکاوٹ صرف آج سے ہے، چند دنوں سے، یا کئی ہفتوں سے؟ | OK | Clear and patient-friendly. |
+| `probe_vomiting_fluid_retention` | English | Are you able to keep sips of water or fluids down without vomiting? | Unclear | “Keep ... down” is idiomatic. Use “Can you drink small sips of water without vomiting?” |
+| `probe_vomiting_fluid_retention` | Roman Urdu | Kya aap paani ya liquid cheezein baghair ulti ke pee pa rahe hain? | Unclear | “Liquid cheezein” is awkward and “small sips” is omitted. Use “kya aap paani ke chhotay ghont pee kar ulti se bach pa rahe hain?” |
+| `probe_vomiting_fluid_retention` | Urdu | کیا آپ پانی یا مائع چیزیں بغیر الٹی کے پی پا رہے ہیں؟ | Unclear | “مائع چیزیں” is formal and the small-sips meaning is omitted. Use “کیا آپ پانی کے چھوٹے گھونٹ پی کر بغیر الٹی کے رکھ پا رہے ہیں؟” |
+| `probe_pain_location_severity` | English | On a scale from 1 to 10, how severe is this pain? | Unclear | Add the endpoint explanation: “1 is very mild and 10 is the worst pain.” |
+| `probe_pain_location_severity` | Roman Urdu | 1 se 10 ke scale par, yeh dard kitna shadeed hai? | Unclear | “Shadeed” is formal. Say “1 se 10 tak, dard kitna zyada hai?” and explain what 1 and 10 mean. |
+| `probe_pain_location_severity` | Urdu | 1 سے 10 کے پیمانے پر، یہ درد کتنا شدید ہے؟ | Unclear | “پیمانہ” and “شدید” are formal. Say “1 سے 10 تک، درد کتنا زیادہ ہے؟” and explain the endpoints. |
+| `probe_sleep_cause` | English | Is difficulty sleeping mainly due to pain, shortness of breath, anxiety, or needing to pass urine? | Unclear | “Anxiety” and “pass urine” are formal. Use “worry or fear” and “needing to get up to urinate.” |
+| `probe_sleep_cause` | Roman Urdu | Kya neend mein dushwari ki wajah dard, saans ki tangi, be chaini ya bar bar peshab aana hai? | Unclear | “Dushwari” and “be chaini” are formal. Use “neend na aane ki wajah dard, saans ki tangi, fikr, ya bar bar peshab aana hai?” |
+| `probe_sleep_cause` | Urdu | کیا نیند میں دشواری کی وجہ درد، سانس کی تنگی، بے چینی یا بار بار پیشاب آنا ہے؟ | Unclear | “دشواری” and “بے چینی” are formal but correct. “فکر” may be more familiar than “بے چینی” for anxiety in this context. |
+| `probe_low_mood_frequency` | English | Have you been feeling down or discouraged nearly every day over the past two weeks? | OK | Clear and gentle. “Discouraged” is less alarming than a diagnostic label. |
+| `probe_low_mood_frequency` | Roman Urdu | Kya aap pichle do hafto ke dauran taqreeban rozana udasi ya mayoosi mehsoos kar rahe hain? | OK | Understandable. “Taqreeban” is slightly formal; “lagbhag” is also familiar. |
+| `probe_low_mood_frequency` | Urdu | کیا آپ گزشتہ دو ہفتوں کے دوران تقریباً روزانہ اداسی یا مایوسی محسوس کر رہے ہیں؟ | OK | Correct and respectful. |
+| `probe_other_symptom_onset` | English | When did you first notice this symptom (today, yesterday, or longer ago)? | OK | Clear and easy to answer. |
+| `probe_other_symptom_onset` | Roman Urdu | Aap ne yeh alamat sab se pehle kab mehsoos ki (aaj, kal, ya is se pehle)? | Unclear | “Alamat” is formal. Use “yeh takleef ya sehat ki yeh baat” for a more familiar patient phrase. |
+| `probe_other_symptom_onset` | Urdu | آپ نے یہ علامت سب سے پہلے کب محسوس کی (آج، کل، یا اس سے پہلے)؟ | Unclear | “علامت” is correct but formal. “یہ تکلیف” may be easier for a 65-year-old patient. |
