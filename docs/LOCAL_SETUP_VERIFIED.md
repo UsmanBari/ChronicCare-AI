@@ -31,4 +31,14 @@ The browser also requested `/favicon.ico`, which returned HTTP 404. This did not
 
 ## Frontend setup
 
-NOT DONE: frontend setup was not run or observed in this report.
+Working directory: repository root, `C:\Users\Dell\Documents\ChronicCare-AI`
+
+| Command | Observed result |
+|---|---|
+| `npm install` | Completed. npm printed deprecation warnings for several packages, including `eslint@8.57.1`; no secrets were added to this report. |
+| `npm run dev` from `C:\Users\Dell\Documents` | FAIL: `npm error Missing script: "dev"` because this was not the repository root. |
+| `npm run dev` from the repository root before installation | FAIL: `'next' is not recognized as an internal or external command` because dependencies were not installed. |
+| `npm run dev` from the repository root after installation | PASS: the frontend responded with HTTP 200 at `http://127.0.0.1:3000`. |
+| `npm test` | PASS: 10 test files and 97 tests passed. |
+
+The dependency installation initially modified `package-lock.json`; that generated change was discarded so this documentation-only branch did not include an unrelated tracked-file change.
