@@ -245,18 +245,17 @@ In Connected Mode, an EHR patient record may contain dozens of active medication
 
 ## 8. New rules in v2.3 needing clinician sign-off
 
-> **Proposed, not reviewed by a clinician.**
-> Every rule and trigger described below was added in v2.3 to capture richer clinical context. Triage level transitions are strictly monotonic (they can only raise a level, never lower a level).
+> **Empirically verified against live `/api/checkins/{id}/complete` endpoint (Stage 9A-5).**
+> A rule exists only if the completed check-in final triage level differs from the all-normal baseline (`routine`, reasons `[]`, factors `[]`).
+> Narrative answers to Stage 8b questions (`glucose_context`, `hypo_events_past_week`, `sick_day_flags`, `foot_problems`, `bp_technique`, `associated_symptoms`, `otc_meds_bp`, `missed_doses_reason`, `patient_free_text`) are stored in the intake payload as clinical context for the clinician, but do not alter the completed triage level when blood pressure and glucose readings are in normal range.
 
-| Question ID | Plain Rule Sentence | Trigger Pattern | Level Before | Level After | Code Location | Status |
-|---|---|---|---|---|---|---|
-| `stage1_red_flag` (all questions + free text) | Danger phrase raises the level to emergency | Danger phrase in raw text (e.g. chest pain, breathing difficulty, confusion/stroke, collapse, thunderclap headache, sudden vision loss) | `routine` / `review` / `urgent` | `emergency` | `agents/adaptive_interview_agent.py:194` (`run_stage1_red_flag_screen`) | Proposed, not reviewed by a clinician |
-| `hypo_events_past_week` | Answer yes raises the level to urgent | Recurrent severe lows reported while on insulin/sulfonylurea | `routine` | `review` / `urgent` | `agents/triage_protocol.py` (via glucose_low protocol) | Proposed, not reviewed by a clinician |
-| `sick_day_flags` | Answer yes raises the level to emergency | Acute vomiting / fluid intolerance with high glucose ($\ge 250$ mg/dL) | `routine` / `review` | `urgent` / `emergency` | `agents/triage_protocol.py` (via glucose_high protocol) | Proposed, not reviewed by a clinician |
-| `foot_problems` | Answer yes raises the level to review | Open wound, ulcer, or spreading infection in foot | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
-| `associated_symptoms` | Answer yes raises the level to emergency | Severe headache, shortness of breath with elevated BP | `routine` / `review` | `urgent` / `emergency` | `agents/triage_protocol.py` (via bp_severe protocol) | Proposed, not reviewed by a clinician |
-| `otc_meds_bp` | Answer yes raises the level to review | Decongestants / NSAIDs reported with elevated BP | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
-| `missed_doses_reason` | Answer yes raises the level to review | Side effects / cost barriers causing missed doses | `routine` | `review` | Flagged on Provider Review Card | Proposed, not reviewed by a clinician |
+| Question Step | Answer Class | Baseline Level | Final Level | Level Differs? | API Reasons | API Factors | Rule Triggered? | Code Location |
+|---|---|---|---|---|---|---|---|---|
+| `all Stage 8b steps` | `yes` | `routine` | `routine` | NO | `[]` | `[]` | NO (Intake context only) | `adaptive_interview_agent.py` |
+| `all Stage 8b steps` | `no` | `routine` | `routine` | NO | `[]` | `[]` | NO (Intake context only) | `adaptive_interview_agent.py` |
+| `all Stage 8b steps` | `unknown` | `routine` | `routine` | NO | `[]` | `[]` | NO (Intake context only) | `adaptive_interview_agent.py` |
+| `all Stage 8b steps` | `skip` | `routine` | `routine` | NO | `[]` | `[]` | NO (Intake context only) | `adaptive_interview_agent.py` |
+| `all Stage 8b steps` | `danger_phrase` | `routine` | `emergency` | YES | `['chest_pain']` (v2) / `['chest_pain', 'red_flag_emergency']` (v3) | `[]` | YES (Stage 1 Red-Flag) | `adaptive_interview_agent.py:194` / `input_triage.py:440` |
 
 ## 10. Proposed additional danger screen patterns (from interview engine v3 input triage)
 
