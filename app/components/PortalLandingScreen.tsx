@@ -195,9 +195,12 @@ export const PortalLandingScreen = () => {
 
                 {/* Simulated Telemetry Card - Diabetes */}
                 <div className="p-3.5 rounded-2xl bg-white border border-teal-100 shadow-xs space-y-2">
-                  <div className="flex justify-between text-xs">
+                  <div className="flex justify-between items-center text-xs">
                     <span className="font-bold text-navy-800">Ali Khan (58y M)</span>
-                    <span className="text-[11px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded">T2D</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{t.simulatedExampleBadge}</span>
+                      <span className="text-[11px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded">T2D</span>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-600 pt-1">
                     <span>{isUrdu ? "بلڈ شوگر" : "Blood Glucose"}</span>
@@ -211,9 +214,12 @@ export const PortalLandingScreen = () => {
 
                 {/* Simulated Telemetry Card - Hypertension */}
                 <div className="p-3.5 rounded-2xl bg-white border border-teal-100 shadow-xs space-y-2">
-                  <div className="flex justify-between text-xs">
+                  <div className="flex justify-between items-center text-xs">
                     <span className="font-bold text-navy-800">{t.landingHtnDemoPatient}</span>
-                    <span className="text-[11px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded">{t.landingHtnDemoCondition}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{t.simulatedExampleBadge}</span>
+                      <span className="text-[11px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded">{t.landingHtnDemoCondition}</span>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-600 pt-1">
                     <span>{t.landingHtnDemoReading}</span>

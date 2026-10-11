@@ -155,7 +155,7 @@ describe("STAGE 10E-0 Bug 3: EHR connection mode single source of truth", () => 
     // Render HomeScreen
     const { container: homeContainer } = render(<HomeScreen />);
     expect(homeContainer.textContent).toContain("FHIR Live Synced");
-    expect(homeContainer.textContent).toContain("Managed by hospital EHR");
+    expect(homeContainer.textContent).toContain("Managed by your hospital record. Your clinician sees the full list.");
     expect(homeContainer.textContent).not.toContain("Edit my record");
   });
 
@@ -178,6 +178,6 @@ describe("STAGE 10E-0 Bug 3: EHR connection mode single source of truth", () => 
 
     // Render HomeScreen
     const { container: homeContainer } = render(<HomeScreen />);
-    expect(homeContainer.textContent).toContain("آپ کا ریکارڈ اسپتال EHR سے منظم ہے۔");
+    expect(homeContainer.textContent).toContain("آپ کے اسپتال کے ریکارڈ سے منظم ہے۔ آپ کا معالج مکمل فہرست دیکھ سکتا ہے۔");
   });
 });
