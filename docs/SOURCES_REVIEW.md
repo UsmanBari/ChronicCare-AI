@@ -4,7 +4,7 @@ This document lists the clinical and supporting sources currently referenced in 
 
 | # | Source ID | Title | Link | Claim / Use in Interview Bank | Current Status |
 |---|---|---|---|---|---|
-| 1 | `ada_2026_soc_sec6` | ADA Standards of Care in Diabetes 2026 - Section 6: Glycemic Goals and Hypoglycemia | Not provided in SOURCES.json | Hypoglycemia levels (Level 1 <70 mg/dL, Level 2 <54 mg/dL), CGM metrics, and hypoglycemia frequency screening. | Title exists, claim not checked |
+| 1 | `ada_2026_soc_sec6` | ADA Standards of Care in Diabetes 2026 - Section 6: Glycemic Goals and Hypoglycemia | https://doi.org/10.2337/dc26-S006 | Hypoglycemia levels (Level 1 <70 mg/dL, Level 2 <54 mg/dL), CGM metrics, and hypoglycemia frequency screening. | VERIFIED |
 | 2 | `ada_2026_soc_sec5` | ADA Standards of Care in Diabetes 2026 - Section 5: Facilitating Positive Health Behaviors | Not provided in SOURCES.json | Psychosocial screening, diabetes distress, and adherence barriers. | Title exists, claim not checked |
 | 3 | `ada_2026_soc_sec12` | ADA Standards of Care in Diabetes 2026 - Section 12: Retinopathy, Neuropathy, and Foot Care | Not provided in SOURCES.json | Comprehensive foot evaluation, peripheral neuropathy, and early ulcer identification. | Title exists, claim not checked |
 | 4 | `aha_acc_2025_hypertension` | 2025 AHA/ACC Clinical Practice Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults | Not provided in SOURCES.json | Standardized home BP measurement protocol (5-minute rest, arm support, validated cuff), crisis thresholds, and medication-induced hypertension. | Title exists, claim not checked |
@@ -15,6 +15,21 @@ This document lists the clinical and supporting sources currently referenced in 
 | 9 | `phq2_kroenke_2003` | Patient Health Questionnaire-2 (PHQ-2) - Kroenke et al., 2003 (Public Domain) | Not provided in SOURCES.json | Two-item screener for depressed mood and anhedonia over the past 2 weeks. | Title exists, claim not checked |
 | 10 | `diabetes_distress_dds2` | Diabetes Distress Screening Items (Adapted DDS-2 Framework) | Not provided in SOURCES.json | Feeling overwhelmed by the demands of living with diabetes. | Clinician review needed |
 | 11 | `clinical_team_illustrative` | ChronicCare AI Decision Support Prototype - Clinical Team Illustrative Rule | Not provided in SOURCES.json | Illustrative threshold or question written for prototype decision support; requires formal clinician review and approval. | Clinician review needed |
+
+
+## Source Verification
+
+### Source 1 — ada_2026_soc_sec6
+
+**Status:** VERIFIED
+
+**Original source:** American Diabetes Association Professional Practice Committee for Diabetes. "6. Glycemic Goals, Hypoglycemia, and Hyperglycemic Crises: Standards of Care in Diabetes—2026." Diabetes Care. 2026;49(Suppl. 1):S132–S149.
+
+**DOI:** https://doi.org/10.2337/dc26-S006
+
+**Verification:** The original publication supports the interview-bank claims. It defines Level 1 hypoglycemia as glucose below 70 mg/dL but at least 54 mg/dL and Level 2 hypoglycemia as glucose below 54 mg/dL. It also includes CGM metrics such as time in range, time above range, and time below range, and recommends reviewing hypoglycemia history in at-risk individuals.
+
+**Relevant sections:** "Glycemic Assessment" and "Hypoglycemia Assessment, Prevention, and Treatment."
 
 ## Notes
 
