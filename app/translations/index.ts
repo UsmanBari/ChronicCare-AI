@@ -353,6 +353,13 @@ export interface Translations {
   transcribingVoice: string;
   stopRecording: string;
   cancelRecording: string;
+  hospitalRecordMedsManagedLine: string;
+  simulatedExampleBadge: string;
+  directHotlineDispatch: string;
+  researchPrototypeDisclaimer: string;
+  notFoundTitle: string;
+  notFoundDesc: string;
+  returnHomeBtn: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -456,11 +463,11 @@ export const translations: Record<Language, Translations> = {
     medicationPlaceholder: "e.g., Metformin 500mg (1+1), Lisinopril 10mg (1+0)",
     addMedication: "+ Add another medication",
     removeMedication: "Remove",
-    profileMedsNextStepHint: "You can add your medicines in the next step.",
+    profileMedsNextStepHint: "If you do not link a hospital record, you can add your medicines in the next steps.",
     demoPatientNotice: "Demo patient",
     recordMedsPurpose: "Your medicines. We use this to check what you tell us in each check-in.",
-    hospitalRecordMedsTitle: "Medicines from your hospital record",
-    somethingDifferent: "Something is different?",
+    hospitalRecordMedsTitle: "Your medicines",
+    somethingDifferent: "If this looks wrong, tell your clinician.",
     ageLabel: "Patient Age (Years)",
     agePlaceholder: "e.g. 58",
 
@@ -631,7 +638,7 @@ export const translations: Record<Language, Translations> = {
     authInvalidEmail: "Please enter a valid email address.",
     confirmPasswordLabel: "Confirm Password",
     confirmPasswordPlaceholder: "Re-enter your password",
-    serverWakingTitle: "The server is waking up, please wait",
+    serverWakingTitle: "Waking up the server, this can take up to a minute on the free test plan",
     serverWakingDesc: "Initial requests may take a moment while the cloud service starts.",
     consentTitle: "Patient Privacy & Care Consent",
     consentSubtitle: "Please review and accept our clinical monitoring consent before proceeding.",
@@ -700,6 +707,13 @@ export const translations: Record<Language, Translations> = {
     transcribingVoice: "Transcribing your voice...",
     stopRecording: "Stop recording",
     cancelRecording: "Cancel",
+    hospitalRecordMedsManagedLine: "Managed by your hospital record. Your clinician sees the full list.",
+    simulatedExampleBadge: "Simulated example",
+    directHotlineDispatch: "Direct Hotline Dispatch:",
+    researchPrototypeDisclaimer: "Research prototype, not a medical device.",
+    notFoundTitle: "Page Not Found",
+    notFoundDesc: "The requested page does not exist or has been moved.",
+    returnHomeBtn: "Return to Home",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -801,11 +815,11 @@ export const translations: Record<Language, Translations> = {
     medicationPlaceholder: "مثلاً میٹفارمین 500mg (1+1)، لیسینوپرل 10mg (1+0)",
     addMedication: "+ دوسری دوا شامل کریں",
     removeMedication: "ختم کریں",
-    profileMedsNextStepHint: "آپ اگلے مرحلے میں اپنی ادویات شامل کر سکتے ہیں۔",
+    profileMedsNextStepHint: "اگر آپ اسپتال کا ریکارڈ منسلک نہیں کرتے تو اگلے مراحل میں اپنی ادویات شامل کر سکتے ہیں۔",
     demoPatientNotice: "ڈیمو مریض",
     recordMedsPurpose: "آپ کی ادویات۔ ہم اسے ہر چیک ان میں آپ کی بتائی ہوئی باتوں کی تصدیق کے لیے استعمال کرتے ہیں۔",
-    hospitalRecordMedsTitle: "آپ کے اسپتال ریکارڈ سے ادویات",
-    somethingDifferent: "کچھ مختلف ہے؟",
+    hospitalRecordMedsTitle: "آپ کی ادویات",
+    somethingDifferent: "اگر یہ غلط معلوم ہو تو اپنے معالج کو بتائیں۔",
     ageLabel: "مریض کی عمر (سال)",
     agePlaceholder: "مثلاً 58",
 
@@ -976,7 +990,7 @@ export const translations: Record<Language, Translations> = {
     authInvalidEmail: "براہ کرم درست ای میل ایڈریس درج کریں۔",
     confirmPasswordLabel: "پاس ورڈ کی تصدیق کریں",
     confirmPasswordPlaceholder: "اپنا پاس ورڈ دوبارہ درج کریں",
-    serverWakingTitle: "سرور بیدار ہو رہا ہے، براہ کرم انتظار کریں",
+    serverWakingTitle: "سرور بیدار ہو رہا ہے، مفت ٹیسٹ پلان پر اس میں ایک منٹ تک لگ سکتا ہے",
     serverWakingDesc: "کلاؤڈ سروس کے آغاز کے دوران چند لمحے لگ سکتے ہیں۔",
     consentTitle: "مریض کی رازداری اور دیکھ بھال کا اقرار نامہ",
     consentSubtitle: "آگے بڑھنے سے پہلے براہ کرم نگہداشت کا اقرار نامہ پڑھیں اور منظور کریں۔",
@@ -1047,5 +1061,12 @@ export const translations: Record<Language, Translations> = {
     transcribingVoice: "آواز کو تحریر میں تبدیل کیا جا رہا ہے...",
     stopRecording: "ریکارڈنگ روکیں",
     cancelRecording: "منسوخ کریں",
+    hospitalRecordMedsManagedLine: "آپ کے اسپتال کے ریکارڈ سے منظم ہے۔ آپ کا معالج مکمل فہرست دیکھ سکتا ہے۔",
+    simulatedExampleBadge: "فرضی مثال",
+    directHotlineDispatch: "براہ راست ہاٹ لائن رابطہ:",
+    researchPrototypeDisclaimer: "تحقیقی پروٹوٹائپ، یہ کوئی طبی آلہ نہیں ہے۔",
+    notFoundTitle: "صفحہ نہیں ملا",
+    notFoundDesc: "درخواست کردہ صفحہ موجود نہیں ہے یا تبدیل ہو چکا ہے۔",
+    returnHomeBtn: "مرکزی صفحہ پر واپس جائیں",
   }
 };

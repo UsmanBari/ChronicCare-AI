@@ -219,6 +219,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
 
   const [language, setLanguage] = useState<Language>("en");
+  const t = translations[language];
+  const isUrdu = language === "ur";
   const [userIdentifier, setUserIdentifier] = useState<string>("ali.khan@demo.care");
   const [providerIdentifier, setProviderIdentifier] = useState<string>("dr.sanamalik@citygeneral.org");
   const [adminIdentifier, setAdminIdentifier] = useState<string>("admin@citygeneral.org");
@@ -293,6 +295,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
     return () => unsubscribe();
   }, []);
+
+  // Sync HTML document lang and dir on language change
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = isUrdu ? "ur" : "en";
+      document.documentElement.dir = isUrdu ? "rtl" : "ltr";
+    }
+  }, [isUrdu]);
 
   // Browser History & Back/Forward Button Navigation Synchronization
   useEffect(() => {
@@ -602,9 +612,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const t = translations[language];
-  const isUrdu = language === "ur";
-
   const returnToHomeAndClearRun = () => {
     setScreenState("home");
     pushNavState(portal, "home", providerScreen, adminScreen);
@@ -715,7 +722,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       <div dir={isUrdu ? "rtl" : "ltr"} className={isUrdu ? "font-urdu" : "font-sans"}>
         {/* Server Waking Notification Bar (Live Mode Only) */}
         {serverWaking && (
-          <div className="fixed top-0 left-0 right-0 z-50 bg-amber-600 text-white px-4 py-2.5 text-center text-xs sm:text-sm font-semibold shadow-lg flex items-center justify-center gap-2 animate-fadeIn">
+          <div
+            id="server-waking-banner"
+            role="status"
+            aria-live="polite"
+            className="fixed top-0 left-0 right-0 z-50 bg-amber-600 text-white px-4 py-2.5 text-center text-xs sm:text-sm font-semibold shadow-lg flex items-center justify-center gap-2 animate-fadeIn"
+          >
             <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-200 animate-ping" />
             <span>{t.serverWakingTitle}</span>
           </div>

@@ -121,7 +121,7 @@ describe("STAGE 10B: One Clear Medication Flow", () => {
       render(<HealthProfileScreen />);
 
       // The hint line must be visible
-      expect(screen.getByText("You can add your medicines in the next step.")).toBeTruthy();
+      expect(screen.getByText("If you do not link a hospital record, you can add your medicines in the next steps.")).toBeTruthy();
 
       // No medication input controls or add medication button
       expect(document.getElementById("add-med-btn")).toBeNull();
@@ -145,7 +145,7 @@ describe("STAGE 10B: One Clear Medication Flow", () => {
       render(<HealthProfileScreen />);
 
       // Urdu hint line
-      expect(screen.getByText("آپ اگلے مرحلے میں اپنی ادویات شامل کر سکتے ہیں۔")).toBeTruthy();
+      expect(screen.getByText("اگر آپ اسپتال کا ریکارڈ منسلک نہیں کرتے تو اگلے مراحل میں اپنی ادویات شامل کر سکتے ہیں۔")).toBeTruthy();
       expect(document.getElementById("add-med-btn")).toBeNull();
       expect(document.getElementById("medication-input-0")).toBeNull();
     });
@@ -284,10 +284,10 @@ describe("STAGE 10B: One Clear Medication Flow", () => {
 
       render(<HomeScreen />);
 
-      // Title reads "Medicines from your hospital record"
-      expect(screen.getByText("Medicines from your hospital record")).toBeTruthy();
-      expect(screen.getByText("Managed by hospital EHR")).toBeTruthy();
-      expect(screen.getByText("Something is different?")).toBeTruthy();
+      // Title reads "Your medicines"
+      expect(screen.getByText("Your medicines")).toBeTruthy();
+      expect(screen.getByText("Managed by your hospital record. Your clinician sees the full list.")).toBeTruthy();
+      expect(screen.getByText("If this looks wrong, tell your clinician.")).toBeTruthy();
 
       // "Edit my record" button MUST NOT be present
       expect(document.getElementById("edit-my-record-btn")).toBeNull();
@@ -314,9 +314,9 @@ describe("STAGE 10B: One Clear Medication Flow", () => {
 
       render(<HomeScreen />);
 
-      expect(screen.getByText("آپ کے اسپتال ریکارڈ سے ادویات")).toBeTruthy();
-      expect(screen.getByText("آپ کا ریکارڈ اسپتال EHR سے منظم ہے۔")).toBeTruthy();
-      expect(screen.getByText("کچھ مختلف ہے؟")).toBeTruthy();
+      expect(screen.getByText("آپ کی ادویات")).toBeTruthy();
+      expect(screen.getByText("آپ کے اسپتال کے ریکارڈ سے منظم ہے۔ آپ کا معالج مکمل فہرست دیکھ سکتا ہے۔")).toBeTruthy();
+      expect(screen.getByText("اگر یہ غلط معلوم ہو تو اپنے معالج کو بتائیں۔")).toBeTruthy();
       expect(document.getElementById("edit-my-record-btn")).toBeNull();
     });
 

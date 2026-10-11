@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useApp } from "../../context/AppContext";
-import { Shield, Lock, Mail, ArrowRight, ArrowLeft, Loader2, KeyRound } from "lucide-react";
+import { Shield, Lock, Mail, ArrowRight, ArrowLeft, Loader2, KeyRound, Eye, EyeOff } from "lucide-react";
 import { isFirebaseEnabled, isFirebaseConfigured, getFirebaseAuth, getAuthErrorMessage } from "../../lib/firebase";
 import { getRoleFromEmail } from "../../lib/roles";
 import { api, ApiError } from "../../lib/api";
@@ -12,6 +12,7 @@ export const AdminLoginScreen = () => {
   const { setAdminScreen, setPortal, setAdminIdentifier, setUserRole, sessionNotice, setSessionNotice, t, isUrdu } = useApp();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -158,13 +159,24 @@ export const AdminLoginScreen = () => {
             </div>
             <input
               id="admin-password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={t.passwordPlaceholder}
               autoComplete="current-password"
-              className={`w-full text-sm rounded-xl border border-slate-300 bg-slate-50/50 py-2.5 ${isUrdu ? "pr-9 pl-3" : "pl-9 pr-3"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all`}
+              className={`w-full text-sm rounded-xl border border-slate-300 bg-slate-50/50 py-2.5 ${isUrdu ? "pr-9 pl-9" : "pl-9 pr-9"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all`}
             />
+            <button
+              type="button"
+              id="toggle-admin-password-visibility-btn"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-controls="admin-password"
+              aria-label={showPassword ? t.hidePassword : t.showPassword}
+              title={showPassword ? t.hidePassword : t.showPassword}
+              className={`absolute inset-y-0 ${isUrdu ? "left-0 pl-2.5" : "right-0 pr-2.5"} flex items-center text-slate-400 hover:text-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 rounded-lg`}
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
           </div>
         </div>
 

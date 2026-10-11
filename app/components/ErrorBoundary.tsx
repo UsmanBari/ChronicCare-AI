@@ -52,6 +52,9 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-left text-[11px] font-mono text-slate-600 overflow-x-auto max-h-24">
               {this.state.error?.message || "Unknown client error"}
             </div>
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 italic">
+              Research prototype, not a medical device.
+            </div>
             <button
               type="button"
               onClick={this.handleReset}

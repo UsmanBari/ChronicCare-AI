@@ -1,16 +1,23 @@
 # ChronicCare AI — Presenter Live Demo Cue Sheet
 
-> **Presenter Guide**: Follow these exact click-by-click sequences for demonstrating the three clinical scenarios across the Patient, Provider, and Admin portals.
+> **Presenter Guide**: Follow these exact click-by-click sequences for demonstrating the clinical scenarios across the Patient, Provider, and Admin portals.
 >
-> *Disclaimer: "This prototype represents the interface and interaction layer; the underlying computational functionality will be implemented in subsequent milestones."*
+> *Disclaimer: "Research prototype for proactive chronic condition monitoring and clinical reconciliation. Not a medical device."*
 
 ---
 
-## Pre-Demo Setup
-1. Launch app at `http://localhost:3000`.
-2. Select **"Patient Portal"** on the landing screen.
-3. Sign in with sample credentials (`patient@demo.care`).
+## Pre-Demo Setup & Landing Screen
+1. Launch app at `http://localhost:3000` (or `https://chronicare-ai.netlify.app/`).
+   - *Cold-Start Note*: If testing against the free-tier live cloud backend, the first request after idle may trigger a calm notification bar: *"Waking up the server, this can take up to a minute on the free test plan"*. It clears automatically once the server is awake.
+2. On **Landing Screen**:
+   - Point to the live condition cards (Diabetes & Hypertension): both are labeled with an honest **"Simulated example"** badge.
+   - Select **"Patient Portal"**.
+3. In **Patient Sign In**:
+   - Note the password visibility toggle (eye icon) with full English/Urdu accessibility (`aria-label`).
+   - Sign in with sample credentials (`patient@demo.care`) in demo mode (or real Firebase Auth in live mode).
 4. Select **"Connect to your hospital's EHR"** (FHIR path) $\rightarrow$ Observe 1.5s simulated handshake $\rightarrow$ Lands on **Home Dashboard**.
+5. On **Home Dashboard**:
+   - Point to the honest EHR-connected card: titled **"Your medicines"**, explained by **"Managed by your hospital record. Your clinician sees the full list."**, and closed with informational guidance **"If this looks wrong, tell your clinician."** (no dead action buttons).
 
 ---
 
@@ -20,7 +27,9 @@
 1. On **Home Dashboard**, ensure **[Scenario A: Normal]** is active in the dashed *Presenter Controls* box.
 2. Click **"Start Daily Check-In"**.
 3. In **Check-In Entry**:
-   - Click the **Microphone icon** $\rightarrow$ *Say: "The patient uses speech-to-text to dictate symptoms."* $\rightarrow$ Observe 2s pulsing animation auto-filling *"I've been feeling a bit tired and thirsty lately"*.
+   - Click the **Microphone icon**:
+     - *Demo Mode*: Simulates pre-recorded voice dictation (*"Demo voice sample: feeling tired and thirsty"*), auto-filling *"I've been feeling a bit tired and thirsty lately"*.
+     - *Live Mode*: Captures real microphone audio via `MediaRecorder` (`audio/webm`) and sends it directly to the backend Whisper/Groq endpoint `/api/voice/transcribe`.
    - Click **"Continue"**.
 4. In **Adaptive Interview**:
    - **Question 1** (*Thirst*): Click **"No"** $\rightarrow$ *Say: "The system skips Question 2 because no thirst escalation was reported."*
@@ -32,7 +41,7 @@
    - Observe 2.2s analysis progress $\rightarrow$ 1.0s **"✓ Clinical Assessment Verified"** validation flash.
    - Observe **🟢 Low Risk** badge and *"Your recent check-ins look stable"*.
    - Click **"See Why"** $\rightarrow$ *Say: "Here are the contributing factors, highlighting our future SHAP-based explanation safeguard."*
-   - Click **"View Trends"** $\rightarrow$ Observe 8-day multi-day observation charts (Blood Glucose, Blood Pressure, Medication Adherence).
+   - Click **"View Trends"** $\rightarrow$ Observe multi-day observation charts (ordered by condition priority: Blood Pressure first for hypertension, Glucose first for diabetes).
    - Click **"Return to Home"**.
 
 ### Provider Portal Verification
@@ -57,8 +66,8 @@
    - Click **"Submit Check-In"** $\rightarrow$ Click **"View My Results"**.
 5. In **Processing & Conflict Screen**:
    - Observe 2.2s processing $\rightarrow$ Direct transition to **"⚠ Conflict Detected"** screen.
-   - *Say: "The reconciliation layer detected a conflict between self-reported glucose (180 mg/dL) and the clinic's FHIR record (140 mg/dL), noting an unanswered question."*
-   - Point to exact defensive caption.
+   - *Say: "The reconciliation layer detected a conflict between self-reported glucose (180 mg/dL) and the clinic's FHIR baseline (140 mg/dL), noting an unanswered question."*
+   - Point to honest clinical discrepancy summary: discrepancies are flagged for clinician review without fabricated synthetic labs.
    - Click **"Continue"** $\rightarrow$ Lands on **"⚠ Low Confidence — Routed to Human Review"**.
    - Click **"Return to Home"**.
 
@@ -95,6 +104,7 @@
 4. In **Processing & Emergency Screen**:
    - Observe fast 1.0s processing $\rightarrow$ Direct transition to **"🚨 Emergency Pattern Detected"** red alert screen.
    - *Say: "The system bypasses standard risk badges and issues immediate medical guidance with automated provider dispatch."*
+   - Point to the prominent emergency helpline notice with honest local dispatch guidance.
    - Click **"Return to Home"**.
 
 ### Provider & Admin Portal Verification

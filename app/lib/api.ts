@@ -350,6 +350,11 @@ export class ApiError extends Error {
         ? "سرور اس وقت بیدار ہو رہا ہے یا مصروف ہے۔ براہ کرم انتظار کریں۔"
         : "The server is waking up or temporarily unavailable. Please wait a moment.";
     }
+    if (this.status >= 500) {
+      return isUrdu
+        ? "سرور میں تکنیکی مسئلہ پیش آیا ہے۔ براہ کرم کچھ دیر بعد دوبارہ کوشش کریں۔"
+        : "A server error occurred. Please try again in a moment.";
+    }
     return isUrdu
       ? `خرابی پیش آئی (${this.detail || "نامعلوم خرابی"})`
       : this.detail || "An unexpected error occurred. Please try again.";
@@ -364,6 +369,27 @@ export function subscribeServerWaking(listener: WakingListener): () => void {
   return () => {
     wakingListeners.delete(listener);
   };
+}
+
+let activeSlowRequestsCount = 0;
+
+export function resetServerWakingState() {
+  activeSlowRequestsCount = 0;
+  setServerWaking(false);
+}
+
+function markSlowRequestStarted() {
+  activeSlowRequestsCount++;
+  setServerWaking(true);
+}
+
+function markSlowRequestEnded() {
+  if (activeSlowRequestsCount > 0) {
+    activeSlowRequestsCount--;
+  }
+  if (activeSlowRequestsCount === 0) {
+    setServerWaking(false);
+  }
 }
 
 function setServerWaking(isWaking: boolean) {
@@ -441,20 +467,53 @@ async function request<T>(
     delete finalHeaders["Content-Type"];
   }
 
+  const controller = new AbortController();
+  const abortTimeout = setTimeout(() => {
+    controller.abort();
+  }, 65000);
+
+  // If request takes longer than ~4s, show cold-start / server waking banner
+  let didMarkSlow = false;
+  const slowTimer = setTimeout(() => {
+    didMarkSlow = true;
+    markSlowRequestStarted();
+  }, 4000);
+
   try {
-    const response = await fetch(url, {
-      ...options,
-      headers: finalHeaders,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers: finalHeaders,
+        signal: options.signal || controller.signal,
+      });
+    } catch (fetchErr: any) {
+      // Network / timeout failure on fetch (e.g. backend sleeping or connection drop)
+      if (retriesLeft > 0) {
+        if (!didMarkSlow) {
+          didMarkSlow = true;
+          markSlowRequestStarted();
+        }
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        return await request<T>(endpoint, options, retriesLeft - 1);
+      }
+      const isTimeout = fetchErr?.name === "AbortError";
+      const status = isTimeout ? 504 : 0;
+      const message = isTimeout
+        ? "Server request timed out. Please try again."
+        : (fetchErr?.message || "Network request failed");
+      throw new ApiError(status, message);
+    }
 
     // Detect waking / 502 / 503 / 504 server sleep states
     if ([502, 503, 504].includes(response.status) && retriesLeft > 0) {
-      setServerWaking(true);
+      if (!didMarkSlow) {
+        didMarkSlow = true;
+        markSlowRequestStarted();
+      }
       await new Promise((resolve) => setTimeout(resolve, 3000));
-      return request<T>(endpoint, options, retriesLeft - 1);
+      return await request<T>(endpoint, options, retriesLeft - 1);
     }
-
-    setServerWaking(false);
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -479,20 +538,13 @@ async function request<T>(
     }
 
     return (await response.json()) as T;
-  } catch (err: any) {
-    if (err instanceof ApiError) {
-      throw err;
+  } finally {
+    clearTimeout(abortTimeout);
+    clearTimeout(slowTimer);
+    if (didMarkSlow) {
+      markSlowRequestEnded();
+      didMarkSlow = false;
     }
-
-    // Network / fetch failures (e.g. backend sleeping or waking up)
-    if (retriesLeft > 0) {
-      setServerWaking(true);
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      return request<T>(endpoint, options, retriesLeft - 1);
-    }
-
-    setServerWaking(false);
-    throw new ApiError(0, err?.message || "Network request failed");
   }
 }
 
