@@ -367,6 +367,26 @@ function setServerWaking(isWaking: boolean) {
   });
 }
 
+type UnauthorizedListener = () => void;
+const unauthorizedListeners = new Set<UnauthorizedListener>();
+
+export function subscribeUnauthorized(listener: UnauthorizedListener): () => void {
+  unauthorizedListeners.add(listener);
+  return () => {
+    unauthorizedListeners.delete(listener);
+  };
+}
+
+export function notifyUnauthorized() {
+  unauthorizedListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      // Ignore listener errors
+    }
+  });
+}
+
 function getBaseUrl(): string {
   const url = process.env.NEXT_PUBLIC_API_BASE_URL || "";
   return url.replace(/\/+$/, "");
@@ -428,6 +448,9 @@ async function request<T>(
     setServerWaking(false);
 
     if (!response.ok) {
+      if (response.status === 401) {
+        notifyUnauthorized();
+      }
       let detail = `HTTP ${response.status}`;
       let data: any = null;
       try {
