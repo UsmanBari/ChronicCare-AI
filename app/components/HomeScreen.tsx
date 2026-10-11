@@ -26,6 +26,7 @@ import {
 import { FhirSourceBadge } from "./FhirSourceBadge";
 import { api, ApiError, UserCheckinSummaryResponse, PatientRecordResponse } from "../lib/api";
 import { titleCaseName, describeBlockedAction, BlockedActionDescription } from "../lib/presentation";
+import { getConditionFlags } from "../lib/conditions";
 
 export const HomeScreen = () => {
   const {
@@ -75,10 +76,10 @@ export const HomeScreen = () => {
   // Dynamic medication dosage update for Scenario D (EHR update)
   const displayedMedications =
     demoScenario === "ehr_update"
-      ? profile.medications.map((m) =>
+      ? (profile?.medications || []).map((m) =>
           m.includes("Lisinopril") ? "Lisinopril 20mg (1+0)" : m
         )
-      : profile.medications;
+      : profile?.medications || [];
 
   const handleStartCheckIn = async () => {
     setBlockedAction(null);
@@ -105,12 +106,23 @@ export const HomeScreen = () => {
     setScreen("checkin_entry");
   };
 
-  const activeConditions =
+  const conditionFlags = getConditionFlags(isLiveMode ? liveProfile?.conditions : profile.conditions);
+
+  const rawConditions =
     isLiveMode && liveProfile?.conditions && liveProfile.conditions.length > 0
-      ? liveProfile.conditions.map((c) =>
-          c === "diabetes" ? "Type 2 Diabetes" : c === "hypertension" ? "Hypertension" : c
-        )
-      : profile.conditions;
+      ? liveProfile.conditions
+      : profile.conditions || [];
+
+  const activeConditions = rawConditions.map((c) => {
+    const lower = typeof c === "string" ? c.toLowerCase() : "";
+    if (lower === "diabetes" || lower === "type 2 diabetes" || lower === "t2d") {
+      return isUrdu ? "ذیابیطس ٹائپ 2" : "Type 2 Diabetes";
+    }
+    if (lower === "hypertension" || lower === "htn" || lower === "high blood pressure") {
+      return isUrdu ? "ہائی بلڈ پریشر (Hypertension)" : "Hypertension";
+    }
+    return c;
+  });
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
@@ -264,7 +276,7 @@ export const HomeScreen = () => {
           >
             <Calendar className="w-4 h-4 text-teal-700" />
             <span>{t.patientAppointmentsBtn}</span>
-            {appointment.isBooked && (
+            {appointment?.isBooked && (
               <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-pulse" />
             )}
           </button>
@@ -289,7 +301,11 @@ export const HomeScreen = () => {
             </h2>
 
             <p className="text-sm sm:text-base text-slate-200 leading-relaxed max-w-xl">
-              {t.reminderDesc}
+              {conditionFlags.isHypertensionOnly
+                ? t.reminderDescHypertension
+                : conditionFlags.hasBoth
+                ? t.reminderDescBoth
+                : t.reminderDesc}
             </p>
 
             <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -445,15 +461,21 @@ export const HomeScreen = () => {
               {t.activeConditions}
             </span>
             <div className="font-semibold text-navy-800 space-y-1.5">
-              {activeConditions.map((cond, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-teal-600 shrink-0" />
-                    <span>{cond}</span>
+              {activeConditions.length > 0 ? (
+                activeConditions.map((cond, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-teal-600 shrink-0" />
+                      <span>{cond}</span>
+                    </div>
+                    {connectionMode === "fhir" && <FhirSourceBadge />}
                   </div>
-                  {connectionMode === "fhir" && <FhirSourceBadge />}
+                ))
+              ) : (
+                <div className="text-xs text-slate-500 font-normal italic">
+                  {isUrdu ? "کوئی بیماری درج نہیں ہے" : "No active conditions recorded"}
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
