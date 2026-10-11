@@ -196,9 +196,10 @@ export const LoginScreen = () => {
               type="button"
               id="toggle-password-visibility-btn"
               onClick={() => setShowPassword((prev) => !prev)}
+              aria-controls="login-password"
               aria-label={showPassword ? t.hidePassword : t.showPassword}
               title={showPassword ? t.hidePassword : t.showPassword}
-              className={`absolute inset-y-0 ${isUrdu ? "left-0 pl-3.5" : "right-0 pr-3.5"} flex items-center text-slate-400 hover:text-navy-800 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-700 rounded-lg p-1`}
+              className={`absolute inset-y-0 ${isUrdu ? "left-0" : "right-0"} flex items-center px-3.5 text-slate-500 hover:text-navy-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 rounded-xl`}
             >
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
@@ -227,9 +228,10 @@ export const LoginScreen = () => {
                 type="button"
                 id="toggle-confirm-password-visibility-btn"
                 onClick={() => setShowConfirmPassword((prev) => !prev)}
+                aria-controls="login-confirm-password"
                 aria-label={showConfirmPassword ? t.hideConfirmPassword : t.showConfirmPassword}
                 title={showConfirmPassword ? t.hideConfirmPassword : t.showConfirmPassword}
-                className={`absolute inset-y-0 ${isUrdu ? "left-0 pl-3.5" : "right-0 pr-3.5"} flex items-center text-slate-400 hover:text-navy-800 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-700 rounded-lg p-1`}
+                className={`absolute inset-y-0 ${isUrdu ? "left-0" : "right-0"} flex items-center px-3.5 text-slate-500 hover:text-navy-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 rounded-xl`}
               >
                 {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
