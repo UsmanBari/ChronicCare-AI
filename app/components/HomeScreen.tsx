@@ -22,7 +22,6 @@ import {
   ShieldAlert,
   FileText,
   Hospital,
-  LogOut,
 } from "lucide-react";
 import { FhirSourceBadge } from "./FhirSourceBadge";
 import { api, ApiError, UserCheckinSummaryResponse, PatientRecordResponse } from "../lib/api";
@@ -45,7 +44,6 @@ export const HomeScreen = () => {
     appointment,
     setActiveLiveCheckin,
     setShowSettings,
-    signOutUser,
   } = useApp();
 
   const [isStarting, setIsStarting] = useState(false);
@@ -269,20 +267,6 @@ export const HomeScreen = () => {
             {appointment.isBooked && (
               <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-pulse" />
             )}
-          </button>
-
-          <button
-            type="button"
-            onClick={async () => {
-              await signOutUser();
-              setScreen("login");
-            }}
-            id="home-logout-btn"
-            title={t.logoutBtn}
-            className="min-h-[48px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-red-50 hover:border-red-300 hover:text-red-700 text-slate-700 text-sm font-semibold transition-all shadow-xs shrink-0"
-          >
-            <LogOut className="w-4 h-4 text-slate-500" />
-            <span>{t.logoutBtn}</span>
           </button>
         </div>
       </div>
