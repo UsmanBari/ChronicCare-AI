@@ -465,9 +465,7 @@ export const HealthRecordScreen = () => {
                 {isUrdu ? "۲. باقاعدہ ادویات" : "2. Medications"}
               </h2>
               <p className="text-xs text-slate-500">
-                {isUrdu
-                  ? "صرف فعال ادویات کے بارے میں ہر چیک ان میں پوچھا جاتا ہے۔"
-                  : "Only active medications are asked about in each check-in."}
+                {t.recordMedsPurpose}
               </p>
             </div>
           </div>

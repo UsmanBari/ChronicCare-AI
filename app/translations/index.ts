@@ -106,6 +106,11 @@ export interface Translations {
   medicationPlaceholder: string;
   addMedication: string;
   removeMedication: string;
+  profileMedsNextStepHint: string;
+  demoPatientNotice: string;
+  recordMedsPurpose: string;
+  hospitalRecordMedsTitle: string;
+  somethingDifferent: string;
   ageLabel: string;
   agePlaceholder: string;
 
@@ -414,6 +419,11 @@ export const translations: Record<Language, Translations> = {
     medicationPlaceholder: "e.g., Metformin 500mg (1+1), Lisinopril 10mg (1+0)",
     addMedication: "+ Add another medication",
     removeMedication: "Remove",
+    profileMedsNextStepHint: "You can add your medicines in the next step.",
+    demoPatientNotice: "Demo patient",
+    recordMedsPurpose: "Your medicines. We use this to check what you tell us in each check-in.",
+    hospitalRecordMedsTitle: "Medicines from your hospital record",
+    somethingDifferent: "Something is different?",
     ageLabel: "Patient Age (Years)",
     agePlaceholder: "e.g. 58",
 
@@ -718,6 +728,11 @@ export const translations: Record<Language, Translations> = {
     medicationPlaceholder: "مثلاً میٹفارمین 500mg (1+1)، لیسینوپرل 10mg (1+0)",
     addMedication: "+ دوسری دوا شامل کریں",
     removeMedication: "ختم کریں",
+    profileMedsNextStepHint: "آپ اگلے مرحلے میں اپنی ادویات شامل کر سکتے ہیں۔",
+    demoPatientNotice: "ڈیمو مریض",
+    recordMedsPurpose: "آپ کی ادویات۔ ہم اسے ہر چیک ان میں آپ کی بتائی ہوئی باتوں کی تصدیق کے لیے استعمال کرتے ہیں۔",
+    hospitalRecordMedsTitle: "آپ کے اسپتال ریکارڈ سے ادویات",
+    somethingDifferent: "کچھ مختلف ہے؟",
     ageLabel: "مریض کی عمر (سال)",
     agePlaceholder: "مثلاً 58",
 
