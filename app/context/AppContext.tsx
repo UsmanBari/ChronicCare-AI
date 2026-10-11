@@ -248,16 +248,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Patient Baseline Profile (Mock mode fallback)
   const [profile, setProfile] = useState<HealthProfile>({
-    conditions: ["Type 2 Diabetes"],
-    medications: [
-      "Metformin 500mg (1+1)",
-      "Lisinopril 10mg (1+0)",
-      "Atorvastatin 20mg (0+1)",
-      "Aspirin 81mg (1+0)",
-    ],
-    date_of_birth: "1975-06-15",
-    sex_at_birth: "female",
-    pregnancy_status: "no",
+    conditions: isLiveMode ? [] : ["Type 2 Diabetes"],
+    medications: isLiveMode
+      ? []
+      : [
+          "Metformin 500mg (1+1)",
+          "Lisinopril 10mg (1+0)",
+          "Atorvastatin 20mg (0+1)",
+          "Aspirin 81mg (1+0)",
+        ],
+    date_of_birth: isLiveMode ? "" : "1975-06-15",
+    sex_at_birth: isLiveMode ? "" : "female",
+    pregnancy_status: isLiveMode ? "" : "no",
   });
 
   // Transient check-in data
@@ -418,6 +420,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             try {
               const prof = await api.getProfile();
               setLiveProfile(prof);
+              setProfile((prev) => ({
+                ...prev,
+                conditions: prof.conditions || [],
+                medications: [],
+                date_of_birth: prof.date_of_birth || "",
+                sex_at_birth: prof.sex_at_birth || "",
+                pregnancy_status: prof.pregnancy_status || "",
+              }));
               let conn: EHRConnectionResponse | null = null;
               try {
                 conn = await api.getEHRConnection();
@@ -533,6 +543,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
     setResolvedCases([]);
     setAcknowledgedPatients([]);
+    if (isLiveMode) {
+      setProfile({
+        conditions: [],
+        medications: [],
+        date_of_birth: "",
+        sex_at_birth: "",
+        pregnancy_status: "",
+      });
+    }
     setShowSettings(false);
     setShowTour(false);
     if (typeof window !== "undefined") {

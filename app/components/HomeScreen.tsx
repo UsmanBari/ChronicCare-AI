@@ -461,12 +461,21 @@ export const HomeScreen = () => {
           <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/70 space-y-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block flex items-center gap-1.5">
               <Pill className="w-4 h-4 text-teal-700" />
-              <span>{t.trackedMeds}</span>
+              <span>
+                {isLiveMode && (connectionMode === "fhir" || liveEhrConnection?.mode === "fhir")
+                  ? t.hospitalRecordMedsTitle
+                  : t.trackedMeds}
+              </span>
             </span>
             {isLiveMode ? (
               (connectionMode === "fhir" || liveEhrConnection?.mode === "fhir") ? (
-                <div className="font-medium text-slate-600 text-xs sm:text-sm italic py-1">
-                  {isUrdu ? "آپ کا ریکارڈ اسپتال EHR سے منظم ہے۔" : "Managed by hospital EHR"}
+                <div className="space-y-1.5">
+                  <div className="font-medium text-slate-600 text-xs sm:text-sm italic py-1">
+                    {isUrdu ? "آپ کا ریکارڈ اسپتال EHR سے منظم ہے۔" : "Managed by hospital EHR"}
+                  </div>
+                  <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-200/60">
+                    <span className="italic">{t.somethingDifferent}</span>
+                  </div>
                 </div>
               ) : (liveRecord?.medications && liveRecord.medications.filter((m) => m.status === "active").length > 0) ? (
                 <div className="font-medium text-navy-800 space-y-1.5">
