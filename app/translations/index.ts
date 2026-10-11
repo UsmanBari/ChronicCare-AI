@@ -336,6 +336,18 @@ export interface Translations {
   isolatedModeLabel: string;
   needsClinicianReviewTitle: string;
   readingDiffersTitle: string;
+  firstCheckinNoRecordTitle: string;
+  firstCheckinNoRecordDesc: string;
+  earlierCheckinLabel: string;
+  savedReadingLabel: string;
+  clinicianReviewAnswers: string;
+  connectionBadgeIsolated: string;
+  connectionBadgeIsolatedShort: string;
+  connectionBadgeConnected: string;
+  connectionBadgeConnectedGeneric: string;
+  demoSimulationBadge: string;
+  notOnFile: string;
+  notReportedToday: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -666,6 +678,18 @@ export const translations: Record<Language, Translations> = {
     isolatedModeLabel: "Isolated Mode (Local Store)",
     needsClinicianReviewTitle: "Needs clinician review",
     readingDiffersTitle: "Your reading differs from the record",
+    firstCheckinNoRecordTitle: "This is your first check-in",
+    firstCheckinNoRecordDesc: "There is nothing on file to compare with yet, so a clinician will review it.",
+    earlierCheckinLabel: "Your earlier check-in",
+    savedReadingLabel: "Your saved reading",
+    clinicianReviewAnswers: "A clinician will review today's answers.",
+    connectionBadgeIsolated: "Not connected to a hospital record. Using the record you entered",
+    connectionBadgeIsolatedShort: "Local record (not connected)",
+    connectionBadgeConnected: "Connected to {system} (test environment)",
+    connectionBadgeConnectedGeneric: "Connected to hospital EHR (test environment)",
+    demoSimulationBadge: "Demo",
+    notOnFile: "Not on file",
+    notReportedToday: "Not reported today",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -996,5 +1020,17 @@ export const translations: Record<Language, Translations> = {
     isolatedModeLabel: "آئسولیٹڈ موڈ (مقامی اسٹور)",
     needsClinicianReviewTitle: "طبی معالج کے جائزے کی ضرورت ہے",
     readingDiffersTitle: "آپ کی ریڈنگ ریکارڈ سے مختلف ہے",
+    firstCheckinNoRecordTitle: "یہ آپ کا پہلا چیک ان ہے",
+    firstCheckinNoRecordDesc: "ابھی موازنہ کرنے کے لیے کوئی پچھلا ریکارڈ موجود نہیں ہے، اس لیے طبی معالج اس کا جائزہ لیں گے۔",
+    earlierCheckinLabel: "آپ کا پچھلا چیک ان",
+    savedReadingLabel: "آپ کی محفوظ کردہ ریڈنگ",
+    clinicianReviewAnswers: "طبی معالج آج کے جوابات کا جائزہ لیں گے۔",
+    connectionBadgeIsolated: "ہسپتال کے ریکارڈ سے منسلک نہیں ہے۔ آپ کے درج کردہ ریکارڈ کا استعمال ہو رہا ہے",
+    connectionBadgeIsolatedShort: "مقامی ریکارڈ (منسلک نہیں)",
+    connectionBadgeConnected: "{system} سے منسلک (ٹیسٹ ماحول)",
+    connectionBadgeConnectedGeneric: "ہسپتال کے ریکارڈ سے منسلک (ٹیسٹ ماحول)",
+    demoSimulationBadge: "ڈیمو",
+    notOnFile: "ریکارڈ میں موجود نہیں",
+    notReportedToday: "آج درج نہیں کیا گیا",
   }
 };
