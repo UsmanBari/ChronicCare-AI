@@ -5,7 +5,7 @@ This document lists the clinical and supporting sources currently referenced in 
 | # | Source ID | Title | Link | Claim / Use in Interview Bank | Current Status |
 |---|---|---|---|---|---|
 | 1 | `ada_2026_soc_sec6` | ADA Standards of Care in Diabetes 2026 - Section 6: Glycemic Goals and Hypoglycemia | https://doi.org/10.2337/dc26-S006 | Hypoglycemia levels (Level 1 <70 mg/dL, Level 2 <54 mg/dL), CGM metrics, and hypoglycemia frequency screening. | VERIFIED |
-| 2 | `ada_2026_soc_sec5` | ADA Standards of Care in Diabetes 2026 - Section 5: Facilitating Positive Health Behaviors | Not provided in SOURCES.json | Psychosocial screening, diabetes distress, and adherence barriers. | Title exists, claim not checked |
+| 2 | `ada_2026_soc_sec5` | ADA Standards of Care in Diabetes 2026 - Section 5: Facilitating Positive Health Behaviors | https://doi.org/10.2337/dc26-S005 | Psychosocial screening, diabetes distress, and adherence barriers. | VERIFIED |
 | 3 | `ada_2026_soc_sec12` | ADA Standards of Care in Diabetes 2026 - Section 12: Retinopathy, Neuropathy, and Foot Care | Not provided in SOURCES.json | Comprehensive foot evaluation, peripheral neuropathy, and early ulcer identification. | Title exists, claim not checked |
 | 4 | `aha_acc_2025_hypertension` | 2025 AHA/ACC Clinical Practice Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults | Not provided in SOURCES.json | Standardized home BP measurement protocol (5-minute rest, arm support, validated cuff), crisis thresholds, and medication-induced hypertension. | Title exists, claim not checked |
 | 5 | `idf_dar_2021_ramadan` | IDF-DAR Diabetes and Ramadan: Practical Guidelines 2021 | Not provided in SOURCES.json | Risk stratification during fasting, pre-dawn meal timing, hypoglycemia symptoms while fasting, and criteria for breaking the fast. | Title exists, claim not checked |
@@ -30,6 +30,18 @@ This document lists the clinical and supporting sources currently referenced in 
 **Verification:** The original publication supports the interview-bank claims. It defines Level 1 hypoglycemia as glucose below 70 mg/dL but at least 54 mg/dL and Level 2 hypoglycemia as glucose below 54 mg/dL. It also includes CGM metrics such as time in range, time above range, and time below range, and recommends reviewing hypoglycemia history in at-risk individuals.
 
 **Relevant sections:** "Glycemic Assessment" and "Hypoglycemia Assessment, Prevention, and Treatment."
+
+### Source 2 — ada_2026_soc_sec5
+
+**Status:** VERIFIED
+
+**Original source:** American Diabetes Association Professional Practice Committee for Diabetes. "5. Facilitating Positive Health Behaviors and Well-being to Improve Health Outcomes: Standards of Care in Diabetes—2026." Diabetes Care. 2026;49(Suppl. 1):S89–S131.
+
+**DOI:** https://doi.org/10.2337/dc26-S005
+
+**Verification:** The original publication supports the interview-bank claims. It recommends routine psychosocial screening, including screening for diabetes distress, and discusses barriers that can affect diabetes treatment and self-management. It also recommends screening for diabetes distress at least annually and repeating screening when treatment goals are not met, during transitions, or when diabetes complications are present.
+
+**Relevant sections:** "Psychosocial Care," "Screening," and "Diabetes Distress."
 
 ## Notes
 
