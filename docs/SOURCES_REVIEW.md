@@ -1,0 +1,24 @@
+# Clinical Sources Review
+
+This document lists the clinical and supporting sources currently referenced in the ChronicCare AI interview bank. Verification against the original sources has not yet been performed.
+
+| # | Source ID | Title | Link | Claim / Use in Interview Bank | Current Status |
+|---|---|---|---|---|---|
+| 1 | `ada_2026_soc_sec6` | ADA Standards of Care in Diabetes 2026 - Section 6: Glycemic Goals and Hypoglycemia | Not provided in SOURCES.json | Hypoglycemia levels (Level 1 <70 mg/dL, Level 2 <54 mg/dL), CGM metrics, and hypoglycemia frequency screening. | Title exists, claim not checked |
+| 2 | `ada_2026_soc_sec5` | ADA Standards of Care in Diabetes 2026 - Section 5: Facilitating Positive Health Behaviors | Not provided in SOURCES.json | Psychosocial screening, diabetes distress, and adherence barriers. | Title exists, claim not checked |
+| 3 | `ada_2026_soc_sec12` | ADA Standards of Care in Diabetes 2026 - Section 12: Retinopathy, Neuropathy, and Foot Care | Not provided in SOURCES.json | Comprehensive foot evaluation, peripheral neuropathy, and early ulcer identification. | Title exists, claim not checked |
+| 4 | `aha_acc_2025_hypertension` | 2025 AHA/ACC Clinical Practice Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults | Not provided in SOURCES.json | Standardized home BP measurement protocol (5-minute rest, arm support, validated cuff), crisis thresholds, and medication-induced hypertension. | Title exists, claim not checked |
+| 5 | `idf_dar_2021_ramadan` | IDF-DAR Diabetes and Ramadan: Practical Guidelines 2021 | Not provided in SOURCES.json | Risk stratification during fasting, pre-dawn meal timing, hypoglycemia symptoms while fasting, and criteria for breaking the fast. | Title exists, claim not checked |
+| 6 | `nice_ng28_t2d` | NICE Guideline NG28: Type 2 Diabetes in Adults: Management | Not provided in SOURCES.json | Sick-day rules during acute intercurrent illness, fluid maintenance, and ketone monitoring alert triggers. | Title exists, claim not checked |
+| 7 | `nice_ng136_hypertension` | NICE Guideline NG136: Hypertension in Adults: Diagnosis and Management | Not provided in SOURCES.json | Postural hypotension screening, target-organ damage red flags, and associated symptom evaluation. | Title exists, claim not checked |
+| 8 | `nice_cg138_patient_experience` | NICE Clinical Guideline CG138: Patient Experience in Adult NHS Services | Not provided in SOURCES.json | Person-centered communication, open-ended free-text elicitation, and shared decision making. | Title exists, claim not checked |
+| 9 | `phq2_kroenke_2003` | Patient Health Questionnaire-2 (PHQ-2) - Kroenke et al., 2003 (Public Domain) | Not provided in SOURCES.json | Two-item screener for depressed mood and anhedonia over the past 2 weeks. | Title exists, claim not checked |
+| 10 | `diabetes_distress_dds2` | Diabetes Distress Screening Items (Adapted DDS-2 Framework) | Not provided in SOURCES.json | Feeling overwhelmed by the demands of living with diabetes. | Clinician review needed |
+| 11 | `clinical_team_illustrative` | ChronicCare AI Decision Support Prototype - Clinical Team Illustrative Rule | Not provided in SOURCES.json | Illustrative threshold or question written for prototype decision support; requires formal clinician review and approval. | Clinician review needed |
+
+## Notes
+
+- This is an initial inventory of the entries found in `backend-poc-technical/agents/interview_bank/SOURCES.json`.
+- The claims have not yet been independently verified against the original publications.
+- `SOURCES.json` does not provide source URLs, so links are marked as not provided rather than being inferred or invented.
+- Entries marked as requiring clinician review have been retained with the same status used in the source file.
