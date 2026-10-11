@@ -71,3 +71,82 @@ Stores patient-specific clinical, consent, demographic, and preference informati
 ## Personal Data Classification
 
 The `users` and `patient_profiles` tables contain personal data. The `users` table contains account identifiers and account-related information such as email address, display name, role, status, and login timestamps. The `patient_profiles` table contains additional patient-specific information, including health conditions, medication-related information, consent records, date of birth, sex at birth, pregnancy status, height, weight, and diagnosis years. These fields should therefore be handled as sensitive application data and protected appropriately.
+
+---
+
+## Check-ins
+
+Table: `checkins`
+
+Stores the state and lifecycle of a patient's check-in session.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `checkin_id` | TEXT | Unique identifier for the check-in. Primary key. | `chk_001` | Yes |
+| `user_id` | TEXT | Identifier of the user who owns the check-in. Foreign key referencing `users.user_id`. | `usr_001` | Yes |
+| `mode` | TEXT | Operating mode of the check-in. Allowed values are `connected` or `isolated`. | `connected` | Yes |
+| `record_patient_id` | TEXT | Identifier of the patient record associated with the check-in. | `patient_001` | Yes |
+| `status` | TEXT | Current check-in status. Allowed values are `in_progress`, `complete`, `emergency`, or `abandoned`. | `in_progress` | Yes |
+| `state_json` | TEXT | JSON-encoded state of the check-in. This state may contain the answers collected during the check-in and other interview state. | `{"answers":{"symptoms":"none"}}` | Yes |
+| `version` | INTEGER | Version number used for the stored check-in state. Defaults to `0`. | `0` | No |
+| `started_at` | TEXT | Timestamp recording when the check-in started. | `2026-10-11T09:00:00Z` | Yes |
+| `completed_at` | TEXT | Timestamp recording when the check-in was completed, if applicable. | `2026-10-11T09:10:00Z` | Yes |
+| `med_state_json` | TEXT | Optional JSON-encoded medication-related state maintained during the check-in. | `{"confirmed":true}` | Yes |
+| `protocol_state_json` | TEXT | Optional JSON-encoded state used by the check-in protocol. | `{"step":"assessment"}` | Yes |
+| `ehr_system_id` | TEXT | Optional identifier of the EHR system associated with the check-in. | `ehr_001` | Yes |
+
+### Constraints and notes
+
+- `checkin_id` is the primary key.
+- `user_id` cannot be null and references `users.user_id`.
+- `mode` must be either `connected` or `isolated`.
+- `status` must be one of `in_progress`, `complete`, `emergency`, or `abandoned`.
+- `state_json` cannot be null.
+- `version` cannot be null and defaults to `0`.
+- `started_at` cannot be null.
+- `completed_at` is optional.
+- `med_state_json`, `protocol_state_json`, and `ehr_system_id` were introduced through later schema migrations.
+
+---
+
+## Check-in Results
+
+Table: `checkin_results`
+
+Stores the result, review status, escalation information, and generated clinical processing output for a completed or processed check-in.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `checkin_id` | TEXT | Identifier of the associated check-in. Primary key and foreign key referencing `checkins.checkin_id`. | `chk_001` | Yes |
+| `emergency` | INTEGER | Boolean-like value indicating whether the check-in was classified as an emergency. | `0` | Yes |
+| `intakes_json` | TEXT | JSON-encoded intake information collected or generated during the check-in. | `{"symptoms":[]}` | Yes |
+| `reconciliation_json` | TEXT | Optional JSON-encoded result of data reconciliation. | `{"status":"matched"}` | Yes |
+| `verification_json` | TEXT | Optional JSON-encoded verification information associated with the check-in. | `{"verified":true}` | Yes |
+| `requires_review` | INTEGER | Boolean-like value indicating whether the check-in requires review. | `1` | Yes |
+| `max_severity` | TEXT | Highest severity assigned to the result. Permitted values are `none`, `low`, `moderate`, or `high`, or null. | `moderate` | Yes |
+| `review_status` | TEXT | Current review workflow status. Allowed values are `open`, `acknowledged`, `resolved`, or `escalated`. | `open` | Yes |
+| `trigger_category` | TEXT | Optional category describing what triggered a safety or review action. | `symptom` | Yes |
+| `trigger_text` | TEXT | Optional text associated with the trigger that caused review or escalation. | `Patient reported concerning symptoms` | Yes |
+| `escalated_at` | TEXT | Timestamp recording when the result was escalated, if applicable. | `2026-10-11T09:12:00Z` | Yes |
+| `created_at` | TEXT | Timestamp recording when the check-in result was created. | `2026-10-11T09:10:00Z` | Yes |
+| `triage_level` | TEXT | Optional triage level assigned during check-in processing. | `high` | Yes |
+| `triage_json` | TEXT | Optional JSON-encoded detailed triage result/state. | `{"level":"high"}` | Yes |
+
+### Constraints and notes
+
+- `checkin_id` is the primary key and references `checkins.checkin_id`.
+- `emergency`, `intakes_json`, `requires_review`, `review_status`, and `created_at` cannot be null.
+- `max_severity`, when present, must be `none`, `low`, `moderate`, or `high`.
+- `review_status` must be `open`, `acknowledged`, `resolved`, or `escalated`.
+- `trigger_category`, `trigger_text`, `escalated_at`, `triage_level`, and `triage_json` are optional fields.
+- `trigger_category`, `trigger_text`, `escalated_at`, `triage_level`, and `triage_json` are also handled through later schema migrations.
+
+---
+
+## Check-in Answers
+
+There is no separate `answers` database table in the reviewed application-store schema.
+
+Check-in answers are submitted through the check-in answer workflow and persisted as part of the check-in state. The application accesses an `answers` object from the check-in state, while `apply_checkin_answer_atomic` is used when saving check-in answers. Therefore, answer content should be treated as personal data because it can contain patient-provided health and symptom information.
+
+The exact structure of individual answers is application-state dependent rather than represented by dedicated relational database columns.
