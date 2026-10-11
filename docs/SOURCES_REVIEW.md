@@ -8,7 +8,7 @@ This document lists the clinical and supporting sources currently referenced in 
 | 2 | `ada_2026_soc_sec5` | ADA Standards of Care in Diabetes 2026 - Section 5: Facilitating Positive Health Behaviors | https://doi.org/10.2337/dc26-S005 | Psychosocial screening, diabetes distress, and adherence barriers. | VERIFIED |
 | 3 | `ada_2026_soc_sec12` | ADA Standards of Care in Diabetes 2026 - Section 12: Retinopathy, Neuropathy, and Foot Care | https://doi.org/10.2337/dc26-S012 | Comprehensive foot evaluation, peripheral neuropathy, and early ulcer identification. | VERIFIED |
 | 4 | `aha_acc_2025_hypertension` | 2025 AHA/ACC Clinical Practice Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults | https://doi.org/10.1161/CIR.0000000000001356 | Standardized home BP measurement protocol (5-minute rest, arm support, validated cuff), crisis thresholds, and medication-induced hypertension. | VERIFIED |
-| 5 | `idf_dar_2021_ramadan` | IDF-DAR Diabetes and Ramadan: Practical Guidelines 2021 | Not provided in SOURCES.json | Risk stratification during fasting, pre-dawn meal timing, hypoglycemia symptoms while fasting, and criteria for breaking the fast. | Title exists, claim not checked |
+| 5 | `idf_dar_2021_ramadan` | IDF-DAR Diabetes and Ramadan: Practical Guidelines 2021 | https://www.idf.org/media/uploads/2022/12/IDF_DaR_Practical_Guidelines_2021_web.pdf | Risk stratification during fasting, pre-dawn meal timing, hypoglycemia symptoms while fasting, and criteria for breaking the fast. | VERIFIED |
 | 6 | `nice_ng28_t2d` | NICE Guideline NG28: Type 2 Diabetes in Adults: Management | Not provided in SOURCES.json | Sick-day rules during acute intercurrent illness, fluid maintenance, and ketone monitoring alert triggers. | Title exists, claim not checked |
 | 7 | `nice_ng136_hypertension` | NICE Guideline NG136: Hypertension in Adults: Diagnosis and Management | Not provided in SOURCES.json | Postural hypotension screening, target-organ damage red flags, and associated symptom evaluation. | Title exists, claim not checked |
 | 8 | `nice_cg138_patient_experience` | NICE Clinical Guideline CG138: Patient Experience in Adult NHS Services | Not provided in SOURCES.json | Person-centered communication, open-ended free-text elicitation, and shared decision making. | Title exists, claim not checked |
@@ -64,6 +64,16 @@ This document lists the clinical and supporting sources currently referenced in 
 **Verification:** The guideline supports the interview-bank claims concerning standardized blood pressure measurement and home blood pressure monitoring, evaluation of medications that can interfere with blood pressure control, and severe hypertension thresholds. It identifies severe hypertension at blood pressure above 180/120 mmHg and distinguishes hypertensive emergency by the presence of acute target-organ damage. The guideline also recommends careful medication review when evaluating resistant hypertension.
 
 **Relevant sections:** Blood pressure measurement/home monitoring, secondary forms of hypertension and resistant hypertension, and Section 6.2 "Hypertensive Emergencies and Severe Hypertension in Nonpregnant and Nonstroke Patients."
+
+### Source 5 — idf_dar_2021_ramadan
+
+**Status:** VERIFIED
+
+**Original source:** International Diabetes Federation and the DAR International Alliance. *Diabetes and Ramadan: Practical Guidelines*. Brussels, Belgium: International Diabetes Federation; 2021.
+
+**Verification:** The guideline supports the interview-bank claims concerning Ramadan fasting risk stratification, pre-dawn meal (Suhoor) guidance, recognition of hypoglycaemia during fasting, and criteria for breaking the fast. It recommends individual assessment and stratification of fasting risk and provides guidance on when a person with diabetes should stop the fast because of abnormal blood glucose levels, symptoms of hypoglycaemia or hyperglycaemia, dehydration, or acute illness.
+
+**Relevant sections:** Risk Stratification; Pre-Ramadan Assessment and Education; dietary guidance for Suhoor and Iftar; and "When to break the fast."
 
 ## Notes
 
