@@ -11,8 +11,8 @@ This document lists the clinical and supporting sources currently referenced in 
 | 5 | `idf_dar_2021_ramadan` | IDF-DAR Diabetes and Ramadan: Practical Guidelines 2021 | https://www.idf.org/media/uploads/2022/12/IDF_DaR_Practical_Guidelines_2021_web.pdf | Risk stratification during fasting, pre-dawn meal timing, hypoglycemia symptoms while fasting, and criteria for breaking the fast. | VERIFIED |
 | 6 | `nice_ng28_t2d` | NICE Guideline NG28: Type 2 Diabetes in Adults: Management | Not provided in SOURCES.json | Sick-day rules during acute intercurrent illness, fluid maintenance, and ketone monitoring alert triggers. | Title exists, claim not checked |
 | 7 | `nice_ng136_hypertension` | NICE Guideline NG136: Hypertension in Adults: Diagnosis and Management | https://www.nice.org.uk/guidance/ng28 | Postural hypotension screening, target-organ damage red flags, and associated symptom evaluation. | VERIFIED|
-| 8 | `nice_cg138_patient_experience` | NICE Clinical Guideline CG138: Patient Experience in Adult NHS Services | Not provided in SOURCES.json | Person-centered communication, open-ended free-text elicitation, and shared decision making. | Title exists, claim not checked |
-| 9 | `phq2_kroenke_2003` | Patient Health Questionnaire-2 (PHQ-2) - Kroenke et al., 2003 (Public Domain) | Not provided in SOURCES.json | Two-item screener for depressed mood and anhedonia over the past 2 weeks. | Title exists, claim not checked |
+| 8 | `nice_cg138_patient_experience` | NICE Clinical Guideline CG138: Patient Experience in Adult NHS Services | https://www.nice.org.uk/guidance/ng136 | Person-centered communication, open-ended free-text elicitation, and shared decision making. | VERIFIED |
+| 9 | `phq2_kroenke_2003` | Patient Health Questionnaire-2 (PHQ-2) - Kroenke et al., 2003 (Public Domain) | https://www.nice.org.uk/guidance/cg138 | Two-item screener for depressed mood and anhedonia over the past 2 weeks. | VERIFIED |
 | 10 | `diabetes_distress_dds2` | Diabetes Distress Screening Items (Adapted DDS-2 Framework) | Not provided in SOURCES.json | Feeling overwhelmed by the demands of living with diabetes. | Clinician review needed |
 | 11 | `clinical_team_illustrative` | ChronicCare AI Decision Support Prototype - Clinical Team Illustrative Rule | Not provided in SOURCES.json | Illustrative threshold or question written for prototype decision support; requires formal clinician review and approval. | Clinician review needed |
 
@@ -86,6 +86,28 @@ This document lists the clinical and supporting sources currently referenced in 
 **Relevant section:** Recommendation 1.10.1 — Sick day rules.
 
 **Review note:** The interview-bank description also mentions fluids and ketone-monitoring alert triggers. The current NG28 text reviewed here does not directly establish all of that broader wording, so those details should not be attributed to NG28 without an additional supporting source.
+
+### Source 7 — nice_ng136_hypertension
+
+**Status:** VERIFIED
+
+**Original source:** National Institute for Health and Care Excellence (NICE). *Hypertension in adults: diagnosis and management (NG136).*
+
+**Verification:** NICE NG136 supports the interview-bank claims concerning postural hypotension, assessment for target-organ damage, and symptom-based red flags. The guideline recommends checking for postural hypotension in relevant people with hypertension. For severe hypertension, it recommends investigation for target-organ damage and identifies symptoms or signs that require same-day specialist assessment, including retinal haemorrhage or papilloedema, new-onset confusion, chest pain, signs of heart failure, and acute kidney injury.
+
+**Relevant sections:** Recommendations 1.1.5–1.1.7 on postural hypotension; recommendation 1.3.3 on target-organ damage; recommendations 1.5.1–1.5.3 on same-day specialist review; and recommendation 1.4.16 on postural hypotension during treatment monitoring.
+
+### Source 8 — nice_cg138_patient_experience
+
+**Status:** VERIFIED
+
+**Original source:** National Institute for Health and Care Excellence (NICE). *Patient experience in adult NHS services: improving the experience of care for people using adult NHS services (CG138).*
+
+**Verification:** NICE CG138 supports the interview-bank claims concerning person-centred communication and the use of open-ended questions. The guideline recommends understanding the patient as an individual, encouraging patients to express their personal needs and preferences for care, and using open-ended questions to encourage discussion. It also supports active patient participation in decisions about care. The guideline's former specific shared decision-making recommendations (1.5.20–1.5.27) have been replaced by NICE's separate shared decision-making guideline.
+
+**Relevant sections:** Recommendation 1.1.1 — Knowing the patient as an individual; recommendation 1.3.4 — Patient views and preferences; recommendation 1.5.7 — Communication/open-ended questions; and section 1.5 — Enabling patients to actively participate in their care.
+
+**Review note:** The specific shared decision-making recommendations previously contained in CG138 have been replaced by NICE NG197, so current shared decision-making practice should also refer to that guideline.
 
 ## Notes
 
