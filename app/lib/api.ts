@@ -46,9 +46,12 @@ export interface ProfileUpdateRequest {
 
 export interface ProfileResponse {
   user_id: string;
-  conditions: string[];
-  on_insulin_or_sulfonylurea: boolean;
-  language: string;
+  email?: string | null;
+  display_name?: string | null;
+  role?: string | null;
+  conditions?: string[];
+  on_insulin_or_sulfonylurea?: boolean;
+  language?: string;
   date_of_birth?: string | null;
   inclusion_confirmed_at?: string | null;
   sex_at_birth?: string | null;
@@ -60,11 +63,11 @@ export interface ProfileResponse {
   diagnosis_year_hypertension?: number | null;
   smoking_status?: string | null;
   comorbidities?: Record<string, boolean> | null;
-  consent_granted_at: string | null;
-  consent_revoked_at: string | null;
+  consent_granted_at?: string | null;
+  consent_revoked_at?: string | null;
   provider_notification_consent_at?: string | null;
   provider_notification_revoked_at?: string | null;
-  updated_at: string | null;
+  updated_at?: string | null;
 }
 
 export interface PatientBackgroundResponse {
@@ -110,7 +113,7 @@ export interface RecordObservationItem {
 }
 
 export interface PatientRecordResponse {
-  mode: string;
+  mode?: string;
   conditions: RecordConditionItem[];
   medications: RecordMedicationItem[];
   allergies: RecordAllergyItem[];
@@ -172,8 +175,14 @@ export interface EHRConnectionInfo {
 
 export interface EHRConnectionResponse {
   mode: string;
-  connection: EHRConnectionInfo | null;
+  connection?: EHRConnectionInfo | null;
   system_id?: string | null;
+  system_name?: string | null;
+  sandbox_id?: string | null;
+  patient_id?: string | null;
+  display_name?: string | null;
+  status?: string | null;
+  last_sync?: string | null;
   kind?: string | null;
   record_source_label?: string | null;
   warning?: string | null;
