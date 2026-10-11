@@ -68,6 +68,13 @@ export interface Translations {
   authUserNotFound: string;
   authWrongPassword: string;
   authInvalidCredentials: string;
+  authEmailAlreadyInUse: string;
+  authWeakPassword: string;
+  authTooManyRequests: string;
+  authNetworkError: string;
+  sessionExpired: string;
+  forgotPasswordBtn: string;
+  resetPasswordSent: string;
   authRoleMismatch: string;
   authGeneralError: string;
   authSigningIn: string;
@@ -368,9 +375,16 @@ export const translations: Record<Language, Translations> = {
 
     // Auth / Firebase Errors
     authInvalidApiKey: "Invalid Firebase API configuration. Please check your system settings.",
-    authUserNotFound: "No registered account found with this email address.",
-    authWrongPassword: "Incorrect password. Please verify and try again.",
-    authInvalidCredentials: "Invalid credentials. Please check your email and password.",
+    authUserNotFound: "Incorrect email or password. Please check your details and try again.",
+    authWrongPassword: "Incorrect email or password. Please check your details and try again.",
+    authInvalidCredentials: "Incorrect email or password. Please check your details and try again.",
+    authEmailAlreadyInUse: "An account with this email already exists. Please sign in instead.",
+    authWeakPassword: "Password is too weak. Please use at least 8 characters.",
+    authTooManyRequests: "Too many failed attempts. Please wait a moment before trying again.",
+    authNetworkError: "Network error. Please check your connection and try again.",
+    sessionExpired: "Your session expired. Please sign in again.",
+    forgotPasswordBtn: "Forgot password?",
+    resetPasswordSent: "If an account exists for this email, password reset instructions have been sent.",
     authRoleMismatch: "Access denied: this account does not have permission for this portal.",
     authGeneralError: "Authentication failed. Please check your network and try again.",
     authSigningIn: "Signing in...",
@@ -665,9 +679,16 @@ export const translations: Record<Language, Translations> = {
 
     // Auth / Firebase Errors
     authInvalidApiKey: "فائر بیس API کی ترتیب درست نہیں ہے۔ براہ کرم سسٹم سیٹنگز چیک کریں۔",
-    authUserNotFound: "اس ای میل سے کوئی رجسٹرڈ اکاؤنٹ موجود نہیں ہے۔",
-    authWrongPassword: "پاس ورڈ غلط ہے۔ براہ کرم دوبارہ کوشش کریں۔",
-    authInvalidCredentials: "ای میل یا پاس ورڈ غلط ہے۔ براہ کرم دوبارہ تصدیق کریں۔",
+    authUserNotFound: "ای میل یا پاس ورڈ درست نہیں ہے۔ براہ کرم اپنی تفصیلات چیک کریں اور دوبارہ کوشش کریں۔",
+    authWrongPassword: "ای میل یا پاس ورڈ درست نہیں ہے۔ براہ کرم اپنی تفصیلات چیک کریں اور دوبارہ کوشش کریں۔",
+    authInvalidCredentials: "ای میل یا پاس ورڈ درست نہیں ہے۔ براہ کرم اپنی تفصیلات چیک کریں اور دوبارہ کوشش کریں۔",
+    authEmailAlreadyInUse: "اس ای میل پر پہلے ہی اکاؤنٹ موجود ہے۔ براہ کرم لاگ ان کریں۔",
+    authWeakPassword: "پاس ورڈ بہت کمزور ہے۔ براہ کرم کم از کم 8 حروف استعمال کریں۔",
+    authTooManyRequests: "بہت زیادہ کوششیں کی گئیں۔ براہ کرم کچھ دیر بعد دوبارہ کوشش کریں۔",
+    authNetworkError: "نیٹ ورک کی خرابی۔ براہ کرم اپنا انٹرنیٹ کنکشن چیک کریں اور دوبارہ کوشش کریں۔",
+    sessionExpired: "آپ کا سیشن ختم ہو چکا ہے۔ براہ کرم دوبارہ سائن ان کریں۔",
+    forgotPasswordBtn: "پاس ورڈ بھول گئے؟",
+    resetPasswordSent: "اگر اس ای میل پر اکاؤنٹ موجود ہے تو پاس ورڈ تبدیل کرنے کی ہدایات بھیج دی گئی ہیں۔",
     authRoleMismatch: "رسائی مسترد: اس اکاؤنٹ کے پاس اس پورٹل کے لیے اجازت نہیں ہے۔",
     authGeneralError: "لاگ ان تصدیق ناکام ہو گئی۔ براہ کرم نیٹ ورک چیک کریں اور دوبارہ کوشش کریں۔",
     authSigningIn: "سائن ان ہو رہا ہے...",

@@ -8,6 +8,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
   api,
   subscribeServerWaking,
+  subscribeUnauthorized,
   ProfileResponse,
   EHRConnectionResponse,
   CheckinStartResponse,
@@ -160,6 +161,10 @@ interface AppContextType {
   demoScenario: DemoScenario;
   setDemoScenario: (scenario: DemoScenario) => void;
 
+  // Session Notice (e.g. expired session)
+  sessionNotice: string | null;
+  setSessionNotice: (notice: string | null) => void;
+
   // Clean navigation helpers
   returnToHomeAndClearRun: () => void;
   resetDemo: () => void;
@@ -218,6 +223,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [providerIdentifier, setProviderIdentifier] = useState<string>("dr.sanamalik@citygeneral.org");
   const [adminIdentifier, setAdminIdentifier] = useState<string>("admin@citygeneral.org");
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const userRoleRef = React.useRef<string | null>(userRole);
+  useEffect(() => {
+    userRoleRef.current = userRole;
+  }, [userRole]);
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>("fhir");
 
   // Live Mode states
@@ -296,6 +306,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const handlePopState = (event: PopStateEvent) => {
       if (event.state) {
         const { portal: p, screen: s, providerScreen: ps, adminScreen: as } = event.state;
+        const currentRole = userRoleRef.current;
+        if (p === "patient" && s !== "login" && !currentRole) {
+          setPortalState("patient");
+          setScreenState("login");
+          return;
+        }
+        if (p === "provider" && ps !== "login" && !currentRole) {
+          setPortalState("provider");
+          setProviderScreenState("login");
+          return;
+        }
+        if (p === "admin" && as !== "login" && !currentRole) {
+          setPortalState("admin");
+          setAdminScreenState("login");
+          return;
+        }
         if (p) setPortalState(p);
         if (s) setScreenState(s);
         if (ps) setProviderScreenState(ps);
@@ -438,6 +464,34 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubscribe();
   }, [portal, isLiveMode]);
 
+  // Subscribe to 401 Unauthorized API responses
+  useEffect(() => {
+    const unsubscribe = subscribeUnauthorized(async () => {
+      await signOutUser();
+      setSessionNotice(translations[language].sessionExpired);
+      if (portal === "provider") {
+        setProviderScreenState("login");
+      } else if (portal === "admin") {
+        setAdminScreenState("login");
+      } else {
+        setScreenState("login");
+      }
+      if (typeof window !== "undefined") {
+        window.history.replaceState(
+          {
+            portal: portal === "landing" ? "landing" : portal,
+            screen: "login",
+            providerScreen: "login",
+            adminScreen: "login",
+          },
+          ""
+        );
+      }
+    });
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [portal, language]);
+
   const signOutUser = async () => {
     sessionPromiseRef.current = null;
     sessionUserUidRef.current = null;
@@ -452,11 +506,46 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
     }
     setUserRole(null);
+    setUserIdentifier("");
+    setProviderIdentifier("");
+    setAdminIdentifier("");
+    setSelectedPatient(null);
     setLiveProfile(null);
     setLiveEhrConnection(null);
     setActiveLiveCheckin(null);
     setLiveCheckinResult(null);
     setEscalationRecorded(null);
+    setCheckIn({
+      note: "",
+      thirst: null,
+      urination: null,
+      missedMeds: null,
+      lowConfidence: false,
+      submittedAt: null,
+    });
+    setAppointment({
+      isBooked: false,
+      slot: "",
+      reason: "",
+      provider: "Dr. Sana Malik",
+      status: "Confirmed",
+      bookedAt: "",
+    });
+    setResolvedCases([]);
+    setAcknowledgedPatients([]);
+    setShowSettings(false);
+    setShowTour(false);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(
+        {
+          portal: portal === "landing" ? "landing" : portal,
+          screen: "login",
+          providerScreen: "login",
+          adminScreen: "login",
+        },
+        ""
+      );
+    }
   };
 
   const setPortal = (p: PortalType) => {
@@ -597,6 +686,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         acknowledgePatient,
         demoScenario,
         setDemoScenario,
+        sessionNotice,
+        setSessionNotice,
         returnToHomeAndClearRun,
         resetDemo,
         signOutUser,

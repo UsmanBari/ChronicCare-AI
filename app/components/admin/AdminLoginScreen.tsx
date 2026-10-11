@@ -9,7 +9,7 @@ import { api, ApiError } from "../../lib/api";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 export const AdminLoginScreen = () => {
-  const { setAdminScreen, setPortal, setAdminIdentifier, setUserRole, t, isUrdu } = useApp();
+  const { setAdminScreen, setPortal, setAdminIdentifier, setUserRole, sessionNotice, setSessionNotice, t, isUrdu } = useApp();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -17,7 +17,8 @@ export const AdminLoginScreen = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanId = identifier.trim();
+    if (sessionNotice && setSessionNotice) setSessionNotice(null);
+    const cleanId = identifier.trim().toLowerCase();
     const cleanPass = password.trim();
 
     // 1. Strict Empty Field Validation
@@ -109,6 +110,12 @@ export const AdminLoginScreen = () => {
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="p-6 space-y-4" dir={isUrdu ? "rtl" : "ltr"}>
+        {sessionNotice && (
+          <div id="admin-session-notice-banner" className="p-3 text-xs bg-amber-50 border border-amber-800/30 text-amber-800 rounded-lg">
+            {sessionNotice}
+          </div>
+        )}
+
         {error && (
           <div className="p-3 text-xs bg-amber-50 border border-amber-800/30 text-amber-800 rounded-lg">
             {error}
@@ -127,8 +134,15 @@ export const AdminLoginScreen = () => {
               id="admin-identifier"
               type="text"
               value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
+              onChange={(e) => {
+                setIdentifier(e.target.value);
+                if (sessionNotice && setSessionNotice) setSessionNotice(null);
+              }}
               placeholder={process.env.NEXT_PUBLIC_DEMO_ADMIN_EMAIL || "admin@citygeneral.org"}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              inputMode="email"
               className={`w-full text-sm rounded-xl border border-slate-300 bg-slate-50/50 py-2.5 ${isUrdu ? "pr-9 pl-3" : "pl-9 pr-3"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all`}
             />
           </div>
@@ -148,6 +162,7 @@ export const AdminLoginScreen = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={t.passwordPlaceholder}
+              autoComplete="current-password"
               className={`w-full text-sm rounded-xl border border-slate-300 bg-slate-50/50 py-2.5 ${isUrdu ? "pr-9 pl-3" : "pl-9 pr-3"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all`}
             />
           </div>
