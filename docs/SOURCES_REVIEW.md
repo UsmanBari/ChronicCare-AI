@@ -10,7 +10,7 @@ This document lists the clinical and supporting sources currently referenced in 
 | 4 | `aha_acc_2025_hypertension` | 2025 AHA/ACC Clinical Practice Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults | https://doi.org/10.1161/CIR.0000000000001356 | Standardized home BP measurement protocol (5-minute rest, arm support, validated cuff), crisis thresholds, and medication-induced hypertension. | VERIFIED |
 | 5 | `idf_dar_2021_ramadan` | IDF-DAR Diabetes and Ramadan: Practical Guidelines 2021 | https://www.idf.org/media/uploads/2022/12/IDF_DaR_Practical_Guidelines_2021_web.pdf | Risk stratification during fasting, pre-dawn meal timing, hypoglycemia symptoms while fasting, and criteria for breaking the fast. | VERIFIED |
 | 6 | `nice_ng28_t2d` | NICE Guideline NG28: Type 2 Diabetes in Adults: Management | Not provided in SOURCES.json | Sick-day rules during acute intercurrent illness, fluid maintenance, and ketone monitoring alert triggers. | Title exists, claim not checked |
-| 7 | `nice_ng136_hypertension` | NICE Guideline NG136: Hypertension in Adults: Diagnosis and Management | Not provided in SOURCES.json | Postural hypotension screening, target-organ damage red flags, and associated symptom evaluation. | Title exists, claim not checked |
+| 7 | `nice_ng136_hypertension` | NICE Guideline NG136: Hypertension in Adults: Diagnosis and Management | https://www.nice.org.uk/guidance/ng28 | Postural hypotension screening, target-organ damage red flags, and associated symptom evaluation. | VERIFIED|
 | 8 | `nice_cg138_patient_experience` | NICE Clinical Guideline CG138: Patient Experience in Adult NHS Services | Not provided in SOURCES.json | Person-centered communication, open-ended free-text elicitation, and shared decision making. | Title exists, claim not checked |
 | 9 | `phq2_kroenke_2003` | Patient Health Questionnaire-2 (PHQ-2) - Kroenke et al., 2003 (Public Domain) | Not provided in SOURCES.json | Two-item screener for depressed mood and anhedonia over the past 2 weeks. | Title exists, claim not checked |
 | 10 | `diabetes_distress_dds2` | Diabetes Distress Screening Items (Adapted DDS-2 Framework) | Not provided in SOURCES.json | Feeling overwhelmed by the demands of living with diabetes. | Clinician review needed |
@@ -74,6 +74,18 @@ This document lists the clinical and supporting sources currently referenced in 
 **Verification:** The guideline supports the interview-bank claims concerning Ramadan fasting risk stratification, pre-dawn meal (Suhoor) guidance, recognition of hypoglycaemia during fasting, and criteria for breaking the fast. It recommends individual assessment and stratification of fasting risk and provides guidance on when a person with diabetes should stop the fast because of abnormal blood glucose levels, symptoms of hypoglycaemia or hyperglycaemia, dehydration, or acute illness.
 
 **Relevant sections:** Risk Stratification; Pre-Ramadan Assessment and Education; dietary guidance for Suhoor and Iftar; and "When to break the fast."
+
+### Source 6 — nice_ng28_t2d
+
+**Status:** VERIFIED
+
+**Original source:** National Institute for Health and Care Excellence (NICE). *Type 2 diabetes in adults: management (NG28).*
+
+**Verification:** The current NICE NG28 guideline supports the use of clear, individualised sick-day rules for people with type 2 diabetes. These rules may include medication changes during illness, temporarily stopping relevant medicines when there is a risk of dehydration, vomiting or diarrhoea, adjustment of insulin doses, and guidance on restarting medication after recovery. NG28 also directs clinicians to MHRA safety advice on ketone monitoring during interruption of SGLT-2 inhibitor treatment.
+
+**Relevant section:** Recommendation 1.10.1 — Sick day rules.
+
+**Review note:** The interview-bank description also mentions fluids and ketone-monitoring alert triggers. The current NG28 text reviewed here does not directly establish all of that broader wording, so those details should not be attributed to NG28 without an additional supporting source.
 
 ## Notes
 
