@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
-import { Lock, Mail, ArrowRight, Activity, ShieldCheck, ShieldAlert, Loader2, KeyRound, CheckCircle2 } from "lucide-react";
+import { Lock, Mail, ArrowRight, Activity, ShieldCheck, ShieldAlert, Loader2, KeyRound, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { isFirebaseEnabled, isFirebaseConfigured, getFirebaseAuth, getAuthErrorMessage } from "../lib/firebase";
 import { api, ApiError } from "../lib/api";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
@@ -13,6 +13,8 @@ export const LoginScreen = () => {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -184,12 +186,22 @@ export const LoginScreen = () => {
             </div>
             <input
               id="login-password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={t.passwordPlaceholder}
-              className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white/90 ${isUrdu ? "pr-11 pl-4" : "pl-11 pr-4"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all shadow-xs`}
+              className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white/90 ${isUrdu ? "pr-11 pl-11" : "pl-11 pr-11"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all shadow-xs`}
             />
+            <button
+              type="button"
+              id="toggle-password-visibility-btn"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? t.hidePassword : t.showPassword}
+              title={showPassword ? t.hidePassword : t.showPassword}
+              className={`absolute inset-y-0 ${isUrdu ? "left-0 pl-3.5" : "right-0 pr-3.5"} flex items-center text-slate-400 hover:text-navy-800 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-700 rounded-lg p-1`}
+            >
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
           </div>
         </div>
 
@@ -205,12 +217,22 @@ export const LoginScreen = () => {
               </div>
               <input
                 id="login-confirm-password"
-                type="password"
+                type={showConfirmPassword ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder={t.confirmPasswordPlaceholder}
-                className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white/90 ${isUrdu ? "pr-11 pl-4" : "pl-11 pr-4"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all shadow-xs`}
+                className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white/90 ${isUrdu ? "pr-11 pl-11" : "pl-11 pr-11"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all shadow-xs`}
               />
+              <button
+                type="button"
+                id="toggle-confirm-password-visibility-btn"
+                onClick={() => setShowConfirmPassword((prev) => !prev)}
+                aria-label={showConfirmPassword ? t.hideConfirmPassword : t.showConfirmPassword}
+                title={showConfirmPassword ? t.hideConfirmPassword : t.showConfirmPassword}
+                className={`absolute inset-y-0 ${isUrdu ? "left-0 pl-3.5" : "right-0 pr-3.5"} flex items-center text-slate-400 hover:text-navy-800 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-700 rounded-lg p-1`}
+              >
+                {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
           </div>
         )}

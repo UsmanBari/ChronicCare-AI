@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
-import { Settings, Globe, ShieldCheck, Database, X, Activity, User, Hospital, ShieldAlert, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { Settings, Globe, ShieldCheck, Database, X, Activity, User, Hospital, ShieldAlert, CheckCircle2, AlertTriangle, Loader2, LogOut } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { titleCaseName } from "../lib/presentation";
 
@@ -21,6 +21,7 @@ export const UnifiedSettingsModal = () => {
     userRole,
     userIdentifier,
     setScreen,
+    signOutUser,
   } = useApp();
 
   const [confirmRevokeType, setConfirmRevokeType] = useState<"data" | "provider" | null>(null);
@@ -329,19 +330,34 @@ export const UnifiedSettingsModal = () => {
                     {titleCaseName(userIdentifier) || userIdentifier}
                   </span>
                 </div>
-                {portal === "patient" && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {portal === "patient" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSettings(false);
+                        setScreen("inclusion");
+                      }}
+                      id="settings-my-details-btn"
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-200 transition-colors"
+                    >
+                      {isUrdu ? "میری تفصیلات" : "My details"}
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       setShowSettings(false);
-                      setScreen("inclusion");
+                      await signOutUser();
+                      setScreen("login");
                     }}
-                    id="settings-my-details-btn"
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-200 transition-colors"
+                    id="settings-logout-btn"
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors flex items-center gap-1.5"
                   >
-                    {isUrdu ? "میری تفصیلات" : "My details"}
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>{t.logoutBtn}</span>
                   </button>
-                )}
+                </div>
               </div>
             </div>
           </div>
