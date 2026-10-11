@@ -34,6 +34,7 @@ export interface Translations {
   adminPortal: string;
   switchPortal: string;
   backToDashboard: string;
+  logoutBtn: string;
 
   // Screen 1: Login / Sign-up
   loginTitle: string;
@@ -49,6 +50,10 @@ export interface Translations {
   toggleToSignUp: string;
   toggleToSignIn: string;
   loginHelpText: string;
+  showPassword: string;
+  hidePassword: string;
+  showConfirmPassword: string;
+  hideConfirmPassword: string;
 
   // Provider Login
   providerLoginTitle: string;
@@ -334,6 +339,7 @@ export const translations: Record<Language, Translations> = {
     adminPortal: "Admin Portal",
     switchPortal: "Switch Portal",
     backToDashboard: "Back to Dashboard",
+    logoutBtn: "Log Out",
 
     loginTitle: "Welcome to ChronicCare AI",
     loginSubtitle: "Sign in to manage your chronic condition check-ins and care journey.",
@@ -348,6 +354,10 @@ export const translations: Record<Language, Translations> = {
     toggleToSignUp: "Don't have an account? Sign up here",
     toggleToSignIn: "Already have an account? Sign in",
     loginHelpText: "Enter any non-empty credentials to proceed.",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
+    showConfirmPassword: "Show confirm password",
+    hideConfirmPassword: "Hide confirm password",
 
     providerLoginTitle: "Provider Clinical Access",
     providerLoginSubtitle: "Sign in to access patient triage, review queue, and EHR alerts.",
@@ -626,6 +636,7 @@ export const translations: Record<Language, Translations> = {
     adminPortal: "ایڈمن پورٹل",
     switchPortal: "پورٹل تبدیل کریں",
     backToDashboard: "ڈیش بورڈ پر واپس",
+    logoutBtn: "لاگ آؤٹ",
 
     loginTitle: "کرونک کیئر اے آئی میں خوش آمدید",
     loginSubtitle: "اپنی دائمی بیماریوں کی دیکھ بھال اور روزانہ چیک ان کے لیے سائن ان کریں۔",
@@ -640,6 +651,10 @@ export const translations: Record<Language, Translations> = {
     toggleToSignUp: "کیا اکاؤنٹ موجود نہیں ہے؟ یہاں سائن اپ کریں",
     toggleToSignIn: "کیا پہلے سے اکاؤنٹ موجود ہے؟ سائن ان کریں",
     loginHelpText: "آگے بڑھنے کے لیے کوئی بھی معلومات درج کریں۔",
+    showPassword: "پاس ورڈ دکھائیں",
+    hidePassword: "پاس ورڈ چھپائیں",
+    showConfirmPassword: "پاس ورڈ کی تصدیق دکھائیں",
+    hideConfirmPassword: "پاس ورڈ کی تصدیق چھپائیں",
 
     providerLoginTitle: "ڈاکٹر / کلینیکل لاگ ان",
     providerLoginSubtitle: "مریضوں کی فہرست اور الرٹس تک رسائی کے لیے سائن ان کریں۔",

@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   ArrowRight,
+  LogOut,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -38,6 +39,7 @@ export const Header = () => {
     setShowSettings,
     setShowTour,
     returnToHomeAndClearRun,
+    signOutUser,
   } = useApp();
 
   const [showPortalMenu, setShowPortalMenu] = useState(false);
@@ -247,6 +249,22 @@ export const Header = () => {
           >
             <Settings className="w-5 h-5" />
           </button>
+
+          {/* Logout Button */}
+          {portal === "patient" && screen !== "login" && (
+            <button
+              id="header-logout-btn"
+              onClick={async () => {
+                await signOutUser();
+                setScreen("login");
+              }}
+              title={t.logoutBtn}
+              className="h-11 flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-red-50 hover:border-red-300 hover:text-red-700 text-slate-700 transition-colors shadow-xs min-h-[44px]"
+            >
+              <LogOut className="w-4 h-4 text-slate-500 hover:text-red-600" />
+              <span className="hidden sm:inline">{t.logoutBtn}</span>
+            </button>
+          )}
         </div>
 
         {/* Mobile Hamburger Button (Below md: - 48px Touch Target) */}
@@ -386,6 +404,22 @@ export const Header = () => {
                 <Settings className="w-4 h-4 text-slate-500" />
                 <span>{t.settings}</span>
               </button>
+
+              {portal === "patient" && screen !== "login" && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setMobileMenuOpen(false);
+                    await signOutUser();
+                    setScreen("login");
+                  }}
+                  id="mobile-nav-logout-btn"
+                  className="w-full min-h-[48px] px-4 py-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-semibold text-xs flex items-center justify-center gap-2"
+                >
+                  <LogOut className="w-4 h-4 text-red-600" />
+                  <span>{t.logoutBtn}</span>
+                </button>
+              )}
             </div>
           </motion.div>
         )}
