@@ -150,3 +150,229 @@ There is no separate `answers` database table in the reviewed application-store 
 Check-in answers are submitted through the check-in answer workflow and persisted as part of the check-in state. The application accesses an `answers` object from the check-in state, while `apply_checkin_answer_atomic` is used when saving check-in answers. Therefore, answer content should be treated as personal data because it can contain patient-provided health and symptom information.
 
 The exact structure of individual answers is application-state dependent rather than represented by dedicated relational database columns.
+
+---
+
+## Schema Version
+
+Table: `schema_version`
+
+Stores the database schema migration versions that have been applied.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `version` | INTEGER | Database schema version number. Primary key. | `12` | No |
+| `applied_at` | TEXT | Timestamp recording when the schema version was applied. | `2026-10-11T09:00:00Z` | No |
+
+### Constraints and notes
+
+- `version` is the primary key.
+- `applied_at` cannot be null.
+- This is application/database metadata rather than patient information.
+
+---
+
+## Audit Log
+
+Table: `audit_log`
+
+Stores application audit events and their outcomes.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `id` | INTEGER | Auto-incrementing identifier for the audit event. Primary key. | `101` | No |
+| `ts` | TEXT | Timestamp when the audited event occurred. | `2026-10-11T09:15:00Z` | Yes |
+| `actor_user_id` | TEXT | Optional identifier of the user responsible for the action. | `usr_001` | Yes |
+| `action` | TEXT | Name or description of the audited action. | `profile_update` | Yes |
+| `target` | TEXT | Optional target or resource affected by the action. | `patient_profile` | Yes |
+| `outcome` | TEXT | Outcome of the action: `ok`, `denied`, or `error`. | `ok` | Yes |
+| `detail_json` | TEXT | JSON-encoded details associated with the audit event. | `{"reason":"profile updated"}` | Yes |
+
+### Constraints and notes
+
+- `id` is an auto-incrementing primary key.
+- `ts`, `action`, `outcome`, and `detail_json` cannot be null.
+- `outcome` must be `ok`, `denied`, or `error`.
+- Audit records can become personal data when they identify a user or contain user-related details.
+
+---
+
+## EHR Systems
+
+Table: `ehr_systems`
+
+Stores configuration information for EHR/FHIR systems available to the application.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `ehr_system_id` | TEXT | Unique identifier for the EHR system. Primary key. | `demo-hospital` | No |
+| `display_name` | TEXT | Human-readable name of the EHR system. | `Demo hospital` | No |
+| `fhir_base_url` | TEXT | Base URL used to access the system's FHIR service. | `sim://demo` | No |
+| `enabled` | INTEGER | Boolean-like value indicating whether the EHR system is enabled. Defaults to `1`. | `1` | No |
+| `kind` | TEXT | Type of EHR integration. Added through a later migration and defaults to `public_sandbox`. | `simulated` | No |
+| `description` | TEXT | Optional description of the EHR system. | `In-process FHIR server with synthetic data` | No |
+
+### Constraints and notes
+
+- `ehr_system_id` is the primary key.
+- `display_name` and `fhir_base_url` cannot be null.
+- `enabled` cannot be null and defaults to `1`.
+- `kind` and `description` were introduced through later schema migrations.
+
+---
+
+## EHR Connections
+
+Table: `ehr_connections`
+
+Stores the relationship between an application user and an external EHR system.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `connection_id` | TEXT | Unique identifier for the EHR connection. Primary key. | `conn_001` | Yes |
+| `user_id` | TEXT | Application user associated with the EHR connection. | `usr_001` | Yes |
+| `ehr_system_id` | TEXT | Identifier of the connected EHR system. | `demo-hospital` | Yes |
+| `external_patient_id` | TEXT | Patient identifier used by the external EHR system. | `patient_001` | Yes |
+| `status` | TEXT | Current connection status. Allowed values are `active`, `failed`, or `revoked`. | `active` | Yes |
+| `linked_at` | TEXT | Timestamp when the EHR connection was established. | `2026-10-01T10:00:00Z` | Yes |
+| `last_verified_at` | TEXT | Timestamp when the connection was last successfully verified. | `2026-10-11T09:00:00Z` | Yes |
+| `last_error_code` | TEXT | Optional error code from the most recent connection failure. | `FHIR_TIMEOUT` | Yes |
+| `revoked_at` | TEXT | Timestamp when the EHR connection was revoked, if applicable. | `2026-10-12T10:00:00Z` | Yes |
+
+### Constraints and notes
+
+- `connection_id` is the primary key.
+- `user_id` references `users.user_id`.
+- `ehr_system_id` references `ehr_systems.ehr_system_id`.
+- `status` must be `active`, `failed`, or `revoked`.
+- `user_id`, `ehr_system_id`, `external_patient_id`, `status`, and `linked_at` cannot be null.
+
+---
+
+## Review Actions
+
+Table: `review_actions`
+
+Stores actions performed by providers when reviewing check-in results.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `id` | INTEGER | Auto-incrementing identifier for the review action. Primary key. | `25` | No |
+| `checkin_id` | TEXT | Identifier of the check-in being reviewed. | `chk_001` | Yes |
+| `provider_user_id` | TEXT | Identifier of the provider who performed the review action. | `usr_provider_001` | Yes |
+| `action` | TEXT | Review action performed. Allowed values are `acknowledge`, `resolve`, or `escalate`. | `acknowledge` | Yes |
+| `note` | TEXT | Optional note entered by the provider. | `Reviewed patient check-in` | Yes |
+| `ts` | TEXT | Timestamp when the review action occurred. | `2026-10-11T09:30:00Z` | Yes |
+
+### Constraints and notes
+
+- `id` is an auto-incrementing primary key.
+- `checkin_id` references `checkins.checkin_id`.
+- `provider_user_id` references `users.user_id`.
+- `action` must be `acknowledge`, `resolve`, or `escalate`.
+- Provider notes may contain patient-related information and should therefore be handled as personal data.
+
+---
+
+## Allergies
+
+Table: `allergies`
+
+Stores allergy information associated with application users.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `allergy_id` | TEXT | Unique identifier for the allergy record. Primary key. | `allergy_001` | Yes |
+| `user_id` | TEXT | Identifier of the user to whom the allergy belongs. | `usr_001` | Yes |
+| `substance` | TEXT | Substance associated with the recorded allergy. | `penicillin` | Yes |
+| `reaction` | TEXT | Optional description of the patient's reaction. | `rash` | Yes |
+| `confirmed` | INTEGER | Boolean-like value indicating whether the allergy has been confirmed. | `1` | Yes |
+| `created_at` | TEXT | Timestamp recording when the allergy record was created. | `2026-10-11T09:00:00Z` | Yes |
+
+### Constraints and notes
+
+- `allergy_id` is the primary key.
+- `user_id` references `users.user_id`.
+- `user_id`, `substance`, `confirmed`, and `created_at` cannot be null.
+- Allergy information is health information associated with a user.
+
+---
+
+# Local Clinical Data Store
+
+The following tables are defined separately in `data_sources/local_store.py`.
+
+## Patients
+
+Table: `patients`
+
+Stores basic patient identity information used by the local clinical data store.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `id` | TEXT | Unique patient identifier. Primary key. | `patient_001` | Yes |
+| `name` | TEXT | Patient name. | `Example Patient` | Yes |
+| `date_of_birth` | TEXT | Patient's date of birth. | `1985-06-15` | Yes |
+
+### Constraints and notes
+
+- `id` is the primary key.
+- `name` and `date_of_birth` cannot be null.
+
+---
+
+## Observations
+
+Table: `observations`
+
+Stores clinical observations associated with patients.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `id` | TEXT | Unique identifier for the observation. Primary key. | `obs_001` | Yes |
+| `patient_id` | TEXT | Identifier of the patient associated with the observation. | `patient_001` | Yes |
+| `type` | TEXT | Type of clinical observation. | `blood_pressure` | Yes |
+| `value` | REAL | Numeric value of the observation. | `120` | Yes |
+| `unit` | TEXT | Unit in which the observation value is expressed. | `mmHg` | Yes |
+| `timestamp` | TEXT | Timestamp associated with the observation. | `2026-10-11T08:30:00Z` | Yes |
+| `source` | TEXT | Source from which the observation was obtained. | `local` | Yes |
+| `origin` | TEXT | Optional origin/provenance information for the observation. | `ehr` | Yes |
+
+### Constraints and notes
+
+- `id` is the primary key.
+- `patient_id` references `patients.id`.
+- `patient_id`, `type`, `value`, `unit`, `timestamp`, and `source` cannot be null.
+- `origin` is optional and is also ensured by a schema migration.
+
+---
+
+## Medications
+
+Table: `medications`
+
+Stores medication information associated with patients.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `id` | TEXT | Unique identifier for the medication record. Primary key. | `med_001` | Yes |
+| `patient_id` | TEXT | Identifier of the patient associated with the medication. | `patient_001` | Yes |
+| `medication_name` | TEXT | Name of the recorded medication. | `metformin` | Yes |
+| `status` | TEXT | Current recorded medication status. | `active` | Yes |
+| `dosage` | TEXT | Recorded dosage information. | `500 mg` | Yes |
+| `timestamp` | TEXT | Timestamp associated with the medication record. | `2026-10-11T08:30:00Z` | Yes |
+| `source` | TEXT | Source from which the medication information was obtained. | `local` | Yes |
+| `origin` | TEXT | Optional origin/provenance information for the medication record. | `ehr` | Yes |
+
+### Constraints and notes
+
+- `id` is the primary key.
+- `patient_id` references `patients.id`.
+- `patient_id`, `medication_name`, `status`, `dosage`, `timestamp`, and `source` cannot be null.
+- `origin` is optional and is also ensured by a schema migration.
+
+---
+
+## Personal Data Summary
+
+Personal data is stored across several parts of the ChronicCare AI data model. Account identity and access information is stored in `users`; demographic, condition, consent, and other patient-specific information is stored in `patient_profiles`; check-in responses and clinical processing information are stored in `checkins` and `checkin_results`; provider review activity is stored in `review_actions`; allergy information is stored in `allergies`; and external patient identifiers and EHR linkage information are stored in `ehr_connections`. The separate local clinical data store contains patient identity information in `patients`, clinical measurements in `observations`, and medication information in `medications`. `audit_log` may also contain personal data when an event identifies a user or contains user-related details. By contrast, `schema_version` contains database migration metadata and `ehr_systems` primarily contains system configuration rather than patient information.
