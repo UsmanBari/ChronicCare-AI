@@ -19,6 +19,8 @@ vi.mock("../app/lib/firebase", () => ({
 
 import { LoginScreen } from "../app/components/LoginScreen";
 import { Header } from "../app/components/Header";
+import { HomeScreen } from "../app/components/HomeScreen";
+import { UnifiedSettingsModal } from "../app/components/UnifiedSettingsModal";
 
 function setContext(lang: "en" | "ur", overrides: Record<string, any> = {}) {
   for (const k of Object.keys(ctx)) delete ctx[k];
@@ -45,6 +47,14 @@ function setContext(lang: "en" | "ur", overrides: Record<string, any> = {}) {
     setUserIdentifier: vi.fn(),
     setUserRole: vi.fn(),
     setLiveProfile: vi.fn(),
+    profile: { conditions: [], medications: [] },
+    demoScenario: "normal",
+    setDemoScenario: vi.fn(),
+    resetDemo: vi.fn(),
+    appointment: { isBooked: false },
+    setActiveLiveCheckin: vi.fn(),
+    showSettings: false,
+    userIdentifier: "Test User",
     ...overrides,
   });
 }
@@ -203,3 +213,24 @@ describe("Header log out button", () => {
     expect(screen.getByRole("button", { name: translations.en.logoutBtn })).toBeTruthy();
   });
 });
+
+describe("Logout button placement across screens", () => {
+  it("HomeScreen does not contain a log out button", () => {
+    setContext("en");
+    render(<HomeScreen />);
+    expect(document.getElementById("home-logout-btn")).toBeNull();
+    expect(screen.queryByRole("button", { name: translations.en.logoutBtn })).toBeNull();
+  });
+
+  it("UnifiedSettingsModal contains a log out button that calls signOutUser", async () => {
+    setContext("en", { showSettings: true });
+    render(<UnifiedSettingsModal />);
+    const logoutBtn = document.getElementById("settings-logout-btn");
+    expect(logoutBtn).toBeTruthy();
+    expect(logoutBtn?.textContent).toContain(translations.en.logoutBtn);
+    fireEvent.click(logoutBtn!);
+    await waitFor(() => expect(ctx.setScreen).toHaveBeenCalledWith("login"));
+    expect(ctx.signOutUser).toHaveBeenCalledTimes(1);
+  });
+});
+
