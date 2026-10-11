@@ -62,7 +62,13 @@ export function getAuthErrorMessage(
     authUserNotFound: string;
     authWrongPassword: string;
     authInvalidCredentials: string;
+    authEmailAlreadyInUse?: string;
+    authWeakPassword?: string;
+    authTooManyRequests?: string;
+    authNetworkError?: string;
+    authInvalidEmail?: string;
     authGeneralError: string;
+    [key: string]: any;
   }
 ): string {
   switch (errorCode) {
@@ -70,13 +76,20 @@ export function getAuthErrorMessage(
     case "auth/api-key-not-valid":
       return t.authInvalidApiKey;
     case "auth/user-not-found":
-      return t.authUserNotFound;
     case "auth/wrong-password":
-      return t.authWrongPassword;
     case "auth/invalid-credential":
     case "auth/invalid-login-credentials":
+      return t.authInvalidCredentials || t.authWrongPassword || t.authUserNotFound;
     case "auth/invalid-email":
-      return t.authInvalidCredentials;
+      return t.authInvalidEmail || t.authInvalidCredentials;
+    case "auth/email-already-in-use":
+      return t.authEmailAlreadyInUse || t.authGeneralError;
+    case "auth/weak-password":
+      return t.authWeakPassword || t.authGeneralError;
+    case "auth/too-many-requests":
+      return t.authTooManyRequests || t.authGeneralError;
+    case "auth/network-request-failed":
+      return t.authNetworkError || t.authGeneralError;
     default:
       return t.authGeneralError;
   }

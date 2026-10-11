@@ -188,26 +188,53 @@ export const PortalLandingScreen = () => {
                     <HeartPulse className="w-5 h-5 text-teal-700" />
                     <span className="font-heading font-bold text-sm">ChronicCare Engine</span>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full bg-mutedGreen-100 text-mutedGreen-800 text-[10px] font-bold flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Live
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold flex items-center gap-1 border border-amber-300">
+                    <ShieldCheck className="w-3 h-3 text-amber-800" /> Demo Preview
                   </span>
                 </div>
 
-                {/* Simulated Telemetry Card */}
+                {/* Simulated Telemetry Card - Diabetes */}
                 <div className="p-3.5 rounded-2xl bg-white border border-teal-100 shadow-xs space-y-2">
-                  <div className="flex justify-between text-xs">
+                  <div className="flex justify-between items-center text-xs">
                     <span className="font-bold text-navy-800">Ali Khan (58y M)</span>
-                    <span className="text-[11px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded">T2D</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{t.simulatedExampleBadge}</span>
+                      <span className="text-[11px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded">T2D</span>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-600 pt-1">
-                    <span>Blood Glucose</span>
+                    <span>{isUrdu ? "بلڈ شوگر" : "Blood Glucose"}</span>
                     <span className="font-mono font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded">180 mg/dL</span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-600">
-                    <span>Hospital FHIR Baseline</span>
+                    <span>{isUrdu ? "اسپتال FHIR ریکارڈ" : "Hospital FHIR Baseline"}</span>
                     <span className="font-mono font-bold text-slate-700">140 mg/dL</span>
                   </div>
                 </div>
+
+                {/* Simulated Telemetry Card - Hypertension */}
+                <div className="p-3.5 rounded-2xl bg-white border border-teal-100 shadow-xs space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-navy-800">{t.landingHtnDemoPatient}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{t.simulatedExampleBadge}</span>
+                      <span className="text-[11px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded">{t.landingHtnDemoCondition}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-600 pt-1">
+                    <span>{t.landingHtnDemoReading}</span>
+                    <span className="font-mono font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded">{t.landingHtnDemoValue}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-600">
+                    <span>{isUrdu ? "اسپتال FHIR ریکارڈ" : "Hospital FHIR Baseline"}</span>
+                    <span className="font-mono font-bold text-slate-700">{t.landingHtnBaselineValue}</span>
+                  </div>
+                </div>
+
+                {/* Condition monitoring notice */}
+                <p className="text-[11px] text-slate-500 italic px-1">
+                  {t.landingHtnMonitoringNote}
+                </p>
 
                 {/* AI Detection Insight */}
                 <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">

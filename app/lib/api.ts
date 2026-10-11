@@ -46,9 +46,12 @@ export interface ProfileUpdateRequest {
 
 export interface ProfileResponse {
   user_id: string;
-  conditions: string[];
-  on_insulin_or_sulfonylurea: boolean;
-  language: string;
+  email?: string | null;
+  display_name?: string | null;
+  role?: string | null;
+  conditions?: string[];
+  on_insulin_or_sulfonylurea?: boolean;
+  language?: string;
   date_of_birth?: string | null;
   inclusion_confirmed_at?: string | null;
   sex_at_birth?: string | null;
@@ -60,11 +63,11 @@ export interface ProfileResponse {
   diagnosis_year_hypertension?: number | null;
   smoking_status?: string | null;
   comorbidities?: Record<string, boolean> | null;
-  consent_granted_at: string | null;
-  consent_revoked_at: string | null;
+  consent_granted_at?: string | null;
+  consent_revoked_at?: string | null;
   provider_notification_consent_at?: string | null;
   provider_notification_revoked_at?: string | null;
-  updated_at: string | null;
+  updated_at?: string | null;
 }
 
 export interface PatientBackgroundResponse {
@@ -110,7 +113,7 @@ export interface RecordObservationItem {
 }
 
 export interface PatientRecordResponse {
-  mode: string;
+  mode?: string;
   conditions: RecordConditionItem[];
   medications: RecordMedicationItem[];
   allergies: RecordAllergyItem[];
@@ -172,8 +175,14 @@ export interface EHRConnectionInfo {
 
 export interface EHRConnectionResponse {
   mode: string;
-  connection: EHRConnectionInfo | null;
+  connection?: EHRConnectionInfo | null;
   system_id?: string | null;
+  system_name?: string | null;
+  sandbox_id?: string | null;
+  patient_id?: string | null;
+  display_name?: string | null;
+  status?: string | null;
+  last_sync?: string | null;
   kind?: string | null;
   record_source_label?: string | null;
   warning?: string | null;
@@ -341,6 +350,11 @@ export class ApiError extends Error {
         ? "سرور اس وقت بیدار ہو رہا ہے یا مصروف ہے۔ براہ کرم انتظار کریں۔"
         : "The server is waking up or temporarily unavailable. Please wait a moment.";
     }
+    if (this.status >= 500) {
+      return isUrdu
+        ? "سرور میں تکنیکی مسئلہ پیش آیا ہے۔ براہ کرم کچھ دیر بعد دوبارہ کوشش کریں۔"
+        : "A server error occurred. Please try again in a moment.";
+    }
     return isUrdu
       ? `خرابی پیش آئی (${this.detail || "نامعلوم خرابی"})`
       : this.detail || "An unexpected error occurred. Please try again.";
@@ -357,10 +371,51 @@ export function subscribeServerWaking(listener: WakingListener): () => void {
   };
 }
 
+let activeSlowRequestsCount = 0;
+
+export function resetServerWakingState() {
+  activeSlowRequestsCount = 0;
+  setServerWaking(false);
+}
+
+function markSlowRequestStarted() {
+  activeSlowRequestsCount++;
+  setServerWaking(true);
+}
+
+function markSlowRequestEnded() {
+  if (activeSlowRequestsCount > 0) {
+    activeSlowRequestsCount--;
+  }
+  if (activeSlowRequestsCount === 0) {
+    setServerWaking(false);
+  }
+}
+
 function setServerWaking(isWaking: boolean) {
   wakingListeners.forEach((fn) => {
     try {
       fn(isWaking);
+    } catch {
+      // Ignore listener errors
+    }
+  });
+}
+
+type UnauthorizedListener = () => void;
+const unauthorizedListeners = new Set<UnauthorizedListener>();
+
+export function subscribeUnauthorized(listener: UnauthorizedListener): () => void {
+  unauthorizedListeners.add(listener);
+  return () => {
+    unauthorizedListeners.delete(listener);
+  };
+}
+
+export function notifyUnauthorized() {
+  unauthorizedListeners.forEach((fn) => {
+    try {
+      fn();
     } catch {
       // Ignore listener errors
     }
@@ -412,22 +467,58 @@ async function request<T>(
     delete finalHeaders["Content-Type"];
   }
 
+  const controller = new AbortController();
+  const abortTimeout = setTimeout(() => {
+    controller.abort();
+  }, 65000);
+
+  // If request takes longer than ~4s, show cold-start / server waking banner
+  let didMarkSlow = false;
+  const slowTimer = setTimeout(() => {
+    didMarkSlow = true;
+    markSlowRequestStarted();
+  }, 4000);
+
   try {
-    const response = await fetch(url, {
-      ...options,
-      headers: finalHeaders,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers: finalHeaders,
+        signal: options.signal || controller.signal,
+      });
+    } catch (fetchErr: any) {
+      // Network / timeout failure on fetch (e.g. backend sleeping or connection drop)
+      if (retriesLeft > 0) {
+        if (!didMarkSlow) {
+          didMarkSlow = true;
+          markSlowRequestStarted();
+        }
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        return await request<T>(endpoint, options, retriesLeft - 1);
+      }
+      const isTimeout = fetchErr?.name === "AbortError";
+      const status = isTimeout ? 504 : 0;
+      const message = isTimeout
+        ? "Server request timed out. Please try again."
+        : (fetchErr?.message || "Network request failed");
+      throw new ApiError(status, message);
+    }
 
     // Detect waking / 502 / 503 / 504 server sleep states
     if ([502, 503, 504].includes(response.status) && retriesLeft > 0) {
-      setServerWaking(true);
+      if (!didMarkSlow) {
+        didMarkSlow = true;
+        markSlowRequestStarted();
+      }
       await new Promise((resolve) => setTimeout(resolve, 3000));
-      return request<T>(endpoint, options, retriesLeft - 1);
+      return await request<T>(endpoint, options, retriesLeft - 1);
     }
 
-    setServerWaking(false);
-
     if (!response.ok) {
+      if (response.status === 401) {
+        notifyUnauthorized();
+      }
       let detail = `HTTP ${response.status}`;
       let data: any = null;
       try {
@@ -447,22 +538,17 @@ async function request<T>(
     }
 
     return (await response.json()) as T;
-  } catch (err: any) {
-    if (err instanceof ApiError) {
-      throw err;
+  } finally {
+    clearTimeout(abortTimeout);
+    clearTimeout(slowTimer);
+    if (didMarkSlow) {
+      markSlowRequestEnded();
+      didMarkSlow = false;
     }
-
-    // Network / fetch failures (e.g. backend sleeping or waking up)
-    if (retriesLeft > 0) {
-      setServerWaking(true);
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      return request<T>(endpoint, options, retriesLeft - 1);
-    }
-
-    setServerWaking(false);
-    throw new ApiError(0, err?.message || "Network request failed");
   }
 }
+
+const inFlightCompleteRequests = new Map<string, Promise<CheckinCompleteResponse>>();
 
 export const api = {
   // 1. Auth & Session
@@ -657,9 +743,20 @@ export const api = {
   completeCheckin: async (
     checkin_id: string
   ): Promise<CheckinCompleteResponse> => {
-    return request<CheckinCompleteResponse>(`/api/checkins/${encodeURIComponent(checkin_id)}/complete`, {
-      method: "POST",
+    const existing = inFlightCompleteRequests.get(checkin_id);
+    if (existing) {
+      return existing;
+    }
+    const flight = request<CheckinCompleteResponse>(
+      `/api/checkins/${encodeURIComponent(checkin_id)}/complete`,
+      {
+        method: "POST",
+      }
+    ).finally(() => {
+      inFlightCompleteRequests.delete(checkin_id);
     });
+    inFlightCompleteRequests.set(checkin_id, flight);
+    return flight;
   },
 
   getUserCheckins: async (): Promise<UserCheckinSummaryResponse[]> => {
@@ -728,13 +825,15 @@ export const api = {
   // 7. Voice Transcription
   transcribeVoice: async (
     file: Blob | File,
-    filename: string = "audio.webm"
+    _filename: string = "audio.webm"
   ): Promise<VoiceTranscribeResponse> => {
-    const formData = new FormData();
-    formData.append("file", file, filename);
+    const contentType = file.type || "audio/webm";
     return request<VoiceTranscribeResponse>("/api/voice/transcribe", {
       method: "POST",
-      body: formData,
+      headers: {
+        "Content-Type": contentType,
+      },
+      body: file,
     });
   },
 };

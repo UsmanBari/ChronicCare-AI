@@ -28,11 +28,12 @@ import {
   RecordConditionItem,
 } from "../lib/api";
 import { mapApiError } from "../lib/presentation";
+import { getConditionFlags } from "../lib/conditions";
 
 export const HealthRecordScreen = () => {
-  const { setScreen, liveProfile, isLiveMode, t, isUrdu } = useApp();
+  const { setScreen, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
 
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -55,13 +56,37 @@ export const HealthRecordScreen = () => {
   const [allergyConfirmed, setAllergyConfirmed] = useState(false);
   const [isAddingAllergy, setIsAddingAllergy] = useState(false);
 
+  const conditionFlags = getConditionFlags(
+    isLiveMode
+      ? (liveProfile?.conditions && liveProfile.conditions.length > 0
+          ? liveProfile.conditions
+          : conditions.map((c) => c.name))
+      : profile?.conditions
+  );
+
   // Observation form state
-  const [obsType, setObsType] = useState<string>("glucose");
+  const [obsType, setObsType] = useState<string>(() => {
+    const flags = getConditionFlags(isLiveMode ? liveProfile?.conditions : profile?.conditions);
+    return flags.isHypertensionOnly ? "blood_pressure_systolic" : "glucose";
+  });
   const [obsValue, setObsValue] = useState<string>("");
   const [obsMeasuredAt, setObsMeasuredAt] = useState<string>(
     new Date().toISOString().slice(0, 16)
   );
   const [isAddingObs, setIsAddingObs] = useState(false);
+
+  useEffect(() => {
+    const flags = getConditionFlags(
+      isLiveMode
+        ? (liveProfile?.conditions && liveProfile.conditions.length > 0
+            ? liveProfile.conditions
+            : conditions.map((c) => c.name))
+        : profile?.conditions
+    );
+    if (flags.isHypertensionOnly) {
+      setObsType((current) => (current === "glucose" ? "blood_pressure_systolic" : current));
+    }
+  }, [liveProfile?.conditions, conditions, profile?.conditions, isLiveMode]);
 
   // Fetch record on mount
   useEffect(() => {
@@ -465,9 +490,7 @@ export const HealthRecordScreen = () => {
                 {isUrdu ? "۲. باقاعدہ ادویات" : "2. Medications"}
               </h2>
               <p className="text-xs text-slate-500">
-                {isUrdu
-                  ? "صرف فعال ادویات کے بارے میں ہر چیک ان میں پوچھا جاتا ہے۔"
-                  : "Only active medications are asked about in each check-in."}
+                {t.recordMedsPurpose}
               </p>
             </div>
           </div>
@@ -761,9 +784,19 @@ export const HealthRecordScreen = () => {
                 onChange={(e) => setObsType(e.target.value)}
                 className="w-full text-xs rounded-xl border border-slate-300 bg-white p-2.5 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
               >
-                <option value="glucose">Blood Glucose (mg/dL)</option>
-                <option value="blood_pressure_systolic">Systolic BP (mmHg)</option>
-                <option value="blood_pressure_diastolic">Diastolic BP (mmHg)</option>
+                {conditionFlags.isHypertensionOnly ? (
+                  <>
+                    <option value="blood_pressure_systolic">Systolic BP (mmHg)</option>
+                    <option value="blood_pressure_diastolic">Diastolic BP (mmHg)</option>
+                    <option value="glucose">Blood Glucose (mg/dL)</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="glucose">Blood Glucose (mg/dL)</option>
+                    <option value="blood_pressure_systolic">Systolic BP (mmHg)</option>
+                    <option value="blood_pressure_diastolic">Diastolic BP (mmHg)</option>
+                  </>
+                )}
                 <option value="weight">Weight (kg)</option>
                 <option value="hba1c">HbA1c (%)</option>
               </select>
@@ -776,7 +809,17 @@ export const HealthRecordScreen = () => {
                 step="any"
                 value={obsValue}
                 onChange={(e) => setObsValue(e.target.value)}
-                placeholder="e.g. 140"
+                placeholder={
+                  obsType === "blood_pressure_systolic"
+                    ? t.obsPlaceholderSystolic || "e.g. 130"
+                    : obsType === "blood_pressure_diastolic"
+                    ? t.obsPlaceholderDiastolic || "e.g. 85"
+                    : obsType === "glucose"
+                    ? t.obsPlaceholderGlucose || "e.g. 140"
+                    : obsType === "weight"
+                    ? (isUrdu ? "مثلاً 70" : "e.g. 70")
+                    : (isUrdu ? "مثلاً 6.5" : "e.g. 6.5")
+                }
                 className="w-full text-xs rounded-xl border border-slate-300 bg-white p-2.5 text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700"
               />
             </div>

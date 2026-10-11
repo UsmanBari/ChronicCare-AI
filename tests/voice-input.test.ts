@@ -6,8 +6,8 @@ describe("Stage 8 Part A: Voice Input & Safety UX Tests", () => {
     vi.restoreAllMocks();
   });
 
-  it("sends audio blob to /api/voice/transcribe with multipart/form-data and auth headers", async () => {
-    const fakeBlob = new Blob(["fake audio stream data"], { type: "audio/webm" });
+  it("sends raw audio blob to /api/voice/transcribe with audio/* content type and auth headers", async () => {
+    const fakeBlob = new Blob(["fake audio stream data"], { type: "audio/webm;codecs=opus" });
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -25,9 +25,9 @@ describe("Stage 8 Part A: Voice Input & Safety UX Tests", () => {
 
     expect(url).toContain("/api/voice/transcribe");
     expect(options.method).toBe("POST");
-    expect(options.body).toBeInstanceOf(FormData);
-    // Content-Type should NOT be application/json so browser sets multipart boundary
-    expect(options.headers["Content-Type"]).toBeUndefined();
+    expect(options.body).toBe(fakeBlob);
+    expect(options.body).toBeInstanceOf(Blob);
+    expect(options.headers["Content-Type"]).toMatch(/^audio\//);
   });
 
   it("handles 403 when voice_enabled is disabled in profile", async () => {

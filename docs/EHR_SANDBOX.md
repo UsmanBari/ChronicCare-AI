@@ -139,3 +139,36 @@ python scripts/probe_fhir.py --server https://r4.smarthealthit.org
 2. **Read-Only Scope**: Connected Mode retrieves patient observations and medications for clinical decision support and check-in reconciliation. It does not write back or modify EHR records.
 3. **Adult-Only Scope**: In this release, ChronicCare AI strictly supports adult patients (age 18 and older). Connecting a patient record under 18 is explicitly refused with HTTP 422 (`ehr_patient_not_adult`).
 4. **Public Sandbox Volatility**: Public sandboxes may experience downtime, network latency, or periodic data resets. For dependable demos and local testing, always use the **In-Process Simulator (`demo-hospital`)**.
+
+---
+
+## 8. How to Check the EHR Connection
+
+To verify EHR integration health, run these two commands:
+
+### Command 1: Pytest Test Suite
+Execute the hermetic EHR test suite:
+```bash
+cd backend-poc-technical && python -m pytest test_ehr_connected.py test_fhir_client.py test_fhir_sim.py -q
+```
+**What a good result looks like:**
+```text
+47 passed in 8.96s
+```
+All 47 tests pass across simulator bootstrapping, client networking, observation conversion, and child-record 422 refusal.
+
+### Command 2: FHIR Probe Diagnostic Tool
+Probe the live public FHIR sandbox endpoints:
+```bash
+python scripts/probe_fhir.py
+```
+**What a good result looks like:**
+The probe checks public test servers (`https://r4.smarthealthit.org`, `https://hapi.fhir.org/baseR4`, etc.) and returns HTTP 200 with metadata and patient resource counts:
+```text
+=== https://r4.smarthealthit.org
+  metadata        : ok  status=200  fhir=4.0.0
+  patient search  : ok  status=200  found=3
+  VERDICT         : UP
+```
+Full diagnostic output is recorded in `fhir_probe_report.json`.
+

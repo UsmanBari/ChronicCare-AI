@@ -4,8 +4,8 @@ import { AppProvider } from "./context/AppContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export const metadata: Metadata = {
-  title: "ChronicCare AI - Clinical Check-In Prototype",
-  description: "High-fidelity interactive UI prototype for proactive chronic condition monitoring.",
+  title: "ChronicCare AI — Clinical Continuity Engine (Research Prototype)",
+  description: "Research prototype for proactive chronic condition monitoring and clinical reconciliation. Not a medical device.",
 };
 
 export default function RootLayout({

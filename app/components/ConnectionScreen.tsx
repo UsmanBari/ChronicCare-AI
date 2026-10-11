@@ -240,10 +240,12 @@ export const ConnectionScreen = () => {
 
           <div className="space-y-1">
             <h3 className="text-base font-bold text-navy-800">
-              {liveEhrConnection.connection.display_name}
+              {liveEhrConnection.connection.display_name} {isUrdu ? "(ٹیسٹ ماحول)" : "(test environment)"}
             </h3>
             <p className="text-xs text-teal-900 font-medium">
-              {liveEhrConnection.record_source_label || "Connected Hospital Record"}
+              {isUrdu
+                ? `${liveEhrConnection.connection.display_name} سے منسلک (ٹیسٹ ماحول)`
+                : `Connected to ${liveEhrConnection.connection.display_name} (test environment)`}
             </p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 pt-1">
               <span>
@@ -589,18 +591,22 @@ export const ConnectionScreen = () => {
                   {t.offlineCardTitle}
                 </h2>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-100 text-amber-800 shrink-0">
-                  Local Store
+                  {t.connectionBadgeIsolatedShort}
                 </span>
               </div>
 
               <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                {t.offlineCardDesc}
+                {t.connectionBadgeIsolated}
               </p>
 
               {(offlineSuccess || (isLiveMode && liveEhrConnection?.mode === "isolated")) && (
-                <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 text-amber-800 font-semibold text-xs animate-fadeIn">
+                <div
+                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 text-amber-800 font-semibold text-xs animate-fadeIn"
+                  title={t.connectionBadgeIsolated}
+                  aria-label={t.connectionBadgeIsolated}
+                >
                   <Database className="w-4 h-4 text-amber-800" />
-                  <span>{t.offlineConnectedText}</span>
+                  <span>{t.connectionBadgeIsolated}</span>
                 </div>
               )}
             </div>

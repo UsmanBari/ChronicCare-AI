@@ -5,10 +5,10 @@ import { useApp } from "../context/AppContext";
 import { Lock, Mail, ArrowRight, Activity, ShieldCheck, ShieldAlert, Loader2, KeyRound, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { isFirebaseEnabled, isFirebaseConfigured, getFirebaseAuth, getAuthErrorMessage } from "../lib/firebase";
 import { api, ApiError } from "../lib/api";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
 
 export const LoginScreen = () => {
-  const { setScreen, setUserIdentifier, setUserRole, setLiveProfile, t, isUrdu } = useApp();
+  const { setScreen, setUserIdentifier, setUserRole, setLiveProfile, sessionNotice, setSessionNotice, t, isUrdu } = useApp();
   const [isSignUp, setIsSignUp] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -17,14 +17,43 @@ export const LoginScreen = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   const validateEmail = (email: string) => {
     return /\S+@\S+\.\S+/.test(email);
   };
 
+  const handleForgotPassword = async () => {
+    setError("");
+    setResetNotice(null);
+    if (sessionNotice && setSessionNotice) setSessionNotice(null);
+    const cleanId = identifier.trim().toLowerCase();
+    if (!cleanId) {
+      setError(t.authEmptyFields);
+      return;
+    }
+    setIsSendingReset(true);
+    try {
+      const auth = getFirebaseAuth();
+      if (auth) {
+        try {
+          await sendPasswordResetEmail(auth, cleanId);
+        } catch {
+          // Do not reveal user existence; silently catch errors
+        }
+      }
+      setResetNotice(t.resetPasswordSent);
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanId = identifier.trim();
+    if (sessionNotice && setSessionNotice) setSessionNotice(null);
+    setResetNotice(null);
+    const cleanId = identifier.trim().toLowerCase();
     const cleanPass = password.trim();
     const cleanConfirm = confirmPassword.trim();
 
@@ -148,8 +177,22 @@ export const LoginScreen = () => {
 
       {/* Form Area */}
       <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4" dir={isUrdu ? "rtl" : "ltr"}>
+        {sessionNotice && (
+          <div id="session-notice-banner" className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
+            <span>{sessionNotice}</span>
+          </div>
+        )}
+
+        {resetNotice && (
+          <div id="reset-notice-banner" className="p-3.5 text-sm bg-teal-50 border border-teal-300 text-teal-900 rounded-xl flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-teal-700 shrink-0" />
+            <span>{resetNotice}</span>
+          </div>
+        )}
+
         {error && (
-          <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
+          <div id="login-error-banner" className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
             <span>{error}</span>
           </div>
@@ -168,8 +211,16 @@ export const LoginScreen = () => {
               id="login-identifier"
               type="text"
               value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
+              onChange={(e) => {
+                setIdentifier(e.target.value);
+                if (sessionNotice && setSessionNotice) setSessionNotice(null);
+                if (resetNotice) setResetNotice(null);
+              }}
               placeholder={process.env.NEXT_PUBLIC_DEMO_PATIENT_EMAIL || "patient@example.com"}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              inputMode="email"
               className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white/90 ${isUrdu ? "pr-11 pl-4" : "pl-11 pr-4"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all shadow-xs`}
             />
           </div>
@@ -190,19 +241,34 @@ export const LoginScreen = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={t.passwordPlaceholder}
+              autoComplete={isSignUp ? "new-password" : "current-password"}
               className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white/90 ${isUrdu ? "pr-11 pl-11" : "pl-11 pr-11"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all shadow-xs`}
             />
             <button
               type="button"
               id="toggle-password-visibility-btn"
               onClick={() => setShowPassword((prev) => !prev)}
+              aria-controls="login-password"
               aria-label={showPassword ? t.hidePassword : t.showPassword}
               title={showPassword ? t.hidePassword : t.showPassword}
-              className={`absolute inset-y-0 ${isUrdu ? "left-0 pl-3.5" : "right-0 pr-3.5"} flex items-center text-slate-400 hover:text-navy-800 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-700 rounded-lg p-1`}
+              className={`absolute inset-y-0 ${isUrdu ? "left-0" : "right-0"} flex items-center px-3.5 text-slate-500 hover:text-navy-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 rounded-xl`}
             >
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
+          {!isSignUp && isFirebaseEnabled() && isFirebaseConfigured() && (
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={isSendingReset}
+                id="forgot-password-btn"
+                className="text-xs font-medium text-teal-700 hover:text-teal-800 underline underline-offset-2 transition-colors disabled:opacity-50"
+              >
+                {isSendingReset ? (t.loading || "Sending...") : t.forgotPasswordBtn}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Confirm Password (Only during Sign-Up) */}
@@ -221,15 +287,17 @@ export const LoginScreen = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder={t.confirmPasswordPlaceholder}
+                autoComplete="new-password"
                 className={`w-full h-12 text-sm rounded-xl border border-slate-300 bg-white/90 ${isUrdu ? "pr-11 pl-11" : "pl-11 pr-11"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:border-transparent transition-all shadow-xs`}
               />
               <button
                 type="button"
                 id="toggle-confirm-password-visibility-btn"
                 onClick={() => setShowConfirmPassword((prev) => !prev)}
+                aria-controls="login-confirm-password"
                 aria-label={showConfirmPassword ? t.hideConfirmPassword : t.showConfirmPassword}
                 title={showConfirmPassword ? t.hideConfirmPassword : t.showConfirmPassword}
-                className={`absolute inset-y-0 ${isUrdu ? "left-0 pl-3.5" : "right-0 pr-3.5"} flex items-center text-slate-400 hover:text-navy-800 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-700 rounded-lg p-1`}
+                className={`absolute inset-y-0 ${isUrdu ? "left-0" : "right-0"} flex items-center px-3.5 text-slate-500 hover:text-navy-800 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 rounded-xl`}
               >
                 {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>

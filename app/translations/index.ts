@@ -68,6 +68,13 @@ export interface Translations {
   authUserNotFound: string;
   authWrongPassword: string;
   authInvalidCredentials: string;
+  authEmailAlreadyInUse: string;
+  authWeakPassword: string;
+  authTooManyRequests: string;
+  authNetworkError: string;
+  sessionExpired: string;
+  forgotPasswordBtn: string;
+  resetPasswordSent: string;
   authRoleMismatch: string;
   authGeneralError: string;
   authSigningIn: string;
@@ -99,6 +106,11 @@ export interface Translations {
   medicationPlaceholder: string;
   addMedication: string;
   removeMedication: string;
+  profileMedsNextStepHint: string;
+  demoPatientNotice: string;
+  recordMedsPurpose: string;
+  hospitalRecordMedsTitle: string;
+  somethingDifferent: string;
   ageLabel: string;
   agePlaceholder: string;
 
@@ -107,6 +119,8 @@ export interface Translations {
   homeSubtitle: string;
   reminderTitle: string;
   reminderDesc: string;
+  reminderDescHypertension: string;
+  reminderDescBoth: string;
   startCheckInBtn: string;
   statusTitle: string;
   activeConditions: string;
@@ -126,11 +140,29 @@ export interface Translations {
   // Screen 5: Check-in Entry
   checkInEntryTitle: string;
   checkInEntrySubtitle: string;
+  checkInEntrySubtitleHypertension: string;
+  checkInEntrySubtitleBoth: string;
   howAreYouFeelingLabel: string;
   howAreYouFeelingPlaceholder: string;
+  howAreYouFeelingPlaceholderHypertension: string;
+  howAreYouFeelingPlaceholderBoth: string;
+  sampleVoiceNoteDiabetes: string;
+  sampleVoiceNoteHypertension: string;
+  sampleVoiceNoteBoth: string;
   voiceInputTitle: string;
   listeningAnimationText: string;
   voiceHelperText: string;
+
+  // Baseline Observations & Landing Telemetry
+  obsPlaceholderSystolic: string;
+  obsPlaceholderDiastolic: string;
+  obsPlaceholderGlucose: string;
+  landingHtnDemoPatient: string;
+  landingHtnDemoCondition: string;
+  landingHtnDemoReading: string;
+  landingHtnDemoValue: string;
+  landingHtnBaselineValue: string;
+  landingHtnMonitoringNote: string;
 
   // Screen 6: Adaptive Interview
   adaptiveInterviewTitle: string;
@@ -304,6 +336,30 @@ export interface Translations {
   isolatedModeLabel: string;
   needsClinicianReviewTitle: string;
   readingDiffersTitle: string;
+  firstCheckinNoRecordTitle: string;
+  firstCheckinNoRecordDesc: string;
+  earlierCheckinLabel: string;
+  savedReadingLabel: string;
+  clinicianReviewAnswers: string;
+  connectionBadgeIsolated: string;
+  connectionBadgeIsolatedShort: string;
+  connectionBadgeConnected: string;
+  connectionBadgeConnectedGeneric: string;
+  demoSimulationBadge: string;
+  notOnFile: string;
+  notReportedToday: string;
+  demoVoiceSampleBadge: string;
+  recordingVoice: string;
+  transcribingVoice: string;
+  stopRecording: string;
+  cancelRecording: string;
+  hospitalRecordMedsManagedLine: string;
+  simulatedExampleBadge: string;
+  directHotlineDispatch: string;
+  researchPrototypeDisclaimer: string;
+  notFoundTitle: string;
+  notFoundDesc: string;
+  returnHomeBtn: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -368,9 +424,16 @@ export const translations: Record<Language, Translations> = {
 
     // Auth / Firebase Errors
     authInvalidApiKey: "Invalid Firebase API configuration. Please check your system settings.",
-    authUserNotFound: "No registered account found with this email address.",
-    authWrongPassword: "Incorrect password. Please verify and try again.",
-    authInvalidCredentials: "Invalid credentials. Please check your email and password.",
+    authUserNotFound: "Incorrect email or password. Please check your details and try again.",
+    authWrongPassword: "Incorrect email or password. Please check your details and try again.",
+    authInvalidCredentials: "Incorrect email or password. Please check your details and try again.",
+    authEmailAlreadyInUse: "An account with this email already exists. Please sign in instead.",
+    authWeakPassword: "Password is too weak. Please use at least 8 characters.",
+    authTooManyRequests: "Too many failed attempts. Please wait a moment before trying again.",
+    authNetworkError: "Network error. Please check your connection and try again.",
+    sessionExpired: "Your session expired. Please sign in again.",
+    forgotPasswordBtn: "Forgot password?",
+    resetPasswordSent: "If an account exists for this email, password reset instructions have been sent.",
     authRoleMismatch: "Access denied: this account does not have permission for this portal.",
     authGeneralError: "Authentication failed. Please check your network and try again.",
     authSigningIn: "Signing in...",
@@ -400,6 +463,11 @@ export const translations: Record<Language, Translations> = {
     medicationPlaceholder: "e.g., Metformin 500mg (1+1), Lisinopril 10mg (1+0)",
     addMedication: "+ Add another medication",
     removeMedication: "Remove",
+    profileMedsNextStepHint: "If you do not link a hospital record, you can add your medicines in the next steps.",
+    demoPatientNotice: "Demo patient",
+    recordMedsPurpose: "Your medicines. We use this to check what you tell us in each check-in.",
+    hospitalRecordMedsTitle: "Your medicines",
+    somethingDifferent: "If this looks wrong, tell your clinician.",
     ageLabel: "Patient Age (Years)",
     agePlaceholder: "e.g. 58",
 
@@ -407,6 +475,8 @@ export const translations: Record<Language, Translations> = {
     homeSubtitle: "Your daily care overview and proactive symptom check-in.",
     reminderTitle: "Time for your daily check-in",
     reminderDesc: "Take 60 seconds to record your daily symptoms and ensure your care plan remains on track.",
+    reminderDescHypertension: "Take 60 seconds to log your blood pressure and daily symptoms to keep your hypertension care plan on track.",
+    reminderDescBoth: "Take 60 seconds to log your blood pressure, blood sugar, and symptoms to keep your care plan on track.",
     startCheckInBtn: "Start Daily Check-In",
     statusTitle: "Care Summary",
     activeConditions: "Active Conditions",
@@ -424,11 +494,28 @@ export const translations: Record<Language, Translations> = {
 
     checkInEntryTitle: "Daily Symptom Check-In",
     checkInEntrySubtitle: "Describe how you are feeling in your own words or speak into your microphone.",
+    checkInEntrySubtitleHypertension: "Describe your blood pressure readings, symptoms, or speak into your microphone.",
+    checkInEntrySubtitleBoth: "Describe your blood pressure, blood sugar readings, and symptoms or speak into your microphone.",
     howAreYouFeelingLabel: "How are you feeling today?",
     howAreYouFeelingPlaceholder: "Describe any symptoms, energy levels, fatigue, or changes you noticed today...",
+    howAreYouFeelingPlaceholderHypertension: "Describe your blood pressure, headaches, dizziness, fatigue, or any symptoms you noticed today...",
+    howAreYouFeelingPlaceholderBoth: "Describe your blood pressure, blood sugar, fatigue, thirst, or changes you noticed today...",
+    sampleVoiceNoteDiabetes: "I've been feeling a bit tired and thirsty lately",
+    sampleVoiceNoteHypertension: "My blood pressure was 135/85 this morning and I felt a bit dizzy earlier",
+    sampleVoiceNoteBoth: "Checked my blood pressure and sugar this morning, feeling slightly fatigued",
     voiceInputTitle: "Tap microphone for Voice Input",
     listeningAnimationText: "Listening... (capturing audio)",
     voiceHelperText: "Speak clearly. Audio will be transcribed directly into your check-in notes.",
+
+    obsPlaceholderSystolic: "e.g. 130",
+    obsPlaceholderDiastolic: "e.g. 85",
+    obsPlaceholderGlucose: "e.g. 140",
+    landingHtnDemoPatient: "Bilal Ahmed (62y M)",
+    landingHtnDemoCondition: "HTN",
+    landingHtnDemoReading: "Blood Pressure",
+    landingHtnDemoValue: "150/95 mmHg",
+    landingHtnBaselineValue: "128/82 mmHg",
+    landingHtnMonitoringNote: "Continuous protocol tracking for Type 2 Diabetes & Hypertension monitoring.",
 
     adaptiveInterviewTitle: "Adaptive Symptom Interview",
     adaptiveInterviewSubtitle: "Personalized follow-up questions tailored to your check-in report.",
@@ -551,7 +638,7 @@ export const translations: Record<Language, Translations> = {
     authInvalidEmail: "Please enter a valid email address.",
     confirmPasswordLabel: "Confirm Password",
     confirmPasswordPlaceholder: "Re-enter your password",
-    serverWakingTitle: "The server is waking up, please wait",
+    serverWakingTitle: "Waking up the server, this can take up to a minute on the free test plan",
     serverWakingDesc: "Initial requests may take a moment while the cloud service starts.",
     consentTitle: "Patient Privacy & Care Consent",
     consentSubtitle: "Please review and accept our clinical monitoring consent before proceeding.",
@@ -603,6 +690,30 @@ export const translations: Record<Language, Translations> = {
     isolatedModeLabel: "Isolated Mode (Local Store)",
     needsClinicianReviewTitle: "Needs clinician review",
     readingDiffersTitle: "Your reading differs from the record",
+    firstCheckinNoRecordTitle: "This is your first check-in",
+    firstCheckinNoRecordDesc: "There is nothing on file to compare with yet, so a clinician will review it.",
+    earlierCheckinLabel: "Your earlier check-in",
+    savedReadingLabel: "Your saved reading",
+    clinicianReviewAnswers: "A clinician will review today's answers.",
+    connectionBadgeIsolated: "Not connected to a hospital record. Using the record you entered",
+    connectionBadgeIsolatedShort: "Local record (not connected)",
+    connectionBadgeConnected: "Connected to {system} (test environment)",
+    connectionBadgeConnectedGeneric: "Connected to hospital EHR (test environment)",
+    demoSimulationBadge: "Demo",
+    notOnFile: "Not on file",
+    notReportedToday: "Not reported today",
+    demoVoiceSampleBadge: "Demo voice sample",
+    recordingVoice: "Recording... Speak clearly",
+    transcribingVoice: "Transcribing your voice...",
+    stopRecording: "Stop recording",
+    cancelRecording: "Cancel",
+    hospitalRecordMedsManagedLine: "Managed by your hospital record. Your clinician sees the full list.",
+    simulatedExampleBadge: "Simulated example",
+    directHotlineDispatch: "Direct Hotline Dispatch:",
+    researchPrototypeDisclaimer: "Research prototype, not a medical device.",
+    notFoundTitle: "Page Not Found",
+    notFoundDesc: "The requested page does not exist or has been moved.",
+    returnHomeBtn: "Return to Home",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -665,9 +776,16 @@ export const translations: Record<Language, Translations> = {
 
     // Auth / Firebase Errors
     authInvalidApiKey: "فائر بیس API کی ترتیب درست نہیں ہے۔ براہ کرم سسٹم سیٹنگز چیک کریں۔",
-    authUserNotFound: "اس ای میل سے کوئی رجسٹرڈ اکاؤنٹ موجود نہیں ہے۔",
-    authWrongPassword: "پاس ورڈ غلط ہے۔ براہ کرم دوبارہ کوشش کریں۔",
-    authInvalidCredentials: "ای میل یا پاس ورڈ غلط ہے۔ براہ کرم دوبارہ تصدیق کریں۔",
+    authUserNotFound: "ای میل یا پاس ورڈ درست نہیں ہے۔ براہ کرم اپنی تفصیلات چیک کریں اور دوبارہ کوشش کریں۔",
+    authWrongPassword: "ای میل یا پاس ورڈ درست نہیں ہے۔ براہ کرم اپنی تفصیلات چیک کریں اور دوبارہ کوشش کریں۔",
+    authInvalidCredentials: "ای میل یا پاس ورڈ درست نہیں ہے۔ براہ کرم اپنی تفصیلات چیک کریں اور دوبارہ کوشش کریں۔",
+    authEmailAlreadyInUse: "اس ای میل پر پہلے ہی اکاؤنٹ موجود ہے۔ براہ کرم لاگ ان کریں۔",
+    authWeakPassword: "پاس ورڈ بہت کمزور ہے۔ براہ کرم کم از کم 8 حروف استعمال کریں۔",
+    authTooManyRequests: "بہت زیادہ کوششیں کی گئیں۔ براہ کرم کچھ دیر بعد دوبارہ کوشش کریں۔",
+    authNetworkError: "نیٹ ورک کی خرابی۔ براہ کرم اپنا انٹرنیٹ کنکشن چیک کریں اور دوبارہ کوشش کریں۔",
+    sessionExpired: "آپ کا سیشن ختم ہو چکا ہے۔ براہ کرم دوبارہ سائن ان کریں۔",
+    forgotPasswordBtn: "پاس ورڈ بھول گئے؟",
+    resetPasswordSent: "اگر اس ای میل پر اکاؤنٹ موجود ہے تو پاس ورڈ تبدیل کرنے کی ہدایات بھیج دی گئی ہیں۔",
     authRoleMismatch: "رسائی مسترد: اس اکاؤنٹ کے پاس اس پورٹل کے لیے اجازت نہیں ہے۔",
     authGeneralError: "لاگ ان تصدیق ناکام ہو گئی۔ براہ کرم نیٹ ورک چیک کریں اور دوبارہ کوشش کریں۔",
     authSigningIn: "سائن ان ہو رہا ہے...",
@@ -697,6 +815,11 @@ export const translations: Record<Language, Translations> = {
     medicationPlaceholder: "مثلاً میٹفارمین 500mg (1+1)، لیسینوپرل 10mg (1+0)",
     addMedication: "+ دوسری دوا شامل کریں",
     removeMedication: "ختم کریں",
+    profileMedsNextStepHint: "اگر آپ اسپتال کا ریکارڈ منسلک نہیں کرتے تو اگلے مراحل میں اپنی ادویات شامل کر سکتے ہیں۔",
+    demoPatientNotice: "ڈیمو مریض",
+    recordMedsPurpose: "آپ کی ادویات۔ ہم اسے ہر چیک ان میں آپ کی بتائی ہوئی باتوں کی تصدیق کے لیے استعمال کرتے ہیں۔",
+    hospitalRecordMedsTitle: "آپ کی ادویات",
+    somethingDifferent: "اگر یہ غلط معلوم ہو تو اپنے معالج کو بتائیں۔",
     ageLabel: "مریض کی عمر (سال)",
     agePlaceholder: "مثلاً 58",
 
@@ -704,6 +827,8 @@ export const translations: Record<Language, Translations> = {
     homeSubtitle: "آپ کی روزانہ نگہداشت کا جائزہ اور علامات کا چیک ان۔",
     reminderTitle: "روزانہ چیک ان کا وقت ہو گیا ہے",
     reminderDesc: "اپنی علامات درج کرنے کے لیے 60 سیکنڈ نکالیں تاکہ آپ کی صحت کا معمول درست رہے۔",
+    reminderDescHypertension: "بلڈ پریشر اور روزانہ کی علامات درج کرنے کے لیے 60 سیکنڈ نکالیں تاکہ آپ کی نگہداشت کا معمول درست رہے۔",
+    reminderDescBoth: "بلڈ پریشر، شوگر اور علامات درج کرنے کے لیے 60 سیکنڈ نکالیں تاکہ آپ کی نگہداشت کا معمول درست رہے۔",
     startCheckInBtn: "روزانہ چیک ان شروع کریں",
     statusTitle: "طبی خلاصہ",
     activeConditions: "فعال بیماریاں",
@@ -721,11 +846,28 @@ export const translations: Record<Language, Translations> = {
 
     checkInEntryTitle: "روزانہ علامات کا چیک ان",
     checkInEntrySubtitle: "بیان کریں کہ آپ کیسا محسوس کر رہے ہیں یا مائیکروفون میں بولیں۔",
+    checkInEntrySubtitleHypertension: "اپنا بلڈ پریشر، علامات اور روزمرہ کیفیت بیان کریں یا مائیکروفون میں بولیں۔",
+    checkInEntrySubtitleBoth: "اپنا بلڈ پریشر، بلڈ شوگر اور علامات بیان کریں یا مائیکروفون میں بولیں۔",
     howAreYouFeelingLabel: "آج آپ کیسا محسوس کر رہے ہیں؟",
     howAreYouFeelingPlaceholder: "اپنی علامات، تھکاوٹ، پیاس یا کسی تبدیلی کے بارے میں بتائیں...",
+    howAreYouFeelingPlaceholderHypertension: "اپنا بلڈ پریشر، سر درد، چکر، تھکاوٹ یا کوئی بھی علامات درج کریں...",
+    howAreYouFeelingPlaceholderBoth: "اپنا بلڈ پریشر، شوگر، تھکاوٹ، پیاس یا کسی تبدیلی کے بارے میں بتائیں...",
+    sampleVoiceNoteDiabetes: "مجھے کچھ عرصے سے تھکاوٹ اور زیادہ پیاس محسوس ہو رہی ہے",
+    sampleVoiceNoteHypertension: "آج صبح میرا بلڈ پریشر 135/85 تھا اور مجھے تھوڑا چکر آ رہا تھا",
+    sampleVoiceNoteBoth: "صبح بلڈ پریشر اور شوگر چیک کی، تھوڑی تھکاوٹ محسوس ہو رہی ہے",
     voiceInputTitle: "آواز سے درج کرنے کے لیے مائیکروفون دبائیں",
     listeningAnimationText: "سن رہا ہے... (آڈیو ریکارڈنگ جاری)",
     voiceHelperText: "صاف آواز میں بولیں۔ آپ کی آواز تحریر میں تبدیل ہو جائے گی۔",
+
+    obsPlaceholderSystolic: "مثلاً 130",
+    obsPlaceholderDiastolic: "مثلاً 85",
+    obsPlaceholderGlucose: "مثلاً 140",
+    landingHtnDemoPatient: "بلال احمد (62 سال، مرد)",
+    landingHtnDemoCondition: "ہائی بلڈ پریشر",
+    landingHtnDemoReading: "بلڈ پریشر",
+    landingHtnDemoValue: "150/95 mmHg",
+    landingHtnBaselineValue: "128/82 mmHg",
+    landingHtnMonitoringNote: "ذیابیطس اور ہائی بلڈ پریشر کی علامات اور پروٹوکول کی مسلسل نگرانی۔",
 
     adaptiveInterviewTitle: "علامات کا فالو اپ انٹرویو",
     adaptiveInterviewSubtitle: "آپ کی علامات کے مطابق طبی سوالات۔",
@@ -848,7 +990,7 @@ export const translations: Record<Language, Translations> = {
     authInvalidEmail: "براہ کرم درست ای میل ایڈریس درج کریں۔",
     confirmPasswordLabel: "پاس ورڈ کی تصدیق کریں",
     confirmPasswordPlaceholder: "اپنا پاس ورڈ دوبارہ درج کریں",
-    serverWakingTitle: "سرور بیدار ہو رہا ہے، براہ کرم انتظار کریں",
+    serverWakingTitle: "سرور بیدار ہو رہا ہے، مفت ٹیسٹ پلان پر اس میں ایک منٹ تک لگ سکتا ہے",
     serverWakingDesc: "کلاؤڈ سروس کے آغاز کے دوران چند لمحے لگ سکتے ہیں۔",
     consentTitle: "مریض کی رازداری اور دیکھ بھال کا اقرار نامہ",
     consentSubtitle: "آگے بڑھنے سے پہلے براہ کرم نگہداشت کا اقرار نامہ پڑھیں اور منظور کریں۔",
@@ -902,5 +1044,29 @@ export const translations: Record<Language, Translations> = {
     isolatedModeLabel: "آئسولیٹڈ موڈ (مقامی اسٹور)",
     needsClinicianReviewTitle: "طبی معالج کے جائزے کی ضرورت ہے",
     readingDiffersTitle: "آپ کی ریڈنگ ریکارڈ سے مختلف ہے",
+    firstCheckinNoRecordTitle: "یہ آپ کا پہلا چیک ان ہے",
+    firstCheckinNoRecordDesc: "ابھی موازنہ کرنے کے لیے کوئی پچھلا ریکارڈ موجود نہیں ہے، اس لیے طبی معالج اس کا جائزہ لیں گے۔",
+    earlierCheckinLabel: "آپ کا پچھلا چیک ان",
+    savedReadingLabel: "آپ کی محفوظ کردہ ریڈنگ",
+    clinicianReviewAnswers: "طبی معالج آج کے جوابات کا جائزہ لیں گے۔",
+    connectionBadgeIsolated: "ہسپتال کے ریکارڈ سے منسلک نہیں ہے۔ آپ کے درج کردہ ریکارڈ کا استعمال ہو رہا ہے",
+    connectionBadgeIsolatedShort: "مقامی ریکارڈ (منسلک نہیں)",
+    connectionBadgeConnected: "{system} سے منسلک (ٹیسٹ ماحول)",
+    connectionBadgeConnectedGeneric: "ہسپتال کے ریکارڈ سے منسلک (ٹیسٹ ماحول)",
+    demoSimulationBadge: "ڈیمو",
+    notOnFile: "ریکارڈ میں موجود نہیں",
+    notReportedToday: "آج درج نہیں کیا گیا",
+    demoVoiceSampleBadge: "ڈیمو وائس نمونہ",
+    recordingVoice: "ریکارڈنگ جاری ہے... واضح بولیں",
+    transcribingVoice: "آواز کو تحریر میں تبدیل کیا جا رہا ہے...",
+    stopRecording: "ریکارڈنگ روکیں",
+    cancelRecording: "منسوخ کریں",
+    hospitalRecordMedsManagedLine: "آپ کے اسپتال کے ریکارڈ سے منظم ہے۔ آپ کا معالج مکمل فہرست دیکھ سکتا ہے۔",
+    simulatedExampleBadge: "فرضی مثال",
+    directHotlineDispatch: "براہ راست ہاٹ لائن رابطہ:",
+    researchPrototypeDisclaimer: "تحقیقی پروٹوٹائپ، یہ کوئی طبی آلہ نہیں ہے۔",
+    notFoundTitle: "صفحہ نہیں ملا",
+    notFoundDesc: "درخواست کردہ صفحہ موجود نہیں ہے یا تبدیل ہو چکا ہے۔",
+    returnHomeBtn: "مرکزی صفحہ پر واپس جائیں",
   }
 };

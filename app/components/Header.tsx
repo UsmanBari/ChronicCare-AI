@@ -20,6 +20,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { isEhrManaged } from "../lib/connection";
 
 export const Header = () => {
   const {
@@ -30,6 +31,8 @@ export const Header = () => {
     connectionMode,
     portal,
     screen,
+    providerScreen,
+    adminScreen,
     isLiveMode,
     liveEhrConnection,
     setPortal,
@@ -44,6 +47,20 @@ export const Header = () => {
 
   const [showPortalMenu, setShowPortalMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const isOnLoginScreen =
+    (portal === "patient" && screen === "login") ||
+    (portal === "provider" && providerScreen === "login") ||
+    (portal === "admin" && adminScreen === "login");
+  const showLogout = portal !== "landing" && !isOnLoginScreen;
+
+  const handleLogout = async () => {
+    setMobileMenuOpen(false);
+    await signOutUser();
+    if (portal === "provider") setProviderScreen("login");
+    else if (portal === "admin") setAdminScreen("login");
+    else setScreen("login");
+  };
 
   const toggleLanguage = () => {
     setLanguage(language === "en" ? "ur" : "en");
@@ -67,16 +84,29 @@ export const Header = () => {
       }
       if (liveEhrConnection.mode === "isolated") {
         return (
-          <span className="inline-flex items-center gap-1 text-amber-800 font-sans">
-            <Database className="w-3.5 h-3.5" /> {t.isolatedModeLabel}
+          <span
+            className="inline-flex items-center gap-1 text-amber-800 font-sans cursor-help"
+            title={t.connectionBadgeIsolated}
+            aria-label={t.connectionBadgeIsolated}
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>{t.connectionBadgeIsolatedShort}</span>
           </span>
         );
       }
-      if (liveEhrConnection.mode === "fhir") {
+      if (isEhrManaged(isLiveMode, connectionMode, liveEhrConnection)) {
+        const sysName = liveEhrConnection.connection?.display_name || (isUrdu ? "ہسپتال کا ریکارڈ" : "Hospital EHR");
+        const connectedText = isUrdu
+          ? `${sysName} سے منسلک (ٹیسٹ ماحول)`
+          : `Connected to ${sysName} (test environment)`;
         return (
-          <span className="inline-flex items-center gap-1 text-mutedGreen-800 font-sans">
+          <span
+            className="inline-flex items-center gap-1 text-mutedGreen-800 font-sans"
+            title={connectedText}
+            aria-label={connectedText}
+          >
             <ShieldCheck className="w-3.5 h-3.5" />{" "}
-            {liveEhrConnection.connection?.display_name || "Hospital EHR (FHIR)"}
+            <span>{connectedText}</span>
           </span>
         );
       }
@@ -251,18 +281,17 @@ export const Header = () => {
           </button>
 
           {/* Logout Button */}
-          {portal === "patient" && screen !== "login" && (
+          {showLogout && (
             <button
+              type="button"
               id="header-logout-btn"
-              onClick={async () => {
-                await signOutUser();
-                setScreen("login");
-              }}
+              onClick={handleLogout}
+              aria-label={t.logoutBtn}
               title={t.logoutBtn}
               className="h-11 flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-red-50 hover:border-red-300 hover:text-red-700 text-slate-700 transition-colors shadow-xs min-h-[44px]"
             >
-              <LogOut className="w-4 h-4 text-slate-500 hover:text-red-600" />
-              <span className="hidden sm:inline">{t.logoutBtn}</span>
+              <LogOut className="w-4 h-4" />
+              <span>{t.logoutBtn}</span>
             </button>
           )}
         </div>
@@ -405,14 +434,10 @@ export const Header = () => {
                 <span>{t.settings}</span>
               </button>
 
-              {portal === "patient" && screen !== "login" && (
+              {showLogout && (
                 <button
                   type="button"
-                  onClick={async () => {
-                    setMobileMenuOpen(false);
-                    await signOutUser();
-                    setScreen("login");
-                  }}
+                  onClick={handleLogout}
                   id="mobile-nav-logout-btn"
                   className="w-full min-h-[48px] px-4 py-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-semibold text-xs flex items-center justify-center gap-2"
                 >

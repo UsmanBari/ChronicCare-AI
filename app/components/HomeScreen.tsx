@@ -22,11 +22,12 @@ import {
   ShieldAlert,
   FileText,
   Hospital,
-  LogOut,
 } from "lucide-react";
 import { FhirSourceBadge } from "./FhirSourceBadge";
 import { api, ApiError, UserCheckinSummaryResponse, PatientRecordResponse } from "../lib/api";
 import { titleCaseName, describeBlockedAction, BlockedActionDescription } from "../lib/presentation";
+import { getConditionFlags } from "../lib/conditions";
+import { isEhrManaged } from "../lib/connection";
 
 export const HomeScreen = () => {
   const {
@@ -45,8 +46,9 @@ export const HomeScreen = () => {
     appointment,
     setActiveLiveCheckin,
     setShowSettings,
-    signOutUser,
   } = useApp();
+
+  const isManaged = isEhrManaged(isLiveMode, connectionMode, liveEhrConnection);
 
   const [isStarting, setIsStarting] = useState(false);
   const [blockedAction, setBlockedAction] = useState<BlockedActionDescription | null>(null);
@@ -69,18 +71,18 @@ export const HomeScreen = () => {
       })
       .catch(() => {});
 
-    if (connectionMode === "offline" || liveEhrConnection?.mode === "isolated") {
+    if (!isManaged) {
       api.getRecord().then(setLiveRecord).catch(() => {});
     }
-  }, [isLiveMode, connectionMode, liveEhrConnection?.mode]);
+  }, [isLiveMode, connectionMode, liveEhrConnection?.mode, isManaged]);
 
   // Dynamic medication dosage update for Scenario D (EHR update)
   const displayedMedications =
     demoScenario === "ehr_update"
-      ? profile.medications.map((m) =>
+      ? (profile?.medications || []).map((m) =>
           m.includes("Lisinopril") ? "Lisinopril 20mg (1+0)" : m
         )
-      : profile.medications;
+      : profile?.medications || [];
 
   const handleStartCheckIn = async () => {
     setBlockedAction(null);
@@ -107,12 +109,23 @@ export const HomeScreen = () => {
     setScreen("checkin_entry");
   };
 
-  const activeConditions =
+  const conditionFlags = getConditionFlags(isLiveMode ? liveProfile?.conditions : profile.conditions);
+
+  const rawConditions =
     isLiveMode && liveProfile?.conditions && liveProfile.conditions.length > 0
-      ? liveProfile.conditions.map((c) =>
-          c === "diabetes" ? "Type 2 Diabetes" : c === "hypertension" ? "Hypertension" : c
-        )
-      : profile.conditions;
+      ? liveProfile.conditions
+      : profile.conditions || [];
+
+  const activeConditions = rawConditions.map((c) => {
+    const lower = typeof c === "string" ? c.toLowerCase() : "";
+    if (lower === "diabetes" || lower === "type 2 diabetes" || lower === "t2d") {
+      return isUrdu ? "ذیابیطس ٹائپ 2" : "Type 2 Diabetes";
+    }
+    if (lower === "hypertension" || lower === "htn" || lower === "high blood pressure") {
+      return isUrdu ? "ہائی بلڈ پریشر (Hypertension)" : "Hypertension";
+    }
+    return c;
+  });
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
@@ -231,7 +244,7 @@ export const HomeScreen = () => {
       )}
 
       {/* Visible Isolated Offline Mode Banner */}
-      {connectionMode === "offline" && (
+      {!isManaged && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-800/30 text-amber-900 text-sm flex items-center justify-between animate-fadeIn shadow-xs">
           <div className="flex items-center gap-2.5 font-semibold">
             <Database className="w-5 h-5 text-amber-800 shrink-0" />
@@ -257,34 +270,18 @@ export const HomeScreen = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setScreen("appointments")}
-            id="view-my-appointments-btn"
-            className="min-h-[48px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-navy-800 text-sm font-semibold transition-all shadow-xs shrink-0"
-          >
-            <Calendar className="w-4 h-4 text-teal-700" />
-            <span>{t.patientAppointmentsBtn}</span>
-            {appointment.isBooked && (
-              <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-pulse" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={async () => {
-              await signOutUser();
-              setScreen("login");
-            }}
-            id="home-logout-btn"
-            title={t.logoutBtn}
-            className="min-h-[48px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-red-50 hover:border-red-300 hover:text-red-700 text-slate-700 text-sm font-semibold transition-all shadow-xs shrink-0"
-          >
-            <LogOut className="w-4 h-4 text-slate-500" />
-            <span>{t.logoutBtn}</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setScreen("appointments")}
+          id="view-my-appointments-btn"
+          className="self-start sm:self-auto min-h-[48px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-navy-800 text-sm font-semibold transition-all shadow-xs shrink-0"
+        >
+          <Calendar className="w-4 h-4 text-teal-700" />
+          <span>{t.patientAppointmentsBtn}</span>
+          {appointment?.isBooked && (
+            <span className="w-2.5 h-2.5 rounded-full bg-teal-600 animate-pulse" />
+          )}
+        </button>
       </div>
 
       {/* Dominant Primary Action Card: Start Daily Check-in */}
@@ -305,7 +302,11 @@ export const HomeScreen = () => {
             </h2>
 
             <p className="text-sm sm:text-base text-slate-200 leading-relaxed max-w-xl">
-              {t.reminderDesc}
+              {conditionFlags.isHypertensionOnly
+                ? t.reminderDescHypertension
+                : conditionFlags.hasBoth
+                ? t.reminderDescBoth
+                : t.reminderDesc}
             </p>
 
             <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -416,7 +417,7 @@ export const HomeScreen = () => {
             <span>{t.statusTitle}</span>
           </h3>
           <div className="flex items-center gap-2">
-            {isLiveMode && (connectionMode === "offline" || liveEhrConnection?.mode === "isolated") && (
+            {isLiveMode && !isManaged && (
               <button
                 type="button"
                 onClick={() => setScreen("health_record")}
@@ -428,13 +429,13 @@ export const HomeScreen = () => {
               </button>
             )}
             <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700">
-              {connectionMode === "fhir" ? "FHIR Live Synced" : "Local Mode"}
+              {isManaged ? "FHIR Live Synced" : "Local Mode"}
             </span>
           </div>
         </div>
 
         {/* Connected Mode EHR Banner */}
-        {isLiveMode && (connectionMode === "fhir" || liveEhrConnection?.mode === "fhir") && (
+        {isLiveMode && isManaged && (
           <div className="p-3.5 rounded-2xl bg-teal-50 border border-teal-200 text-xs text-teal-900 font-semibold flex items-center gap-2">
             <Hospital className="w-4 h-4 text-teal-700 shrink-0" />
             <span>{isUrdu ? "آپ کا ریکارڈ آپ کے اسپتال کے EHR کے ذریعے منظم ہے۔" : "Your record is managed by your hospital EHR."}</span>
@@ -461,15 +462,21 @@ export const HomeScreen = () => {
               {t.activeConditions}
             </span>
             <div className="font-semibold text-navy-800 space-y-1.5">
-              {activeConditions.map((cond, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-teal-600 shrink-0" />
-                    <span>{cond}</span>
+              {activeConditions.length > 0 ? (
+                activeConditions.map((cond, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-teal-600 shrink-0" />
+                      <span>{cond}</span>
+                    </div>
+                    {isManaged && <FhirSourceBadge />}
                   </div>
-                  {connectionMode === "fhir" && <FhirSourceBadge />}
+                ))
+              ) : (
+                <div className="text-xs text-slate-500 font-normal italic">
+                  {isUrdu ? "کوئی بیماری درج نہیں ہے" : "No active conditions recorded"}
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
@@ -477,12 +484,21 @@ export const HomeScreen = () => {
           <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/70 space-y-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block flex items-center gap-1.5">
               <Pill className="w-4 h-4 text-teal-700" />
-              <span>{t.trackedMeds}</span>
+              <span>
+                {isLiveMode && isManaged
+                  ? t.hospitalRecordMedsTitle
+                  : t.trackedMeds}
+              </span>
             </span>
             {isLiveMode ? (
-              (connectionMode === "fhir" || liveEhrConnection?.mode === "fhir") ? (
-                <div className="font-medium text-slate-600 text-xs sm:text-sm italic py-1">
-                  {isUrdu ? "آپ کا ریکارڈ اسپتال EHR سے منظم ہے۔" : "Managed by hospital EHR"}
+              isManaged ? (
+                <div className="space-y-1.5">
+                  <div className="font-medium text-slate-600 text-xs sm:text-sm italic py-1">
+                    {t.hospitalRecordMedsManagedLine}
+                  </div>
+                  <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-200/60">
+                    <span className="italic">{t.somethingDifferent}</span>
+                  </div>
                 </div>
               ) : (liveRecord?.medications && liveRecord.medications.filter((m) => m.status === "active").length > 0) ? (
                 <div className="font-medium text-navy-800 space-y-1.5">
@@ -505,7 +521,7 @@ export const HomeScreen = () => {
                 {displayedMedications.map((med, i) => (
                   <div key={i} className="flex items-center justify-between text-xs sm:text-sm">
                     <span className="truncate">• {med}</span>
-                    {connectionMode === "fhir" && <FhirSourceBadge />}
+                    {isManaged && <FhirSourceBadge />}
                   </div>
                 ))}
               </div>
