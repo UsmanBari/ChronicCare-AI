@@ -188,8 +188,8 @@ export const PortalLandingScreen = () => {
                     <HeartPulse className="w-5 h-5 text-teal-700" />
                     <span className="font-heading font-bold text-sm">ChronicCare Engine</span>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full bg-mutedGreen-100 text-mutedGreen-800 text-[10px] font-bold flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Live
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold flex items-center gap-1 border border-amber-300">
+                    <ShieldCheck className="w-3 h-3 text-amber-800" /> Demo Preview
                   </span>
                 </div>
 

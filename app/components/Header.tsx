@@ -83,16 +83,29 @@ export const Header = () => {
       }
       if (liveEhrConnection.mode === "isolated") {
         return (
-          <span className="inline-flex items-center gap-1 text-amber-800 font-sans">
-            <Database className="w-3.5 h-3.5" /> {t.isolatedModeLabel}
+          <span
+            className="inline-flex items-center gap-1 text-amber-800 font-sans cursor-help"
+            title={t.connectionBadgeIsolated}
+            aria-label={t.connectionBadgeIsolated}
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>{t.connectionBadgeIsolatedShort}</span>
           </span>
         );
       }
-      if (liveEhrConnection.mode === "fhir") {
+      if (liveEhrConnection.mode === "fhir" || liveEhrConnection.mode === "connected") {
+        const sysName = liveEhrConnection.connection?.display_name || (isUrdu ? "ہسپتال کا ریکارڈ" : "Hospital EHR");
+        const connectedText = isUrdu
+          ? `${sysName} سے منسلک (ٹیسٹ ماحول)`
+          : `Connected to ${sysName} (test environment)`;
         return (
-          <span className="inline-flex items-center gap-1 text-mutedGreen-800 font-sans">
+          <span
+            className="inline-flex items-center gap-1 text-mutedGreen-800 font-sans"
+            title={connectedText}
+            aria-label={connectedText}
+          >
             <ShieldCheck className="w-3.5 h-3.5" />{" "}
-            {liveEhrConnection.connection?.display_name || "Hospital EHR (FHIR)"}
+            <span>{connectedText}</span>
           </span>
         );
       }

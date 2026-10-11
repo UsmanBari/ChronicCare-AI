@@ -147,10 +147,10 @@ export const ReconciliationAlertDetail = () => {
 
   let sourceAVal = obsComparison?.value_a !== null && obsComparison?.value_a !== undefined
     ? `${obsComparison.value_a} ${obsComparison.unit_a || ""}`
-    : "180 mg/dL";
+    : (isLiveMode ? "Not on file" : "180 mg/dL");
   let sourceBVal = obsComparison?.value_b !== null && obsComparison?.value_b !== undefined
     ? `${obsComparison.value_b} ${obsComparison.unit_b || ""}`
-    : "140 mg/dL";
+    : (isLiveMode ? "Not reported today" : "140 mg/dL");
   let comparisonTitle = obsComparison?.observation_type
     ? `${obsComparison.observation_type.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())} Review`
     : "Clinical Telemetry Review";
@@ -426,53 +426,59 @@ export const ReconciliationAlertDetail = () => {
           </div>
 
           {/* Source Comparison Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {/* Side A: Earlier / Baseline Record */}
-            <div className="p-5 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-slate-200 text-slate-800 inline-flex items-center gap-1">
-                  <FileText className="w-3.5 h-3.5" />
-                  {sideALabel}
-                </span>
-                <span className="text-xs text-slate-500 font-medium">
-                  {isLiveMode ? `Trust: ${trustLevelA.toUpperCase()}` : "Daily Check-in"}
-                </span>
+          {(!isLiveMode || obsComparison) ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {/* Side A: Earlier / Baseline Record */}
+              <div className="p-5 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-slate-200 text-slate-800 inline-flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5" />
+                    {sideALabel}
+                  </span>
+                  <span className="text-xs text-slate-500 font-medium">
+                    {isLiveMode ? `Trust: ${trustLevelA.toUpperCase()}` : "Daily Check-in"}
+                  </span>
+                </div>
+                <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
+                  {sourceAVal}
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {isLiveMode
+                    ? sourceAType === "fhir"
+                      ? "Verified lab and observation telemetry from hospital system record."
+                      : trustLevelA === "high"
+                      ? "Clinician-entered baseline record in local clinical store."
+                      : "Prior self-reported telemetry recorded during an earlier check-in."
+                    : "Self-reported telemetry via adaptive symptom check-in survey."}
+                </p>
               </div>
-              <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
-                {sourceAVal}
-              </div>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                {isLiveMode
-                  ? sourceAType === "fhir"
-                    ? "Verified lab and observation telemetry from hospital system record."
-                    : trustLevelA === "high"
-                    ? "Clinician-entered baseline record in local clinical store."
-                    : "Prior self-reported telemetry recorded during an earlier check-in."
-                  : "Self-reported telemetry via adaptive symptom check-in survey."}
-              </p>
-            </div>
 
-            {/* Side B: Today's Check-in */}
-            <div className="p-5 rounded-2xl bg-amber-50/80 border-2 border-amber-300 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-teal-100 text-teal-900 inline-flex items-center gap-1">
-                  <Hospital className="w-3.5 h-3.5" />
-                  {sideBLabel}
-                </span>
-                <span className="text-xs text-slate-500 font-medium">
-                  {isLiveMode ? `Trust: ${trustLevelB.toUpperCase()}` : "Lab Record"}
-                </span>
+              {/* Side B: Today's Check-in */}
+              <div className="p-5 rounded-2xl bg-amber-50/80 border-2 border-amber-300 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-teal-100 text-teal-900 inline-flex items-center gap-1">
+                    <Hospital className="w-3.5 h-3.5" />
+                    {sideBLabel}
+                  </span>
+                  <span className="text-xs text-slate-500 font-medium">
+                    {isLiveMode ? `Trust: ${trustLevelB.toUpperCase()}` : "Lab Record"}
+                  </span>
+                </div>
+                <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
+                  {sourceBVal}
+                </div>
+                <p className="text-xs text-amber-950 leading-relaxed">
+                  {isLiveMode
+                    ? "Self-reported telemetry via today's adaptive symptom check-in."
+                    : "Verified lab and observation telemetry from hospital system record."}
+                </p>
               </div>
-              <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
-                {sourceBVal}
-              </div>
-              <p className="text-xs text-amber-950 leading-relaxed">
-                {isLiveMode
-                  ? "Self-reported telemetry via today's adaptive symptom check-in."
-                  : "Verified lab and observation telemetry from hospital system record."}
-              </p>
             </div>
-          </div>
+          ) : (
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed">
+              <span>No observation comparisons on file for this review item.</span>
+            </div>
+          )}
 
           {/* AI Reconciliation Reasoning */}
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5">

@@ -98,9 +98,16 @@ export const ReviewQueueScreen = () => {
             >
               <ArrowLeft className={`w-5 h-5 ${isUrdu ? "rotate-180" : ""}`} />
             </button>
-            <h1 className="font-heading text-2xl sm:text-3xl font-bold text-navy-800">
-              {t.reviewQueueTitle}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="font-heading text-2xl sm:text-3xl font-bold text-navy-800">
+                {t.reviewQueueTitle}
+              </h1>
+              {!isLiveMode && (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs uppercase tracking-wider">
+                  {t.demoSimulationBadge}
+                </span>
+              )}
+            </div>
           </div>
           <p className="text-sm text-slate-600 mt-1">
             {isUrdu

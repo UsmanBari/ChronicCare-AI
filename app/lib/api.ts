@@ -496,6 +496,8 @@ async function request<T>(
   }
 }
 
+const inFlightCompleteRequests = new Map<string, Promise<CheckinCompleteResponse>>();
+
 export const api = {
   // 1. Auth & Session
   authSession: async (): Promise<SessionResponse> => {
@@ -689,9 +691,20 @@ export const api = {
   completeCheckin: async (
     checkin_id: string
   ): Promise<CheckinCompleteResponse> => {
-    return request<CheckinCompleteResponse>(`/api/checkins/${encodeURIComponent(checkin_id)}/complete`, {
-      method: "POST",
+    const existing = inFlightCompleteRequests.get(checkin_id);
+    if (existing) {
+      return existing;
+    }
+    const flight = request<CheckinCompleteResponse>(
+      `/api/checkins/${encodeURIComponent(checkin_id)}/complete`,
+      {
+        method: "POST",
+      }
+    ).finally(() => {
+      inFlightCompleteRequests.delete(checkin_id);
     });
+    inFlightCompleteRequests.set(checkin_id, flight);
+    return flight;
   },
 
   getUserCheckins: async (): Promise<UserCheckinSummaryResponse[]> => {

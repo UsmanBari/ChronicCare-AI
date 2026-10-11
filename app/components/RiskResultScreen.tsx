@@ -181,9 +181,14 @@ export const RiskResultScreen = () => {
       {/* Header Banner */}
       <div className="bg-gradient-to-br from-navy-800 via-navy-800 to-teal-800 p-6 sm:p-7 text-white text-center relative overflow-hidden">
         <div className="absolute -top-10 -right-10 w-36 h-36 bg-teal-400/15 rounded-full blur-2xl pointer-events-none" />
-        <span className="text-xs font-bold uppercase tracking-wider text-teal-300 block mb-1.5">
-          {isUrdu ? "طبی جائزہ و تخمینہ" : "Personalized Risk Assessment"}
-        </span>
+        <div className="flex items-center justify-center gap-2 mb-1.5">
+          <span className="text-xs font-bold uppercase tracking-wider text-teal-300">
+            {isUrdu ? "طبی جائزہ و تخمینہ" : "Personalized Risk Assessment"}
+          </span>
+          <span className="px-2 py-0.5 rounded-full bg-teal-500/25 text-teal-200 text-[10px] font-bold uppercase tracking-wider border border-teal-400/30">
+            {t.demoSimulationBadge}
+          </span>
+        </div>
         <h1 className="font-heading text-2xl sm:text-[26px] font-bold text-white mb-1.5">
           {isUrdu ? "آپ کے روزانہ نتائج" : "Daily Health Analysis"}
         </h1>
