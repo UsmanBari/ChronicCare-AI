@@ -119,6 +119,8 @@ export interface Translations {
   homeSubtitle: string;
   reminderTitle: string;
   reminderDesc: string;
+  reminderDescHypertension: string;
+  reminderDescBoth: string;
   startCheckInBtn: string;
   statusTitle: string;
   activeConditions: string;
@@ -138,11 +140,29 @@ export interface Translations {
   // Screen 5: Check-in Entry
   checkInEntryTitle: string;
   checkInEntrySubtitle: string;
+  checkInEntrySubtitleHypertension: string;
+  checkInEntrySubtitleBoth: string;
   howAreYouFeelingLabel: string;
   howAreYouFeelingPlaceholder: string;
+  howAreYouFeelingPlaceholderHypertension: string;
+  howAreYouFeelingPlaceholderBoth: string;
+  sampleVoiceNoteDiabetes: string;
+  sampleVoiceNoteHypertension: string;
+  sampleVoiceNoteBoth: string;
   voiceInputTitle: string;
   listeningAnimationText: string;
   voiceHelperText: string;
+
+  // Baseline Observations & Landing Telemetry
+  obsPlaceholderSystolic: string;
+  obsPlaceholderDiastolic: string;
+  obsPlaceholderGlucose: string;
+  landingHtnDemoPatient: string;
+  landingHtnDemoCondition: string;
+  landingHtnDemoReading: string;
+  landingHtnDemoValue: string;
+  landingHtnBaselineValue: string;
+  landingHtnMonitoringNote: string;
 
   // Screen 6: Adaptive Interview
   adaptiveInterviewTitle: string;
@@ -431,6 +451,8 @@ export const translations: Record<Language, Translations> = {
     homeSubtitle: "Your daily care overview and proactive symptom check-in.",
     reminderTitle: "Time for your daily check-in",
     reminderDesc: "Take 60 seconds to record your daily symptoms and ensure your care plan remains on track.",
+    reminderDescHypertension: "Take 60 seconds to log your blood pressure and daily symptoms to keep your hypertension care plan on track.",
+    reminderDescBoth: "Take 60 seconds to log your blood pressure, blood sugar, and symptoms to keep your care plan on track.",
     startCheckInBtn: "Start Daily Check-In",
     statusTitle: "Care Summary",
     activeConditions: "Active Conditions",
@@ -448,11 +470,28 @@ export const translations: Record<Language, Translations> = {
 
     checkInEntryTitle: "Daily Symptom Check-In",
     checkInEntrySubtitle: "Describe how you are feeling in your own words or speak into your microphone.",
+    checkInEntrySubtitleHypertension: "Describe your blood pressure readings, symptoms, or speak into your microphone.",
+    checkInEntrySubtitleBoth: "Describe your blood pressure, blood sugar readings, and symptoms or speak into your microphone.",
     howAreYouFeelingLabel: "How are you feeling today?",
     howAreYouFeelingPlaceholder: "Describe any symptoms, energy levels, fatigue, or changes you noticed today...",
+    howAreYouFeelingPlaceholderHypertension: "Describe your blood pressure, headaches, dizziness, fatigue, or any symptoms you noticed today...",
+    howAreYouFeelingPlaceholderBoth: "Describe your blood pressure, blood sugar, fatigue, thirst, or changes you noticed today...",
+    sampleVoiceNoteDiabetes: "I've been feeling a bit tired and thirsty lately",
+    sampleVoiceNoteHypertension: "My blood pressure was 135/85 this morning and I felt a bit dizzy earlier",
+    sampleVoiceNoteBoth: "Checked my blood pressure and sugar this morning, feeling slightly fatigued",
     voiceInputTitle: "Tap microphone for Voice Input",
     listeningAnimationText: "Listening... (capturing audio)",
     voiceHelperText: "Speak clearly. Audio will be transcribed directly into your check-in notes.",
+
+    obsPlaceholderSystolic: "e.g. 130",
+    obsPlaceholderDiastolic: "e.g. 85",
+    obsPlaceholderGlucose: "e.g. 140",
+    landingHtnDemoPatient: "Bilal Ahmed (62y M)",
+    landingHtnDemoCondition: "HTN",
+    landingHtnDemoReading: "Blood Pressure",
+    landingHtnDemoValue: "150/95 mmHg",
+    landingHtnBaselineValue: "128/82 mmHg",
+    landingHtnMonitoringNote: "Continuous protocol tracking for Type 2 Diabetes & Hypertension monitoring.",
 
     adaptiveInterviewTitle: "Adaptive Symptom Interview",
     adaptiveInterviewSubtitle: "Personalized follow-up questions tailored to your check-in report.",
@@ -740,6 +779,8 @@ export const translations: Record<Language, Translations> = {
     homeSubtitle: "آپ کی روزانہ نگہداشت کا جائزہ اور علامات کا چیک ان۔",
     reminderTitle: "روزانہ چیک ان کا وقت ہو گیا ہے",
     reminderDesc: "اپنی علامات درج کرنے کے لیے 60 سیکنڈ نکالیں تاکہ آپ کی صحت کا معمول درست رہے۔",
+    reminderDescHypertension: "بلڈ پریشر اور روزانہ کی علامات درج کرنے کے لیے 60 سیکنڈ نکالیں تاکہ آپ کی نگہداشت کا معمول درست رہے۔",
+    reminderDescBoth: "بلڈ پریشر، شوگر اور علامات درج کرنے کے لیے 60 سیکنڈ نکالیں تاکہ آپ کی نگہداشت کا معمول درست رہے۔",
     startCheckInBtn: "روزانہ چیک ان شروع کریں",
     statusTitle: "طبی خلاصہ",
     activeConditions: "فعال بیماریاں",
@@ -757,11 +798,28 @@ export const translations: Record<Language, Translations> = {
 
     checkInEntryTitle: "روزانہ علامات کا چیک ان",
     checkInEntrySubtitle: "بیان کریں کہ آپ کیسا محسوس کر رہے ہیں یا مائیکروفون میں بولیں۔",
+    checkInEntrySubtitleHypertension: "اپنا بلڈ پریشر، علامات اور روزمرہ کیفیت بیان کریں یا مائیکروفون میں بولیں۔",
+    checkInEntrySubtitleBoth: "اپنا بلڈ پریشر، بلڈ شوگر اور علامات بیان کریں یا مائیکروفون میں بولیں۔",
     howAreYouFeelingLabel: "آج آپ کیسا محسوس کر رہے ہیں؟",
     howAreYouFeelingPlaceholder: "اپنی علامات، تھکاوٹ، پیاس یا کسی تبدیلی کے بارے میں بتائیں...",
+    howAreYouFeelingPlaceholderHypertension: "اپنا بلڈ پریشر، سر درد، چکر، تھکاوٹ یا کوئی بھی علامات درج کریں...",
+    howAreYouFeelingPlaceholderBoth: "اپنا بلڈ پریشر، شوگر، تھکاوٹ، پیاس یا کسی تبدیلی کے بارے میں بتائیں...",
+    sampleVoiceNoteDiabetes: "مجھے کچھ عرصے سے تھکاوٹ اور زیادہ پیاس محسوس ہو رہی ہے",
+    sampleVoiceNoteHypertension: "آج صبح میرا بلڈ پریشر 135/85 تھا اور مجھے تھوڑا چکر آ رہا تھا",
+    sampleVoiceNoteBoth: "صبح بلڈ پریشر اور شوگر چیک کی، تھوڑی تھکاوٹ محسوس ہو رہی ہے",
     voiceInputTitle: "آواز سے درج کرنے کے لیے مائیکروفون دبائیں",
     listeningAnimationText: "سن رہا ہے... (آڈیو ریکارڈنگ جاری)",
     voiceHelperText: "صاف آواز میں بولیں۔ آپ کی آواز تحریر میں تبدیل ہو جائے گی۔",
+
+    obsPlaceholderSystolic: "مثلاً 130",
+    obsPlaceholderDiastolic: "مثلاً 85",
+    obsPlaceholderGlucose: "مثلاً 140",
+    landingHtnDemoPatient: "بلال احمد (62 سال، مرد)",
+    landingHtnDemoCondition: "ہائی بلڈ پریشر",
+    landingHtnDemoReading: "بلڈ پریشر",
+    landingHtnDemoValue: "150/95 mmHg",
+    landingHtnBaselineValue: "128/82 mmHg",
+    landingHtnMonitoringNote: "ذیابیطس اور ہائی بلڈ پریشر کی علامات اور پروٹوکول کی مسلسل نگرانی۔",
 
     adaptiveInterviewTitle: "علامات کا فالو اپ انٹرویو",
     adaptiveInterviewSubtitle: "آپ کی علامات کے مطابق طبی سوالات۔",

@@ -3,19 +3,39 @@
 import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { Mic, ArrowRight, ArrowLeft, Sparkles, MessageSquare, Volume2 } from "lucide-react";
+import { getConditionFlags } from "../lib/conditions";
 
 export const CheckInEntryScreen = () => {
-  const { setScreen, returnToHomeAndClearRun, checkIn, setCheckIn, t, isUrdu } = useApp();
+  const { setScreen, returnToHomeAndClearRun, checkIn, setCheckIn, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
   const [note, setNote] = useState(checkIn.note || "");
   const [isListening, setIsListening] = useState(false);
+
+  const conditionFlags = getConditionFlags(isLiveMode ? liveProfile?.conditions : profile.conditions);
+
+  const subtitle = conditionFlags.isHypertensionOnly
+    ? t.checkInEntrySubtitleHypertension
+    : conditionFlags.hasBoth
+    ? t.checkInEntrySubtitleBoth
+    : t.checkInEntrySubtitle;
+
+  const placeholder = conditionFlags.isHypertensionOnly
+    ? t.howAreYouFeelingPlaceholderHypertension
+    : conditionFlags.hasBoth
+    ? t.howAreYouFeelingPlaceholderBoth
+    : t.howAreYouFeelingPlaceholder;
+
+  const sampleVoiceNote = conditionFlags.isHypertensionOnly
+    ? t.sampleVoiceNoteHypertension
+    : conditionFlags.hasBoth
+    ? t.sampleVoiceNoteBoth
+    : t.sampleVoiceNoteDiabetes;
 
   const handleVoiceInput = () => {
     if (isListening) return;
     setIsListening(true);
 
-    // Mock speech-to-text: pulse for 2 seconds then autofill hardcoded sample response
+    // Mock speech-to-text: pulse for 2 seconds then autofill sample response
     setTimeout(() => {
-      const sampleVoiceNote = "I've been feeling a bit tired and thirsty lately";
       setNote(sampleVoiceNote);
       setIsListening(false);
     }, 2000);
@@ -36,7 +56,7 @@ export const CheckInEntryScreen = () => {
       <div className="bg-gradient-to-br from-navy-800 via-navy-800 to-teal-800 p-6 sm:p-7 text-white text-center relative overflow-hidden">
         <div className="absolute -top-10 -right-10 w-36 h-36 bg-teal-400/15 rounded-full blur-2xl pointer-events-none" />
         <h1 className="font-heading text-2xl sm:text-[26px] font-bold mb-1.5">{t.checkInEntryTitle}</h1>
-        <p className="text-sm text-slate-200 max-w-md mx-auto leading-relaxed">{t.checkInEntrySubtitle}</p>
+        <p className="text-sm text-slate-200 max-w-md mx-auto leading-relaxed">{subtitle}</p>
       </div>
 
       <form onSubmit={handleContinue} className="p-6 sm:p-7 space-y-6">
@@ -53,7 +73,7 @@ export const CheckInEntryScreen = () => {
             rows={4}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder={t.howAreYouFeelingPlaceholder}
+            placeholder={placeholder}
             className="w-full text-sm sm:text-base rounded-2xl border border-slate-300 bg-white/90 p-4 text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 resize-none transition-all leading-relaxed shadow-xs"
           />
         </div>
