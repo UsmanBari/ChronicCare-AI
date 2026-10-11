@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext";
 import { Settings, Globe, ShieldCheck, Database, X, Activity, User, Hospital, ShieldAlert, CheckCircle2, AlertTriangle, Loader2, LogOut } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { titleCaseName } from "../lib/presentation";
+import { isEhrManaged } from "../lib/connection";
 
 export const UnifiedSettingsModal = () => {
   const {
@@ -12,6 +13,7 @@ export const UnifiedSettingsModal = () => {
     setLanguage,
     connectionMode,
     liveProfile,
+    liveEhrConnection,
     setLiveProfile,
     isLiveMode,
     profile,
@@ -295,7 +297,7 @@ export const UnifiedSettingsModal = () => {
               <span>{t.connectionModeSettingLabel}</span>
             </span>
             <div className="p-3 rounded-lg bg-white border border-slate-200 text-xs">
-              {connectionMode === "fhir" ? (
+              {isEhrManaged(isLiveMode, connectionMode, liveEhrConnection) ? (
                 <div className="flex items-center gap-2 text-mutedGreen-800 font-semibold">
                   <ShieldCheck className="w-4 h-4 text-mutedGreen-800 shrink-0" />
                   <span>{t.connectedHospital}</span>
@@ -307,7 +309,7 @@ export const UnifiedSettingsModal = () => {
                 </div>
               )}
               <p className="text-[11px] text-slate-500 mt-1">
-                {connectionMode === "fhir"
+                {isEhrManaged(isLiveMode, connectionMode, liveEhrConnection)
                   ? "Live HL7® FHIR® bridge active with configured EHR system."
                   : "Isolated device storage mode using the local store."}
               </p>
