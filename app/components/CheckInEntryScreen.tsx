@@ -2,13 +2,30 @@
 
 import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
-import { Mic, ArrowRight, ArrowLeft, Sparkles, MessageSquare, Volume2 } from "lucide-react";
+import { Mic, ArrowRight, ArrowLeft, Sparkles, MessageSquare, Volume2, Square, X, Loader2, AlertCircle } from "lucide-react";
 import { getConditionFlags } from "../lib/conditions";
+import { useVoiceRecorder } from "../lib/useVoiceRecorder";
 
 export const CheckInEntryScreen = () => {
   const { setScreen, returnToHomeAndClearRun, checkIn, setCheckIn, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
   const [note, setNote] = useState(checkIn.note || "");
   const [isListening, setIsListening] = useState(false);
+
+  const {
+    isRecording,
+    recordingSeconds,
+    isTranscribing,
+    voiceError,
+    handleStartRecording,
+    handleStopRecording,
+    handleCancelRecording,
+  } = useVoiceRecorder({
+    onTranscribed: (text) => {
+      setNote((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
+    },
+    isUrdu,
+    profile: liveProfile,
+  });
 
   const conditionFlags = getConditionFlags(isLiveMode ? liveProfile?.conditions : profile.conditions);
 
@@ -31,10 +48,19 @@ export const CheckInEntryScreen = () => {
     : t.sampleVoiceNoteDiabetes;
 
   const handleVoiceInput = () => {
+    if (isLiveMode) {
+      if (isRecording) {
+        handleStopRecording();
+      } else {
+        handleStartRecording();
+      }
+      return;
+    }
+
     if (isListening) return;
     setIsListening(true);
 
-    // Mock speech-to-text: pulse for 2 seconds then autofill sample response
+    // Mock speech-to-text for demo mode: pulse for 2 seconds then autofill sample response
     setTimeout(() => {
       setNote(sampleVoiceNote);
       setIsListening(false);
@@ -49,6 +75,8 @@ export const CheckInEntryScreen = () => {
     }));
     setScreen("adaptive_interview");
   };
+
+  const activeRecording = isLiveMode ? isRecording : isListening;
 
   return (
     <div className="w-full max-w-lg mx-auto glass-raised rounded-3xl border border-slate-200/90 shadow-2xl overflow-hidden animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
@@ -81,32 +109,96 @@ export const CheckInEntryScreen = () => {
         {/* Voice Input Section */}
         <div className="p-5 rounded-2xl bg-slate-50/90 border border-slate-200 text-center space-y-3">
           <div className="flex flex-col items-center justify-center">
-            <button
-              type="button"
-              onClick={handleVoiceInput}
-              disabled={isListening}
-              id="voice-input-btn"
-              title={t.voiceInputTitle}
-              className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-md ${
-                isListening
-                  ? "bg-teal-700 text-white pulse-active scale-110 shadow-teal-700/30"
-                  : "bg-navy-800 text-teal-400 hover:bg-navy-900 hover:scale-105 active:scale-95"
-              }`}
-            >
-              <Mic className={`w-7 h-7 ${isListening ? "animate-pulse" : ""}`} />
-            </button>
+            {isTranscribing ? (
+              <div className="w-16 h-16 rounded-full flex items-center justify-center bg-teal-700 text-white shadow-md animate-pulse">
+                <Loader2 className="w-7 h-7 animate-spin" />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleVoiceInput}
+                disabled={isTranscribing}
+                id="voice-input-btn"
+                title={isRecording ? t.stopRecording : t.voiceInputTitle}
+                aria-label={isRecording ? t.stopRecording : t.voiceInputTitle}
+                className={`w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-md ${
+                  activeRecording
+                    ? "bg-teal-700 text-white pulse-active scale-110 shadow-teal-700/30"
+                    : "bg-navy-800 text-teal-400 hover:bg-navy-900 hover:scale-105 active:scale-95"
+                }`}
+              >
+                {activeRecording ? (
+                  isLiveMode ? (
+                    <Square className="w-6 h-6 fill-current" />
+                  ) : (
+                    <Mic className="w-7 h-7 animate-pulse" />
+                  )
+                ) : (
+                  <Mic className="w-7 h-7" />
+                )}
+              </button>
+            )}
 
             {/* Listening state or helper text */}
-            <div className="mt-3.5">
-              {isListening ? (
+            <div className="mt-3.5 space-y-2">
+              {isTranscribing ? (
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-100 text-teal-900 text-xs font-semibold animate-pulse">
-                  <span className="w-2 h-2 rounded-full bg-teal-600 animate-ping" />
-                  <span>{t.listeningAnimationText}</span>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>{t.transcribingVoice}</span>
+                </div>
+              ) : activeRecording ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-100 text-teal-900 text-xs font-semibold animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-teal-600 animate-ping" />
+                    <span>
+                      {isLiveMode
+                        ? `${t.recordingVoice} (00:${recordingSeconds < 10 ? "0" : ""}${recordingSeconds})`
+                        : t.listeningAnimationText}
+                    </span>
+                  </div>
+                  {isLiveMode && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleStopRecording}
+                        className="px-3 py-1 rounded-lg bg-teal-700 text-white text-xs font-semibold hover:bg-teal-800 transition-colors flex items-center gap-1"
+                      >
+                        <Square className="w-3 h-3 fill-current" />
+                        <span>{t.stopRecording}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelRecording}
+                        className="px-3 py-1 rounded-lg bg-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-300 transition-colors flex items-center gap-1"
+                      >
+                        <X className="w-3 h-3" />
+                        <span>{t.cancelRecording}</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-navy-800">{t.voiceInputTitle}</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <p className="text-sm font-semibold text-navy-800">{t.voiceInputTitle}</p>
+                    {!isLiveMode && (
+                      <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-semibold tracking-wide">
+                        {t.demoVoiceSampleBadge}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500">{t.voiceHelperText}</p>
+                </div>
+              )}
+
+              {/* Voice Error Notice */}
+              {voiceError && (
+                <div
+                  id="voice-error-notice"
+                  className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-medium text-left flex items-start gap-2"
+                >
+                  <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                  <span>{voiceError}</span>
                 </div>
               )}
             </div>

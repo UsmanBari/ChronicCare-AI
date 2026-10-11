@@ -30,6 +30,7 @@ import {
   CheckinAnswerResponse,
   CheckinCompleteResponse,
 } from "../lib/api";
+import { useVoiceRecorder } from "../lib/useVoiceRecorder";
 
 interface ChatMessage {
   role: "system" | "user";
@@ -63,204 +64,25 @@ export const AdaptiveInterviewScreen = () => {
   const [currentStep, setCurrentStep] = useState<string | null>(activeLiveCheckin?.step || null);
   const [lastFailedAnswer, setLastFailedAnswer] = useState<string | null>(null);
 
-  // --- VOICE RECORDING STATE ---
-  const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
-  const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
+  // --- VOICE RECORDING STATE (via shared useVoiceRecorder hook) ---
   const [transcribedSafetyNotice, setTranscribedSafetyNotice] = useState<boolean>(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
-
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-
-  // Stop recording timer & stream cleanly
-  const cleanupMediaStream = () => {
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
-      recordingTimerRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
-  };
-
-  const handleStartRecording = async () => {
-    setVoiceError(null);
-
-    if (liveProfile && liveProfile.voice_enabled === false) {
-      setVoiceError(
-        isUrdu
-          ? "آواز کا فیچر سیٹنگز میں بند ہے۔ براہ کرم سیٹنگز میں جا کر اسے آن کریں۔"
-          : "Voice input is disabled in your profile. Enable it in Settings (Privacy & Consent) to speak your answers."
-      );
-      return;
-    }
-
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      setVoiceError(
-        isUrdu
-          ? "آپ کے براؤزر میں مائیکروفون دستیاب نہیں ہے۔ براہ کرم جواب ٹائپ کریں۔"
-          : "Microphone recording is not supported in this browser. Please type your answer."
-      );
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-
-      let mimeType = "";
-      if (typeof MediaRecorder !== "undefined") {
-        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
-          mimeType = "audio/webm;codecs=opus";
-        } else if (MediaRecorder.isTypeSupported("audio/webm")) {
-          mimeType = "audio/webm";
-        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
-          mimeType = "audio/mp4";
-        }
-      }
-
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
-
-      audioChunksRef.current = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          audioChunksRef.current.push(e.data);
-        }
-      };
-
-      recorder.onstop = async () => {
-        const chunks = audioChunksRef.current;
-        cleanupMediaStream();
-        setIsRecording(false);
-
-        if (!chunks || chunks.length === 0) return;
-
-        const audioBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
-
-        // Check 5MB limit
-        if (audioBlob.size > 5 * 1024 * 1024) {
-          setVoiceError(
-            isUrdu
-              ? "آواز کی فائل ۵ ایم بی سے زیادہ ہے۔ براہ کرم مختصر جواب ریکارڈ کریں۔"
-              : "Audio recording exceeds the 5MB limit. Please record a shorter answer."
-          );
-          return;
-        }
-
-        if (audioBlob.size < 100) {
-          setVoiceError(isUrdu ? "کوئی آواز ریکارڈ نہیں ہوئی۔" : "No audio detected. Please try again.");
-          return;
-        }
-
-        setIsTranscribing(true);
-        setVoiceError(null);
-
-        try {
-          const res = await api.transcribeVoice(audioBlob, "recording.webm");
-          const text = (res.text || "").trim();
-          if (text) {
-            setLiveAnswerInput((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
-            setTranscribedSafetyNotice(true);
-          } else {
-            setVoiceError(
-              isUrdu
-                ? "کوئی الفاظ سمجھ نہیں آئے۔ براہ کرم دوبارہ بولیں یا لکھ کر جواب دیں۔"
-                : "No speech recognized. Please try speaking clearly or type your answer."
-            );
-          }
-        } catch (err: any) {
-          if (err instanceof ApiError) {
-            if (err.status === 403) {
-              setVoiceError(
-                isUrdu
-                  ? "آواز کا فیچر آپ کی پروفائل میں بند ہے۔ سیٹنگز میں فعال کریں۔"
-                  : "Voice input is not enabled in your profile settings."
-              );
-            } else if (err.status === 429) {
-              setVoiceError(
-                isUrdu
-                  ? "آواز کی حد ختم ہو گئی ہے۔ براہ کرم کچھ دیر بعد کوشش کریں یا ٹائپ کریں۔"
-                  : "Voice transcription rate limit reached. Please type your answer or wait a minute."
-              );
-            } else if (err.status === 502 || err.status === 503) {
-              setVoiceError(
-                isUrdu
-                  ? "آواز کی سروس عارضی طور پر غیر فعال ہے۔ براہ کرم جواب ٹائپ کریں۔"
-                  : "Voice transcription service temporarily unavailable. Please type your answer."
-              );
-            } else {
-              setVoiceError(err.getFriendlyMessage(isUrdu));
-            }
-          } else {
-            setVoiceError(
-              isUrdu
-                ? "آواز کی منتقلی میں خرابی پیش آئی۔ براہ کرم جواب ٹائپ کریں۔"
-                : "Failed to transcribe voice audio. Please type your answer."
-            );
-          }
-        } finally {
-          setIsTranscribing(false);
-        }
-      };
-
-      mediaRecorderRef.current = recorder;
-      recorder.start(1000); // 1s timeslices
-      setIsRecording(true);
-      setRecordingSeconds(0);
-
-      let sec = 0;
-      recordingTimerRef.current = setInterval(() => {
-        sec += 1;
-        setRecordingSeconds(sec);
-        if (sec >= 60) {
-          handleStopRecording();
-        }
-      }, 1000);
-    } catch (err: any) {
-      cleanupMediaStream();
-      setIsRecording(false);
-      setVoiceError(
-        isUrdu
-          ? "مائیکروفون تک رسائی کی اجازت نہیں ملی۔ براہ کرم براؤزر میں مائیک کی اجازت دیں یا ٹائپ کریں۔"
-          : "Microphone access denied. Please allow microphone permissions or type your answer."
-      );
-    }
-  };
-
-  const handleStopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch {
-        cleanupMediaStream();
-        setIsRecording(false);
-      }
-    } else {
-      cleanupMediaStream();
-      setIsRecording(false);
-    }
-  };
-
-  const handleCancelRecording = () => {
-    audioChunksRef.current = [];
-    cleanupMediaStream();
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch {
-        // ignore
-      }
-    }
-    setIsRecording(false);
-    setRecordingSeconds(0);
-    setVoiceError(null);
-  };
+  const {
+    isRecording,
+    recordingSeconds,
+    isTranscribing,
+    voiceError,
+    setVoiceError,
+    handleStartRecording,
+    handleStopRecording,
+    handleCancelRecording,
+  } = useVoiceRecorder({
+    onTranscribed: (text) => {
+      setLiveAnswerInput((prev) => (prev.trim() ? `${prev.trim()} ${text}` : text));
+      setTranscribedSafetyNotice(true);
+    },
+    isUrdu,
+    profile: liveProfile,
+  });
 
   // Ref guards to prevent double flights
   const isSendingRef = useRef<boolean>(false);

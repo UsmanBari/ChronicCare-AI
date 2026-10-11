@@ -348,6 +348,11 @@ export interface Translations {
   demoSimulationBadge: string;
   notOnFile: string;
   notReportedToday: string;
+  demoVoiceSampleBadge: string;
+  recordingVoice: string;
+  transcribingVoice: string;
+  stopRecording: string;
+  cancelRecording: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -690,6 +695,11 @@ export const translations: Record<Language, Translations> = {
     demoSimulationBadge: "Demo",
     notOnFile: "Not on file",
     notReportedToday: "Not reported today",
+    demoVoiceSampleBadge: "Demo voice sample",
+    recordingVoice: "Recording... Speak clearly",
+    transcribingVoice: "Transcribing your voice...",
+    stopRecording: "Stop recording",
+    cancelRecording: "Cancel",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1032,5 +1042,10 @@ export const translations: Record<Language, Translations> = {
     demoSimulationBadge: "ڈیمو",
     notOnFile: "ریکارڈ میں موجود نہیں",
     notReportedToday: "آج درج نہیں کیا گیا",
+    demoVoiceSampleBadge: "ڈیمو وائس نمونہ",
+    recordingVoice: "ریکارڈنگ جاری ہے... واضح بولیں",
+    transcribingVoice: "آواز کو تحریر میں تبدیل کیا جا رہا ہے...",
+    stopRecording: "ریکارڈنگ روکیں",
+    cancelRecording: "منسوخ کریں",
   }
 };

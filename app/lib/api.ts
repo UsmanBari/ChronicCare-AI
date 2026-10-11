@@ -773,13 +773,15 @@ export const api = {
   // 7. Voice Transcription
   transcribeVoice: async (
     file: Blob | File,
-    filename: string = "audio.webm"
+    _filename: string = "audio.webm"
   ): Promise<VoiceTranscribeResponse> => {
-    const formData = new FormData();
-    formData.append("file", file, filename);
+    const contentType = file.type || "audio/webm";
     return request<VoiceTranscribeResponse>("/api/voice/transcribe", {
       method: "POST",
-      body: formData,
+      headers: {
+        "Content-Type": contentType,
+      },
+      body: file,
     });
   },
 };

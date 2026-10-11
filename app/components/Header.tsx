@@ -20,6 +20,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { isEhrManaged } from "../lib/connection";
 
 export const Header = () => {
   const {
@@ -93,7 +94,7 @@ export const Header = () => {
           </span>
         );
       }
-      if (liveEhrConnection.mode === "fhir" || liveEhrConnection.mode === "connected") {
+      if (isEhrManaged(isLiveMode, connectionMode, liveEhrConnection)) {
         const sysName = liveEhrConnection.connection?.display_name || (isUrdu ? "ہسپتال کا ریکارڈ" : "Hospital EHR");
         const connectedText = isUrdu
           ? `${sysName} سے منسلک (ٹیسٹ ماحول)`
