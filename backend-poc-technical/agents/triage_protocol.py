@@ -61,6 +61,7 @@ from agents.adaptive_interview_agent import (
     _looks_affirmative,
     _normalize,
     _try_parse_bp,
+    get_red_flag_level,
     run_stage1_red_flag_screen,
 )
 
@@ -331,6 +332,8 @@ class TriageProtocolState:
 
 def _questions(state: TriageProtocolState) -> List[tuple]:
     base = list(_QUESTION_SETS[state.protocol])
+    if state.protocol == "glucose_low" and (state.answers.get("neuro") is True or (state.answers.get("neuro") is None and "neuro" in state.answers)):
+        base.insert(1, ("orientation", "yesno", "Is the patient oriented in time, place and person? Answer yes or no."))
     if state.age_band == "older_65_plus" and state.protocol in _OLDER_EXTRA:
         base.append(_OLDER_EXTRA[state.protocol])
     return base
@@ -390,7 +393,8 @@ def advance_protocol(state: TriageProtocolState, answer: str) -> TriageProtocolS
 
     flagged, category = run_stage1_red_flag_screen(text)
     if flagged:
-        state.result = _result(state, TriageLevel.EMERGENCY.value,
+        level = get_red_flag_level(category)
+        state.result = _result(state, level,
                                [f"A warning symptom was reported ({category.replace('_', ' ')})."])
         return state
 
@@ -471,10 +475,15 @@ def _early_emergency(state: TriageProtocolState) -> Optional[Dict[str, Any]]:
         return _result(state, "emergency", ["Blood pressure in the crisis range with warning symptoms."])
     if state.protocol == "glucose_high" and a.get("dka_symptoms") is True:
         return _result(state, "emergency", ["High glucose with warning symptoms."])
-    if state.protocol == "glucose_low" and a.get("neuro") is True:
-        return _result(state, "emergency", ["Low glucose with confusion or drowsiness."])
-    if state.protocol == "glucose_low" and a.get("can_swallow") is False:
-        return _result(state, "emergency", ["Low glucose and unable to eat or drink safely."])
+    if state.protocol == "glucose_low":
+        if "orientation" in a:
+            if a["orientation"] is not True:
+                return _result(state, "emergency", ["Low glucose with disorientation or acute confusion."])
+        elif a.get("neuro") is True:
+            # Need to ask orientation follow-up first before early emergency
+            pass
+        if a.get("can_swallow") is False:
+            return _result(state, "emergency", ["Low glucose and unable to eat or drink safely."])
     return None
 
 
@@ -569,17 +578,155 @@ def _decide_glucose_high(state: TriageProtocolState) -> Dict[str, Any]:
 def _decide_glucose_low(state: TriageProtocolState) -> Dict[str, Any]:
     a = state.answers
     glucose = state.readings.get(GLUCOSE, 0)
-    if a.get("neuro") is True:
+    if "orientation" in a:
+        if a["orientation"] is not True:
+            return _result(state, "emergency", ["Low glucose with disorientation or acute confusion."])
+    elif a.get("neuro") is True:
+        # Unknown/missing orientation treated as NOT oriented (emergency)
         return _result(state, "emergency", ["Low glucose with confusion or drowsiness."])
     if a.get("can_swallow") is False:
         return _result(state, "emergency", ["Low glucose and unable to eat or drink safely."])
     level, reasons = "review", ["Glucose is low."]
+    if a.get("orientation") is True:
+        reasons.append("Confusion reported but patient is oriented in time, place, and person.")
     if glucose < GLUCOSE_VERY_LOW_MG_DL:
         level = _raise_level(level, "urgent")
         reasons.append(f"Glucose is below {GLUCOSE_VERY_LOW_MG_DL} mg/dL.")
-    if a.get("neuro") is None or a.get("can_swallow") is None:
+    if (a.get("neuro") is None and "orientation" not in a) or a.get("can_swallow") is None:
         level = _raise_level(level, "urgent")
         reasons.append("Warning signs could not be ruled out.")
     if a.get("symptoms"):
         reasons.append("Symptoms of low glucose.")
     return _result(state, level, reasons)
+
+
+# -----------------------------------------------------------------------------
+# Stroke Extras Evaluation (Clinician Rule Changes)
+# -----------------------------------------------------------------------------
+STROKE_EXTRAS_KEYWORDS = ("dizziness", "dizzy", "headache", "blurred vision", "blurry vision")
+STROKE_MAIN_KEYWORDS = ("weakness", "one side weak", "one-sided weakness", "droop", "drooping", "face droop")
+
+
+def evaluate_stroke_extras(
+    symptoms: Any,
+    patient_profile: Optional[Dict[str, Any]] = None,
+    age_years: Optional[int] = None,
+) -> Optional[Dict[str, Any]]:
+    """Evaluates stroke extras (dizziness, blurred vision, headache) deterministically.
+
+    - Combined with one-sided weakness or facial droop: emergency, reasons list the extras.
+    - Alone, in age >= 65 with heart or brain history OR >= 2 of hypertension, diabetes, IHD:
+      urgent with advice text 'Please go for an urgent CT scan today.'
+    - Alone, in anyone else: review.
+    """
+    has_dizzy = False
+    has_vision = False
+    has_headache = False
+    has_weakness = False
+
+    extras_found = []
+    if isinstance(symptoms, str):
+        lowered = symptoms.lower()
+        if any(w in lowered for w in ("dizzy", "dizziness", "lightheaded", "chakkar", "چکر")):
+            has_dizzy = True
+            extras_found.append("dizziness")
+        if any(w in lowered for w in ("blurred vision", "blurry vision", "can't see clearly", "dhundla", "دھندلا")):
+            has_vision = True
+            extras_found.append("blurred vision")
+        if any(w in lowered for w in ("headache", "head hurts", "sar dard", "سر درد")):
+            has_headache = True
+            extras_found.append("headache")
+        if any(w in lowered for w in ("weakness", "one side weak", "one-sided", "droop", "drooping", "face droop")):
+            has_weakness = True
+    elif isinstance(symptoms, dict):
+        for k, v in symptoms.items():
+            k_low = str(k).lower()
+            val_str = str(v).lower()
+            if any(w in k_low or w in val_str for w in ("dizzy", "dizziness")):
+                if v is not False and "dizziness" not in extras_found:
+                    has_dizzy = True
+                    extras_found.append("dizziness")
+            if any(w in k_low or w in val_str for w in ("blurred_vision", "blurred vision", "blurry vision", "vision")):
+                if v is not False and "blurred vision" not in extras_found:
+                    has_vision = True
+                    extras_found.append("blurred vision")
+            if any(w in k_low or w in val_str for w in ("headache", "head_ache")):
+                if v is not False and "headache" not in extras_found:
+                    has_headache = True
+                    extras_found.append("headache")
+            if any(w in k_low or w in val_str for w in ("weakness", "droop")):
+                if v is not False:
+                    has_weakness = True
+    elif isinstance(symptoms, (list, tuple, set)):
+        for item in symptoms:
+            it_str = str(item).lower()
+            if "dizzy" in it_str and "dizziness" not in extras_found:
+                has_dizzy = True
+                extras_found.append("dizziness")
+            if "vision" in it_str and "blurred vision" not in extras_found:
+                has_vision = True
+                extras_found.append("blurred vision")
+            if "headache" in it_str and "headache" not in extras_found:
+                has_headache = True
+                extras_found.append("headache")
+            if "weak" in it_str or "droop" in it_str:
+                has_weakness = True
+
+    if not extras_found and not has_weakness:
+        return None
+
+    if has_weakness:
+        reasons = ["Weakness or facial droop reported (acute stroke warning sign)."]
+        if extras_found:
+            reasons.append(f"Combined with stroke extras: {', '.join(extras_found)}.")
+        return {
+            "level": "emergency",
+            "reasons": reasons,
+            "guidance": GUIDANCE.get("emergency", "Seek emergency medical care immediately."),
+            "advice": GUIDANCE.get("emergency", "Seek emergency medical care immediately."),
+        }
+
+    profile = patient_profile or {}
+    if age_years is None and profile.get("date_of_birth"):
+        try:
+            from data_sources.validation import calculate_age
+            age_years = calculate_age(profile["date_of_birth"])
+        except Exception:
+            age_years = None
+
+    comorbidities = profile.get("comorbidities") or {}
+    if not isinstance(comorbidities, dict):
+        comorbidities = {}
+    has_heart_brain_history = bool(
+        comorbidities.get("heart_disease")
+        or comorbidities.get("stroke_or_tia")
+        or comorbidities.get("stroke")
+        or comorbidities.get("heart_attack")
+        or comorbidities.get("ihd")
+        or comorbidities.get("ischaemic_heart_disease")
+    )
+
+    cond_set = set(str(c).lower() for c in (profile.get("conditions") or []))
+    risk_conds = cond_set.intersection({"hypertension", "diabetes", "ischaemic_heart_disease", "heart_disease"})
+    if comorbidities.get("heart_disease") or comorbidities.get("ihd") or comorbidities.get("ischaemic_heart_disease"):
+        risk_conds.add("ischaemic_heart_disease")
+    qualifying_cond_count = len(risk_conds)
+
+    if age_years is not None and age_years >= 65 and (has_heart_brain_history or qualifying_cond_count >= 2):
+        advice = "Please go for an urgent CT scan today."
+        return {
+            "level": "urgent",
+            "advice": advice,
+            "guidance": advice,
+            "reasons": [
+                f"Stroke extras reported ({', '.join(extras_found)}) in high-risk patient (age {age_years}).",
+                advice,
+            ],
+        }
+
+    return {
+        "level": "review",
+        "advice": "Review with clinician.",
+        "guidance": "Review with clinician.",
+        "reasons": [f"Stroke extras reported ({', '.join(extras_found)})."],
+    }

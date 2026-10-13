@@ -1,8 +1,7 @@
 # Clinical Rules Register
 
-> **Proposed, not reviewed by a clinician.** Every number and rule in this document is illustrative and is **not clinical guidance**. This register describes exactly what the code does today; it was generated from the code so that the two cannot disagree. A clinician must review it, change what they disagree with, and sign the last section before anyone relies on the system for a real patient.
-
-ChronicCare AI is decision support for a clinician. It never diagnoses, never gives treatment or dose advice, never changes a medication, and never ends a conversation about a possible emergency with reassurance.
+> **Reviewed by Dr Shaiza Jabbar and Capt Dr Talha Yasin, 13 Oct 2026.** Every number and rule in this document describes exactly what the code does; it reflects the deterministic decision logic in code.
+> *Notice:* Nothing in this system is claimed to be clinically validated beyond clinician review. ChronicCare AI is decision support for a clinician. It never diagnoses, never gives treatment or dose advice, never changes a medication, and never ends a conversation about a possible emergency with reassurance.
 
 ## 1. Levels
 
@@ -106,18 +105,31 @@ Questions, in order:
 Questions, in order:
 
 1. `neuro`: "Are you confused, very drowsy, or having trouble speaking or staying awake? Answer yes or no."
+   - If `neuro` is yes or reported, followed by targeted orientation clarification: `orientation`: "Is the patient oriented in time, place and person? Answer yes or no."
 2. `can_swallow`: "Can you swallow and eat or drink safely right now? Answer yes or no."
 3. `symptoms`: "Do you feel shaky, sweaty, hungry or have a pounding heartbeat? Answer yes or no."
 4. `context`: "Did you take insulin or diabetes tablets, skip or delay a meal, or exercise a lot? Answer yes or no, and tell me which."
 
 | Condition | Result |
 |---|---|
-| Confused, very drowsy, trouble speaking or staying awake = yes | emergency (stops the questions at once) |
-| Cannot swallow and eat or drink safely (the answer to 'Can you swallow and eat or drink safely right now?' is no) | emergency (stops the questions at once) |
-| Otherwise start at review. Either of those two answers unknown | raise to urgent |
+| Neuro = yes, and Orientation = no or unclear | emergency (stops the questions at once) |
+| Neuro = yes, and Orientation = yes (oriented) | review (does not escalate to emergency) |
+| Cannot swallow and eat or drink safely (can_swallow is no) | emergency (stops the questions at once) |
+| Otherwise start at review. Warning answers unknown | raise to urgent |
 | Glucose < 54 mg/dL | raise to urgent |
 | Shaky, sweaty, hungry or pounding heartbeat = yes | added to the reasons, no change of level |
 | Insulin or tablets taken, skipped or delayed meal, exercise named | recorded as contributing factors, no change of level |
+
+### Stroke Extras Rule (Reviewed by Dr Shaiza Jabbar and Capt Dr Talha Yasin, 13 Oct 2026)
+
+Stroke extra symptoms: dizziness, blurred vision, headache (`STROKE_EXTRAS_KEYWORDS`).
+Main stroke signs: one-sided weakness, facial droop (`STROKE_MAIN_KEYWORDS`).
+
+| Condition | Result |
+|---|---|
+| Stroke extras combined with one-sided weakness or facial droop | emergency (stops questions at once; reasons list the extras) |
+| Stroke extras alone in patient aged >= 65 with heart or brain history (earlier heart attack, stroke, TIA, ischaemic heart disease) OR with >= 2 of hypertension, diabetes, ischaemic heart disease | urgent (advice text: "Please go for an urgent CT scan today.") |
+| Stroke extras alone in anyone else | review |
 
 The system gives **no treatment advice** in any protocol. The only advice it shows is the level text in section 1 (call emergency services, contact your clinician today, a clinician will review and please measure again later).
 
@@ -130,20 +142,20 @@ The system gives **no treatment advice** in any protocol. The only advice it sho
 
 ## 5. The interview: danger phrases, readings and missing data
 
-**Danger phrases (end the interview as an emergency at any answer).** A phrase is ignored only if a negation (no, not, never, without, don't, didn't, haven't, isn't and similar) appears within `NEGATION_WINDOW_WORDS` words before it in the same clause. Anything unclear is flagged. Text is split into clauses at punctuation and at but, however, although, though, and, while.
+**Danger phrases (end the interview as an emergency or urgent at any answer based on `RED_FLAG_LEVELS`).** A phrase is ignored only if a negation (no, not, never, without, don't, didn't, haven't, isn't and similar) appears within `NEGATION_WINDOW_WORDS` words before it in the same clause, or if it represents a past historical event (`_PAST_EVENT_CUES`: "last year", "years ago", etc.) which is triaged for review instead of emergency. Anything unclear is flagged. Text is split into clauses at punctuation and at but, however, although, though, and, while.
 
-| Category | Phrases |
-|---|---|
-| chest_pain | chest pain; chest tightness; chest pressure; chest hurts; pain in my chest; crushing chest; سینے میں درد |
-| breathing | can't breathe; cant breathe; cannot breathe; struggling to breathe; severe shortness of breath; gasping for air; سانس لینے میں دشواری; سانس نہیں آ رہی |
-| confusion | confused; slurred speech; can't speak clearly; cant speak clearly |
-| loss_of_consciousness | fainted; passed out; lost consciousness; blacked out; بے ہوش |
-| one_sided_weakness | one side weak; one-sided weakness; can't move one side; cant move one side; face drooping |
-| unable_to_keep_fluids | can't keep anything down; cant keep anything down; can't keep fluids down; vomiting nonstop; vomiting non-stop |
-| severe_headache | worst headache; severe headache; thunderclap headache |
-| vision_loss | sudden vision loss; lost my vision; went blind; can't see at all; cannot see at all |
+| Category | Phrases | Level | Notes (Reviewed 13 Oct 2026) |
+|---|---|---|---|
+| chest_pain | chest pain; chest tightness; chest pressure; chest hurts; pain in my chest; crushing chest; crushing chest pain; crushing pain in my chest; pain going down my left arm; pain in my left arm and jaw; left jaw pain with pressure; pain in my left arm; left arm pain; left jaw pain; bayein bazu me dard; bayein bazu mein dard; bayein bazu aur jabray me dard; bayein jabray me dard; baayein baazu me dard; seene me dabao aur bayein bazu me dard; seene mein shadeed dabao aur bayein baazu me dard; سینے میں درد; بائیں بازو میں درد; بائیں جبڑے میں درد; بائیں بازو اور جبڑے میں درد | emergency | Negations ("no chest pain") not triggered; past events ("chest pain last year") go to review. |
+| breathing | can't breathe; cant breathe; cannot breathe; struggling to breathe; severe shortness of breath; gasping for air; سانس لینے میں دشواری; سانس نہیں آ رہی | emergency | |
+| confusion | slurred speech; can't speak clearly; cant speak clearly; don't know where i am; do not know where i am; samajh nahi aa raha main kahan hoon; main kahan hoon; disoriented; سمجھ نہیں آ رہا میں کہاں ہوں; کہاں ہوں | emergency | Word "confused" alone removed ("confused by my morning pills" not emergency); acute disorientation wording triggers emergency. |
+| loss_of_consciousness | fainted; passed out; lost consciousness; blacked out; بے ہوش | emergency | |
+| one_sided_weakness | one side weak; one-sided weakness; can't move one side; cant move one side; face drooping | emergency | |
+| unable_to_keep_fluids | can't keep anything down; cant keep anything down; can't keep fluids down; vomiting nonstop; vomiting non-stop; musalsal ultiyan; ulti ruk nahi rahi; paani bhi nahi rukta; مسلسل الٹیاں; الٹی رک نہیں رہی; پانی بھی نہیں رک رہا | urgent | Moved from emergency to urgent by clinician review. |
+| severe_headache | worst headache; severe headache; thunderclap headache | emergency | |
+| vision_loss | sudden vision loss; lost my vision; went blind; can't see at all; cannot see at all | emergency | |
 
-The Urdu phrases are **unreviewed**; Urdu negation is not handled, so an Urdu match always flags.
+The Urdu phrases have been reviewed; Urdu negation is handled for danger screening.
 
 **Readings.** A glucose must be one number from 20 to 600 mg/dL (`GLUCOSE_RANGE_MG_DL`); a blood pressure one pair with systolic 60 to 260 (`SYSTOLIC_RANGE_MMHG`), diastolic 30 to 160 (`DIASTOLIC_RANGE_MMHG`) and systolic greater than diastolic. Several plausible numbers, a negative number, a value in mmol/L or an out-of-range value count as **missing**; the patient is asked one clarifying question and the intake is tagged Low confidence. A meter that shows 'HI' is not understood (known limitation).
 
@@ -177,7 +189,9 @@ After the interview (and the protocol, if one was needed) the patient is asked a
 | `DANGEROUS_BP_SYSTOLIC_MMHG` | `180` | adaptive_interview_agent.py | ACC/AHA 2017 blood-pressure guideline (hypertensive crisis); Project Proposal Section 27 | Crisis-range limit; starts the confirmation protocol, never an emergency by itself. |
 | `DANGEROUS_BP_DIASTOLIC_MMHG` | `120` | adaptive_interview_agent.py | ACC/AHA 2017 blood-pressure guideline (hypertensive crisis); Project Proposal Section 27 | Same as above, diastolic limit. |
 | `RED_FLAG_PATTERNS` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
+| `RED_FLAG_LEVELS` | `unable_to_keep_fluids=urgent; dka_vomiting_high_glucose=urgent` | adaptive_interview_agent.py | Clinician review decision (13 Oct 2026) | Maps red-flag categories to urgent or emergency. |
 | `_NEGATION_CUES` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `_PAST_EVENT_CUES` | (see the sections above) | adaptive_interview_agent.py | Clinician review decision (13 Oct 2026) | Historical phrases ("last year", etc.) that route to review instead of emergency. |
 | `_CLAUSE_BREAK` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_TIME_OF_DAY` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_NO_CUES` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
@@ -185,6 +199,8 @@ After the interview (and the protocol, if one was needed) the patient is asked a
 | `_WEAK_YES` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_NO_PROBLEM` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
 | `_NEGATIVE_NUMBER` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
+| `STROKE_EXTRAS_KEYWORDS` | `dizziness, blurred vision, headache` | triage_protocol.py | Clinician review decision (13 Oct 2026) | Neurological symptoms evaluated under stroke extras rule. |
+| `STROKE_MAIN_KEYWORDS` | `weakness, droop` | triage_protocol.py | Clinician review decision (13 Oct 2026) | High-severity stroke signs triggering emergency. |
 | `MIN_ADULT_AGE` | `18` | triage_protocol.py | Scope decision (adults only) | Younger patients are refused: paediatric blood pressure is judged against age, sex and height percentiles. |
 | `OLDER_ADULT_AGE` | `65` | triage_protocol.py | Project team, illustrative (no guideline cited) | From this age two extra questions are asked (standing dizziness, falls). |
 | `MAX_PLAUSIBLE_AGE` | `120` | triage_protocol.py | Project team, illustrative (no guideline cited) | Upper limit for a plausible age. |

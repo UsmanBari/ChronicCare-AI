@@ -151,7 +151,7 @@ def test_date_of_birth_validation(rsa_key_pair):
     client.post("/api/auth/session", headers={"Authorization": f"Bearer {tok}"})
     client.post("/api/me/consent", headers={"Authorization": f"Bearer {tok}"}, json={"granted": True})
 
-    today = datetime.date.today()
+    today = datetime.datetime.now(datetime.timezone.utc).date()
 
     # (a) Under 18 (17 years old) -> 422 adults_only
     dob_17 = (today.replace(year=today.year - 17)).strftime("%Y-%m-%d")

@@ -52,6 +52,7 @@ from agents.adaptive_interview_agent import (
     build_checkin_bundle,
     build_checkin_origins,
     get_current_question,
+    get_red_flag_level,
     INTERVIEW_COMPLETE,
     run_stage1_red_flag_screen,
 )
@@ -72,6 +73,7 @@ from agents.medication_confirmation import (
     _norm,
 )
 from agents.triage_protocol import (
+    evaluate_stroke_extras,
     evaluate_triggers,
     start_protocol,
     advance_protocol,
@@ -2793,17 +2795,20 @@ def answer_checkin_endpoint(
         # Stage-1 red-flag screen on medication answer
         triggered, reason = run_stage1_red_flag_screen(body.answer)
         if triggered:
+            rf_level = get_red_flag_level(reason)
+            is_emerg = (rf_level == "emergency")
+            status_val = rf_level
             last_cond = current_state.active_condition or "general"
-            intakes = current_state.intakes if current_state.intakes else [{"condition": last_cond, "emergency": True, "reason": reason}]
+            intakes = current_state.intakes if current_state.intakes else [{"condition": last_cond, "emergency": is_emerg, "level": rf_level, "reason": reason}]
             completed_at = _utc_now_iso()
             try:
                 success = apply_checkin_answer_atomic(
                     checkin_id=checkin_id,
                     expected_version=current_version,
                     state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
-                    status="emergency",
+                    status=status_val,
                     completed_at=completed_at,
-                    emergency=True,
+                    emergency=is_emerg,
                     trigger_category=reason,
                     trigger_text=body.answer,
                     actor_user_id=current_user["user_id"],
@@ -2826,7 +2831,7 @@ def answer_checkin_endpoint(
             return CheckinAnswerResponse(
                 question=None,
                 complete=True,
-                emergency=True,
+                emergency=is_emerg,
                 emergency_reason=reason,
                 step=expected_step,
                 version=current_version + 1,
@@ -3037,10 +3042,15 @@ def answer_checkin_endpoint(
             detail=str(e),
         )
 
-    is_emergency = bool(next_state.stage1_red_flag or (next_state.intake and next_state.intake.get("emergency")))
+    rf_level = get_red_flag_level(next_state.stage1_reason) if next_state.stage1_red_flag else "routine"
+    is_emergency = bool(
+        (next_state.stage1_red_flag and rf_level == "emergency")
+        or (next_state.intake and next_state.intake.get("emergency"))
+    )
+    is_urgent_stage1 = bool(next_state.stage1_red_flag and rf_level == "urgent")
 
-    if is_emergency:
-        new_status = "emergency"
+    if is_emergency or is_urgent_stage1:
+        new_status = "emergency" if is_emergency else "urgent"
         completed_at = _utc_now_iso()
         is_complete = True
         next_step_str = next_state.step
@@ -3438,6 +3448,19 @@ def complete_checkin_endpoint(
         else:
             final_triage_level = proto_level
 
+        stroke_eval = None
+        for it in (state.intakes or []):
+            eval_res = evaluate_stroke_extras(it.get("symptoms", {}), patient_profile=profile)
+            if eval_res:
+                stroke_eval = eval_res
+                break
+        if stroke_eval:
+            final_triage_level = _raise_level(final_triage_level, stroke_eval["level"])
+            if stroke_eval.get("advice"):
+                triage_res["advice"] = stroke_eval["advice"]
+                if stroke_eval["level"] == "urgent":
+                    triage_res["guidance"] = stroke_eval["advice"]
+
         final_requires_review = (final_triage_level in ("review", "urgent", "emergency") or verif_requires_review or intake_requires_review)
 
         SEV_ORDER = {"none": 0, "low": 1, "moderate": 2, "high": 3}
@@ -3485,15 +3508,36 @@ def complete_checkin_endpoint(
             record_source_label=record_label,
         )
     else:
-        final_requires_review = (verif_requires_review or intake_requires_review)
+        profile = get_patient_profile(current_user["user_id"]) or {}
+        stroke_eval = None
+        for it in (state.intakes or []):
+            eval_res = evaluate_stroke_extras(it.get("symptoms", {}), patient_profile=profile)
+            if eval_res:
+                stroke_eval = eval_res
+                break
+
+        final_requires_review = bool(verif_requires_review or intake_requires_review or (stroke_eval is not None))
         final_triage_level = "review" if final_requires_review else "routine"
+        if stroke_eval:
+            final_triage_level = _raise_level(final_triage_level, stroke_eval["level"])
+
         review_status = "open" if final_requires_review else "resolved"
-        final_max_sev = "moderate" if (intake_requires_review and verif_max_severity == "none") else verif_max_severity
-        triage_dict = {
-            "level": final_triage_level,
-            "guidance": "Low blood sugar safety review required. If you feel shaky, sweaty, or confused, consume fast-acting sugar immediately.",
-            "summary": "Check-in flagged for clinician review."
-        } if intake_requires_review else None
+        final_max_sev = "high" if final_triage_level == "urgent" else ("moderate" if (final_requires_review and verif_max_severity == "none") else verif_max_severity)
+        if stroke_eval:
+            triage_dict = {
+                "level": stroke_eval["level"],
+                "guidance": stroke_eval.get("advice", "Check-in flagged for clinician review."),
+                "advice": stroke_eval.get("advice", "Check-in flagged for clinician review."),
+                "summary": stroke_eval.get("advice", "Stroke extras evaluation: clinician review required."),
+            }
+        elif intake_requires_review:
+            triage_dict = {
+                "level": "review",
+                "guidance": "Low blood sugar safety review required. If you feel shaky, sweaty, or confused, consume fast-acting sugar immediately.",
+                "summary": "Check-in flagged for clinician review.",
+            }
+        else:
+            triage_dict = None
 
         create_checkin_result(
             checkin_id=checkin_id,
