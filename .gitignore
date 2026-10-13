@@ -45,3 +45,6 @@ fhir_probe_report.json
 backend-poc-technical/output/fhir_connectivity.json
 backend-poc-technical/output/
 
+
+# Local NHANES ML data - never commit
+backend-poc-technical/ml/data/
