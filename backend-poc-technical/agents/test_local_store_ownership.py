@@ -13,6 +13,14 @@ from data_sources.local_store import (
 )
 
 
+@pytest.fixture
+def temp_db(tmp_path):
+    """A fresh, empty SQLite store for each test."""
+    path = str(tmp_path / "local_store_test.db")
+    init_db(db_path=path, backend="sqlite")
+    return path
+
+
 def test_cross_patient_access_isolation(temp_db):
     """
     Shows that Patient A adds an observation and a medication,
