@@ -45,6 +45,8 @@ Stores patient-specific clinical, consent, demographic, and preference informati
 | `conditions_basis_json` | TEXT | JSON-encoded information describing the basis or supporting information for recorded conditions. | `{"diabetes":"patient_reported"}` | Yes |
 | `provider_notification_consent_at` | TEXT | Timestamp recording when consent for provider notifications was granted. | `2026-10-01T12:05:00Z` | Yes |
 | `provider_notification_revoked_at` | TEXT | Timestamp recording when consent for provider notifications was revoked. | `2026-10-10T14:35:00Z` | Yes |
+| `smoking_status` | TEXT | Patient smoking status recorded in the profile. | `never` | Yes |
+| `comorbidities_json` | TEXT | JSON-encoded comorbidities recorded for the patient. | `["ckd"]` | Yes |
 | `date_of_birth` | TEXT | Patient's date of birth. | `1985-06-15` | Yes |
 | `inclusion_confirmed_at` | TEXT | Timestamp recording when the patient's inclusion or eligibility was confirmed. | `2026-10-01T12:10:00Z` | Yes |
 | `sex_at_birth` | TEXT | Patient's recorded sex at birth. API validation permits `female`, `male`, or `prefer_not_to_say`. | `female` | Yes |
