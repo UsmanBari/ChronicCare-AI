@@ -2,19 +2,16 @@
 
 **Contributor:** Saad
 **Project:** ChronicCare AI
-**Branch:** docs/saad-contributions
+**Branch:** docs/saad-ai-usage
 
 ## AI Usage Record
 
-| Date       | Tool | What I asked | What it gave | What I checked or changed | Where I used it |
-| 2026-10-11 | ChatGPT | Asked for step-by-step guidance on setting up GitHub, creating my contribution branch, and completing my first documentation commit. | Explained PowerShell commands, Git configuration, branch creation, file creation, and the commit process. | Followed the instructions and checked the actual Git commands and output before committing. | GitHub repository setup and Commit 1 documentation workflow.|
+| Date | Tool | What I asked | What it gave | What I checked or changed | Where I used it |
 | ---- | ---- | ------------ | ------------ | ------------------------- | --------------- |
-| ---- | ---- | ------------ | ------------ | ------------------------- | --------------- |
-| ---- | ---- | ------------ | ------------ | ------------------------- | --------------- |
-| ---- | ---- | ------------ | ------------ | ------------------------- | --------------- |
-| ---- | ---- | ------------ | ------------ | ------------------------- | --------------- |
-| ---- | ---- | ------------ | ------------ | ------------------------- | --------------- |
-| ---- | ---- | ------------ | ------------ | ------------------------- | --------------- |
-| ---- | ---- | ------------ | ------------ | ------------------------- | --------------- |
-| ---- | ---- | ------------ | ------------ | ------------------------- | --------------- |
-| ---- | ---- | ------------ | ------------ | ------------------------- | --------------- |
+| 2026-10-11 | ChatGPT | Asked for step-by-step guidance on setting up GitHub, creating my contribution branch, and completing my first documentation commit. | Explained PowerShell commands, Git configuration, branch creation, file creation, and the commit process. | Followed the instructions and checked the actual Git commands and output before committing. | GitHub repository setup and initial documentation workflow. |
+| 2026-10-13 | ChatGPT | Asked for help creating an independent danger-phrase test set and evaluator. | Drafted phrase-test data, evaluator code, and result-document structure. | Ran the evaluator myself and recorded the actual TP, FN, FP, TN, sensitivity, specificity, and failed phrases instead of claiming perfect detection. | S-1 independent danger-phrase evaluation. |
+| 2026-10-13 | ChatGPT | Asked for help testing the medication-scope filtering behavior. | Helped identify the filter behavior and draft tests for inactive medications, irrelevant medications, duplicates, ordering, cap, and empty input. | Reviewed the existing medication-scope implementation and ran the new tests and full backend suite. I did not change the production filter. | S-2 medication-scope tests. |
+| 2026-10-13 | ChatGPT | Asked for help testing age and date-of-birth edge cases. | Drafted deterministic tests for leap day, birthday boundaries, future DOB, exactly age 18, and under-18 rejection. | Reviewed the validation implementation and ran the new tests and full backend suite. | S-3 age/DOB edge tests. |
+| 2026-10-13 | ChatGPT | Asked for help checking the data dictionary against the application schema. | Helped draft a static schema-to-documentation checker and identify possible missing fields. | Ran the checker, inspected its output, distinguished static-parser warnings from real documentation gaps, and added the missing documented fields. | S-4 data-dictionary/schema check. |
+| 2026-10-13 | ChatGPT | Asked for help reviewing sources and documentation for plausibility ranges. | Helped compare the documented ranges with implementation values and distinguish clinical guideline thresholds from engineering plausibility bounds. | Corrected the documentation so the exact outer engineering bounds were not falsely attributed to ADA/AHA guidance, documented implementation differences, and used only sources/ranges I could support. | S-5 plausibility-range documentation. |
+| 2026-10-13 | ChatGPT | Asked for help creating an NHANES logistic-regression baseline with SHAP that is not wired into triage. | Helped draft the NHANES loader, logistic-regression training script, SHAP explanation script, ML requirements, README, and Git workflow. | Downloaded the NHANES files locally, verified they were ignored by Git, restricted data to adults, ran the model and SHAP explanation, recorded only observed metrics, documented the low sensitivity, and ran the full backend test suite with 694 passed, 5 skipped, and 10 warnings. | S-6 ML baseline. |
