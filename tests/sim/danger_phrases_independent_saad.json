@@ -1,0 +1,212 @@
+[
+  {
+    "text": "I have crushing chest pain right now",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "My chest feels very tight and painful",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Mere se saans nahi li ja rahi",
+    "expected_danger": true,
+    "category": "breathing",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "I am not breathing properly",
+    "expected_danger": true,
+    "category": "breathing",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Mujhe saans lene mein bohat mushkil ho rahi hai",
+    "expected_danger": true,
+    "category": "breathing",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "I suddenly feel confused and cannot speak properly",
+    "expected_danger": true,
+    "category": "confusion_and_stroke",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Mera aik bazu achanak sunn ho gaya hai aur bolne mein mushkil hai",
+    "expected_danger": true,
+    "category": "confusion_and_stroke",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "One side of my face suddenly feels weak",
+    "expected_danger": true,
+    "category": "confusion_and_stroke",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "I fainted a few minutes ago and still feel very weak",
+    "expected_danger": true,
+    "category": "fainting",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Main achanak behosh ho gaya tha",
+    "expected_danger": true,
+    "category": "fainting",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "I suddenly cannot see properly from my left eye",
+    "expected_danger": true,
+    "category": "vision_loss",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Meri nazar achanak chali gayi hai",
+    "expected_danger": true,
+    "category": "vision_loss",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "My sugar is extremely high and I keep vomiting",
+    "expected_danger": true,
+    "category": "dka_vomiting_high_glucose",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Sugar bohat high hai aur mujhe bar bar ulti ho rahi hai",
+    "expected_danger": true,
+    "category": "dka_vomiting_high_glucose",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "I suddenly have the worst headache of my life",
+    "expected_danger": true,
+    "category": "severe_headache",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "I had chest pain last year but I am fine now",
+    "expected_danger": false,
+    "category": "chest_pain",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "I do not have any chest pain",
+    "expected_danger": false,
+    "category": "chest_pain",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Mujhe seene mein dard nahi hai",
+    "expected_danger": false,
+    "category": "chest_pain",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "My breathing is normal today",
+    "expected_danger": false,
+    "category": "breathing",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Mujhe saans lene mein koi mushkil nahi hai",
+    "expected_danger": false,
+    "category": "breathing",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "I am not confused and I can speak normally",
+    "expected_danger": false,
+    "category": "confusion_and_stroke",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Mera bazu sunn nahi hai aur main theek bol raha hoon",
+    "expected_danger": false,
+    "category": "confusion_and_stroke",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "I have never fainted",
+    "expected_danger": false,
+    "category": "fainting",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Main behosh nahi hua",
+    "expected_danger": false,
+    "category": "fainting",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "My vision is normal and I can see clearly",
+    "expected_danger": false,
+    "category": "vision_loss",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Meri nazar bilkul theek hai",
+    "expected_danger": false,
+    "category": "vision_loss",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "My sugar is high but I am not vomiting",
+    "expected_danger": false,
+    "category": "dka_vomiting_high_glucose",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Sugar high hai lekin mujhe ulti nahi ho rahi",
+    "expected_danger": false,
+    "category": "dka_vomiting_high_glucose",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "I had a severe headache yesterday but it is completely gone now",
+    "expected_danger": false,
+    "category": "severe_headache",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "I have no chest pain but my arm is numb",
+    "expected_danger": false,
+    "category": "chest_pain",
+    "language": "english",
+    "author": "saad"
+  }
+]
