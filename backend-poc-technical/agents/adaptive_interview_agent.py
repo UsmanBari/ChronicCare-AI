@@ -157,13 +157,44 @@ class InterviewState:
 # Phrases must not contain punctuation or the clause words "and/but/while/though".
 # The Urdu phrases are UNREVIEWED: they need a native-speaker / clinical check before
 # anyone relies on them. Urdu negation is NOT handled, so an Urdu match always flags.
+RED_FLAG_LEVELS: Dict[str, str] = {
+    "unable_to_keep_fluids": "urgent",
+    "dka_vomiting_high_glucose": "urgent",
+}
+
+
+def get_red_flag_level(category: Optional[str]) -> str:
+    """Deterministic category-to-level mapping for Stage 1 red flags."""
+    if not category:
+        return "routine"
+    return RED_FLAG_LEVELS.get(category, "emergency")
+
+
 RED_FLAG_PATTERNS: Dict[str, List[str]] = {
-    "chest_pain": ["chest pain", "chest tightness", "chest pressure", "chest hurts",
-                   "pain in my chest", "crushing chest", "crushing chest pain", "heavy chest", "سینے میں درد"],
+    "chest_pain": [
+        "chest pain", "chest tightness", "chest pressure", "chest hurts",
+        "pain in my chest", "crushing chest", "crushing chest pain", "heavy chest",
+        "crushing pain in my chest",
+        "pain going down my left arm", "pain in my left arm and jaw", "left jaw pain with pressure",
+        "pain in my left arm", "left arm pain", "left jaw pain",
+        "bayein bazu me dard", "bayein bazu mein dard", "bayein bazu aur jabray me dard",
+        "bayein jabray me dard", "baayein baazu me dard", "seene me dabao aur bayein bazu me dard",
+        "seene mein shadeed dabao aur bayein baazu me dard",
+        "سینے میں درد", "بائیں بازو میں درد", "بائیں جبڑے میں درد", "بائیں بازو اور جبڑے میں درد",
+        "سینے میں شدید درد اور بائیں بازو میں درد", "سینے پر شدید دباؤ اور بائیں بازو میں درد",
+    ],
     "breathing": ["can't breathe", "cant breathe", "cannot breathe", "struggling to breathe",
                   "severe shortness of breath", "gasping for air", "suffocating",
                   "سانس لینے میں دشواری", "سانس نہیں آ رہی"],
-    "confusion": ["confused", "slurred speech", "can't speak clearly", "cant speak clearly"],
+    "confusion": [
+        "slurred speech", "can't speak clearly", "cant speak clearly",
+        "don't know where i am", "dont know where i am", "do not know where i am",
+        "don't know who i am", "dont know who i am",
+        "samajh nahi aa raha main kahan hoon", "samajh nahi aa raha kahan hoon",
+        "main kahan hoon", "nahi pata kahan hoon",
+        "disoriented",
+        "سمجھ نہیں آ رہا میں کہاں ہوں", "کہاں ہوں",
+    ],
     "loss_of_consciousness": ["fainted", "passed out", "lost consciousness", "blacked out", "collapsed", "بے ہوش"],
     "one_sided_weakness": ["one side weak", "one-sided weakness", "can't move one side",
                            "cant move one side", "can't move my arm", "face drooping"],
@@ -194,6 +225,11 @@ _NEGATION_CUES = frozenset({
     "don't", "dont", "doesn't", "doesnt", "didn't", "didnt",
     "haven't", "havent", "hasn't", "hasnt", "isn't", "isnt",
 })
+_PAST_EVENT_CUES = (
+    "last year", "years ago", "months ago", "in the past", "previously",
+    "pehle tha", "pehle thi", "pichle saal", "pechle saal", "saal pehle",
+    "گزشتہ سال", "پہلے تھا", "پہلے تھی",
+)
 _CLAUSE_BREAK = re.compile(r"[.;,:!?\n]+|\b(?:but|however|although|though|and|while)\b")
 _EASTERN_DIGITS_TABLE = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
@@ -207,10 +243,16 @@ def _is_negated(clause: str, start: int) -> bool:
     return any(word in _NEGATION_CUES for word in preceding[-NEGATION_WINDOW_WORDS:])
 
 
+def _is_past_event(clause: str) -> bool:
+    return any(cue in clause for cue in _PAST_EVENT_CUES)
+
+
 def run_stage1_red_flag_screen(free_text: str) -> Tuple[bool, Optional[str]]:
     """Returns (triggered, category). Runs before any other processing of an answer."""
     for clause in _CLAUSE_BREAK.split(_normalize(free_text)):
         if not clause.strip():
+            continue
+        if _is_past_event(clause):
             continue
         for category, patterns in RED_FLAG_PATTERNS.items():
             for pattern in patterns:
@@ -768,8 +810,11 @@ def _finalize_intake(state: InterviewState) -> InterviewState:
     answers = state.answers
 
     if state.stage1_red_flag:
-        intake: Dict[str, Any] = {"condition": condition, "emergency": True,
-                                  "reason": state.stage1_reason}
+        level = get_red_flag_level(state.stage1_reason)
+        if level == "emergency":
+            intake: Dict[str, Any] = {"condition": condition, "emergency": True, "reason": state.stage1_reason}
+        else:
+            intake = {"condition": condition, "emergency": False, "level": level, "reason": state.stage1_reason}
     else:
         if condition == "diabetes":
             value = answers.get("glucose_reading")
@@ -806,9 +851,20 @@ def _finalize_intake(state: InterviewState) -> InterviewState:
         confidence = _compute_confidence(state, missing).value
         if answers.get("possible_severe_low"):
             confidence = Confidence.LOW.value
+
+        narrative_review = False
+        hypo_week = answers.get("hypo_events_past_week")
+        if hypo_week is not None and _looks_affirmative(str(hypo_week)) is True:
+            narrative_review = True
+        assoc_symp = answers.get("associated_symptoms")
+        if assoc_symp is not None and _looks_affirmative(str(assoc_symp)) is True:
+            narrative_review = True
+
+        requires_review = bool(answers.get("possible_severe_low") or narrative_review)
         intake = {
             "condition": condition,
             "emergency": False,
+            "level": "review" if requires_review else "routine",
             "readings": readings,
             "symptoms": symptoms,
             "adherence": answers.get("adherence"),
@@ -817,7 +873,7 @@ def _finalize_intake(state: InterviewState) -> InterviewState:
             "free_text_note": answers.get("patient_free_text"),
             "confidence": confidence,
             "missing_data": missing,
-            "requires_review": True if answers.get("possible_severe_low") else False,
+            "requires_review": requires_review,
         }
 
     state.intake = intake

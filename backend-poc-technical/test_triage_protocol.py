@@ -269,7 +269,8 @@ def test_high_glucose_context_is_recorded():
 
 
 def test_low_glucose_with_confusion_is_an_emergency():
-    assert run({GLU: 45}, ["yes"])["level"] == "emergency"
+    # Confusion with disorientation/not oriented is an emergency (Decision 3 orientation gate)
+    assert run({GLU: 45}, ["yes", "no"])["level"] == "emergency"
 
 
 def test_low_glucose_and_unable_to_swallow_is_an_emergency():
