@@ -57,7 +57,11 @@ def test_authoritative_danger_screen_parity():
         assert base_flag is True, f"Base screen failed to flag: {phrase}"
 
         triage_res = classify_input(phrase)
-        assert triage_res.is_emergency is True, f"classify_input failed to flag emergency for: {phrase}"
+        if base_cat in ("unable_to_keep_fluids", "dka_vomiting_high_glucose"):
+            assert triage_res.is_emergency is False, f"Expected urgent (is_emergency=False) for: {phrase}"
+            assert triage_res.is_urgent_safety is True, f"Expected is_urgent_safety=True for: {phrase}"
+        else:
+            assert triage_res.is_emergency is True, f"classify_input failed to flag emergency for: {phrase}"
         assert triage_res.category == "danger_phrase"
 
 

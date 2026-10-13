@@ -32,7 +32,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from agents.adaptive_interview_agent import (
     _CLAUSE_BREAK,
     _is_negated,
+    _is_past_event,
     _normalize,
+    get_red_flag_level,
     run_stage1_red_flag_screen,
 )
 from data_sources.validation import detect_pregnancy_statement
@@ -45,10 +47,17 @@ MULTILINGUAL_DANGER_CATEGORIES: Dict[str, List[str]] = {
     "chest_pain": [
         "crushing chest pain", "severe chest pressure", "chest hurts badly",
         "heavy chest pain", "chest pain radiating", "pain in my chest", "chest tightness",
-        "crushing chest tightness",
+        "crushing chest tightness", "crushing pain in my chest",
+        "pain going down my left arm", "pain in my left arm and jaw", "left jaw pain with pressure",
+        "pain in my left arm", "left arm pain", "left jaw pain",
         "seene mein shadeed dard", "seene me shadeed dard", "chhati me shadeed dard",
         "seene par shadeed bojh", "seene par shadeed dabao", "seene me dard", "chhati me dard",
+        "bayein bazu me dard", "bayein bazu mein dard", "bayein bazu aur jabray me dard",
+        "bayein jabray me dard", "baayein baazu me dard", "seene me dabao aur bayein bazu me dard",
+        "seene mein shadeed dabao aur bayein baazu me dard",
         "سینے میں شدید درد", "سینے پر شدید دباؤ", "چھاتی میں درد", "سینے میں درد",
+        "بائیں بازو میں درد", "بائیں جبڑے میں درد", "بائیں بازو اور جبڑے میں درد",
+        "سینے میں شدید درد اور بائیں بازو میں درد", "سینے پر شدید دباؤ اور بائیں بازو میں درد",
     ],
     "breathing": [
         "can't breathe", "cannot breathe", "struggling for air", "severe shortness of breath",
@@ -59,8 +68,13 @@ MULTILINGUAL_DANGER_CATEGORIES: Dict[str, List[str]] = {
     "confusion_and_stroke": [
         "speech is slurred", "face drooping", "one side of my body is weak",
         "can't move my left arm", "can't move my right arm", "face is drooping", "arm won't move",
+        "don't know where i am", "dont know where i am", "do not know where i am",
+        "don't know who i am", "dont know who i am", "disoriented",
         "chehra aik taraf larak", "zabaan ladkhara", "aik taraf ki kamzori", "chehra latak",
+        "samajh nahi aa raha main kahan hoon", "samajh nahi aa raha kahan hoon", "main kahan hoon",
+        "nahi pata kahan hoon",
         "زبان لڑکھڑا", "چہرہ ایک طرف لٹک", "ایک طرف کی شدید کمزوری", "چہرہ لٹک",
+        "سمجھ نہیں آ رہا میں کہاں ہوں", "کہاں ہوں",
     ],
     "loss_of_consciousness": [
         "fainted", "passed out", "blacked out", "lost consciousness", "collapsed",
@@ -93,6 +107,10 @@ INABILITY_EXCEPTIONS = [
     "cannot keep", "unable to keep", "won't stay down", "won't move", "unable to drink",
     "saans nahi aa rahi", "bol nahi pa raha", "ulti ruk nahi rahi", "paani bhi nahi rukta",
     "سانس نہیں آ رہی", "بول نہیں پا رہا", "الٹی رک نہیں رہی", "پانی بھی نہیں رک رہا",
+    "don't know where i am", "dont know where i am", "do not know where i am",
+    "samajh nahi aa raha main kahan hoon", "samajh nahi aa raha kahan hoon",
+    "main kahan hoon", "nahi pata kahan hoon",
+    "سمجھ نہیں آ رہا میں کہاں ہوں", "کہاں ہوں",
 ]
 
 _ENGLISH_NEGATION_REGEX = re.compile(
@@ -120,17 +138,18 @@ def screen_multilingual_danger_phrases(text: str) -> Tuple[bool, Optional[str]]:
     lowered = clean_text.lower()
 
     # 1. Direct inability emergencies containing negative words (e.g. 'can't breathe', 'saans nahi aa rahi')
-    for inab in INABILITY_EXCEPTIONS:
-        if inab in lowered:
-            if any(k in inab for k in ["saans", "سانس", "breathe"]):
-                return True, "breathing"
-            if any(k in inab for k in ["bol", "بول", "move", "speech"]):
-                return True, "confusion_and_stroke"
-            if any(k in inab for k in ["see", "بینائی"]):
-                return True, "vision_loss"
-            if any(k in inab for k in ["ulti", "الٹی", "drink", "keep"]):
-                return True, "dka_vomiting_high_glucose"
-            return True, "danger_phrase"
+    if not _is_past_event(lowered):
+        for inab in INABILITY_EXCEPTIONS:
+            if inab in lowered:
+                if any(k in inab for k in ["saans", "سانس", "breathe"]):
+                    return True, "breathing"
+                if any(k in inab for k in ["bol", "بول", "move", "speech", "where i am", "kahan hoon", "کہاں ہوں"]):
+                    return True, "confusion_and_stroke"
+                if any(k in inab for k in ["see", "بینائی"]):
+                    return True, "vision_loss"
+                if any(k in inab for k in ["ulti", "الٹی", "drink", "keep", "paani", "پانی", "stay down"]):
+                    return True, "dka_vomiting_high_glucose"
+                return True, "danger_phrase"
 
     # 2. Authoritative base screen from clinical module FIRST
     base_flagged, base_cat = run_stage1_red_flag_screen(clean_text)
@@ -146,6 +165,8 @@ def screen_multilingual_danger_phrases(text: str) -> Tuple[bool, Optional[str]]:
     for clause in clauses:
         clause_clean = clause.strip()
         if not clause_clean:
+            continue
+        if _is_past_event(clause_clean):
             continue
 
         for category, patterns in MULTILINGUAL_DANGER_CATEGORIES.items():
@@ -461,10 +482,12 @@ def classify_input(text: str, consecutive_odd_count: int = 0) -> TriageInputResu
     # 1. Danger-phrase screen FIRST (Multilingual and negation-aware)
     is_danger, danger_cat = screen_multilingual_danger_phrases(clean_text)
     if is_danger:
+        level = get_red_flag_level(danger_cat)
         return TriageInputResult(
             category="danger_phrase",
             trigger_detail=danger_cat,
-            is_emergency=True,
+            is_emergency=(level == "emergency"),
+            is_urgent_safety=(level == "urgent"),
         )
 
     # 2. Self-harm / hopelessness screen SECOND

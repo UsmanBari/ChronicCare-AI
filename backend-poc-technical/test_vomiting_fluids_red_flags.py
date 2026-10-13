@@ -61,9 +61,10 @@ def test_vomiting_negations_do_not_trigger():
 
 
 def test_classify_input_catches_vomiting_variants():
-    """Verifies classify_input catches vomiting and cannot keep fluids down as emergency danger."""
+    """Verifies classify_input catches vomiting and cannot keep fluids down as urgent danger (Decision 2)."""
     res = classify_input("I have been vomiting and cannot keep fluids down")
-    assert res.is_emergency is True
+    assert res.is_emergency is False
+    assert res.is_urgent_safety is True
     assert res.category == "danger_phrase"
 
 
