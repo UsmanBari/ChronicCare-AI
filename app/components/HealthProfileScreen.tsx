@@ -7,6 +7,29 @@ import { api, ApiError, ProfileUpdateRequest } from "../lib/api";
 import { Language } from "../translations";
 import { calculateAgeFromDob } from "../lib/presentation";
 
+export function cmToFtIn(cmVal: number): { feet: number; inches: number } {
+  const totalInches = cmVal / 2.54;
+  let ft = Math.floor(totalInches / 12);
+  let inc = Math.round((totalInches - ft * 12) * 10) / 10;
+  if (inc >= 12) {
+    ft += 1;
+    inc = 0;
+  }
+  return { feet: ft, inches: inc };
+}
+
+export function ftInToCm(feet: number, inches: number): number {
+  return Math.round(((feet * 12 + inches) * 2.54) * 10) / 10;
+}
+
+export function kgToLb(kgVal: number): number {
+  return Math.round((kgVal * 2.2046226218) * 10) / 10;
+}
+
+export function lbToKg(lbVal: number): number {
+  return Math.round((lbVal / 2.2046226218) * 10) / 10;
+}
+
 export const HealthProfileScreen = () => {
   const {
     setScreen,
@@ -41,12 +64,32 @@ export const HealthProfileScreen = () => {
     liveProfile?.language || language || "en"
   );
 
-  const [heightCm, setHeightCm] = useState<string>(
-    liveProfile?.height_cm !== undefined && liveProfile?.height_cm !== null ? String(liveProfile.height_cm) : ""
-  );
-  const [weightKg, setWeightKg] = useState<string>(
-    liveProfile?.weight_kg !== undefined && liveProfile?.weight_kg !== null ? String(liveProfile.weight_kg) : ""
-  );
+  const [heightUnit, setHeightUnit] = useState<'ft_in' | 'cm'>('ft_in');
+  const [weightUnit, setWeightUnit] = useState<'lb' | 'kg'>('lb');
+
+  const [heightFeet, setHeightFeet] = useState<string>(() => {
+    if (liveProfile?.height_cm !== undefined && liveProfile?.height_cm !== null) {
+      const { feet } = cmToFtIn(liveProfile.height_cm);
+      return String(feet);
+    }
+    return "";
+  });
+  const [heightInches, setHeightInches] = useState<string>(() => {
+    if (liveProfile?.height_cm !== undefined && liveProfile?.height_cm !== null) {
+      const { inches } = cmToFtIn(liveProfile.height_cm);
+      return String(inches);
+    }
+    return "";
+  });
+  const [heightCm, setHeightCm] = useState<string>("");
+
+  const [weightLb, setWeightLb] = useState<string>(() => {
+    if (liveProfile?.weight_kg !== undefined && liveProfile?.weight_kg !== null) {
+      return String(kgToLb(liveProfile.weight_kg));
+    }
+    return "";
+  });
+  const [weightKg, setWeightKg] = useState<string>("");
   const [diagYearDiabetes, setDiagYearDiabetes] = useState<string>(
     liveProfile?.diagnosis_year_diabetes !== undefined && liveProfile?.diagnosis_year_diabetes !== null ? String(liveProfile.diagnosis_year_diabetes) : ""
   );
@@ -87,10 +130,25 @@ export const HealthProfileScreen = () => {
         setSelectedLang(liveProfile.language);
       }
       if (liveProfile.height_cm !== undefined && liveProfile.height_cm !== null) {
-        setHeightCm(String(liveProfile.height_cm));
+        if (heightUnit === 'ft_in') {
+          const { feet, inches } = cmToFtIn(liveProfile.height_cm);
+          setHeightFeet(String(feet));
+          setHeightInches(String(inches));
+          setHeightCm("");
+        } else {
+          setHeightCm(String(liveProfile.height_cm));
+          setHeightFeet("");
+          setHeightInches("");
+        }
       }
       if (liveProfile.weight_kg !== undefined && liveProfile.weight_kg !== null) {
-        setWeightKg(String(liveProfile.weight_kg));
+        if (weightUnit === 'lb') {
+          setWeightLb(String(kgToLb(liveProfile.weight_kg)));
+          setWeightKg("");
+        } else {
+          setWeightKg(String(liveProfile.weight_kg));
+          setWeightLb("");
+        }
       }
       if (liveProfile.diagnosis_year_diabetes !== undefined && liveProfile.diagnosis_year_diabetes !== null) {
         setDiagYearDiabetes(String(liveProfile.diagnosis_year_diabetes));
@@ -112,6 +170,7 @@ export const HealthProfileScreen = () => {
         setComorbNerve(Boolean(liveProfile.comorbidities.nerve_or_foot_problems));
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLiveMode, liveProfile]);
 
   const hasBoth = hasT2D && hasHTN;
@@ -135,6 +194,73 @@ export const HealthProfileScreen = () => {
     setMedications(medications.filter((_, i) => i !== index));
   };
 
+  const handleHeightUnitChange = (newUnit: 'ft_in' | 'cm') => {
+    if (newUnit === heightUnit) return;
+    if (newUnit === 'cm') {
+      const hasFt = heightFeet.trim().length > 0;
+      const hasIn = heightInches.trim().length > 0;
+      if (hasFt || hasIn) {
+        const ft = parseFloat(heightFeet.trim()) || 0;
+        const inc = parseFloat(heightInches.trim()) || 0;
+        const convertedCm = ftInToCm(ft, inc);
+        setHeightCm(String(convertedCm));
+      } else {
+        setHeightCm("");
+      }
+      setHeightFeet("");
+      setHeightInches("");
+    } else {
+      if (heightCm.trim().length > 0) {
+        const parsed = parseFloat(heightCm.trim());
+        if (!isNaN(parsed) && parsed > 0) {
+          const { feet, inches } = cmToFtIn(parsed);
+          setHeightFeet(String(feet));
+          setHeightInches(String(inches));
+        } else {
+          setHeightFeet("");
+          setHeightInches("");
+        }
+      } else {
+        setHeightFeet("");
+        setHeightInches("");
+      }
+      setHeightCm("");
+    }
+    setHeightUnit(newUnit);
+  };
+
+  const handleWeightUnitChange = (newUnit: 'lb' | 'kg') => {
+    if (newUnit === weightUnit) return;
+    if (newUnit === 'kg') {
+      if (weightLb.trim().length > 0) {
+        const parsed = parseFloat(weightLb.trim());
+        if (!isNaN(parsed) && parsed > 0) {
+          const convertedKg = lbToKg(parsed);
+          setWeightKg(String(convertedKg));
+        } else {
+          setWeightKg("");
+        }
+      } else {
+        setWeightKg("");
+      }
+      setWeightLb("");
+    } else {
+      if (weightKg.trim().length > 0) {
+        const parsed = parseFloat(weightKg.trim());
+        if (!isNaN(parsed) && parsed > 0) {
+          const convertedLb = kgToLb(parsed);
+          setWeightLb(String(convertedLb));
+        } else {
+          setWeightLb("");
+        }
+      } else {
+        setWeightLb("");
+      }
+      setWeightKg("");
+    }
+    setWeightUnit(newUnit);
+  };
+
   const dob = liveProfile?.date_of_birth || profile.date_of_birth || null;
   const computedAge = calculateAgeFromDob(dob);
   const birthYear = dob ? parseInt(dob.split("-")[0], 10) : null;
@@ -155,24 +281,70 @@ export const HealthProfileScreen = () => {
 
     // Validate Height if provided
     let parsedHeight: number | null = null;
-    if (heightCm.trim()) {
-      const h = parseFloat(heightCm.trim());
-      if (isNaN(h) || h < 50 || h > 250) {
-        setError(isUrdu ? "قد ۵۰ سے ۲۵۰ سینٹی میٹر کے درمیان ہونا چاہیے۔" : "Height must be between 50 and 250 cm.");
-        return;
+    if (heightUnit === 'ft_in') {
+      const hasFt = heightFeet.trim().length > 0;
+      const hasIn = heightInches.trim().length > 0;
+      if (hasFt || hasIn) {
+        if (!hasFt) {
+          setError(t.heightFeetError);
+          return;
+        }
+        const ftNum = Number(heightFeet.trim());
+        if (!Number.isInteger(ftNum) || ftNum < 1 || ftNum > 8) {
+          setError(t.heightFeetError);
+          return;
+        }
+        let inNum = 0;
+        if (hasIn) {
+          inNum = parseFloat(heightInches.trim());
+          if (isNaN(inNum) || inNum < 0 || inNum >= 12) {
+            setError(t.heightInchesError);
+            return;
+          }
+        }
+        const cmVal = ftInToCm(ftNum, inNum);
+        if (cmVal < 50 || cmVal > 250) {
+          setError(t.heightErrorFtIn);
+          return;
+        }
+        parsedHeight = cmVal;
       }
-      parsedHeight = h;
+    } else {
+      if (heightCm.trim()) {
+        const h = parseFloat(heightCm.trim());
+        if (isNaN(h) || h < 50 || h > 250) {
+          setError(t.heightErrorCm);
+          return;
+        }
+        parsedHeight = Math.round(h * 10) / 10;
+      }
     }
 
     // Validate Weight if provided
     let parsedWeight: number | null = null;
-    if (weightKg.trim()) {
-      const w = parseFloat(weightKg.trim());
-      if (isNaN(w) || w < 20 || w > 400) {
-        setError(isUrdu ? "وزن ۲۰ سے ۴۰۰ کلوگرام کے درمیان ہونا چاہیے۔" : "Weight must be between 20 and 400 kg.");
-        return;
+    if (weightUnit === 'lb') {
+      if (weightLb.trim()) {
+        const wLb = parseFloat(weightLb.trim());
+        if (isNaN(wLb)) {
+          setError(t.weightErrorLb);
+          return;
+        }
+        const wKg = lbToKg(wLb);
+        if (wKg < 20 || wKg > 400) {
+          setError(t.weightErrorLb);
+          return;
+        }
+        parsedWeight = wKg;
       }
-      parsedWeight = w;
+    } else {
+      if (weightKg.trim()) {
+        const w = parseFloat(weightKg.trim());
+        if (isNaN(w) || w < 20 || w > 400) {
+          setError(t.weightErrorKg);
+          return;
+        }
+        parsedWeight = Math.round(w * 10) / 10;
+      }
     }
 
     // Validate Diagnosis Years
@@ -264,7 +436,7 @@ export const HealthProfileScreen = () => {
         <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto">{t.profileSubtitle}</p>
       </div>
 
-      <form onSubmit={handleContinue} className="p-6 sm:p-7 space-y-6">
+      <form onSubmit={handleContinue} noValidate className="p-6 sm:p-7 space-y-6">
         {error && (
           <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2 animate-fadeIn">
             <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
@@ -384,40 +556,175 @@ export const HealthProfileScreen = () => {
         {/* Physical Measurements: Height & Weight (Optional) */}
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
           <span className="text-xs font-bold uppercase tracking-wider text-navy-800 block">
-            {isUrdu ? "جسمانی پیمائش (اختیاری)" : "Body Measurements (Optional)"}
+            {t.bodyMeasurementsOptional}
           </span>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Height section */}
             <div>
-              <label className="text-[11px] font-semibold text-slate-700 block mb-1">
-                {isUrdu ? "قد (سینٹی میٹر)" : "Height (cm)"}
-              </label>
-              <input
-                type="number"
-                min="50"
-                max="250"
-                step="0.1"
-                id="height-cm-input"
-                value={heightCm}
-                onChange={(e) => setHeightCm(e.target.value)}
-                placeholder="e.g. 175"
-                className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
-              />
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor={heightUnit === 'ft_in' ? "height-ft-input" : "height-cm-input"}
+                  className="text-[11px] font-semibold text-slate-700 block"
+                >
+                  {heightUnit === 'ft_in' ? t.heightLabelFtIn : t.heightLabelCm}
+                </label>
+                <div
+                  role="radiogroup"
+                  aria-label={t.heightToggleLabel}
+                  className="inline-flex rounded-lg bg-slate-200 p-0.5"
+                >
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={heightUnit === 'ft_in'}
+                    onClick={() => handleHeightUnitChange('ft_in')}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
+                      heightUnit === 'ft_in'
+                        ? "bg-white text-navy-800 shadow-sm"
+                        : "text-slate-600 hover:text-navy-800"
+                    }`}
+                  >
+                    {t.heightUnitFtIn}
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={heightUnit === 'cm'}
+                    onClick={() => handleHeightUnitChange('cm')}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
+                      heightUnit === 'cm'
+                        ? "bg-white text-navy-800 shadow-sm"
+                        : "text-slate-600 hover:text-navy-800"
+                    }`}
+                  >
+                    {t.heightUnitCm}
+                  </button>
+                </div>
+              </div>
+
+              {heightUnit === 'ft_in' ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label htmlFor="height-ft-input" className="text-[10px] font-medium text-slate-600 block mb-0.5">
+                      {t.feetLabel}
+                    </label>
+                    <input
+                      type="number"
+                      id="height-ft-input"
+                      min="1"
+                      max="8"
+                      step="1"
+                      inputMode="decimal"
+                      value={heightFeet}
+                      onChange={(e) => setHeightFeet(e.target.value)}
+                      placeholder="e.g. 5"
+                      className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="height-in-input" className="text-[10px] font-medium text-slate-600 block mb-0.5">
+                      {t.inchesLabel}
+                    </label>
+                    <input
+                      type="number"
+                      id="height-in-input"
+                      min="0"
+                      max="11.99"
+                      step="0.1"
+                      inputMode="decimal"
+                      value={heightInches}
+                      onChange={(e) => setHeightInches(e.target.value)}
+                      placeholder="e.g. 10"
+                      className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <input
+                  type="number"
+                  min="50"
+                  max="250"
+                  step="0.1"
+                  inputMode="decimal"
+                  id="height-cm-input"
+                  value={heightCm}
+                  onChange={(e) => setHeightCm(e.target.value)}
+                  placeholder="e.g. 175"
+                  className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                />
+              )}
             </div>
+
+            {/* Weight section */}
             <div>
-              <label className="text-[11px] font-semibold text-slate-700 block mb-1">
-                {isUrdu ? "وزن (کلوگرام)" : "Weight (kg)"}
-              </label>
-              <input
-                type="number"
-                min="20"
-                max="400"
-                step="0.1"
-                id="weight-kg-input"
-                value={weightKg}
-                onChange={(e) => setWeightKg(e.target.value)}
-                placeholder="e.g. 78"
-                className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
-              />
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor={weightUnit === 'lb' ? "weight-lb-input" : "weight-kg-input"}
+                  className="text-[11px] font-semibold text-slate-700 block"
+                >
+                  {weightUnit === 'lb' ? t.weightLabelLb : t.weightLabelKg}
+                </label>
+                <div
+                  role="radiogroup"
+                  aria-label={t.weightToggleLabel}
+                  className="inline-flex rounded-lg bg-slate-200 p-0.5"
+                >
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={weightUnit === 'lb'}
+                    onClick={() => handleWeightUnitChange('lb')}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
+                      weightUnit === 'lb'
+                        ? "bg-white text-navy-800 shadow-sm"
+                        : "text-slate-600 hover:text-navy-800"
+                    }`}
+                  >
+                    {t.weightUnitLb}
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={weightUnit === 'kg'}
+                    onClick={() => handleWeightUnitChange('kg')}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
+                      weightUnit === 'kg'
+                        ? "bg-white text-navy-800 shadow-sm"
+                        : "text-slate-600 hover:text-navy-800"
+                    }`}
+                  >
+                    {t.weightUnitKg}
+                  </button>
+                </div>
+              </div>
+
+              {weightUnit === 'lb' ? (
+                <input
+                  type="number"
+                  min="44"
+                  max="882"
+                  step="0.1"
+                  inputMode="decimal"
+                  id="weight-lb-input"
+                  value={weightLb}
+                  onChange={(e) => setWeightLb(e.target.value)}
+                  placeholder="e.g. 154"
+                  className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                />
+              ) : (
+                <input
+                  type="number"
+                  min="20"
+                  max="400"
+                  step="0.1"
+                  inputMode="decimal"
+                  id="weight-kg-input"
+                  value={weightKg}
+                  onChange={(e) => setWeightKg(e.target.value)}
+                  placeholder="e.g. 70"
+                  className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                />
+              )}
             </div>
           </div>
         </div>

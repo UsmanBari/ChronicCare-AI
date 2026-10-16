@@ -105,7 +105,7 @@ The FHIR Adapter (`data_sources/fhir_adapter.py`) normalises diverse FHIR R4 rep
 - **Body Weight**: `29463-7`, `3141-9`
 
 ### Unit Conversion Rules
-- **Glucose**: `mmol/L` values are converted to `mg/dL` by multiplying by `18.0182`.
+- **Glucose**: `mmol/L` values are converted to `mg/dL` by multiplying by `18.016`.
 - **HbA1c**: `mmol/mol` (IFCC) values are converted to `%` (DCCT) via `(0.09148 * mmol_mol) + 2.152`.
 - **Weight**: Pounds (`[lb_av]`, `lbs`) are converted to `kg` by multiplying by `0.45359237`.
 - **Blood Pressure**: Expressed in `mmHg` (raw string format preserved if unconverted).

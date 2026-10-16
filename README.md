@@ -1,333 +1,451 @@
-# ChronicCare AI
+# 🏥 ChronicCare AI
 
-> **Interactive Multi-Portal Frontend Prototype for Agentic Chronic Disease Management**
+> **A patient-centred, AI-assisted chronic disease management platform for Type 2 Diabetes and Hypertension.**  
+> *FAST-NUCES Final Year Project, Fall 2026 (FYP-1, Iteration 1).*
 
+[![CI Status](https://github.com/UsmanBari/chroniccare-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/UsmanBari/chroniccare-ai/actions/workflows/ci.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-14.2.35-black?style=flat&logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-18-blue?style=flat&logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=flat&logo=typescript)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat&logo=python)](https://www.python.org/)
+[![HL7 FHIR](https://img.shields.io/badge/HL7_FHIR-R4-e84e1b?style=flat)](https://hl7.org/fhir/R4/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=flat&logo=tailwind-css)](https://tailwindcss.com/)
+[![MySQL](https://img.shields.io/badge/MySQL-Aiven_Cloud-4479A1?style=flat&logo=mysql)](https://aiven.io/mysql)
+[![Vitest](https://img.shields.io/badge/Vitest-196_Passed-729B1B?style=flat&logo=vitest)](https://vitest.dev/)
+[![Pytest](https://img.shields.io/badge/Pytest-715_Passed-0A9EDC?style=flat&logo=pytest)](https://docs.pytest.org/)
 
 ---
 
-## ⚠️ Important Disclaimer
-
-> **This is a high-fidelity interactive UI prototype with MOCKED computational behavior, built for an FYP proposal defense.**
->
-> It demonstrates the interface, interaction workflows, and multi-portal clinical ergonomics for ChronicCare AI. There is no live backend, trained AI/ML inference, real HL7® FHIR® network integration, or live authentication in this repository. All clinical telemetry, audit records, and risk results are seeded or simulated.
->
-> The core algorithmic reconciliation and verification logic (Conflict Resolution and Clinical Consistency Protocol) exists and was separately validated in our foundational technical proof of concept.
+### ⚠️ Research Prototype & Clinical Notice
+> **Research prototype. Not a medical device.**  
+> It does not diagnose, treat, or replace a licensed clinician. No real patient health information (PHI) is used. Every result screen displays an explicit prototype disclosure banner. When computational uncertainty arises, the triage level strictly **escalates upward, never downward**.
 
 ---
 
-## 🔬 What is Real vs. Mocked
+## 🌟 Executive Summary & Core Capabilities
 
-To provide transparent technical clarity for examiners and clinical reviewers, the table below delineates the functional boundary between the active interactive UI layer and simulated computational backends:
+**ChronicCare AI** bridges the daily telemetry gap for patients living with **Type 2 Diabetes (T2D)** and **Hypertension (HTN)**. Instead of disconnected paper logs or unvalidated chatbots, ChronicCare AI pairs a low-friction daily conversational check-in (text or voice in English & Urdu) with deterministic, clinician-reviewed triage rules, source-blind health record reconciliation, and seamless provider review queues.
 
-| Dimension | Real & Interactive in this Prototype | Mocked / Simulated for Demonstration |
+```
+       Patient Daily Check-In (EN / UR, Speech / Text)
+                             │
+                             ▼
+     ┌───────────────────────────────────────────────┐
+     │         Deterministic Triage Protocol         │
+     │      (Monotonic: Level Can Only Escalate)     │
+     └───────────────────────┬───────────────────────┘
+                             │
+              ┌──────────────┴──────────────┐
+              ▼                             ▼
+   Source-Blind EHR Reconcile     Provider Review Queue
+   (Hospital FHIR vs Isolated)   (Acknowledge/Resolve/Notes)
+```
+
+---
+
+## 🚀 Key Platform Features
+
+### 👤 1. Patient Portal
+- **Bilingual Adaptive Check-In**: Voice or typed check-ins in fluent English or Urdu (اردو), powered by Groq cloud Whisper speech-to-text.
+- **Physical Profile with Dynamic Units**: Support for height in **cm** or **ft + in** (feet whole 1–8, inches 0–11.9) and weight in **lb** or **kg**, converted seamlessly to metric standards for clinical precision.
+- **8-Day Visual Health Trends**: Interactive time-series charts (via Recharts) tracking systolic/diastolic blood pressure, pulse, and glucose dynamics over time.
+- **Transparent Provenance Badges**: Every observation clearly displays its origin (`EHR`, `Patient Reported`, or `Derived`).
+
+### 🩺 2. Provider Portal
+- **High-Signal Review Queue**: Prioritized clinical queue triaging high-risk submissions with `acknowledge`, `resolve`, and `escalate` actions.
+- **Discrepancy & Conflict Detail**: Granular comparisons showing self-reported numbers alongside hospital records without making hazardous clinical assumptions.
+- **Audit-Logged Clinical Notes**: Clinicians can annotate triage decisions, review structured patient backgrounds (including calculated BMI), and arrange consultations.
+
+### 🛡️ 3. Admin Portal
+- **Platform Telemetry & Metrics**: Real-time figures tracking user registrations, check-in completion volumes, and active triage distribution.
+- **User Directory & Role Governance**: Centralized access directory for Patient, Provider, and Administrator roles with Firebase token verification.
+- **Immutable Audit Trail**: Append-only log of critical system operations and clinical transitions.
+
+### 🔗 4. Dual Record Connectivity Modes
+- **Connected Mode (Hospital HL7® FHIR® R4)**: Communicates with healthcare EHR systems using FHIR R4 resources (`Observation`, `Condition`, `MedicationStatement`) via SMART on FHIR or our built-in hermetic FHIR simulator (`FhirSim`).
+- **Isolated Mode (Local Store)**: Enables autonomous patient tracking using a local structured database, tagging every row with explicit provenance metadata.
+
+---
+
+## 🛡️ Safety by Design
+
+| Safety Principle | Implementation & Mechanical Guarantees |
+|---|---|
+| **Monotonic Triage Invariant** | Four distinct triage tiers (**`routine`** $\rightarrow$ **`review`** $\rightarrow$ **`urgent`** $\rightarrow$ **`emergency`**). Once a higher severity is triggered in a check-in, the system can **never lower** it. |
+| **Deterministic Rule Engine** | Triage classifications and red-flag escalations are generated entirely by deterministic, clinician-reviewed rules—**never** by generative language model hallucinations. |
+| **Source-Blind Reconciliation** | The reconciliation engine never arbitrates which record is "truth"; it outputs objective states: `agrees`, `differs`, or `no_data`. |
+| **Strict Biomarker Unit Safety** | Glucose input handles bare numbers by requesting units, automatically converts `mmol/L` to `mg/dL` ($\times 18.0$), and verifies physiological bounds. |
+| **Atomic Emergency Persistence** | Intermediate life-threatening signals (e.g., crushing chest pain, radiating left arm pain) immediately write to the database before the interview finishes. |
+| **Absence vs. Unknown Guard** | An `unknown` answer is strictly treated as missing information and **never** assumed to be negative or healthy (`unknown != absent`). |
+
+---
+
+## 🌐 Live Demonstrations
+
+| Environment | Endpoint URL | Description |
 |---|---|---|
-| **User Interface & Layout** | Complete responsive React UI (desktop, tablet, mobile down to 375px), modal overlays, slide-up drawers, bilingual typography. | None — all screens and layout containers are fully rendered components. |
-| **State Management** | Centralized React Context (`AppContext`) managing multi-portal navigation, form inputs, dynamic case counters, and cross-portal state sync. | Backend database persistence (data resets upon full page refresh). |
-| **Form & Input Validation** | Live debounced voice input simulation, multi-branch question gating, input requirement validation, checkbox logic. | Real automatic speech recognition (ASR) cloud transcription API. |
-| **Localization** | Native bidirectional bilingual dictionary engine with instant toggle between English and Urdu (اردو) across every screen. | Machine translation API (translations are curated statically). |
-| **Clinical Discrepancy Flow** | Live deterministic scenario branching (Normal, Conflict, Emergency) via Presenter Controls, triggering dynamic triage states. | Real-time clinical ML risk inference models and automated SHAP value generation. |
-| **Cross-Portal Sync** | Provider appointment booking dynamically writes to shared state and immediately renders in the Patient Portal's appointment view. | Live enterprise calendar sync / SMS / push notification delivery services. |
-| **EHR Connectivity** | Interactive dual connection path (HL7® FHIR® network simulation vs. Isolated Offline Local Store profile creation). | Live TLS authenticated SMART on FHIR endpoint connectivity. |
-| **Resilience & Safety** | Custom top-level React `ErrorBoundary` with client diagnostic reporting and full reset recovery capabilities. | Real-time automated clinical safety incident escalation to 911/EMS dispatch. |
+| 🖥️ **Web Application (Netlify)** | [https://chronicare-ai.netlify.app](https://chronicare-ai.netlify.app) | Production Next.js 14 static application with client-side routing & bilingual UI |
+| ⚡ **Backend REST API (Render)** | [https://chroniccare-backend-w568.onrender.com/api/health](https://chroniccare-backend-w568.onrender.com/api/health) | Live FastAPI backend (Free tier: cold starts may take 15–45s when waking) |
 
 ---
 
-## 📖 Overview
+## 🏗️ Technical Architecture
 
-**ChronicCare AI** is an intelligent chronic disease management platform designed to support patients with **Type 2 Diabetes (T2D)** and **Hypertension (HTN)** alongside their healthcare providers and clinical administrators. Managing chronic conditions requires continuous daily patient engagement, accurate data reconciliation between self-reported observations and electronic health records (EHR), and immediate clinical safety escalation.
-
-This interactive frontend prototype demonstrates the end-to-end user experience across all primary clinical stakeholders:
-- **Patients**: Engaging with adaptive conversational symptom check-ins, multi-day trend visualizations, localized bilingual accessibility (English & اردو), and follow-up appointment tracking.
-- **Healthcare Providers**: Triage dashboards, live dynamic case counters, clinical review queues for data reconciliation, and direct consultation scheduling.
-- **System Administrators**: Platform telemetry monitoring, user access directory, and compliance audit trail inspection.
-
-The application showcases the complete intended clinical workflow, including our dual-mode architecture (Hospital FHIR EHR vs. Isolated Local Store) and safety guardrails, within a responsive and unified visual environment.
-
----
-
-## 🏗️ Architecture
-
-### System Topology & Multi-Portal Structure
+Five decoupled tiers communicating over typed interfaces and secured REST endpoints:
 
 ```mermaid
-flowchart TD
-    Landing[Portal Landing & Universal Switcher]
-    
-    subgraph PatientPortal [Patient Portal - Ali Khan]
-        LoginP[Patient Login] --> ConnChoice{Connection Mode}
-        ConnChoice -->|Hospital FHIR| HomeP[Home Dashboard & Presenter Controls]
-        ConnChoice -->|Isolated Offline| Profile[Local Health Profile Setup] --> HomeP
-        HomeP --> Checkin[Daily Symptom Check-In]
-        Checkin --> Adaptive[Adaptive Clinical Interview]
-        Adaptive --> OutcomeFork{Presenter Scenario}
-        OutcomeFork -->|Scenario A: Normal| RiskResult[Low Risk Assessment & SHAP Disclaimer] --> Trends[8-Day Multi-Day Trends]
-        OutcomeFork -->|Scenario B: Conflict| ConflictScreen[Reconciliation Conflict: 180 vs 140 mg/dL] --> ReviewQueueNotice[Routed to Human Review]
-        OutcomeFork -->|Scenario C: Emergency| EmergencyScreen[Emergency Pattern Detected Red Alert]
-        HomeP --> MyAppointments[My Appointments Sync View]
+flowchart TB
+    subgraph PresentationTier ["1. Presentation Layer (Next.js 14 + TypeScript)"]
+        Browser["Desktop & Mobile Browsers<br/>(Tailwind CSS, Radix UI, Recharts)"]
+        PortalA["Patient Portal<br/>(Bilingual EN/UR)"]
+        PortalB["Provider Portal<br/>(Review Queue & Notes)"]
+        PortalC["Admin Portal<br/>(Telemetry & Audit)"]
+        Browser --> PortalA & PortalB & PortalC
     end
 
-    subgraph ProviderPortal [Provider Portal - Dr. Sana Malik]
-        LoginDr[Provider Login] --> DashboardDr[Clinical Dashboard & Live Counters]
-        DashboardDr --> Queue[Clinical Review Queue]
-        Queue --> AlertDetail[Reconciliation Alert Detail]
-        AlertDetail -->|Resolve| Queue
-        AlertDetail -->|Schedule / Escalate| Schedule[Appointment Scheduling Engine]
-        DashboardDr --> DetailDr[Patient Detail & Clinical Assessment]
+    subgraph SecurityTier ["2. Security & API Gateway Layer (FastAPI)"]
+        Gateway["FastAPI Gateway<br/>(36 REST Endpoints, CORS, Pydantic)"]
+        AuthCheck{"Token Verification<br/>& Role Guards"}
+        Gateway --> AuthCheck
     end
 
-    subgraph AdminPortal [Admin Portal - System Administration]
-        LoginAdm[Admin Login] --> DashboardAdm[Platform Telemetry & Audit Log]
+    subgraph PipelineTier ["3. Application Pipeline (Deterministic Agents)"]
+        CheckinPipe["Check-in Orchestration Pipeline"]
+        AdaptiveInt["Adaptive Interview Engine (v2 & v3)"]
+        TriageEngine["Triage Protocols (5 Protocols, Monotonic)"]
+        ReconcileEngine["Source-Blind Reconciliation"]
+        VerifyEngine["Clinical Consistency Verification"]
+        
+        CheckinPipe --> AdaptiveInt
+        CheckinPipe --> TriageEngine
+        CheckinPipe --> ReconcileEngine
+        CheckinPipe --> VerifyEngine
     end
 
-    Landing --> PatientPortal
-    Landing --> ProviderPortal
-    Landing --> AdminPortal
+    subgraph DataAccessTier ["4. Data Access Layer (DataSource Interface)"]
+        DS["Unified DataSource Abstract Interface"]
+        FhirAdap["FhirAdapter<br/>(HL7 FHIR R4)"]
+        LocalAdap["LocalAdapter<br/>(Isolated Profile)"]
+        AppStore["app_store Database<br/>(SQLite / MySQL)"]
+        
+        DS --> FhirAdap
+        DS --> LocalAdap
+        DS --> AppStore
+    end
 
-    Schedule -.->|Cross-Portal Appointment Sync| MyAppointments
-    OutcomeFork -.->|Live Case Counter & Queue Update| DashboardDr
-    DashboardDr -.->|Active Alert Parity| DashboardAdm
+    subgraph ExternalTier ["5. External Integrations & Infrastructure"]
+        Firebase["Firebase Authentication"]
+        Groq["Groq Cloud API<br/>(Whisper ASR Speech-to-Text)"]
+        SMART["SMART Health IT Server / FhirSim"]
+        AivenDB[("Aiven Managed MySQL")]
+    end
+
+    PortalA & PortalB & PortalC -->|HTTPS + Bearer ID Token| Gateway
+    AuthCheck -->|Validated Context| CheckinPipe
+    CheckinPipe --> DS
+    FhirAdap <--> SMART
+    AppStore <--> AivenDB
+    AuthCheck <--> Firebase
+    Gateway <--> Groq
 ```
 
-The three-portal architecture directly mirrors the modular decomposition proposed for ChronicCare AI: empowering autonomous patient self-monitoring, providing clinicians with high-signal triage tools without alert fatigue, and giving institutional administrators total governance over integration health and compliance auditability.
+### Layer Technology Matrix
 
-### Reconciliation & Triage Sequence (Scenario B: Conflict)
+| Layer | Technologies & Libraries | Key Responsibilities |
+|---|---|---|
+| **Presentation** | Next.js 14, React 18, TypeScript, Tailwind CSS, Recharts, Lucide Icons | Responsive multi-portal UI, bilingual RTL/LTR layout, client session management. |
+| **API & Routing** | FastAPI, Pydantic v2, Uvicorn, Python 3.11 | 36 REST endpoints, strict schema validation, CORS security, role authorization. |
+| **Application Pipeline** | Python deterministic modules, state machines | Adaptive branching interview, 5 clinical triage protocols, source-blind comparison. |
+| **Data Access** | Python `DataSource` abstraction, SQLAlchemy, Raw SQL | Abstract access over FHIR R4 schemas, Local Store, and persistent relational storage. |
+| **External Services** | Aiven MySQL, Google Firebase Auth, Groq Cloud, SMART on FHIR | Persistent production database, identity tokens, Whisper ASR audio transcription. |
 
-The sequence diagram below details the flagship cross-portal reconciliation workflow demonstrated in this prototype:
+---
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Patient as Patient (Ali Khan)
-    participant App as Patient Portal
-    participant State as Shared Clinical State
-    participant Prov as Provider Portal (Dr. Sana Malik)
-    actor Clinician as Clinician (Dr. Sana Malik)
+## 📁 Repository Directory Structure
 
-    Patient->>App: Submits Check-In (Reports 180 mg/dL Blood Glucose)
-    App->>App: Evaluates against FHIR EHR Baseline (140 mg/dL)
-    App->>Patient: Displays Reconciliation Conflict Screen (180 vs 140 mg/dL, Low Confidence)
-    App->>State: Routes Case to Clinical Review Queue & Updates Active Count (+1)
-    State-->>Prov: Triggers Notification ("Review required — Ali Khan, conflicting glucose")
-    Clinician->>Prov: Opens Review Queue & Inspects Reconciliation Alert Detail
-    Clinician->>Prov: Selects [Schedule Appointment] for Monday 9:00 AM
-    Prov->>State: Commits Confirmed Appointment (Dr. Sana Malik, Mon 9:00 AM)
-    State-->>App: Broadcasts Booked Appointment
-    Patient->>App: Opens "My Appointments" -> Confirmed Appointment Rendered
+```
+chroniccare-ai/
+├── app/                                🌐 Next.js 14 App Router Frontend
+│   ├── components/                     🧩 Reusable UI screens & component modules
+│   │   ├── admin/                      👑 Administrator portal screens
+│   │   │   ├── AdminDashboard.tsx      📊 Platform analytics, user directory, audit trails
+│   │   │   └── AdminLoginScreen.tsx    🔐 Admin authentication entry
+│   │   ├── provider/                   🩺 Healthcare provider portal screens
+│   │   │   ├── ProviderDashboard.tsx   📈 Clinical queue metrics and active triage alerts
+│   │   │   ├── ProviderLoginScreen.tsx 🔑 Provider sign-in screen
+│   │   │   ├── ProviderQueue.tsx       📋 Triage review queue with action buttons
+│   │   │   ├── ReconciliationAlertDetail.tsx 🔍 Discrepancy analysis & clinical notes drawer
+│   │   │   └── ScheduleAppointmentModal.tsx  📅 Consultation scheduling interface
+│   │   ├── AdaptiveInterviewScreen.tsx 💬 Interactive dynamic check-in dialogue
+│   │   ├── CheckInEntryScreen.tsx      🚀 Check-in launchpad & symptom summary
+│   │   ├── ConfirmationScreen.tsx      ✅ Verification of inputs & adherence
+│   │   ├── ConflictScreen.tsx          ⚠️ Self-reported vs EHR conflict screen
+│   │   ├── ConnectionScreen.tsx        🔌 EHR mode selector (FHIR vs Local Store)
+│   │   ├── ConsentScreen.tsx           📜 Patient privacy & clinical telemetry consent
+│   │   ├── DemoFooter.tsx              🏷️ Persistent prototype disclaimer banner
+│   │   ├── EmergencyScreen.tsx         🚨 Immediate critical escalation & emergency hotline
+│   │   ├── ErrorBoundary.tsx           🛡️ React crash safety & fallback handler
+│   │   ├── EvaluatorTourModal.tsx      🗺️ Guided multi-portal tour for academic defense
+│   │   ├── Header.tsx                  🧭 Top bar (language, portal switch, settings, logout)
+│   │   ├── HealthProfileScreen.tsx     ⚖️ Baseline profile (height ft+in/cm, weight lb/kg, conditions)
+│   │   ├── HealthRecordScreen.tsx      📑 Patient health record with provenance tags
+│   │   ├── HomeScreen.tsx              🏠 Patient home overview & check-in prompt
+│   │   ├── InclusionScreen.tsx         🎯 Clinical inclusion criteria & eligibility gate
+│   │   ├── LoginScreen.tsx             🚪 Patient email/password authentication
+│   │   ├── PatientAppointmentsScreen.tsx 📆 Patient view of upcoming clinician appointments
+│   │   ├── PortalLandingScreen.tsx     🌐 Portal selection hub
+│   │   ├── ProcessingScreen.tsx        ⏳ Check-in submission & evaluation progress
+│   │   ├── RiskResultScreen.tsx        🎯 Triage result level, guidance & explanation
+│   │   ├── RoutedToReviewScreen.tsx    📬 Clinician review routing notification
+│   │   ├── TrendScreen.tsx             📊 8-day interactive vital trends (Recharts)
+│   │   └── UnifiedSettingsModal.tsx    ⚙️ Quick settings modal (language, connection, mode)
+│   ├── context/                        🧠 Centralized state management
+│   │   └── AppContext.tsx              ⚛️ Primary React context (user, profile, language, live state)
+│   ├── lib/                            🛠️ Shared frontend utilities
+│   │   ├── api.ts                      📡 Typed REST API client (36 endpoints)
+│   │   ├── firebase.ts                 🔥 Firebase SDK initialization & auth helper
+│   │   ├── presentation.ts             📐 Formatting math, age computation, unit formatters
+│   │   └── roles.ts                    🛡️ Route guards & credential role resolution
+│   └── translations/                   🌍 Localization engine
+│       └── index.ts                    📖 Bidirectional English & Urdu (اردو) translation dictionary
+├── tests/                              🧪 Frontend Vitest Test Suite (19 files, 196 tests)
+│   ├── auth-session.test.tsx           🔑 Session restoration and token lifecycle tests
+│   ├── blocked-action.test.ts          🚫 Role guard and unauthorized action tests
+│   ├── demo-readiness.test.tsx         🖥️ Demo stability and presentation integrity tests
+│   ├── ehr-connection-parity.test.tsx  🔌 Connected FHIR vs Isolated mode parity tests
+│   ├── honest-labels.test.ts           🏷️ Veracity and non-misleading label tests
+│   ├── hypertension-parity.test.tsx    🩸 Hypertension protocol check-in tests
+│   ├── medication-flow.test.tsx        💊 Medication tracking and adherence tests
+│   ├── medication-result.test.ts       ⚠️ Medication triage conflict logic tests
+│   ├── new-user-journey.test.tsx       🚶 Onboarding journey from consent to profile
+│   ├── no-fake-values.test.tsx         🔍 Absence of hallucinated fallback values
+│   ├── onboarding-conditions.test.tsx  🎯 Independent condition selection tests
+│   ├── pregnancy-eligibility.test.tsx  🤰 Pregnancy status clinical eligibility tests
+│   ├── presentation.test.ts            🔢 Calculation and display math unit tests
+│   ├── profile-units.test.tsx          ⚖️ Height (ft+in/cm) and weight (lb/kg) unit tests
+│   ├── richer-enrolment.test.ts        📋 Background profile and BMI tests
+│   ├── scroll-behavior.test.tsx        📜 Navigation scroll restoration tests
+│   ├── ux-logout-eye.test.tsx          👁️ Password visibility and logout UX tests
+│   ├── voice-checkin-entry.test.tsx    🎙️ Audio check-in initialization tests
+│   └── voice-input.test.ts             🗣️ Speech-to-text fallback and transcription tests
+├── backend-poc-technical/              ⚡ FastAPI Backend (Python 3.11, 715 tests)
+│   ├── main.py                         🚀 FastAPI entry point, 36 endpoints, pipeline controllers
+│   ├── init_local_db.py                🗄️ Database migration & SQLite initialization script
+│   ├── requirements.txt                📦 Python dependencies
+│   ├── .env.example                    ⚙️ Environment variables configuration template
+│   ├── agents/                         🤖 Deterministic clinical modules
+│   │   ├── adaptive_interview_agent.py 🔄 Adaptive question state machine (v2 & v3)
+│   │   ├── answer_validation.py        🛡️ Biomarker bounds & syntax validation
+│   │   ├── input_triage.py             🚨 Multilingual red-flag emergency screening
+│   │   ├── interview_question_bank.py  📚 Clinician-approved interview question dictionary
+│   │   ├── reconciliation.py           ⚖️ Source-blind observation reconciliation
+│   │   ├── triage_protocol.py          📈 5 clinical triage protocols with monotonic escalation
+│   │   └── verification.py             🔍 Conflict and clinical verification engine
+│   ├── data_sources/                   💾 Data access abstraction
+│   │   ├── data_source.py              📐 Unified DataSource abstract base class
+│   │   ├── fhir_adapter.py             🏥 HL7 FHIR R4 resource conversion adapter
+│   │   ├── fhir_client.py              🌐 SMART on FHIR REST client
+│   │   ├── fhir_sim.py                 🧪 Embedded in-memory FHIR server simulator
+│   │   ├── local_adapter.py            💾 Isolated Local Store adapter
+│   │   └── app_store.py                🗄️ Application database models (SQLite/MySQL)
+│   ├── auth/                           🔐 Authentication
+│   │   └── firebase_auth.py            🛡️ Firebase JWT validation and role decoder
+│   ├── llm/                            🎙️ Speech-to-Text
+│   │   └── groq_client.py              ⚡ Groq Whisper cloud transcription client
+│   ├── ml/                             📊 Advisory Machine Learning (Iteration 2)
+│   │   ├── baseline_model.py           📈 Predictive baseline models
+│   │   └── shap_explainer.py           🧩 SHAP value explainability generator
+│   └── scenarios/                      🧪 End-to-end integration scenario tests
+├── scripts/                            🛠️ Operational and Testing Automation
+│   ├── smoke_test.py                   🔥 Deployed stack live verification script
+│   ├── load_test_local.py              ⚡ Local concurrency performance benchmark
+│   ├── load_test_deployed.py           🚀 Remote production API load testing script
+│   ├── verify_mutations.py             🧬 Mutation proof runner (23/23 safety checks)
+│   ├── probe_fhir.py                   🏥 Public FHIR endpoint diagnostic utility
+│   └── generate_clinician_pack.py      📄 Clinician review pack generator
+├── docs/                               📚 Project Documentation & Clinical Evidence
+│   ├── ACCESSIBILITY_CHECK.md          ♿ WCAG 2.1 AA accessibility audit results
+│   ├── AUTH.md                         🔐 Authentication & role authorization guide
+│   ├── CLINICAL_RULES.md               📋 Full deterministic clinical triage specification
+│   ├── CLINICIAN_RESPONSES.md          👨‍⚕️ Clinician review feedback from three practicing physicians
+│   ├── DATASETS.md                     📊 Synthetic clinical cohorts and dataset metadata
+│   ├── DATA_DICTIONARY.md              📖 Canonical schema and telemetry definition
+│   ├── DATA_OWNERSHIP.md               🛡️ Patient data privacy, consent, and governance
+│   ├── DEPLOY.md                       🚀 Deployment manual for Netlify, Render, and Aiven
+│   ├── EHR_SANDBOX.md                  🏥 FHIR integration, LOINC mapping, and conversions
+│   ├── INTERVIEW_QUESTION_BANK.md      💬 Complete question texts in English and Urdu
+│   ├── INTERVIEW_V3_RESEARCH_AND_DESIGN.md 🔬 Research rationale for interview v3
+│   ├── LOAD_TEST_RESULTS.md            📈 Latency figures and concurrency metrics
+│   ├── MID1_EVIDENCE_PACK.md           🏆 Mid-1 defense evidence pack
+│   ├── SAFETY.md                       🛡️ Core clinical safety invariants
+│   ├── SYSTEM_TEST_RESULTS_Hassaan.md  📋 System verification test records
+│   └── ai-usage/                       🤖 AI development disclosure logs
+├── .github/workflows/
+│   └── ci.yml                          ⚙️ GitHub Actions CI/CD pipeline
+├── netlify.toml                        🌐 Netlify static build and redirect configuration
+└── DEMO_SCRIPT.md                      🎬 Step-by-step presentation script for live demo
 ```
 
 ---
 
-## ✨ Features by Milestone
+## 💻 Getting Started Locally
 
-### Milestone 1 (M1) — Daily Symptom Check-In Flow
-- Dual connection modes: Simulated HL7® FHIR® EHR handshake vs. Isolated Offline Local Store profile setup.
-- Conversational check-in with free-form text and a 2-second animated voice dictation simulation.
-- Adaptive branching interview (Question 1 Thirst $\rightarrow$ Question 2 Urination; Question 3 Medication Adherence with low confidence tracking).
-- Bilingual language engine supporting instant switching between English and Urdu (اردو).
-
-### Milestone 2 (M2) — Processing, Risk Assessment & Trend Visualization
-- 2.2-second animated clinical processing state with a 1.0-second *"✓ Clinical Assessment Verified"* flash.
-- Presentational `RiskBadge` component rendering `riskLevel="low"`.
-- *"Why"* Contributing Factors panel with mandatory SHAP explanation safeguard disclaimer.
-- 3 multi-day Recharts trend charts (Blood Glucose, Blood Pressure, Medication Adherence).
-
-### Milestone 3 (M3) — Presenter Controls & Multi-Path Scenario Branching
-- Dashed Presenter Controls box on Patient Home for live deterministic scenario switching.
-- **Scenario A (Normal)**: Full healthy baseline risk and trend pathway.
-- **Scenario B (Conflict)**: Discrepancy comparison (180 mg/dL self-reported vs. 140 mg/dL FHIR record) $\rightarrow$ Low Confidence / Routed to Human Review.
-- **Scenario C (Emergency)**: Urgency-optimized 1.0s processing $\rightarrow$ Dedicated Red Emergency Pattern Detected screen without RiskBadge.
-- Safe `returnToHomeAndClearRun` reset mechanics preventing stale data bleed.
-
-### Milestone 4 (M4) — Multi-Portal Suite & Cross-Portal Synchronization
-- Root Portal Landing screen and unified Header Portal Switcher.
-- Provider Dashboard with live reactive counters (*Active Cases*, *Urgent Cases*) and notification feeds.
-- Clinical Review Queue table with baseline patient (Sara Ahmed) and dynamic scenario rows (Ali Khan).
-- Reconciliation Alert Detail with dual source cards and 3 action buttons: `[Resolve]`, `[Schedule Appointment]`, `[Escalate]`.
-- Provider appointment scheduling engine synchronized directly to Patient Portal's *"My Appointments"* view.
-- Admin Portal featuring platform telemetry counters (126 Users, 18 Providers, 108 Patients, Active Alerts) and compliance audit logs.
-- Globally accessible Unified Settings modal.
-
-### Milestone 5 (M5) — Integration, Polish & Live Demonstration
-- Animated highlight flash transitions on Provider and Admin live counters.
-- Explicit visual Isolated Mode banner on Patient Home when offline store is active.
-- Graceful empty state indicator on Trend Screen when accessed prior to daily check-in.
-- Full 8-path regression verification and bilingual audit across all screens.
-- Presenter live demo script cue sheet (`DEMO_SCRIPT.md`).
+### Prerequisites
+- **Node.js**: `v18.x` or newer (`node -v`)
+- **npm**: `v9.x` or newer (`npm -v`)
+- **Python**: `v3.11.x` (`python --version`)
 
 ---
 
-## 🎭 Demo Scenarios
+### 1. Backend Setup
 
-The prototype features a dedicated **Presenter Controls** panel on the Patient Home screen to demonstrate three deterministic clinical pathways:
+```bash
+# Navigate to the backend directory
+cd backend-poc-technical
 
-1. **Scenario A: Normal**
-   - *Concept*: Routine stable check-in.
-   - *Outcome*: 🟢 Low Risk assessment, contributing factors panel, and 8-day stability trends. Provider dashboard reflects 2 baseline active cases and 0 urgent cases.
-2. **Scenario B: Conflict**
-   - *Concept*: Cross-source data inconsistency requiring clinician oversight.
-   - *Outcome*: Highlights a conflict between patient-reported glucose (180 mg/dL) and hospital FHIR telemetry (140 mg/dL). Routes to Provider Review Queue for resolution or appointment booking.
-3. **Scenario C: Emergency**
-   - *Concept*: Acute symptom escalation.
-   - *Outcome*: Urgent 1.0s processing triggers a critical red emergency guidance screen. Instantly raises Provider Urgent Cases counter to 🔴 1 and updates Admin Active Alerts.
+# Create and activate virtual environment
+python -m venv .venv
+# On Windows PowerShell:
+.venv\Scripts\Activate.ps1
+# On Linux/macOS:
+source .venv/bin/activate
 
-*For complete click-by-click presenter instructions, see [`DEMO_SCRIPT.md`](./DEMO_SCRIPT.md).*
+# Install required dependencies
+pip install -r requirements.txt
+
+# Create environment file from template
+cp .env.example .env
+# Edit .env with your settings (leave defaults for local SQLite development)
+
+# Initialize local SQLite database
+python init_local_db.py
+
+# Launch development server
+uvicorn main:app --reload --port 8000
+```
+
+> **Verification**: Open [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health) in your browser.  
+> Expected response: `{"status": "healthy", "database": "healthy", "mode": "isolated", ...}`.
+
+---
+
+### 2. Frontend Setup
+
+In a new terminal at the repository root:
+
+```bash
+# Install frontend dependencies
+npm install
+
+# (Optional) Configure backend URL in .env.local
+# NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+
+# Start Next.js development server
+npm run dev
+```
+
+> **Verification**: Open [http://localhost:3000](http://localhost:3000) in your browser to view the application.
+
+---
+
+### 3. Backend Environment Variables Reference
+
+| Variable | Default (Local) | Purpose |
+|---|---|---|
+| `APP_ENV` | `development` | Setting to `production` enforces strict security and SSL preflights. |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,...` | Whitelist of allowed client origins (no wildcards permitted). |
+| `DB_BACKEND` | `sqlite` | Relational store engine (`sqlite` for local/CI, `mysql` in cloud). |
+| `LOCAL_DB_PATH` | `local_store.db` | File path for SQLite database when `DB_BACKEND=sqlite`. |
+| `MYSQL_URL`, `MYSQL_SSL_CA` | `""` | Aiven Cloud MySQL connection URI and certificate path. |
+| `FIREBASE_PROJECT_ID` | `chroniccare-ai-mock` | Firebase project identification for JWT token validation. |
+| `DEMO_ROLE_MAP` | Enabled | Maps test email domains to roles (`@patient.org`, `@provider.org`, `@admin.org`). |
+| `FHIR_BASE_URL`, `FHIR_PATIENT_ID` | `""` | Optional external SMART on FHIR endpoint and test patient identifier. |
+| `GROQ_API_KEY`, `GROQ_STT_MODEL` | `""` | Whisper speech-to-text API credentials (`whisper-large-v3`). |
+| `REQUIRE_INCLUSION` | `true` | Enforces inclusion questionnaire before first clinical check-in. |
+| `INTERVIEW_ENGINE` | `v2` | Check-in question engine version (`v2` or `v3`). |
 
 ---
 
 ## 🧪 Testing & Quality Assurance
 
-A comprehensive 25-point manual QA regression audit was conducted across all three portals to validate functional boundaries, accessibility, and system resilience:
-
-- **Regression Coverage**: Verified input validation on all login forms, dual-path connection initialization, 4-way adaptive interview branching, 375px mobile chart responsiveness, and 6-way portal switcher combinations.
-- **Accessibility & DEI Standards**: Validated that all clinical triage states (Low Risk, Discrepancy, Emergency) use multi-modal signaling combining geometric shape icons, explicit typography, and color tokens to ensure full usability for colorblind reviewers.
-- **Client Resilience**: Verified application stability under rapid action double-clicking, browser state resets, and top-level React `ErrorBoundary` interception to eliminate live presentation risk.
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- **Node.js**: `v18.0.0` or higher
-- **npm**: `v9.0.0` or higher
-
-### Installation
+### Run Frontend Tests (Vitest)
 ```bash
-# 1. Clone repository
-git clone https://github.com/UsmanBari/ChronicCare-AI.git
-cd ChronicCare-AI
+# Run 196 test cases across 19 suites
+npm test
 
-# 2. Install dependencies
-npm install
+# Run ESLint validation
+npm run lint
 
-# 3. Start local development server
-npm run dev
+# Validate production static compilation
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser to interact with the prototype.
+### Run Backend Tests (Pytest)
+```bash
+# Run hermetic backend test suite from repository root
+python -m pytest backend-poc-technical/scenarios/ backend-poc-technical/test_*.py -q -k "not run_source_blind_test"
+```
+
+### Milestone Quality Results (Mid-1 Evaluation)
+
+| Quality Gate | Status | Verified Result |
+|---|---|---|
+| **Backend Hermetic Suite** | ✅ Passed | **715 passed**, 1 deselected, 0 failures |
+| **Frontend Test Suite** | ✅ Passed | **196 passed across 19 files** (Vitest in jsdom) |
+| **Static Code Analysis** | ✅ Passed | 0 ESLint warnings, 0 Ruff correctness issues |
+| **Safety Mutation Proofs** | ✅ Passed | **23 of 23** intentional rule violations successfully caught |
+| **End-to-End Smoke Test** | ✅ Passed | **5 of 5** deployed stages verified on production stack |
+| **Local Concurrency Benchmark** | ✅ Passed | Slowest step p95: **1.9s** (50 concurrent patients), **2.2s** (100 patients) |
+| **Compliance Integrity Check** | ✅ Passed | 0 unsupported regulatory claims (HIPAA/FDA/GDPR-certified claims blocked) |
 
 ---
 
-## 🎨 Design System
+## 🩺 Clinical Evidence & Physician Review
 
-### Palette & Color Tokens
+The deterministic clinical triage protocols were designed from established clinical guidelines and reviewed by three practicing clinicians:
 
-| Token | Hex Value | Preview | Usage |
-|---|---|:---:|---|
-| **Primary Navy** | `#16233F` | `■` | Primary headers, hero cards, dark navigation elements |
-| **Accent Teal** | `#0B6E70` | `■` | Primary buttons, active highlights, health telemetry |
-| **Supporting Amber** | `#8A5A18` | `■` | Clinical review warnings, conflict tags, offline badges |
-| **Muted Green** | `#24623F` | `■` | Low risk indicators, resolved cases, verification checkmarks |
+- **Dr. Shaiza Jabbar** (Hearts International Hospital, Rawalpindi)
+- **Capt. Dr. Talha Yasin** (Combined Military Hospital, Rawalpindi)
+- **Dr. Anam Zafar** (Federal Government Polyclinic Hospital, Islamabad)
 
-### Multi-Modal Triage Accessibility
-
-To prevent reliance on color alone for safety-critical clinical triage, all status indicators combine color, shape, and text:
-- **Stable / Verified**: Boxed green container with `CheckCircle2` icon + explicit *"Stable"* / *"Low Risk"* label.
-- **Discrepancy / Review Required**: Boxed amber container with `AlertTriangle` icon + explicit *"Discrepancy: Glucose 180 vs 140 mg/dL"* label.
-- **Critical / Emergency**: Boxed red container with `AlertOctagon` icon + explicit *"Critical: High-Risk Pattern Alerted"* label.
-
-### Typography & Localization
-- **Typography**: Editorial serif headings (`Cambria`, `Georgia`, serif; `Noto Nastaliq Urdu` for Urdu) paired with clean sans-serif body typography (`Inter`, system-ui).
-- **Localization**: Native bilingual dictionary toggle supporting English and Urdu (اردو) across all components.
+### Key Clinical Decisions Incorporated
+1. **Cardiac Pain Radiation**: Chest pain radiating to the left arm or jaw, or described as "crushing", triggers an immediate `emergency` triage level in English, Roman Urdu, and Urdu script.
+2. **Negation & Historical Context**: Negated phrases (*"no chest pain"*) and historical episodes (*"had chest pain last year"*) are recognized and do not trigger false alarms.
+3. **Fluids & Vomiting (13 Oct Decision)**: Inability to keep fluids down or continuous vomiting is classified as `urgent` (prioritizing rapid clinical attention while avoiding inappropriate 911 dispatch).
+4. **Neurological Disorientation Screen**: Conversational confusion regarding medication regimens remains non-emergency; genuine disorientation regarding time, place, or person escalates to `emergency`.
 
 ---
 
-## 📁 Project Structure
+## 🗺️ Project Roadmap
 
-```text
-ChronicCare-AI/
-├── backend-poc-technical/                       # Original technical PoC (Reconciliation & Verification algorithms)
-│   ├── agents/                                  # Algorithmic Reconciliation & Verification agents (Python)
-│   ├── data_sources/                            # FHIR R4 client & Local SQLite source-blind adapters
-│   ├── scenarios/                               # Deterministic scenario benchmarks & test suites
-│   ├── output/                                  # Execution logs, telemetry & clinical reports
-│   ├── POC_RESULTS.md                           # Technical PoC benchmark results
-│   ├── requirements.txt                         # Python dependencies
-│   └── README.md                                # Technical PoC documentation
-├── DEMO_SCRIPT.md                               # Live presenter click-by-click cue sheet
-├── README.md                                    # Project documentation
-├── next.config.mjs                              # Next.js configuration
-├── package.json                                 # Project dependencies and scripts
-├── postcss.config.mjs                           # PostCSS configuration
-├── tailwind.config.ts                           # Tailwind CSS theme & color tokens
-├── tsconfig.json                                # TypeScript configuration
-└── app/
-    ├── globals.css                              # Core CSS & animation utilities
-    ├── layout.tsx                               # Root layout & font definitions
-    ├── page.tsx                                 # Master portal & screen router
-    ├── components/
-    │   ├── AdaptiveInterviewScreen.tsx          # Multi-branch adaptive question flow
-    │   ├── CheckInEntryScreen.tsx               # Symptom text & voice input entry
-    │   ├── ConfirmationScreen.tsx               # Check-in submission receipt
-    │   ├── ConflictScreen.tsx                   # Reconciliation discrepancy card (180 vs 140)
-    │   ├── ConnectionScreen.tsx                 # Dual-mode selection (FHIR vs. Local)
-    │   ├── DemoFooter.tsx                       # Global "DEMO — DATA NOT REAL" watermark
-    │   ├── EmergencyScreen.tsx                  # Red alert emergency guidance view
-    │   ├── ErrorBoundary.tsx                    # Top-level client error resilience boundary
-    │   ├── Header.tsx                           # Global header & quick portal switcher
-    │   ├── HealthProfileScreen.tsx              # Offline profile setup form
-    │   ├── HomeScreen.tsx                       # Patient dashboard & Presenter Controls
-    │   ├── LoginScreen.tsx                      # Patient portal authentication
-    │   ├── PatientAppointmentsScreen.tsx        # Confirmed appointments patient view
-    │   ├── PortalLandingScreen.tsx              # 3-way portal entry screen
-    │   ├── ProcessingScreen.tsx                 # Simulated clinical analysis & verified flash
-    │   ├── RiskBadge.tsx                        # Presentational risk tier badge
-    │   ├── RiskResultScreen.tsx                 # Assessment result & SHAP disclaimer
-    │   ├── RoutedToReviewScreen.tsx             # Low confidence human triage notice
-    │   ├── TrendScreen.tsx                      # 8-day multi-observation trend charts
-    │   ├── UnifiedSettingsModal.tsx             # Shared settings & connection status
-    │   ├── admin/
-    │   │   ├── AdminDashboardScreen.tsx         # Telemetry statistics & audit log
-    │   │   └── AdminLoginScreen.tsx             # Administrator authentication
-    │   └── provider/
-    │       ├── AppointmentSchedulingScreen.tsx  # Follow-up slot booking engine
-    │       ├── PatientDetailScreen.tsx          # Longitudinal case assessment & acknowledge
-    │       ├── ProviderDashboardScreen.tsx      # Provider triage dashboard & live counters
-    │       ├── ProviderLoginScreen.tsx          # Clinician authentication
-    │       ├── ReconciliationAlertDetail.tsx    # Discrepancy analysis & triage actions
-    │       └── ReviewQueueScreen.tsx            # Multi-case clinical review queue table
-    ├── context/
-    │   └── AppContext.tsx                       # Global multi-portal state management
-    └── translations/
-        └── index.ts                             # Bilingual translation dictionary (EN/UR)
+```mermaid
+timeline
+    title ChronicCare AI Development Milestones
+    FYP-1 Iteration 1 (Mid-1) : Complete 3-portal UI : Deterministic triage protocols : Dual EHR connection modes : Bilingual English & Urdu check-in
+    Iteration 2 (Target Dec 2026) : Joint written clinician confirmation : Guideline-grounded triage rationale : Advisory ML risk models (SHAP) : MIMIC-III validation cohort
+    Iteration 3 (Target Spring 2027) : Automated reminders & capacity-aware booking : Bluetooth glucometer & BP cuff sync : Multi-centre clinical usability study
 ```
 
 ---
 
-## ⚠️ Prototype Invariants & Limitations
+## 👥 Project Team
 
-- **Observation Comparison Window (48 Hours):** Algorithmic reconciliation compares observations only within a 48-hour window of each other. Older baseline observations are retained as historical data for trend analysis, but will not match against today's check-in. Medications have no comparison time window.
-- **Allergies Storage Invariant:** Patient allergies can be recorded and retrieved via the patient record API in isolated mode, but are not yet evaluated by the reconciliation engine in this phase.
-- **EHR Connected Mode (Stage 7E):** Provides real-time HL7® FHIR® R4 integration against an in-process simulated hospital (`demo-hospital`) and public sandboxes (SMART Health IT `r4.smarthealthit.org`). See [EHR Sandbox Documentation](docs/EHR_SANDBOX.md) for sandbox results, synthetic patient IDs, and clinical boundaries.
+**FAST National University of Computer and Emerging Sciences, Islamabad Campus**  
+*Department of Computer Science — Final Year Project 2026*
 
----
+| Team Member | Roll Number | Primary Focus Areas |
+|---|---|---|
+| **Usman Bari** | `23i-0680` | Architecture, Backend Pipeline, FHIR Integration, Deployment |
+| **Hassaan Mudassar** | `23i-0536` | Adaptive Interview Engine, Triage Protocol, System Testing |
+| **Muhammad Saad** | `23i-0077` | Frontend Architecture, Bilingual Localization, Accessibility |
 
-## 🗺️ Roadmap
-
-Following the completion of this interface prototype, future project milestones will implement the computational and clinical intelligence layers:
-
-1. **Risk Prediction Engine**: Integrating trained machine learning classifiers to generate predictive risk assessments from real longitudinal patient check-in data.
-2. **Real HL7® FHIR® Connectivity**: Establishing authenticated SMART on FHIR integrations with certified electronic health record systems.
-3. **Multi-Agent Verification & Reconciliation**: Deploying our autonomous Verification Agent architecture to conduct automated clinical safety checks and data conflict resolution.
-4. **Clinical Evaluation & Volunteer Pilot**: Conducting structured usability trials and clinical safety audits with chronic disease management cohorts.
+**Project Supervisors**:  
+- **Dr. Basharat Hussain** (Associate Professor)  
+- **Ms. Zill-e-Huma** (Assistant Professor)
 
 ---
 
-## 👥 Team
+## 📄 License & Terms of Use
 
-**Department of Computer Science — FAST National University of Computer and Emerging Sciences (FAST-NUCES)**
-
-| Name | Role / Core Responsibilities |
-|---|---|
-| **Usman Bari** | Reasoning & ML core: orchestration, Verification Agent, Guideline RAG, both risk classifiers + preprocessing + SHAP, FHIR integration, system integration |
-| **Hassaan Mudassar** | Interaction layer: Adaptive Interview, Reconciliation, Local Store (shared with Saad), Provider Dashboard, Admin UI |
-| **Muhammad Saad** | Longitudinal reasoning & validation: Trend Analysis Agent, Patient App UI, Local Store (shared with Hassaan), evaluation framework & pilot coordination |
-
----
-
-## 📌 Project Status
-
-Academic Final Year Project (FYP) prototype developed for defense evaluation at FAST-NUCES (Fall 2026). Strictly for research and demonstration purposes; not approved for clinical diagnostic or commercial use.
+This repository is developed strictly as an **academic research prototype and engineering demonstration**. It is not approved for clinical diagnostic, therapeutic, or commercial healthcare operations.

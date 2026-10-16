@@ -99,3 +99,12 @@ Source: replies relayed by Usman. Title, hospital and permission to be named: no
 3. "confused": ask "Is the patient oriented in time, place and person?" Not oriented: emergency. Oriented: review.
 4. Stroke extras (dizziness, blurred vision, headache) with weakness or droop: raise the level. Alone in a patient aged 65+ with a heart/brain history or several of IHD, hypertension, diabetes: urgent CT scan advice (urgent).
 5. New symptoms, low sugar last week: review.
+
+---
+# Update 14 Oct 2026: third clinician (scanned checklist)
+- Reviewer: Dr Anam Zafar. Signed and dated 14/10/26. She agreed to be named.
+- Item 3 (chest pain): lists pain radiating to the left arm or jaw (already implemented), difficulty in speaking (partly covered by the stroke phrases) and palpitations (not implemented; she gave no level).
+- Item 4 (vomiting): she marked **emergency**. Dr Shaiza and Capt Dr Talha said **urgent** (implemented). Open split, 2 urgent versus 1 emergency. Code is not changed. Plan: one joint written decision in Iteration 2.
+- Item 5 (confusion): ask one clarifying question first. This matches the implementation.
+- Item 6 left blank. Item 7 marked yes.
+- Items 1 and 2: confirmed from the paper sheet, no objection recorded.

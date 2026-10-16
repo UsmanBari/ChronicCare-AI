@@ -360,6 +360,27 @@ export interface Translations {
   notFoundTitle: string;
   notFoundDesc: string;
   returnHomeBtn: string;
+
+  // Physical Measurements Units & Labels
+  heightToggleLabel: string;
+  weightToggleLabel: string;
+  heightUnitCm: string;
+  heightUnitFtIn: string;
+  weightUnitLb: string;
+  weightUnitKg: string;
+  heightLabelCm: string;
+  heightLabelFtIn: string;
+  feetLabel: string;
+  inchesLabel: string;
+  weightLabelLb: string;
+  weightLabelKg: string;
+  heightErrorCm: string;
+  heightErrorFtIn: string;
+  heightFeetError: string;
+  heightInchesError: string;
+  weightErrorKg: string;
+  weightErrorLb: string;
+  bodyMeasurementsOptional: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -714,6 +735,27 @@ export const translations: Record<Language, Translations> = {
     notFoundTitle: "Page Not Found",
     notFoundDesc: "The requested page does not exist or has been moved.",
     returnHomeBtn: "Return to Home",
+
+    // Physical Measurements Units & Labels
+    heightToggleLabel: "Height unit",
+    weightToggleLabel: "Weight unit",
+    heightUnitCm: "cm",
+    heightUnitFtIn: "ft + in",
+    weightUnitLb: "lb",
+    weightUnitKg: "kg",
+    heightLabelCm: "Height (cm)",
+    heightLabelFtIn: "Height (ft + in)",
+    feetLabel: "Feet",
+    inchesLabel: "Inches",
+    weightLabelLb: "Weight (lb)",
+    weightLabelKg: "Weight (kg)",
+    heightErrorCm: "Height must be between 50 and 250 cm.",
+    heightErrorFtIn: "Height must be between 1 ft 8 in and 8 ft 2 in.",
+    heightFeetError: "Feet must be a whole number between 1 and 8.",
+    heightInchesError: "Inches must be between 0 and 11.99.",
+    weightErrorKg: "Weight must be between 20 and 400 kg.",
+    weightErrorLb: "Weight must be between 44 and 882 lb.",
+    bodyMeasurementsOptional: "Body Measurements (Optional)",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1068,5 +1110,26 @@ export const translations: Record<Language, Translations> = {
     notFoundTitle: "صفحہ نہیں ملا",
     notFoundDesc: "درخواست کردہ صفحہ موجود نہیں ہے یا تبدیل ہو چکا ہے۔",
     returnHomeBtn: "مرکزی صفحہ پر واپس جائیں",
+
+    // Physical Measurements Units & Labels
+    heightToggleLabel: "قد کی اکائی",
+    weightToggleLabel: "وزن کی اکائی",
+    heightUnitCm: "سینٹی میٹر",
+    heightUnitFtIn: "فٹ + انچ",
+    weightUnitLb: "پاؤنڈ",
+    weightUnitKg: "کلوگرام",
+    heightLabelCm: "قد (سینٹی میٹر)",
+    heightLabelFtIn: "قد (فٹ اور انچ)",
+    feetLabel: "فٹ",
+    inchesLabel: "انچ",
+    weightLabelLb: "وزن (پاؤنڈ)",
+    weightLabelKg: "وزن (کلوگرام)",
+    heightErrorCm: "قد ۵۰ سے ۲۵۰ سینٹی میٹر کے درمیان ہونا چاہیے۔",
+    heightErrorFtIn: "قد ۱ فٹ ۸ انچ سے ۸ فٹ ۲ انچ کے درمیان ہونا چاہیے۔",
+    heightFeetError: "فٹ ۱ سے ۸ کے درمیان مکمل عدد ہونا چاہیے۔",
+    heightInchesError: "انچ ۰ سے ۱۱.۹۹ کے درمیان ہونے چاہئیں۔",
+    weightErrorKg: "وزن ۲۰ سے ۴۰۰ کلوگرام کے درمیان ہونا چاہیے۔",
+    weightErrorLb: "وزن ۴۴ سے ۸۸۲ پاؤنڈ کے درمیان ہونا چاہیے۔",
+    bodyMeasurementsOptional: "جسمانی پیمائش (اختیاری)",
   }
 };
