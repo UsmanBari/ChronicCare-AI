@@ -142,6 +142,18 @@ python scripts/probe_fhir.py --server https://r4.smarthealthit.org
 
 ---
 
+## 7b. Single Test Patient Registry & Synthea Gap Fill (Iteration 2 Day 1)
+
+In Iteration 2 Day 1, EHR test patient configuration is consolidated into a single source of truth:
+- **Canonical Registry**: `backend-poc-technical/data_sources/ehr_test_patients.py` provides `ALL_EHR_TEST_PATIENTS`, used consistently by `/api/ehr/systems` and database helpers.
+- **Documented Cohort**: `docs/EHR_TEST_PATIENTS.md` documents 12 test patients across all clinical phenotypes (T2D only, HTN only, dual, insulin, older adults 75+, allergies, practitioner vs none).
+- **Synthea Gap Fill Fixtures**: `backend-poc-technical/data_sources/fhir_sim_fixtures/` holds compact synthetic fixtures (<50 KB each) with timestamps dynamically adjusted relative to current time to ensure active comparisons.
+- **Doctor on Record & EHR Allergies**:
+  - `get_fhir_practitioner_for_patient` resolves `generalPractitioner` or latest `Encounter` participant.
+  - `get_fhir_allergies` retrieves `AllergyIntolerance` records, with `entered-in-error` status excluded and high trust assigned in connected mode.
+
+---
+
 ## 8. How to Check the EHR Connection
 
 To verify EHR integration health, run these two commands:
