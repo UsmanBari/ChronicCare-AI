@@ -2290,7 +2290,8 @@ def get_ehr_connection_endpoint(
                 )
         except Exception as e:
             doctor_on_record = None
-            warning = f"Failed to retrieve doctor on record: {e}"
+            logger.warning("Failed to retrieve doctor on record: %s", type(e).__name__)
+            warning = "Could not load your doctor from the hospital record right now."
 
         # 2. EHR allergies (3s timeout, cached, entered-in-error excluded, never 5xx)
         try:
@@ -2308,7 +2309,8 @@ def get_ehr_connection_endpoint(
                 )
         except Exception as e:
             ehr_allergies = []
-            allergy_warn = f"Failed to retrieve hospital allergies: {e}"
+            logger.warning("Failed to retrieve hospital allergies: %s", type(e).__name__)
+            allergy_warn = "Could not load hospital allergies right now."
             warning = f"{warning}; {allergy_warn}" if warning else allergy_warn
 
     return EHRConnectionResponse(

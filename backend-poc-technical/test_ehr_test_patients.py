@@ -308,7 +308,7 @@ def test_get_ehr_connection_doctor_and_allergies_connected(client, rsa_key_pair,
     assert res_iso.json()["doctor_on_record"] is None
     assert res_iso.json()["ehr_allergies"] == []
 
-    # 5. FHIR raising exception returns HTTP 200 with warning, never 5xx
+    # 5. FHIR raising exception returns HTTP 200 with fixed user warning, never 5xx, never leaks raw exception
     def boom_prac(*args, **kwargs):
         raise RuntimeError("FHIR gateway timeout")
 
@@ -317,7 +317,22 @@ def test_get_ehr_connection_doctor_and_allergies_connected(client, rsa_key_pair,
     assert res_err.status_code == 200
     err_data = res_err.json()
     assert err_data["doctor_on_record"] is None
-    assert "warning" in err_data and "FHIR gateway timeout" in err_data["warning"]
+    assert err_data["warning"] == "Could not load your doctor from the hospital record right now."
+    assert "FHIR gateway timeout" not in err_data["warning"]
+    assert "RuntimeError" not in err_data["warning"]
+
+    def boom_alg(*args, **kwargs):
+        raise ValueError("FHIR allergy parse error")
+
+    monkeypatch.setattr(fhir_client, "get_fhir_allergies", boom_alg)
+    res_err2 = client.get("/api/ehr/connection?include_details=true", headers=h_ayesha)
+    assert res_err2.status_code == 200
+    err_data2 = res_err2.json()
+    assert err_data2["doctor_on_record"] is None
+    assert err_data2["ehr_allergies"] == []
+    assert err_data2["warning"] == "Could not load your doctor from the hospital record right now.; Could not load hospital allergies right now."
+    assert "FHIR allergy parse error" not in err_data2["warning"]
+    assert "ValueError" not in err_data2["warning"]
 
 
 # =============================================================================
