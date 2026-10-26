@@ -137,14 +137,37 @@ def test_single_patient_list_is_only_source():
 
 
 # =============================================================================
-# 2. /api/ehr/systems RESPONSE IS UNCHANGED FOR EXISTING SYSTEMS
+# 2. /api/ehr/systems RESPONSE SHAPE AND PRESERVATION OF EXISTING SYSTEMS
 # =============================================================================
 
 def test_api_ehr_systems_unchanged_for_existing(client):
+    """
+    Verifies /api/ehr/systems response shape (schema and types) and that
+    all existing baseline sample/suggested patients remain present.
+    """
     res = client.get("/api/ehr/systems")
     assert res.status_code == 200
     systems = res.json()
     assert len(systems) >= 2
+
+    # Verify SHAPE of every system item
+    for s in systems:
+        assert isinstance(s["ehr_system_id"], str)
+        assert isinstance(s["display_name"], str)
+        assert isinstance(s["kind"], str)
+        assert isinstance(s.get("description", ""), str)
+        if s["kind"] == "simulated":
+            assert isinstance(s["sample_patients"], list)
+            assert s["suggested_patient_ids"] is None
+            for p in s["sample_patients"]:
+                assert isinstance(p["id"], str)
+                assert isinstance(p["label"], str)
+                assert isinstance(p["description"], str)
+        elif s["kind"] == "public_sandbox":
+            assert isinstance(s["suggested_patient_ids"], list)
+            assert s["sample_patients"] is None
+            for pid in s["suggested_patient_ids"]:
+                assert isinstance(pid, str)
 
     sys_map = {s["ehr_system_id"]: s for s in systems}
     assert "demo-hospital" in sys_map
@@ -167,7 +190,134 @@ def test_api_ehr_systems_unchanged_for_existing(client):
         "b85d7e00-3690-4e2a-87a0-f3d2dfc908b3",
         "4551370c-c3eb-4164-a2ff-b528f73a4e0f",
     ]
-    assert smart["suggested_patient_ids"] == expected_smart_ids
+    for sid in expected_smart_ids:
+        assert sid in smart["suggested_patient_ids"], f"Expected {sid} in suggested_patient_ids"
+
+
+def test_all_patients_in_doc_table_appear_in_api_ehr_systems(client):
+    """
+    Parses docs/EHR_TEST_PATIENTS.md and asserts that every patient ID
+    in the markdown table appears in /api/ehr/systems.
+    """
+    doc_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "EHR_TEST_PATIENTS.md")
+    assert os.path.isfile(doc_path), f"Docs file {doc_path} not found"
+
+    with open(doc_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Find all patient UUIDs in table rows
+    uuid_pattern = re.compile(r"`([0-9a-fA-F-]{36})`")
+    doc_patient_ids = uuid_pattern.findall(content)
+    assert len(doc_patient_ids) >= 12, f"Expected at least 12 test patient IDs in doc, found {len(doc_patient_ids)}"
+
+    res = client.get("/api/ehr/systems")
+    assert res.status_code == 200
+    systems = res.json()
+    smart_sys = next((s for s in systems if s["ehr_system_id"] == "smart-sandbox"), None)
+    assert smart_sys is not None, "smart-sandbox not found in /api/ehr/systems"
+    
+    suggested = smart_sys.get("suggested_patient_ids") or []
+    for pid in doc_patient_ids:
+        assert pid in suggested, f"Patient {pid} from EHR_TEST_PATIENTS.md not in /api/ehr/systems suggested_patient_ids"
+
+
+def test_get_ehr_connection_doctor_and_allergies_connected(client, rsa_key_pair, monkeypatch):
+    """
+    Backend test through TestClient:
+    1. Connect test user to demo-hospital sim-ayesha.
+    2. GET /api/ehr/connection without include_details makes 0 FHIR requests and returns null/empty.
+    3. GET /api/ehr/connection?include_details=true returns doctor_on_record.name and normalised ehr_allergies.
+    4. Entered-in-error allergies are excluded.
+    5. sim-newpatient returns null doctor and empty allergies.
+    6. Isolated user returns null/empty.
+    7. FHIR exception returns HTTP 200 with warning, doctor=null, allergies=[].
+    """
+    h_ayesha = _setup_patient_helper(
+        client, rsa_key_pair, "uid-test-ayesha", "ayesha@test.com", ["diabetes", "hypertension"]
+    )
+    conn_res = client.post(
+        "/api/ehr/connect",
+        json={"ehr_system_id": "demo-hospital", "external_patient_id": "sim-ayesha"},
+        headers=h_ayesha,
+    )
+    assert conn_res.status_code == 200
+
+    # 1. Without include_details: spy ensures 0 FHIR calls made
+    fhir_calls = []
+    orig_prac = fhir_client.get_fhir_practitioner_for_patient
+    orig_alg = fhir_client.get_fhir_allergies
+
+    def spy_prac(*args, **kwargs):
+        fhir_calls.append("prac")
+        return orig_prac(*args, **kwargs)
+
+    def spy_alg(*args, **kwargs):
+        fhir_calls.append("alg")
+        return orig_alg(*args, **kwargs)
+
+    monkeypatch.setattr(fhir_client, "get_fhir_practitioner_for_patient", spy_prac)
+    monkeypatch.setattr(fhir_client, "get_fhir_allergies", spy_alg)
+
+    res_fast = client.get("/api/ehr/connection", headers=h_ayesha)
+    assert res_fast.status_code == 200
+    fast_data = res_fast.json()
+    assert fast_data["mode"] == "connected"
+    assert fast_data["doctor_on_record"] is None
+    assert fast_data["ehr_allergies"] == []
+    assert len(fhir_calls) == 0, f"Expected 0 FHIR calls on /api/ehr/connection without include_details, got {len(fhir_calls)}"
+
+    # 2. With include_details=true: returns doctor and normalized allergies
+    res_full = client.get("/api/ehr/connection?include_details=true", headers=h_ayesha)
+    assert res_full.status_code == 200
+    full_data = res_full.json()
+    assert full_data["mode"] == "connected"
+    assert full_data["doctor_on_record"] is not None
+    assert full_data["doctor_on_record"]["name"] == "Dr. Fatima Tariq"
+    assert full_data["doctor_on_record"]["source"] == "ehr_general_practitioner"
+
+    # Allergies check
+    substances = [a["substance"] for a in full_data["ehr_allergies"]]
+    assert "Penicillin G" in substances
+    assert "Aspirin" not in substances, "entered-in-error allergy 'Aspirin' must be excluded"
+    for a in full_data["ehr_allergies"]:
+        assert a["origin"] == "ehr"
+        assert a["trust"] == "high"
+        assert a["verification_status"] == "confirmed"
+
+    # 3. sim-newpatient: no practitioner, empty allergies
+    h_new = _setup_patient_helper(
+        client, rsa_key_pair, "uid-test-newpat", "newpat@test.com", ["hypertension"]
+    )
+    client.post(
+        "/api/ehr/connect",
+        json={"ehr_system_id": "demo-hospital", "external_patient_id": "sim-newpatient"},
+        headers=h_new,
+    )
+    res_new = client.get("/api/ehr/connection?include_details=true", headers=h_new)
+    assert res_new.status_code == 200
+    assert res_new.json()["doctor_on_record"] is None
+    assert res_new.json()["ehr_allergies"] == []
+
+    # 4. Isolated user
+    h_iso = _setup_patient_helper(
+        client, rsa_key_pair, "uid-test-isolated", "iso@test.com", ["diabetes"]
+    )
+    res_iso = client.get("/api/ehr/connection?include_details=true", headers=h_iso)
+    assert res_iso.status_code == 200
+    assert res_iso.json()["mode"] == "isolated"
+    assert res_iso.json()["doctor_on_record"] is None
+    assert res_iso.json()["ehr_allergies"] == []
+
+    # 5. FHIR raising exception returns HTTP 200 with warning, never 5xx
+    def boom_prac(*args, **kwargs):
+        raise RuntimeError("FHIR gateway timeout")
+
+    monkeypatch.setattr(fhir_client, "get_fhir_practitioner_for_patient", boom_prac)
+    res_err = client.get("/api/ehr/connection?include_details=true", headers=h_ayesha)
+    assert res_err.status_code == 200
+    err_data = res_err.json()
+    assert err_data["doctor_on_record"] is None
+    assert "warning" in err_data and "FHIR gateway timeout" in err_data["warning"]
 
 
 # =============================================================================

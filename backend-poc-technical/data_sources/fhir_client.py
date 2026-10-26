@@ -253,16 +253,16 @@ def get_fhir_conditions(patient_id: str, base_url: Optional[str] = None) -> List
     return [entry["resource"] for entry in entries if "resource" in entry]
 
 
-def get_fhir_allergies(patient_id: str, base_url: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_fhir_allergies(patient_id: str, base_url: Optional[str] = None, timeout: float = 3.0) -> List[Dict[str, Any]]:
     """
     Retrieves AllergyIntolerance resources for a given patient ID.
     """
-    bundle = fhir_get(base_url, "AllergyIntolerance", params={"patient": patient_id, "_count": 100})
+    bundle = fhir_get(base_url, "AllergyIntolerance", params={"patient": patient_id, "_count": 100}, timeout_connect=timeout, timeout_read=timeout)
     entries = bundle.get("entry", []) if isinstance(bundle, dict) else []
     return [entry["resource"] for entry in entries if "resource" in entry]
 
 
-def get_fhir_practitioner_for_patient(patient_id: str, base_url: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def get_fhir_practitioner_for_patient(patient_id: str, base_url: Optional[str] = None, timeout: float = 3.0) -> Optional[Dict[str, Any]]:
     """
     Resolves the practitioner on record for a given patient:
     1. Checks Patient.generalPractitioner reference -> Practitioner
@@ -271,7 +271,7 @@ def get_fhir_practitioner_for_patient(patient_id: str, base_url: Optional[str] =
     Uses unified fhir_get (SSRF-safe, cached, supports sim://).
     """
     try:
-        pat = get_fhir_patient(patient_id, base_url=base_url)
+        pat = get_fhir_patient(patient_id, base_url=base_url, timeout=int(timeout))
     except Exception:
         return None
 
@@ -286,7 +286,7 @@ def get_fhir_practitioner_for_patient(patient_id: str, base_url: Optional[str] =
             if "Practitioner/" in ref:
                 prac_id = ref.split("Practitioner/")[-1].strip()
                 try:
-                    prac = fhir_get(base_url, f"Practitioner/{prac_id}")
+                    prac = fhir_get(base_url, f"Practitioner/{prac_id}", timeout_connect=timeout, timeout_read=timeout)
                     if isinstance(prac, dict) and prac.get("resourceType") == "Practitioner":
                         names = prac.get("name", [{}])
                         p_name = names[0] if names else {}
@@ -307,7 +307,7 @@ def get_fhir_practitioner_for_patient(patient_id: str, base_url: Optional[str] =
 
     # 2. Fallback to latest Encounter participant
     try:
-        enc_bundle = fhir_get(base_url, "Encounter", params={"patient": patient_id, "_count": 1, "_sort": "-date"})
+        enc_bundle = fhir_get(base_url, "Encounter", params={"patient": patient_id, "_count": 1, "_sort": "-date"}, timeout_connect=timeout, timeout_read=timeout)
         enc_entries = enc_bundle.get("entry", []) if isinstance(enc_bundle, dict) else []
         if enc_entries:
             enc = enc_entries[0].get("resource", {})
@@ -318,7 +318,7 @@ def get_fhir_practitioner_for_patient(patient_id: str, base_url: Optional[str] =
                 if "Practitioner/" in ref:
                     prac_id = ref.split("Practitioner/")[-1].strip()
                     try:
-                        prac = fhir_get(base_url, f"Practitioner/{prac_id}")
+                        prac = fhir_get(base_url, f"Practitioner/{prac_id}", timeout_connect=timeout, timeout_read=timeout)
                         if isinstance(prac, dict) and prac.get("resourceType") == "Practitioner":
                             names = prac.get("name", [{}])
                             p_name = names[0] if names else {}

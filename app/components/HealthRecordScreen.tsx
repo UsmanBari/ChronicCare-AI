@@ -22,7 +22,6 @@ import {
   api,
   ApiError,
   PatientRecordResponse,
-  DoctorOnRecord,
   RecordMedicationItem,
   RecordAllergyItem,
   RecordObservationItem,
@@ -39,7 +38,6 @@ export const HealthRecordScreen = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Record data
-  const [doctorOnRecord, setDoctorOnRecord] = useState<DoctorOnRecord | null>(null);
   const [conditions, setConditions] = useState<RecordConditionItem[]>([]);
   const [conditionsBasis, setConditionsBasis] = useState<Record<string, string>>({});
   const [medications, setMedications] = useState<RecordMedicationItem[]>([]);
@@ -115,7 +113,6 @@ export const HealthRecordScreen = () => {
       setMedications(rec.medications || []);
       setAllergies(rec.allergies || []);
       setObservations(rec.baseline_observations || []);
-      setDoctorOnRecord(rec.doctor_on_record || null);
     } catch (err: any) {
       if (err instanceof ApiError) {
         setError(mapApiError(err.status, err.detail));
@@ -411,21 +408,6 @@ export const HealthRecordScreen = () => {
             : "Enter your conditions, medications, allergies, and baseline vitals. This establishes your private health baseline for accurate check-in comparisons."}
         </p>
       </div>
-
-      {/* Doctor on record banner (from hospital/EHR record) */}
-      {doctorOnRecord && (
-        <div
-          data-testid="doctor-on-record"
-          className="p-4 rounded-2xl bg-teal-50 border border-teal-200 text-teal-950 text-sm font-semibold flex items-center gap-2.5 animate-fadeIn"
-        >
-          <ShieldCheck className="w-5 h-5 text-teal-700 shrink-0" />
-          <span>
-            {t.doctorOnRecordLabel
-              ? t.doctorOnRecordLabel.replace("{name}", doctorOnRecord.name)
-              : `Doctor on record: ${doctorOnRecord.name} (from your hospital record)`}
-          </span>
-        </div>
-      )}
 
       {/* Notifications */}
       {error && (

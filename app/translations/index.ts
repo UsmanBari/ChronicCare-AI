@@ -382,6 +382,8 @@ export interface Translations {
   weightErrorLb: string;
   bodyMeasurementsOptional: string;
   doctorOnRecordLabel: string;
+  ehrAllergiesTitle: string;
+  noEhrAllergiesRecorded: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -758,6 +760,8 @@ export const translations: Record<Language, Translations> = {
     weightErrorLb: "Weight must be between 44 and 882 lb.",
     bodyMeasurementsOptional: "Body Measurements (Optional)",
     doctorOnRecordLabel: "Doctor on record: {name} (from your hospital record)",
+    ehrAllergiesTitle: "Allergies in your hospital record",
+    noEhrAllergiesRecorded: "None recorded",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1134,5 +1138,7 @@ export const translations: Record<Language, Translations> = {
     weightErrorLb: "وزن ۴۴ سے ۸۸۲ پاؤنڈ کے درمیان ہونا چاہیے۔",
     bodyMeasurementsOptional: "جسمانی پیمائش (اختیاری)",
     doctorOnRecordLabel: "ریکارڈ پر ڈاکٹر: {name} (آپ کے ہسپتال کے ریکارڈ سے)",
+    ehrAllergiesTitle: "آپ کے ہسپتال کے ریکارڈ میں الرجیاں",
+    noEhrAllergiesRecorded: "کوئی درج نہیں",
   }
 };
