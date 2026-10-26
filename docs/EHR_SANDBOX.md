@@ -149,8 +149,9 @@ In Iteration 2 Day 1, EHR test patient configuration is consolidated into a sing
 - **Documented Cohort**: `docs/EHR_TEST_PATIENTS.md` documents 12 test patients across all clinical phenotypes (T2D only, HTN only, dual, insulin, older adults 75+, allergies, practitioner vs none).
 - **Synthea Gap Fill Fixtures**: `backend-poc-technical/data_sources/fhir_sim_fixtures/` holds compact synthetic fixtures (<50 KB each) with timestamps dynamically adjusted relative to current time to ensure active comparisons.
 - **Doctor on Record & EHR Allergies**:
-  - `get_fhir_practitioner_for_patient` resolves `generalPractitioner` or latest `Encounter` participant.
-  - `get_fhir_allergies` retrieves `AllergyIntolerance` records, with `entered-in-error` status excluded and high trust assigned in connected mode.
+  - Populated in `GET /api/ehr/connection?include_details=true` (connected mode only; returns `null` and `[]` on fast AppContext polls without the flag).
+  - `get_fhir_practitioner_for_patient` resolves `generalPractitioner` or latest `Encounter` participant (with 3s timeout, cached, graceful 200 on error).
+  - `get_fhir_allergies` retrieves `AllergyIntolerance` records, with `entered-in-error` status excluded and high trust assigned in connected mode (with 3s timeout, cached, graceful 200 on error).
 
 ---
 

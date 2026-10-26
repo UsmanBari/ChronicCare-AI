@@ -375,17 +375,22 @@ Stores medication information associated with patients.
 
 ---
 
-## API Record Additions (Iteration 2 Day 1)
+## EHR Connection Response Additions (Iteration 2 Day 1 & Correction)
 
 ### `doctor_on_record`
-Additive optional object in `PatientRecordResponse` (connected mode):
+Additive optional object in `EHRConnectionResponse` (connected mode, populated when `?include_details=true`):
 - `name` (TEXT): Display name of practitioner on record (from FHIR `generalPractitioner` or latest `Encounter.participant`).
 - `identifier` (TEXT, optional): Clinical identifier of the practitioner, if available in the EHR record.
 - `source` (TEXT): Provenance indicator, either `"ehr_general_practitioner"` or `"ehr_encounter"`.
 - `as_of` (TEXT, optional): Timestamp associated with the practitioner reference.
 
-### `allergies` (Connected Mode)
-In connected mode, FHIR `AllergyIntolerance` entries are normalized into the allergies list with `origin: "ehr"` and high trust, read-only to preserve record authority. Any entries marked `entered-in-error` are excluded at adapter normalisation.
+### `ehr_allergies` (Connected Mode)
+In connected mode, FHIR `AllergyIntolerance` entries are returned in `EHRConnectionResponse.ehr_allergies` (when `?include_details=true`) as a read-only list:
+- `substance` (TEXT): Substance name or description.
+- `criticality` (TEXT): Clinical criticality level.
+- `verification_status` (TEXT): FHIR verification status (e.g. `confirmed`). Any entries marked `entered-in-error` are excluded at adapter normalisation.
+- `origin` (TEXT): Fixed value `"ehr"`.
+- `trust` (TEXT): Fixed value `"high"` to preserve authoritative hospital provenance.
 
 ---
 
