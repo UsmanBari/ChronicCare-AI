@@ -112,12 +112,20 @@ export interface RecordObservationItem {
   measured_at: string;
 }
 
+export interface DoctorOnRecord {
+  name: string;
+  identifier?: string | null;
+  source: "ehr_general_practitioner" | "ehr_encounter";
+  as_of?: string | null;
+}
+
 export interface PatientRecordResponse {
   mode?: string;
   conditions: RecordConditionItem[];
   medications: RecordMedicationItem[];
   allergies: RecordAllergyItem[];
   baseline_observations: RecordObservationItem[];
+  doctor_on_record?: DoctorOnRecord | null;
 }
 
 export interface CreateMedicationRequest {

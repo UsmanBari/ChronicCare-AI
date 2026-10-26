@@ -381,6 +381,7 @@ export interface Translations {
   weightErrorKg: string;
   weightErrorLb: string;
   bodyMeasurementsOptional: string;
+  doctorOnRecordLabel: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -756,6 +757,7 @@ export const translations: Record<Language, Translations> = {
     weightErrorKg: "Weight must be between 20 and 400 kg.",
     weightErrorLb: "Weight must be between 44 and 882 lb.",
     bodyMeasurementsOptional: "Body Measurements (Optional)",
+    doctorOnRecordLabel: "Doctor on record: {name} (from your hospital record)",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1131,5 +1133,6 @@ export const translations: Record<Language, Translations> = {
     weightErrorKg: "وزن ۲۰ سے ۴۰۰ کلوگرام کے درمیان ہونا چاہیے۔",
     weightErrorLb: "وزن ۴۴ سے ۸۸۲ پاؤنڈ کے درمیان ہونا چاہیے۔",
     bodyMeasurementsOptional: "جسمانی پیمائش (اختیاری)",
+    doctorOnRecordLabel: "ریکارڈ پر ڈاکٹر: {name} (آپ کے ہسپتال کے ریکارڈ سے)",
   }
 };
