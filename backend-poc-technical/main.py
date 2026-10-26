@@ -566,12 +566,20 @@ class RecordObservationItem(BaseModel):
     measured_at: str
 
 
+class DoctorOnRecord(BaseModel):
+    name: str
+    identifier: Optional[str] = None
+    source: str  # "ehr_general_practitioner" | "ehr_encounter"
+    as_of: Optional[str] = None
+
+
 class PatientRecordResponse(BaseModel):
     mode: str
     conditions: List[RecordConditionItem]
     medications: List[RecordMedicationItem]
     allergies: List[RecordAllergyItem]
     baseline_observations: List[RecordObservationItem]
+    doctor_on_record: Optional[DoctorOnRecord] = None
 
 
 class CreateMedicationRequest(BaseModel):
@@ -1919,19 +1927,17 @@ def _compute_record_source_label(mode: str, ehr_system_id: Optional[str] = None)
     return "Hospital EHR (FHIR test server)"
 
 
+from data_sources.ehr_test_patients import (
+    get_sample_patients_for_system,
+    get_suggested_patient_ids_for_system,
+)
+
 SAMPLE_PATIENTS_LIST = [
-    SamplePatient(id="sim-ayesha", label="Ayesha K. (age 52)", description="Type 2 diabetes & hypertension (BP ~128/82, glucose 140-150, active Metformin & Lisinopril)"),
-    SamplePatient(id="sim-bilal", label="Bilal A. (age 67)", description="Hypertension personal baseline (BP 110-116/70-74, active Amlodipine)"),
-    SamplePatient(id="sim-sana", label="Sana M. (age 45)", description="Type 2 diabetes on insulin (glucose 150-175, active Insulin glargine & Metformin)"),
-    SamplePatient(id="sim-imran", label="Imran Q. (age 71)", description="Type 2 diabetes & hypertension, rising readings (BP 148-156/92-98, glucose 180-210)"),
-    SamplePatient(id="sim-newpatient", label="Nadia R. (age 38)", description="Hypertension, no recent observations (empty record test)"),
+    SamplePatient(id=p["id"], label=p["label"], description=p["description"])
+    for p in get_sample_patients_for_system("demo-hospital")
 ]
 
-SUGGESTED_PATIENT_IDS = [
-    "d48ac962-78c6-46cf-ba33-a24771bfa0e4",
-    "b85d7e00-3690-4e2a-87a0-f3d2dfc908b3",
-    "4551370c-c3eb-4164-a2ff-b528f73a4e0f",
-]
+SUGGESTED_PATIENT_IDS = get_suggested_patient_ids_for_system("smart-sandbox")
 
 
 # =============================================================================
