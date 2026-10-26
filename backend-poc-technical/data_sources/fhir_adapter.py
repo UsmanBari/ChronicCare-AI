@@ -15,7 +15,8 @@ from data_sources.fhir_client import (
     get_fhir_patient,
     get_fhir_observations,
     get_fhir_medications,
-    get_fhir_conditions
+    get_fhir_conditions,
+    get_fhir_allergies,
 )
 
 GLUCOSE_LOINCS = {"2339-0", "2345-7", "15074-8", "1558-6", "41653-7"}
@@ -294,4 +295,82 @@ def get_normalized_medications(patient_id: str, base_url: Optional[str] = None) 
     """
     raw_meds = get_fhir_medications(patient_id, base_url=base_url)
     return fhir_to_normalized_medications(raw_meds, patient_id=patient_id)
+
+
+def fhir_to_normalized_allergies(
+    bundle_or_resources: Any,
+    patient_id: str = "patient-1"
+) -> List[Dict[str, Any]]:
+    """
+    Transforms FHIR AllergyIntolerance resources into normalized allergy items.
+    Excludes verificationStatus == 'entered-in-error'.
+    Sets origin='ehr' and trust='high' (read-only in connected mode).
+    """
+    if isinstance(bundle_or_resources, dict) and bundle_or_resources.get("resourceType") == "Bundle":
+        raw_list = [e.get("resource", {}) for e in bundle_or_resources.get("entry", []) if isinstance(e, dict)]
+    elif isinstance(bundle_or_resources, list):
+        raw_list = bundle_or_resources
+    elif isinstance(bundle_or_resources, dict) and bundle_or_resources.get("resourceType") == "AllergyIntolerance":
+        raw_list = [bundle_or_resources]
+    else:
+        raw_list = []
+
+    normalized: List[Dict[str, Any]] = []
+
+    for raw in raw_list:
+        verif_concept = raw.get("verificationStatus", {})
+        verif_codings = verif_concept.get("coding", []) if isinstance(verif_concept, dict) else []
+        verif_code = verif_codings[0].get("code", "").lower().strip() if verif_codings else ""
+        if not verif_code and isinstance(verif_concept, str):
+            verif_code = verif_concept.lower().strip()
+
+        # Exclude entered-in-error
+        if verif_code == "entered-in-error":
+            continue
+
+        allergy_id = str(raw.get("id", "ehr_allergy"))
+        code_concept = raw.get("code", {})
+        codings = code_concept.get("coding", []) if isinstance(code_concept, dict) else []
+        substance = (
+            code_concept.get("text")
+            or (codings[0].get("display") if codings else None)
+            or (codings[0].get("code") if codings else "Allergy")
+        )
+
+        criticality = raw.get("criticality", "unable-to-assess")
+        
+        # Reaction manifest
+        reactions = raw.get("reaction", [])
+        reaction_text = None
+        if reactions and isinstance(reactions, list):
+            first_rx = reactions[0]
+            if isinstance(first_rx, dict):
+                manifestations = first_rx.get("manifestation", [])
+                if manifestations and isinstance(manifestations, list):
+                    m_concept = manifestations[0]
+                    m_codings = m_concept.get("coding", []) if isinstance(m_concept, dict) else []
+                    reaction_text = m_concept.get("text") or (m_codings[0].get("display") if m_codings else None)
+
+        confirmed_bool = (verif_code == "confirmed")
+
+        normalized.append({
+            "id": allergy_id,
+            "substance": substance,
+            "reaction": reaction_text,
+            "criticality": criticality,
+            "verification_status": verif_code or "active",
+            "confirmed": confirmed_bool,
+            "origin": "ehr",
+            "trust": "high"
+        })
+
+    return normalized
+
+
+def get_normalized_allergies(patient_id: str, base_url: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Retrieves FHIR AllergyIntolerance resources and transforms into normalized allergy items.
+    """
+    raw_allergies = get_fhir_allergies(patient_id, base_url=base_url)
+    return fhir_to_normalized_allergies(raw_allergies, patient_id=patient_id)
 
