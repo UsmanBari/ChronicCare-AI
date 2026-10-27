@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 import re
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import pypdf
 
 # Ensure utf-8 output
