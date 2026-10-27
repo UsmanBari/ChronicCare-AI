@@ -125,5 +125,8 @@ jobs:
           pip install -r backend-poc-technical/ml/requirements.txt pytest
 
       - name: Run ML Pytest Suite
+        env:
+          PYTHONPATH: backend-poc-technical
         run: |
           python -m pytest backend-poc-technical/ml/tests -q
+
