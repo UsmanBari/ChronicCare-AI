@@ -48,3 +48,15 @@ backend-poc-technical/output/
 
 # Local NHANES ML data - never commit
 backend-poc-technical/ml/data/
+
+# ML / datasets — never commit
+dataset/
+Chronicare-data/
+*.parquet
+*.xpt
+*.XPT
+backend-poc-technical/ml/outputs/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
