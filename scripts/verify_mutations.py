@@ -209,6 +209,47 @@ MUTATIONS = [
         "replacement": "        # \"cannot keep fluids down\",",
         "test_node": "backend-poc-technical/test_vomiting_fluids_red_flags.py::test_mutation_proof_vomiting_fluids",
     },
+    # --- Day 2 Mutations (M-H2-1 to M-H2-5) ---
+    {
+        "id": "M-H2-1",
+        "name": "'pata nahi' mapped to 'no'",
+        "file": BACKEND_DIR / "agents" / "answer_understanding.py",
+        "target": "    for unk_phrase in _UNKNOWN_PHRASES:\n        if _contains_subsequence(tokens, unk_phrase):",
+        "replacement": "    for unk_phrase in []:\n        if False:",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h2_1_pata_nahi_not_no",
+    },
+    {
+        "id": "M-H2-2",
+        "name": "'unknown' satisfies requires:true",
+        "file": BACKEND_DIR / "agents" / "interview_planner.py",
+        "target": "            if req.get(\"is_fasting_today\") is True and known_slots.get(\"is_fasting_today\") is not True:",
+        "replacement": "            if req.get(\"is_fasting_today\") and not known_slots.get(\"is_fasting_today\"): ",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h2_2_unknown_does_not_satisfy_requires_true",
+    },
+    {
+        "id": "M-H2-3",
+        "name": "parse_bp accepts systolic <= diastolic",
+        "file": BACKEND_DIR / "agents" / "answer_understanding.py",
+        "target": "            if sys_val <= dia_val:\n                return {\"value\": None, \"evidence\": evidence}",
+        "replacement": "            if False and sys_val <= dia_val:\n                return {\"value\": None, \"evidence\": evidence}",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h2_3_parse_bp_rejects_sys_le_dia",
+    },
+    {
+        "id": "M-H2-4",
+        "name": "Unit clarification skipped for bare '7'",
+        "file": BACKEND_DIR / "agents" / "interview_v3_runner.py",
+        "target": "        if val_res.needs_unit_clarification:\n            session_state[\"awaiting_glucose_unit\"] = True",
+        "replacement": "        if False and val_res.needs_unit_clarification:\n            session_state[\"awaiting_glucose_unit\"] = True",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h2_4_unit_clarification_bare_7",
+    },
+    {
+        "id": "M-H2-5",
+        "name": "Tag-question 'na' read as 'no'",
+        "file": BACKEND_DIR / "agents" / "answer_understanding.py",
+        "target": "            if len(tokens) == 1 or i == 0:\n                return {",
+        "replacement": "            if True:\n                return {",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h2_5_tag_question_na_not_no",
+    },
 ]
 
 
@@ -268,13 +309,15 @@ def run_mutation(mut: dict) -> dict:
     try:
         # Run pytest subprocess on exact test node with -B and PYTHONDONTWRITEBYTECODE
         cmd = [sys.executable, "-B", "-m", "pytest", mut["test_node"], "-x", "--tb=line", "-q"]
-        sub_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        sub_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
         proc = subprocess.run(
             cmd,
             cwd=str(REPO_ROOT),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
             env=sub_env,
         )
@@ -293,7 +336,7 @@ def run_mutation(mut: dict) -> dict:
                     pass
 
     failing_line = ""
-    for line in proc.stdout.splitlines():
+    for line in (proc.stdout or "").splitlines():
         if "FAILED" in line or "AssertionError" in line or "assert " in line:
             failing_line = line.strip()
             if "FAILED" in line:

@@ -27,6 +27,11 @@ from agents.interview_planner import (
     detect_historical_trends,
     plan_next_step,
 )
+from agents.answer_understanding import (
+    parse_yes_no,
+    parse_number,
+    parse_bp,
+)
 from agents.answer_validation import (
     ValidationResult,
     check_contradiction,
@@ -305,7 +310,16 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             session_state["needs_clinician_flag"] = True
 
     elif "glucose_reading" in current_slot or current_slot == "diabetes_glucose_reading":
-        val_res: ValidationResult = validate_glucose_input(clean_answer)
+        p_num = parse_number(clean_answer)
+        cleaned_for_val = clean_answer
+        if p_num["value"] is not None and p_num["kind"] == "words":
+            import re as _re
+            unit_match = _re.search(r"\b(mmol/l|mmol|mg/dl|mgdl|mg)\b", clean_answer.lower())
+            if unit_match:
+                cleaned_for_val = f"{p_num['value']:g} {unit_match.group(1)}"
+            else:
+                cleaned_for_val = f"{p_num['value']:g}"
+        val_res: ValidationResult = validate_glucose_input(cleaned_for_val)
         if val_res.needs_unit_clarification:
             session_state["awaiting_glucose_unit"] = True
             session_state["raw_unclarified_glucose"] = val_res.value
@@ -343,13 +357,69 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             known_slots["missing_reading"] = True
 
     elif "bp_reading" in current_slot or current_slot == "hypertension_bp_reading":
-        bp_res: ValidationResult = validate_bp_input(clean_answer)
+        p_bp = parse_bp(clean_answer)
+        cleaned_for_bp = clean_answer
+        if p_bp["value"] is not None:
+            cleaned_for_bp = f"{p_bp['value'][0]}/{p_bp['value'][1]}"
+        bp_res: ValidationResult = validate_bp_input(cleaned_for_bp)
         if bp_res.valid and bp_res.value is not None:
             readings["blood_pressure_systolic"] = bp_res.value[0]
             readings["blood_pressure_diastolic"] = bp_res.value[1]
             known_slots["bp_reading"] = bp_res.value
+            known_slots["bp_reading__evidence"] = p_bp.get("evidence", clean_answer)
         else:
             known_slots["missing_reading"] = True
+
+    # Yes/No bank items & probes handling (B1 & B3)
+    bank_item = bank.get_by_slot(current_slot) or bank.get_by_id(current_slot)
+    is_yes_no = False
+    if bank_item and bank_item.answer_type == "yes_no":
+        is_yes_no = True
+    elif session_state.get("is_probe") and session_state.get("options") in (["yes", "no"], ["haan", "nahi"], ["ہاں", "نہیں"]):
+        is_yes_no = True
+
+    if is_yes_no:
+        yn_res = parse_yes_no(clean_answer, lang=lang)
+        # B3: Safety-class item answered unknown -> re-ask ONCE with clarification
+        if bank_item and bank_item.priority_class == "safety" and yn_res["value"] == "unknown":
+            if session_state.get("safety_clarify_slot") == current_slot:
+                # Second time unknown -> keep unknown, set needs_clinician_flag, move on
+                session_state["safety_clarify_slot"] = None
+                known_slots[current_slot] = "unknown"
+                known_slots[f"{current_slot}__evidence"] = yn_res["evidence"]
+                known_slots[f"{current_slot}__partial"] = yn_res["partial"]
+                session_state["needs_clinician_flag"] = True
+            else:
+                # First time unknown -> re-ask ONCE
+                session_state["safety_clarify_slot"] = current_slot
+                resp_dict = bank.get_responses().get("safety_unknown_clarify", {})
+                clarify_text = _get_localized_text(resp_dict, lang)
+                session_state["current_question"] = clarify_text
+                session_state["why_text"] = bank_item.why_text
+                session_state["options"] = ["yes", "no", "unknown"]
+                session_state["can_skip"] = False
+                session_state["can_say_unknown"] = True
+                return session_state
+        else:
+            if session_state.get("safety_clarify_slot") == current_slot:
+                session_state["safety_clarify_slot"] = None
+            if yn_res["value"] == "yes":
+                known_slots[current_slot] = True
+            elif yn_res["value"] == "no":
+                known_slots[current_slot] = False
+            else:
+                # Slot-specific symptom affirmations (e.g. sick day vomiting/diarrhea or fasting)
+                lower_ans = clean_answer.lower()
+                if current_slot == "sick_vomiting_diarrhea" and any(k in lower_ans for k in ["ulti", "dast", "vomit", "diarrhea"]):
+                    known_slots[current_slot] = True
+                    yn_res["evidence"] = clean_answer
+                elif current_slot == "is_fasting_today" and any(k in lower_ans for k in ["roza", "fasting"]):
+                    known_slots[current_slot] = True
+                    yn_res["evidence"] = clean_answer
+                else:
+                    known_slots[current_slot] = "unknown"
+            known_slots[f"{current_slot}__evidence"] = yn_res["evidence"]
+            known_slots[f"{current_slot}__partial"] = yn_res["partial"]
 
     # Record slot answer
     raw_answers[current_slot] = clean_answer

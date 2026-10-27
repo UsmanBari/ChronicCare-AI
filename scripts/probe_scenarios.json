@@ -1273,7 +1273,8 @@
     "answers_by_step": {
       "greeting": "feeling okay",
       "glucose_reading": "7",
-      "summary_confirmation": "yes"
+      "summary_confirmation": "yes",
+      "glucose_unit_clarify": "mmol/L"
     },
     "defaults_by_kind": {
       "yes_no": "no",
@@ -1285,6 +1286,32 @@
       "glucose_reading"
     ],
     "what_we_are_testing": "Unit handling for: '7' on step glucose_reading"
+  },
+  {
+    "name": "unit_bare_7_mgdl",
+    "group": "f",
+    "conditions": [
+      "diabetes"
+    ],
+    "language": "en",
+    "on_insulin": false,
+    "age": 45,
+    "answers_by_step": {
+      "greeting": "feeling okay",
+      "glucose_reading": "7",
+      "summary_confirmation": "yes",
+      "glucose_unit_clarify": "mg/dL"
+    },
+    "defaults_by_kind": {
+      "yes_no": "no",
+      "number": "skip",
+      "choice": "<first option>",
+      "free_text": "none"
+    },
+    "must_deliver": [
+      "glucose_reading"
+    ],
+    "what_we_are_testing": "Bare 7 with mg/dL clarification confirmed (severe hypoglycemia protocol)"
   },
   {
     "name": "unit_bare_45",
@@ -2770,6 +2797,37 @@
       "glucose_reading"
     ],
     "what_we_are_testing": "Severe hypoglycemia (45 mg/dL) with confusion"
+  },
+  {
+    "name": "proto_glucose_45_disoriented",
+    "group": "m",
+    "conditions": [
+      "diabetes"
+    ],
+    "language": "en",
+    "on_insulin": true,
+    "age": 45,
+    "answers_by_step": {
+      "greeting": "I feel confused and shaky",
+      "glucose_reading": "45 mg/dL",
+      "hypo_events_past_week": "yes",
+      "hypo_symptoms_acute": "yes",
+      "hypoglycemia_symptoms": "yes",
+      "triage:glucose_low:*": "yes",
+      "summary_confirmation": "yes",
+      "triage:glucose_low:*:orientation": "no",
+      "orientation": "no"
+    },
+    "defaults_by_kind": {
+      "yes_no": "no",
+      "number": "skip",
+      "choice": "<first option>",
+      "free_text": "none"
+    },
+    "must_deliver": [
+      "glucose_reading"
+    ],
+    "what_we_are_testing": "Severe hypoglycemia (45 mg/dL) with orientation=no -> emergency"
   },
   {
     "name": "proto_glucose_320_high",
