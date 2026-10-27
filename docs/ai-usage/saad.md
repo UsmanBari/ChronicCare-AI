@@ -1,4 +1,4 @@
-# AI Usage Log — Saad
+# AI Usage Log - Saad
 
 **Contributor:** Saad
 **Project:** ChronicCare AI
@@ -15,3 +15,5 @@
 | 2026-10-13 | ChatGPT | Asked for help checking the data dictionary against the application schema. | Helped draft a static schema-to-documentation checker and identify possible missing fields. | Ran the checker, inspected its output, distinguished static-parser warnings from real documentation gaps, and added the missing documented fields. | S-4 data-dictionary/schema check. |
 | 2026-10-13 | ChatGPT | Asked for help reviewing sources and documentation for plausibility ranges. | Helped compare the documented ranges with implementation values and distinguish clinical guideline thresholds from engineering plausibility bounds. | Corrected the documentation so the exact outer engineering bounds were not falsely attributed to ADA/AHA guidance, documented implementation differences, and used only sources/ranges I could support. | S-5 plausibility-range documentation. |
 | 2026-10-13 | ChatGPT | Asked for help creating an NHANES logistic-regression baseline with SHAP that is not wired into triage. | Helped draft the NHANES loader, logistic-regression training script, SHAP explanation script, ML requirements, README, and Git workflow. | Downloaded the NHANES files locally, verified they were ignored by Git, restricted data to adults, ran the model and SHAP explanation, recorded only observed metrics, documented the low sensitivity, and ran the full backend test suite with 694 passed, 5 skipped, and 10 warnings. | S-6 ML baseline. |
+| 2026-10-27 | Antigravity | Day 1 tasks: data preparation scripts, BRFSS candidate variable fixes, data quality report generation, ML common library, unit tests, and CI workflow. | Code for common.py, data_checks.py, README.md, test_common.py, test_data_checks.py, ci.yml ml-tests job. | Inspected CDC BRFSS codebooks for CHCKIDNY and _HLTHPL1, verified no data committed to Git, ran reproducibility check for NHANES (113,249 participants) and BRFSS (2,181,756 adults), verified 9 passing ML tests and no SEQN leakage. | Day 1 data reproducibility and quality checks (feat/i2-1-data-checks). |
+
