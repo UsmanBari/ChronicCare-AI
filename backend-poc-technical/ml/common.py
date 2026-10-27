@@ -1,9 +1,10 @@
-"""
+﻿"""
 Common utilities and configuration for ChronicCare AI ML pipeline.
 Shared across all Week 2 ML tasks.
 """
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Sequence
@@ -57,6 +58,23 @@ def load_brfss_core(columns: Sequence[str] | None = None) -> pd.DataFrame:
     if columns is not None:
         return pd.read_parquet(path, columns=list(columns), engine="pyarrow")
     return pd.read_parquet(path, engine="pyarrow")
+
+
+def load_split(name: str = "nhanes_temporal_v1") -> dict[str, set[int]]:
+    """
+    Load a split JSON from $CHRONICCARE_DATA_DIR/splits/{name}.json.
+    Returns a dict mapping split name to set of SEQN integers.
+    """
+    path = data_dir() / "splits" / f"{name}.json"
+    if not path.exists():
+        raise FileNotFoundError(f"Split file does not exist: {path}")
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return {
+        "train_core": set(int(s) for s in data.get("train_core", [])),
+        "validation": set(int(s) for s in data.get("validation", [])),
+        "test": set(int(s) for s in data.get("test", [])),
+    }
 
 
 # =====================================================================
@@ -172,6 +190,8 @@ def compute_weighted_prevalence(y: pd.Series, weights: pd.Series) -> float:
     if total_w == 0:
         return 0.0
     return float((y_val * w).sum() / total_w)
+
+
 def df_to_markdown(df: pd.DataFrame, index: bool = True) -> str:
     """Convert DataFrame to markdown table string without third-party dependencies."""
     if index:

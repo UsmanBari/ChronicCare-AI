@@ -146,3 +146,11 @@ Per CDC NHANES analytical guidance, when pooling N cycles of 2-year survey data,
 1. **Odd Years Survey Design:** Odd years (2015, 2017, 2019, 2021, 2023) are chosen because high blood pressure questions (BPHIGH4 / BPHIGH6 and BPMEDS) are optional modules in even years but standard in odd survey years.
 2. **Self-Report Nature:** BRFSS is an anonymous telephone survey. Diabetes prevalence (~11.2%) and high blood pressure prevalence (~32.9%) are entirely based on self-reported clinical diagnoses, differing from NHANES laboratory-confirmed measures.
 3. **Variable Mapping Fixes Verified:** Both kidney_disease (mapped from CHCKIDNY in 2015/2017 and CHCKDNY1/2 in 2019+) and has_insurance (mapped from _HLTHPL1 in 2023 and _HLTHPLN/1 in earlier years) show zero missing candidate exceptions.
+
+## Temporal Splits (nhanes_temporal_v1)
+
+| Split | Cycles | Adults | Told Diabetes | Measured Diabetes | BP >= 130/80 |
+| --- | --- | --- | --- | --- | --- |
+| train_core | 1999-2012 (7) | 41243 | 4250 / 40580 (10.5%) | 4082 / 37057 (11.0%) | 14492 / 37223 (38.9%) |
+| validation | 2013-2016 (2) | 12105 | 1571 / 11790 (13.3%) | 1510 / 11134 (13.6%) | 4184 / 11287 (37.1%) |
+| test | 2017-2023 (2) | 14009 | 1951 / 13554 (14.4%) | 1696 / 11268 (15.1%) | 4841 / 11490 (42.1%) |
