@@ -4,45 +4,176 @@ scripts/probe_interview.py: In-process probe runner for Adaptive Interview v2 vs
 
 Executes scripted check-ins in-process using FastAPI TestClient against an isolated
 hermetic SQLite database, generating structured turn-by-turn audits in Markdown and JSON.
+Answers are keyed by question/step ID with kind-based defaults and must_deliver validation.
 """
 
 import argparse
-import copy
 import datetime
+import fnmatch
+import hashlib
 import json
 import os
 import shutil
 import sys
 import tempfile
 import time
-import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Ensure backend directory is in sys.path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BACKEND_DIR = REPO_ROOT / "backend-poc-technical"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import jwt
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography import x509
-from cryptography.x509.oid import NameOID
-from fastapi.testclient import TestClient
-
-from main import app
 from auth import firebase_verify
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 from data_sources import app_store, local_store
-
+from fastapi.testclient import TestClient
+from main import app
 
 TEST_PROJECT_ID = "probe-chroniccare-ai"
 TEST_KID = "probe-key-1"
 
+PREFIXES = [
+    "diabetes_", "hypertension_", "core_", "insulin_",
+    "fasting_", "sick_", "barrier_", "wellbeing_", "caregiver_"
+]
+
+ALIASES: dict[str, list[str]] = {
+    "glucose_reading": ["diabetes_glucose_reading"],
+    "bp_reading": ["hypertension_bp_reading"],
+    "adherence": ["diabetes_adherence", "hypertension_adherence", "adherence_diabetes", "adherence_hypertension"],
+    "lifestyle": ["diabetes_lifestyle", "hypertension_lifestyle", "lifestyle_diabetes", "lifestyle_hypertension"],
+    "greeting": ["core_greeting"],
+    "summary_confirmation": ["core_summary_confirm"],
+    "hypo_events_past_week": ["insulin_hypo_events_past_week", "hypoglycemia_symptoms"],
+    "hypo_symptoms_acute": ["insulin_hypo_symptoms_acute", "hypoglycemia_symptoms"],
+    "sick_day_flags": ["sick_vomiting_diarrhea"],
+    "is_fasting_today": ["fasting_is_fasting"],
+    "foot_problems": ["diabetes_foot_problems"],
+    "hyperglycemia_symptoms": ["diabetes_hyperglycemia_symptoms"],
+    "associated_symptoms": ["hypertension_associated_symptoms"],
+}
+
+
+def get_step_candidates(step_id: str) -> list[str]:
+    """Generates candidate keys and aliases for a given step ID."""
+    cands = [step_id]
+    for pref in PREFIXES:
+        if step_id.startswith(pref):
+            stripped = step_id[len(pref):]
+            if stripped not in cands:
+                cands.append(stripped)
+    for k, alias_list in ALIASES.items():
+        if step_id == k or step_id in alias_list:
+            if k not in cands:
+                cands.append(k)
+            for a in alias_list:
+                if a not in cands:
+                    cands.append(a)
+    return cands
+
+
+def step_matches_pattern(step_id: str, pattern: str) -> bool:
+    """Checks if step_id or any of its candidates match pattern (including wildcards)."""
+    if fnmatch.fnmatch(step_id, pattern):
+        return True
+    for c in get_step_candidates(step_id):
+        if fnmatch.fnmatch(c, pattern):
+            return True
+    return False
+
+
+def detect_question_kind(step_id: str, options: list[str] | None) -> str:
+    """
+    Detects question kind ('yes_no', 'choice', 'number', 'free_text') from API response metadata.
+    
+    Detection Rules:
+    1. If options is non-empty:
+       - If all options are boolean terms (yes/no, haan/nahi, ji/na, true/false, Urdu script), kind = 'yes_no'.
+       - Else (e.g. unit choices ['mmol/L', 'mg/dL'], meal contexts, PHQ-9 frequencies), kind = 'choice'.
+    2. If options is empty/None:
+       - If step_id contains 'reading' or 'blood_sugar' or 'bp' (excluding 'context'/'technique'), kind = 'number'.
+       - If step_id starts with 'triage:' or contains 'symptoms', 'adherence', 'technique', 'confirm', 'fasting', 'sick', 'foot': kind = 'yes_no'.
+       - Otherwise, kind = 'free_text' (e.g. greeting, lifestyle, notes, checkpoints).
+    """
+    if options:
+        lower_opts = [str(o).strip().lower() for o in options]
+        boolean_terms = {
+            "yes", "no", "haan", "nahi", "nahin", "ji", "jee", "jee haan",
+            "true", "false", "ہاں", "نہیں", "جی", "جی ہاں"
+        }
+        if set(lower_opts).issubset(boolean_terms):
+            return "yes_no"
+        return "choice"
+    
+    # Options is None/empty
+    s_lower = step_id.lower()
+    if any(k in s_lower for k in ["reading", "blood_sugar", "bp"]) and not any(k in s_lower for k in ["context", "technique"]):
+        return "number"
+    if s_lower.startswith("triage:") or any(k in s_lower for k in ["symptoms", "adherence", "technique", "confirm", "fasting", "sick", "foot"]):
+        return "yes_no"
+    return "free_text"
+
+
+def resolve_answer(
+    step_id: str,
+    question_text: str,
+    options: list[str] | None,
+    scenario: dict[str, Any]
+) -> tuple[str, str, str | None]:
+    """
+    Resolves the answer to send for the current turn and determines its source.
+    Returns: (answer_string, answer_source, matched_key)
+    answer_source is one of: 'step_map', 'kind_default', 'fallback'.
+    """
+    answers_by_step = scenario.get("answers_by_step", {})
+    defaults_by_kind = scenario.get("defaults_by_kind", {})
+    
+    # 1. Exact step_id match
+    if step_id in answers_by_step:
+        return str(answers_by_step[step_id]), "step_map", step_id
+    
+    # 2. Wildcard pattern match in answers_by_step
+    for pattern, ans in answers_by_step.items():
+        if ("*" in pattern or "?" in pattern) and step_matches_pattern(step_id, pattern):
+            return str(ans), "step_map", pattern
+            
+    # 3. Canonical candidate / alias match
+    cands = get_step_candidates(step_id)
+    for c in cands:
+        if c in answers_by_step:
+            return str(answers_by_step[c]), "step_map", c
+            
+    # 4. Defaults by kind
+    kind = detect_question_kind(step_id, options)
+    if kind == "choice" and options:
+        def_choice = defaults_by_kind.get("choice", "<first option>")
+        if def_choice in ["<first option>", "<first_option>", "first"]:
+            return str(options[0]), "kind_default", None
+        return str(def_choice), "kind_default", None
+    elif kind in defaults_by_kind:
+        return str(defaults_by_kind[kind]), "kind_default", None
+        
+    # 5. Safe fallback
+    if kind == "yes_no":
+        return "no", "fallback", None
+    elif kind == "number":
+        return "skip", "fallback", None
+    elif kind == "choice" and options:
+        return str(options[0]), "fallback", None
+    return "none", "fallback", None
+
 
 def generate_rsa_key_and_cert():
-    """Generates an RSA keypair and self-signed certificate for hermetic token verification."""
+    """Generates a deterministic RSA keypair and self-signed certificate for hermetic token verification."""
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     subject = issuer = x509.Name([
         x509.NameAttribute(NameOID.COMMON_NAME, "securetoken@system.gserviceaccount.com"),
@@ -52,9 +183,9 @@ def generate_rsa_key_and_cert():
         .subject_name(subject)
         .issuer_name(issuer)
         .public_key(private_key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1))
-        .not_valid_after(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=10))
+        .serial_number(1234567890)
+        .not_valid_before(datetime.datetime(2026, 1, 1, 0, 0, 0, tzinfo=datetime.UTC))
+        .not_valid_after(datetime.datetime(2030, 1, 1, 0, 0, 0, tzinfo=datetime.UTC))
         .sign(private_key, hashes.SHA256())
     )
     cert_pem = cert.public_bytes(serialization.Encoding.PEM).decode("utf-8")
@@ -62,7 +193,7 @@ def generate_rsa_key_and_cert():
 
 
 def create_token(private_key, user_id: str, email: str) -> str:
-    now = int(time.time())
+    fixed_now = 1793000000
     payload = {
         "sub": user_id,
         "user_id": user_id,
@@ -70,14 +201,14 @@ def create_token(private_key, user_id: str, email: str) -> str:
         "name": "Probe Patient",
         "aud": TEST_PROJECT_ID,
         "iss": f"https://securetoken.google.com/{TEST_PROJECT_ID}",
-        "iat": now,
-        "exp": now + 3600,
-        "auth_time": now,
+        "iat": fixed_now,
+        "exp": fixed_now + 360000,
+        "auth_time": fixed_now,
     }
     return jwt.encode(payload, private_key, algorithm="RS256", headers={"kid": TEST_KID})
 
 
-def setup_fresh_patient(client: TestClient, token: str, scenario: Dict[str, Any], user_id: str) -> None:
+def setup_fresh_patient(client: TestClient, token: str, scenario: dict[str, Any], user_id: str) -> None:
     headers = {"Authorization": f"Bearer {token}"}
     client.post("/api/auth/session", headers=headers)
     
@@ -111,38 +242,47 @@ def setup_fresh_patient(client: TestClient, token: str, scenario: Dict[str, Any]
     # If the scenario tests roman_ur, update the database profile row directly so
     # the checkin start logic can read language='roman_ur'
     if scen_lang == "roman_ur":
-        with app_store.get_db_cursor(backend="sqlite", db_path=os.environ.get("LOCAL_DB_PATH")) as (cur, be, ph):
+        with app_store.get_db_cursor(backend="sqlite", db_path=os.environ.get("LOCAL_DB_PATH")) as (cur, _be, ph):
             cur.execute(f"UPDATE patient_profiles SET language = 'roman_ur' WHERE user_id = {ph}", (user_id,))
 
 
-def run_scenario_on_engine(client: TestClient, private_key, scenario: Dict[str, Any], engine: str) -> Dict[str, Any]:
-    user_id = f"probe-{scenario['name']}-{engine}-{uuid.uuid4().hex[:8]}"
+def run_scenario_on_engine(client: TestClient, private_key, scenario: dict[str, Any], engine: str) -> dict[str, Any]:
+    det_tag = hashlib.sha256(f"{scenario['name']}-{engine}".encode()).hexdigest()[:8]
+    user_id = f"probe-{scenario['name']}-{engine}-{det_tag}"
     email = f"{user_id}@probe.test"
     token = create_token(private_key, user_id, email)
     headers = {"Authorization": f"Bearer {token}"}
     
+    must_deliver = scenario.get("must_deliver", [])
+    answers_by_step = scenario.get("answers_by_step", {})
+    used_mapped_keys: set[str] = set()
+    delivered_must_steps: set[str] = set()
+    
     try:
         setup_fresh_patient(client, token, scenario, user_id)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {
             "scenario": scenario["name"],
             "group": scenario.get("group", ""),
             "engine": engine,
+            "is_valid": False,
+            "must_deliver": must_deliver,
+            "unfulfilled_must_deliver": list(must_deliver),
+            "unmapped_answers": list(answers_by_step.keys()),
             "turns": [],
             "questions_asked": 0,
             "final_level": "ERROR_BOOTSTRAP",
             "emergency": False,
             "complete_result": None,
-            "notes": f"Setup failed: {str(e)}"
+            "notes": f"Setup failed: {e!s}"
         }
     
     # Set interview engine dynamically
     old_engine = os.environ.get("INTERVIEW_ENGINE")
     os.environ["INTERVIEW_ENGINE"] = engine
     
-    turns: List[Dict[str, Any]] = []
-    final_result: Dict[str, Any] = {}
-    notes: List[str] = []
+    turns: list[dict[str, Any]] = []
+    notes: list[str] = []
     
     try:
         # Start checkin
@@ -153,6 +293,10 @@ def run_scenario_on_engine(client: TestClient, private_key, scenario: Dict[str, 
                 "scenario": scenario["name"],
                 "group": scenario.get("group", ""),
                 "engine": engine,
+                "is_valid": False,
+                "must_deliver": must_deliver,
+                "unfulfilled_must_deliver": list(must_deliver),
+                "unmapped_answers": list(answers_by_step.keys()),
                 "turns": turns,
                 "questions_asked": 0,
                 "final_level": "ERROR",
@@ -171,26 +315,26 @@ def run_scenario_on_engine(client: TestClient, private_key, scenario: Dict[str, 
         system_note = data.get("system_note")
         progress_hint = data.get("progress_hint")
         
-        answers_queue = list(scenario.get("answers", []))
-        fallback_queue = list(scenario.get("fallback", ["no", "fine", "none", "yes", "120", "120/80", "Yes, submit"]))
-        
         turn_num = 1
         is_emergency = False
         is_complete = False
         
         while turn_num <= 25:
-            # Decide answer to send
-            used_fallback = False
-            if answers_queue:
-                answer = answers_queue.pop(0)
-            elif fallback_queue:
-                answer = fallback_queue.pop(0)
-                used_fallback = True
-                notes.append(f"Turn {turn_num} used fallback answer: {answer}")
-            else:
-                answer = "I don't know"
-                used_fallback = True
-                notes.append(f"Turn {turn_num} used default fallback 'I don't know'")
+            # Resolve answer by step
+            answer, answer_source, matched_key = resolve_answer(
+                current_step, current_question, options, scenario
+            )
+            if matched_key:
+                used_mapped_keys.add(matched_key)
+                
+            # Track delivery of must_deliver targets
+            if answer_source == "step_map":
+                for req in must_deliver:
+                    if step_matches_pattern(current_step, req):
+                        delivered_must_steps.add(req)
+                for k in answers_by_step:
+                    if step_matches_pattern(current_step, k):
+                        used_mapped_keys.add(k)
             
             # Send answer
             ans_payload = {"answer": str(answer), "step": current_step}
@@ -205,7 +349,8 @@ def run_scenario_on_engine(client: TestClient, private_key, scenario: Dict[str, 
                 "can_skip": can_skip,
                 "progress_hint": progress_hint,
                 "answer_sent": answer,
-                "used_fallback": used_fallback,
+                "answer_source": answer_source,
+                "matched_key": matched_key,
                 "system_note": system_note,
                 "status_code": ans_resp.status_code,
             }
@@ -253,16 +398,29 @@ def run_scenario_on_engine(client: TestClient, private_key, scenario: Dict[str, 
                 notes.append(f"/complete failed with {comp_resp.status_code}: {comp_resp.text}")
                 final_level = f"ERR_{comp_resp.status_code}"
                 
+        # Validate must_deliver
+        unfulfilled = [req for req in must_deliver if req not in delivered_must_steps]
+        is_valid = (len(unfulfilled) == 0)
+        if not is_valid:
+            notes.append(f"INVALID: must_deliver {unfulfilled} not delivered via step_map")
+            
+        # Unmapped answers
+        unmapped_keys = [k for k in answers_by_step if k not in used_mapped_keys]
+                
         return {
             "scenario": scenario["name"],
             "group": scenario.get("group", ""),
             "engine": engine,
+            "is_valid": is_valid,
+            "must_deliver": must_deliver,
+            "unfulfilled_must_deliver": unfulfilled,
+            "unmapped_answers": unmapped_keys,
             "turns": turns,
             "questions_asked": len(turns),
             "final_level": final_level,
             "emergency": is_emergency,
             "complete_result": complete_result,
-            "notes": "; ".join(notes) if notes else "Normal completion"
+            "notes": "; ".join(notes) if notes else "Valid normal completion"
         }
         
     finally:
@@ -272,25 +430,54 @@ def run_scenario_on_engine(client: TestClient, private_key, scenario: Dict[str, 
             os.environ.pop("INTERVIEW_ENGINE", None)
 
 
-def build_markdown_report(results: List[Dict[str, Any]]) -> str:
+def sanitize_for_determinism(data: Any) -> Any:
+    """Recursively replaces runtime timestamps and timestamp-derived record IDs with canonical fixed values."""
+    if isinstance(data, dict):
+        new_d = {}
+        for k, v in data.items():
+            if k in ["timestamp", "timestamp_b", "completed_at", "created_at"] and isinstance(v, str):
+                new_d[k] = "2026-10-27T12:00:00Z"
+            elif k in ["source_record_id_b", "source_record_id"] and isinstance(v, str) and v.startswith("CHECKIN-"):
+                parts = v.split("-")
+                new_d[k] = "-".join(parts[:-2] + ["STAMP", parts[-1]])
+            else:
+                new_d[k] = sanitize_for_determinism(v)
+        return new_d
+    elif isinstance(data, list):
+        return [sanitize_for_determinism(item) for item in data]
+    return data
+
+
+def build_markdown_report(results: list[dict[str, Any]]) -> str:
     lines = []
-    lines.append("# ChronicCare AI — Interview Probe Audit Report (Day 1)\n")
-    lines.append(f"**Date:** {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
-    lines.append(f"**Total Executions:** {len(results)}\n")
+    lines.append("# ChronicCare AI — Interview Probe Audit Report (Day 1b: Step-Keyed Answers)\n")
+    lines.append("**Audit Execution:** Hermetic in-process TestClient evaluation")
+    lines.append(f"**Total Executions:** {len(results)}")
+    
+    # Engine validity metrics
+    v2_runs = [r for r in results if r["engine"] == "v2"]
+    v3_runs = [r for r in results if r["engine"] == "v3"]
+    v2_valid = sum(1 for r in v2_runs if r["is_valid"])
+    v3_valid = sum(1 for r in v3_runs if r["is_valid"])
+    
+    lines.append(f"- **Engine v2 Valid:** {v2_valid}/{len(v2_runs)} ({len(v2_runs) - v2_valid} INVALID)")
+    lines.append(f"- **Engine v3 Valid:** {v3_valid}/{len(v3_runs)} ({len(v3_runs) - v3_valid} INVALID)\n")
     
     # Top-level Summary Table
     lines.append("## Summary Table\n")
-    lines.append("| Scenario | Engine | Group | Questions Asked | Final Level | Emergency | Notes |")
-    lines.append("|---|---|:---:|:---:|:---:|:---:|---|")
+    lines.append("| Scenario | Engine | Group | Status | Questions Asked | Final Level | Emergency | Unmapped Answers | Notes |")
+    lines.append("|---|---|:---:|:---:|:---:|:---:|:---:|---|---|")
     for r in results:
         scen = r["scenario"]
         eng = r["engine"]
         grp = r["group"]
+        status_str = "VALID" if r["is_valid"] else "**INVALID**"
         q_count = r["questions_asked"]
         lvl = r["final_level"]
         emerg = "YES" if r["emergency"] else "No"
+        unmapped = ", ".join(r.get("unmapped_answers") or []) or "-"
         note = r["notes"]
-        lines.append(f"| `{scen}` | **{eng}** | {grp} | {q_count} | `{lvl}` | {emerg} | {note} |")
+        lines.append(f"| `{scen}` | **{eng}** | {grp} | {status_str} | {q_count} | `{lvl}` | {emerg} | {unmapped} | {note} |")
     
     lines.append("\n---\n")
     lines.append("## Detailed Scenario Audits\n")
@@ -298,20 +485,24 @@ def build_markdown_report(results: List[Dict[str, Any]]) -> str:
     for r in results:
         scen = r["scenario"]
         eng = r["engine"]
-        lines.append(f"### Scenario: `{scen}` (Engine: {eng.upper()})\n")
+        status_str = "VALID" if r["is_valid"] else "INVALID"
+        lines.append(f"### Scenario: `{scen}` (Engine: {eng.upper()}) — Status: {status_str}\n")
         lines.append(f"- **Group:** {r['group']}")
+        lines.append(f"- **Valid Delivery:** `{r['is_valid']}` (must_deliver: {r['must_deliver']})")
         lines.append(f"- **Final Level:** `{r['final_level']}`")
         lines.append(f"- **Emergency:** {r['emergency']}")
+        lines.append(f"- **Unmapped Answers:** {r.get('unmapped_answers') or 'None'}")
         lines.append(f"- **Notes:** {r['notes']}\n")
         
         if r["turns"]:
-            lines.append("| Turn | Step ID | Question Text Served | Answer Sent | Options | Why Text | Flags / Note |")
-            lines.append("|:---:|---|---|---|---|---|---|")
+            lines.append("| Turn | Step ID | Question Text Served | Answer Sent | Answer Source | Options | Why Text | Flags / Note |")
+            lines.append("|:---:|---|---|---|:---:|---|---|---|")
             for t in r["turns"]:
                 t_num = t["turn"]
                 step = t.get("step_id") or ""
                 q_text = (t.get("question_text") or "").replace("|", "\\|").replace("\n", " ")
                 ans = str(t.get("answer_sent") or "").replace("|", "\\|").replace("\n", " ")
+                src = t.get("answer_source", "-")
                 opts = ", ".join(str(o) for o in (t.get("options") or []))
                 why = (t.get("why_text") or "").replace("|", "\\|")
                 flags = []
@@ -322,7 +513,7 @@ def build_markdown_report(results: List[Dict[str, Any]]) -> str:
                 if t.get("system_note"):
                     flags.append(f"Note: {t['system_note']}")
                 flag_str = "; ".join(flags) if flags else "-"
-                lines.append(f"| {t_num} | `{step}` | {q_text} | {ans} | {opts} | {why} | {flag_str} |")
+                lines.append(f"| {t_num} | `{step}` | {q_text} | {ans} | `{src}` | {opts} | {why} | {flag_str} |")
             lines.append("")
             
         if r.get("complete_result"):
@@ -350,14 +541,60 @@ def build_markdown_report(results: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def run_invalid_check_demo():
+    """Unit check to demonstrate INVALID detection works (HC1 requirement)."""
+    print("Running HC1 Unit Check for INVALID detection...")
+    temp_dir = tempfile.mkdtemp(prefix="probe_hc1_check_")
+    temp_db_path = str(Path(temp_dir) / "probe_hc1.db")
+    os.environ["LOCAL_DB_PATH"] = temp_db_path
+    os.environ["DB_BACKEND"] = "sqlite"
+    os.environ["FIREBASE_PROJECT_ID"] = TEST_PROJECT_ID
+    app_store.migrate(db_path=temp_db_path, backend="sqlite")
+    local_store.init_db(db_path=temp_db_path)
+    
+    private_key, cert_pem = generate_rsa_key_and_cert()
+    mock_keys = {TEST_KID: cert_pem}
+    firebase_verify._KEY_CACHE = {"keys": mock_keys, "expires_at": time.time() + 86400}
+    firebase_verify.fetch_google_public_keys = lambda force_refresh=False: mock_keys
+    client = TestClient(app)
+    
+    # Deliberately broken scenario: requires "target_step_that_never_exists"
+    broken_scenario = {
+        "name": "unit_check_broken_scenario",
+        "group": "unit_check",
+        "conditions": ["diabetes"],
+        "language": "en",
+        "answers_by_step": {"greeting": "hello"},
+        "defaults_by_kind": {"yes_no": "no", "number": "skip", "choice": "<first option>", "free_text": "none"},
+        "must_deliver": ["target_step_that_never_exists"],
+        "what_we_are_testing": "Proving that an unfulfilled must_deliver step marks the scenario INVALID"
+    }
+    
+    result = run_scenario_on_engine(client, private_key, broken_scenario, "v2")
+    assert result["is_valid"] is False, "Expected scenario to be flagged INVALID"
+    assert "target_step_that_never_exists" in result["unfulfilled_must_deliver"], "Expected target step in unfulfilled"
+    print(f"  [HC1 VERIFIED] Broken scenario successfully flagged as INVALID: is_valid={result['is_valid']}, unfulfilled={result['unfulfilled_must_deliver']}")
+    shutil.rmtree(temp_dir, ignore_errors=True)
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description="ChronicCare AI Adaptive Interview Probe Tool")
     parser.add_argument("--engine", choices=["v2", "v3", "both"], default="both", help="Interview engine to evaluate")
     parser.add_argument("--scenario", default="all", help="Scenario name from probe_scenarios.json or 'all'")
-    parser.add_argument("--out", required=True, help="Path to output markdown report file")
+    parser.add_argument("--out", required=False, help="Path to output markdown report file")
     parser.add_argument("--json", required=False, help="Path to output JSON audit file")
+    parser.add_argument("--check-invalid", action="store_true", help="Run HC1 unit check demonstrating INVALID detection")
     args = parser.parse_args()
     
+    if args.check_invalid:
+        run_invalid_check_demo()
+        return
+
+    if not args.out:
+        print("Error: --out is required when running audit.", file=sys.stderr)
+        sys.exit(1)
+        
     # Load scenarios
     scenarios_file = REPO_ROOT / "scripts" / "probe_scenarios.json"
     if not scenarios_file.exists():
@@ -414,7 +651,8 @@ def main():
                 res = run_scenario_on_engine(client, private_key, scen, eng)
                 results.append(res)
                 if idx % 10 == 0 or idx == total:
-                    print(f"[{idx}/{total}] Probed: {scen['name']} ({eng}) -> Level: {res['final_level']} (Emerg: {res['emergency']})")
+                    valid_tag = "VALID" if res["is_valid"] else "INVALID"
+                    print(f"[{idx}/{total}] Probed: {scen['name']} ({eng}) -> [{valid_tag}] Level: {res['final_level']} (Emerg: {res['emergency']})")
     finally:
         # Write Markdown output first
         out_path = Path(args.out)
@@ -423,32 +661,27 @@ def main():
         out_path.write_text(md_content, encoding="utf-8")
         print(f"Wrote Markdown report to {out_path} ({len(md_content)} chars)")
         
-        # Write JSON output if requested
+        # Write JSON output compact and sanitized for deterministic hashes (FIX 3 + HC2)
         if args.json:
             json_path = Path(args.json)
             json_path.parent.mkdir(parents=True, exist_ok=True)
-            json_path.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
-            print(f"Wrote JSON audit to {json_path}")
+            sanitized_results = sanitize_for_determinism(results)
+            compact_json = json.dumps(sanitized_results, separators=(',', ':'), ensure_ascii=False)
+            json_path.write_text(compact_json, encoding="utf-8")
+            print(f"Wrote compact JSON trace to {json_path} ({len(compact_json)} bytes)")
+            
+        # Clean up temp db
+        try:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        except Exception:  # noqa: BLE001, S110
+            pass
             
         if old_db_path:
             os.environ["LOCAL_DB_PATH"] = old_db_path
-        else:
-            os.environ.pop("LOCAL_DB_PATH", None)
-            
         if old_db_backend:
             os.environ["DB_BACKEND"] = old_db_backend
-        else:
-            os.environ.pop("DB_BACKEND", None)
-            
         if old_proj_id:
             os.environ["FIREBASE_PROJECT_ID"] = old_proj_id
-        else:
-            os.environ.pop("FIREBASE_PROJECT_ID", None)
-            
-        try:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-        except Exception:
-            pass
 
 
 if __name__ == "__main__":
