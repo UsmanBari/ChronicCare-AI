@@ -12,6 +12,8 @@ Output (in ./nhanes/):
 
 Safe to re-run: files already downloaded are skipped.
 """
+import os
+import sys
 import time
 from pathlib import Path
 
@@ -20,7 +22,11 @@ import pandas as pd
 import requests
 
 BASE = "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/{year}/DataFiles/{table}.xpt"
-OUT = Path("nhanes")
+data_dir_env = os.environ.get("CHRONICCARE_DATA_DIR")
+if not data_dir_env:
+    print("ERROR: CHRONICCARE_DATA_DIR is not set.", file=sys.stderr)
+    sys.exit(1)
+OUT = Path(data_dir_env) / "nhanes"
 RAW = OUT / "raw"
 
 # cycle label -> (folder year on CDC site, file suffix)

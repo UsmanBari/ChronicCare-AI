@@ -18,6 +18,8 @@ in chunks and keeps only the columns we need (low RAM use). The unzipped XPT
 is deleted after each year. Safe to re-run.
 """
 import sys
+import os
+import sys
 import time
 import zipfile
 from pathlib import Path
@@ -28,7 +30,11 @@ import requests
 
 YEARS = [2015, 2017, 2019, 2021, 2023]
 URL = "https://www.cdc.gov/brfss/annual_data/{y}/files/LLCP{y}XPT.zip"
-OUT = Path("brfss")
+data_dir_env = os.environ.get("CHRONICCARE_DATA_DIR")
+if not data_dir_env:
+    print("ERROR: CHRONICCARE_DATA_DIR is not set.", file=sys.stderr)
+    sys.exit(1)
+OUT = Path(data_dir_env) / "brfss"
 ZIPS = OUT / "zips"
 
 # Variable names change across years -> list every known name, first found wins.
@@ -49,11 +55,11 @@ CANDIDATES = {
     "ment_hlth_days": ["MENTHLTH"],
     "heart_disease":  ["CVDCRHD4"],
     "stroke":         ["CVDSTRK3"],
-    "kidney_disease": ["CHCKDNY2", "CHCKDNY1"],
+    "kidney_disease": ["CHCKDNY2", "CHCKDNY1", "CHCKIDNY"],
     "education":      ["_EDUCAG"],
     "income_group":   ["_INCOMG1", "_INCOMG"],
     "race":           ["_IMPRACE", "_RACE"],
-    "has_insurance":  ["_HLTHPLN", "_HLTHPLN1", "HLTHPLN1"],
+    "has_insurance":  ["_HLTHPLN", "_HLTHPLN1", "HLTHPLN1", "_HLTHPL1"],
     "weight_final":   ["_LLCPWT"],
 }
 
