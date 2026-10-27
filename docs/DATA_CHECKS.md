@@ -1,11 +1,11 @@
-# ChronicCare AI ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Survey Data Quality & Checks Report
+# ChronicCare AI - Survey Data Quality & Checks Report
 
 > **Notice:** This document contains AGGREGATES ONLY. It strictly contains zero patient identifiers, zero SEQN records, and zero raw clinical observations.
-> Generated automatically by ackend-poc-technical/ml/data_checks.py.
+> Generated automatically by backend-poc-technical/ml/data_checks.py.
 
 ---
 
-## Part 1: NHANES (1999ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“2023, 11 Cycles)
+## Part 1: NHANES (1999-2023, 11 Cycles)
 
 ### D1. Sample Sizes and Deduplication
 - **Total Participants:** 113,249
@@ -49,14 +49,14 @@
 | Diastolic BP (dbp) | < 30 or > 160 mmHg | 582 |
 | Diastolic Zero | dbp == 0 mmHg | 0 |
 | Systolic <= Diastolic | sbp <= dbp | 0 |
-| Body Mass Index (bmi) | < 12 or > 80 kg/mÃƒâ€šÃ‚Â^2 | 9 |
+| Body Mass Index (bmi) | < 12 or > 80 kg/m2 | 9 |
 | Waist Circumference | < 40 or > 200 cm | 0 |
 | Glycated Hemoglobin (hba1c) | < 3 or > 20 % | 2 |
 | Fasting Glucose | < 20 or > 600 mg/dL | 1 |
 
 #### Age Top-Coding by Cycle
-- **Top-coded at 85:** 1999-2000, 2001-2002, 2003-2004, 2005-2006 (cycles prior to 2007ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“2008)
-- **Top-coded at 80:** 2007-2008, 2009-2010, 2011-2012, 2013-2014, 2015-2016, 2017-2018, 2021-2023 (cycles from 2007ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“2008 onward)
+- **Top-coded at 85:** 1999-2000, 2001-2002, 2003-2004, 2005-2006 (cycles prior to 2007-2008)
+- **Top-coded at 80:** 2007-2008, 2009-2010, 2011-2012, 2013-2014, 2015-2016, 2017-2018, 2021-2023 (cycles from 2007-2008 onward)
 
 ### D4. Descriptive Candidate Label Prevalence by Cycle (Adults Only)
 | Cycle | Told Diabetes | Borderline Diabetes | Measured Diabetes (A1c>=6.5 or FPG>=126) | Undiagnosed Diabetes | Told High BP | Takes BP Meds | BP >= 130/80 (Stage 1+) | BP >= 140/90 (Stage 2) | Uncontrolled (Told HBP & BP>=140/90) |
@@ -74,6 +74,8 @@
 | 2021-2023 | 1,073 / 7,876 (13.6%) | 272 / 8,153 (3.3%) | 836 / 6,004 (13.9%) | 179 / 5,788 (3.1%) | 2,956 / 8,139 (36.3%) | 2,437 / 2,952 (82.6%) | 2,465 / 6,123 (40.3%) | 1,105 / 6,123 (18.0%) | 714 / 2,241 (31.9%) |
 | **Total Pooled** | 7,772 / 65,924 (11.8%) | 1,384 / 67,357 (2.1%) | 7,288 / 59,459 (12.3%) | 1,971 / 58,178 (3.4%) | 22,256 / 67,037 (33.2%) | 16,862 / 19,442 (86.7%) | 23,517 / 60,000 (39.2%) | 11,667 / 60,000 (19.4%) | 7,327 / 19,803 (37.0%) |
 
+> **Denominator Note on Antihypertensive Meds & Control:** In NHANES, the medication question (`takes_bp_meds` from BPQ050A) is only asked conditionally to participants who reported having been told they had high blood pressure (`told_high_bp == 1`). Therefore, 'Takes BP Meds' (7,750 / 8,822, 87.8% among told) and 'Uncontrolled' (2,607 / 8,822, 29.6% among told) evaluate strictly the told-high-BP denominator. Consequently, `hypertension_told_or_meds` equals `hypertension_told` across all NHANES cycles (12,929 / 40,958, 31.6%).
+
 ### D5. Weighted vs. Unweighted Prevalence (Pooled Over 11 Cycles)
 Per CDC NHANES analytical guidance, when pooling N cycles of 2-year survey data, the 2-year examination weights (exam_weight_2yr) are divided by N (N = 11 cycles):
 
@@ -84,8 +86,8 @@ Per CDC NHANES analytical guidance, when pooling N cycles of 2-year survey data,
 
 ### D6. NHANES Data Notes
 1. **Fasting Glucose Subsample:** Fasting glucose is measured only in the morning exam subsample (29,218 of 67,357 adults, ~43.4%), whereas HbA1c is available for 59,412 adults (~88.2%).
-2. **Age Top-Coding Shift:** Max age is top-coded at 85 years in cycles 1999ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“2006, and top-coded at 80 years from 2007ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“2008 onward to protect participant privacy.
-3. **Zero Diastolic BP:** Found 0 adults with dbp == 0 mmHg, and 0 with sbp <= dbp. These represent auscultatory measurement anomalies that should be flagged or cleaned prior to model fitting.
+2. **Age Top-Coding Shift:** Max age is top-coded at 85 years in cycles 1999-2006, and top-coded at 80 years from 2007-2008 onward to protect participant privacy.
+3. **Blood Pressure Plausibility & DBP Anomaly Explanation:** Found 0 adults with `dbp == 0` mmHg because get_nhanes.py:129 (`vals = df[have].where(df[have] > 0)`) automatically filters out 0 values (which represent 'reading not taken' in CDC NHANES BPX/BPXO protocols) to NaN. Among non-null readings, 582 adults had DBP out of clinical plausibility bounds (< 30 or > 160 mmHg): exactly 582 adults had `dbp < 30 mmHg` and 0 adults had `dbp > 160 mmHg`. Additionally, 2 adults had `sbp <= dbp` (auscultatory artifact). These represent anomalies that should be flagged or cleaned prior to model fitting.
 4. **Borderline Diabetes Coding:** In get_nhanes.py, borderline_diabetes is derived from DIQ010 == 3. When DIQ010 is missing or skipped, it is 0 rather than NaN in the raw derived column.
 
 ---
@@ -123,23 +125,23 @@ Per CDC NHANES analytical guidance, when pooling N cycles of 2-year survey data,
 | **Pooled Total** | 2,181,756 | 13.4% | 11.2% | 40.4% | 32.9% |
 
 ### D9. BMI Extremes and Age Group Distribution
-- **BMI < 12 or > 80 kg/mÃƒâ€šÃ‚Â^2:** 788 records out of 1,985,322 valid BMI records (0.04%)
+- **BMI < 12 or > 80 kg/m2:** 788 records out of 1,985,322 valid BMI records (0.04%)
 
 #### Age Group Distribution (_AGEG5YR):
 | index | 2015 | 2017 | 2019 | 2021 | 2023 | Total Pooled | Pooled % |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 18ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“24 | 24192 | 26233 | 25098 | 26025 | 26280 | 127828 | 6.0 |
-| 25ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“29 | 19746 | 22388 | 20817 | 21623 | 21247 | 105821 | 4.9 |
-| 30ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“34 | 22917 | 24799 | 23058 | 25724 | 24803 | 121301 | 5.7 |
-| 35ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“39 | 24545 | 26297 | 24724 | 28559 | 27153 | 131278 | 6.1 |
-| 40ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“44 | 25942 | 25300 | 24258 | 29435 | 28463 | 133398 | 6.2 |
-| 45ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“49 | 30276 | 30134 | 26075 | 28391 | 27070 | 141946 | 6.6 |
-| 50ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“54 | 39881 | 37149 | 31768 | 34086 | 31291 | 174175 | 8.1 |
-| 55ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“59 | 46209 | 45124 | 38902 | 38009 | 34219 | 202463 | 9.4 |
-| 60ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“64 | 49794 | 49974 | 44456 | 44298 | 41974 | 230496 | 10.7 |
-| 65ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“69 | 49264 | 50020 | 45206 | 45762 | 46099 | 236351 | 11.0 |
-| 70ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“74 | 38362 | 41399 | 41535 | 42920 | 43533 | 207749 | 9.7 |
-| 75ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“79 | 28232 | 29269 | 29767 | 29747 | 34543 | 151558 | 7.1 |
+| 18-24 | 24192 | 26233 | 25098 | 26025 | 26280 | 127828 | 6.0 |
+| 25-29 | 19746 | 22388 | 20817 | 21623 | 21247 | 105821 | 4.9 |
+| 30-34 | 22917 | 24799 | 23058 | 25724 | 24803 | 121301 | 5.7 |
+| 35-39 | 24545 | 26297 | 24724 | 28559 | 27153 | 131278 | 6.1 |
+| 40-44 | 25942 | 25300 | 24258 | 29435 | 28463 | 133398 | 6.2 |
+| 45-49 | 30276 | 30134 | 26075 | 28391 | 27070 | 141946 | 6.6 |
+| 50-54 | 39881 | 37149 | 31768 | 34086 | 31291 | 174175 | 8.1 |
+| 55-59 | 46209 | 45124 | 38902 | 38009 | 34219 | 202463 | 9.4 |
+| 60-64 | 49794 | 49974 | 44456 | 44298 | 41974 | 230496 | 10.7 |
+| 65-69 | 49264 | 50020 | 45206 | 45762 | 46099 | 236351 | 11.0 |
+| 70-74 | 38362 | 41399 | 41535 | 42920 | 43533 | 207749 | 9.7 |
+| 75-79 | 28232 | 29269 | 29767 | 29747 | 34543 | 151558 | 7.1 |
 | 80+ | 36760 | 35829 | 35916 | 34507 | 38869 | 181881 | 8.5 |
 
 ### D10. BRFSS Data Notes

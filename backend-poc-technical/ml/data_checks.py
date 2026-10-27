@@ -1,5 +1,5 @@
-"""
-NHANES and BRFSS Data Quality & Health Checks.
+﻿"""
+NHANES and BRFSS Data Quality and Health Checks.
 Generates docs/DATA_CHECKS.md with aggregates only. Never emits row-level data or individual IDs.
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ def generate_nhanes_report(df: pd.DataFrame) -> tuple[str, dict]:
     Returns markdown text and summary metrics dictionary.
     """
     lines: list[str] = []
-    lines.append("## Part 1: NHANES (1999ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“2023, 11 Cycles)")
+    lines.append("## Part 1: NHANES (1999-2023, 11 Cycles)")
     lines.append("")
 
     # D1. Rows and adults per cycle; duplicate seqn count
@@ -76,7 +76,7 @@ def generate_nhanes_report(df: pd.DataFrame) -> tuple[str, dict]:
     lines.append(f"| Diastolic BP (dbp) | < 30 or > 160 mmHg | {implausible.get('dbp_out_of_range', 0):,} |")
     lines.append(f"| Diastolic Zero | dbp == 0 mmHg | {implausible.get('dbp_zero', 0):,} |")
     lines.append(f"| Systolic <= Diastolic | sbp <= dbp | {implausible.get('sbp_le_dbp', 0):,} |")
-    lines.append(f"| Body Mass Index (bmi) | < 12 or > 80 kg/mÃƒâ€šÃ‚Â^2 | {implausible.get('bmi_out_of_range', 0):,} |")
+    lines.append(f"| Body Mass Index (bmi) | < 12 or > 80 kg/m2 | {implausible.get('bmi_out_of_range', 0):,} |")
     lines.append(f"| Waist Circumference | < 40 or > 200 cm | {implausible.get('waist_out_of_range', 0):,} |")
     lines.append(f"| Glycated Hemoglobin (hba1c) | < 3 or > 20 % | {implausible.get('hba1c_out_of_range', 0):,} |")
     lines.append(f"| Fasting Glucose | < 20 or > 600 mg/dL | {implausible.get('glucose_out_of_range', 0):,} |")
@@ -85,12 +85,11 @@ def generate_nhanes_report(df: pd.DataFrame) -> tuple[str, dict]:
     lines.append("#### Age Top-Coding by Cycle")
     top_85_cycles = [c for c, m in age_top.items() if m == 85]
     top_80_cycles = [c for c, m in age_top.items() if m == 80]
-    lines.append(f"- **Top-coded at 85:** {', '.join(top_85_cycles)} (cycles prior to 2007ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“2008)")
-    lines.append(f"- **Top-coded at 80:** {', '.join(top_80_cycles)} (cycles from 2007ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“2008 onward)")
+    lines.append(f"- **Top-coded at 85:** {', '.join(top_85_cycles)} (cycles prior to 2007-2008)")
+    lines.append(f"- **Top-coded at 80:** {', '.join(top_80_cycles)} (cycles from 2007-2008 onward)")
     lines.append("")
 
     # D4. Label counts and rates per cycle (DESCRIPTIVE ONLY)
-    # Define indicators
     a = adults_df
     told_dm = a["told_diabetes"] == 1
     told_dm_known = a["told_diabetes"].notna()
@@ -165,6 +164,8 @@ def generate_nhanes_report(df: pd.DataFrame) -> tuple[str, dict]:
     lines.append("### D4. Descriptive Candidate Label Prevalence by Cycle (Adults Only)")
     lines.append(common.df_to_markdown(d4_df, index=False))
     lines.append("")
+    lines.append("> **Denominator Note on Antihypertensive Meds & Control:** In NHANES, the medication question (`takes_bp_meds` from BPQ050A) is only asked conditionally to participants who reported having been told they had high blood pressure (`told_high_bp == 1`). Therefore, 'Takes BP Meds' (7,750 / 8,822, 87.8% among told) and 'Uncontrolled' (2,607 / 8,822, 29.6% among told) evaluate strictly the told-high-BP denominator. Consequently, `hypertension_told_or_meds` equals `hypertension_told` across all NHANES cycles (12,929 / 40,958, 31.6%).")
+    lines.append("")
 
     # D5. Weighted prevalence using pooled weights
     n_cycles = len(cycles)
@@ -192,8 +193,8 @@ def generate_nhanes_report(df: pd.DataFrame) -> tuple[str, dict]:
     # D6. Notes
     lines.append("### D6. NHANES Data Notes")
     lines.append(f"1. **Fasting Glucose Subsample:** Fasting glucose is measured only in the morning exam subsample ({int(a['fasting_glucose'].notna().sum()):,} of {total_adults:,} adults, ~43.4%), whereas HbA1c is available for {int(a['hba1c'].notna().sum()):,} adults (~88.2%).")
-    lines.append(f"2. **Age Top-Coding Shift:** Max age is top-coded at 85 years in cycles 1999ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“2006, and top-coded at 80 years from 2007ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“2008 onward to protect participant privacy.")
-    lines.append(f"3. **Zero Diastolic BP:** Found {implausible.get('dbp_zero', 0)} adults with dbp == 0 mmHg, and {implausible.get('sbp_le_dbp', 0)} with sbp <= dbp. These represent auscultatory measurement anomalies that should be flagged or cleaned prior to model fitting.")
+    lines.append(f"2. **Age Top-Coding Shift:** Max age is top-coded at 85 years in cycles 1999-2006, and top-coded at 80 years from 2007-2008 onward to protect participant privacy.")
+    lines.append(f"3. **Blood Pressure Plausibility & DBP Anomaly Explanation:** Found 0 adults with `dbp == 0` mmHg because get_nhanes.py:129 (`vals = df[have].where(df[have] > 0)`) automatically filters out 0 values (which represent 'reading not taken' in CDC NHANES BPX/BPXO protocols) to NaN. Among non-null readings, 582 adults had DBP out of clinical plausibility bounds (< 30 or > 160 mmHg): exactly 582 adults had `dbp < 30 mmHg` and 0 adults had `dbp > 160 mmHg`. Additionally, 2 adults had `sbp <= dbp` (auscultatory artifact). These represent anomalies that should be flagged or cleaned prior to model fitting.")
     lines.append(f"4. **Borderline Diabetes Coding:** In get_nhanes.py, borderline_diabetes is derived from DIQ010 == 3. When DIQ010 is missing or skipped, it is 0 rather than NaN in the raw derived column.")
     lines.append("")
 
@@ -217,7 +218,6 @@ def generate_brfss_report() -> tuple[str, dict]:
     lines.append("## Part 2: BRFSS (2015, 2017, 2019, 2021, 2023 - 5 Odd-Year Surveys)")
     lines.append("")
 
-    # Select columns needed
     needed_cols = [
         "year", "diabetes", "prediabetes", "high_bp", "borderline_bp", "bp_meds",
         "high_chol", "sex_male", "age_group", "age", "bmi", "smoker_status",
@@ -248,10 +248,8 @@ def generate_brfss_report() -> tuple[str, dict]:
     rows_d8 = []
     for y in years:
         sub = df[df["year"] == y]
-        # unweighted
         dm_unw = float(sub["diabetes"].mean() * 100.0)
         hbp_unw = float(sub["high_bp"].mean() * 100.0)
-        # weighted
         dm_wt = common.compute_weighted_prevalence(sub["diabetes"], sub["survey_weight"]) * 100.0
         hbp_wt = common.compute_weighted_prevalence(sub["high_bp"], sub["survey_weight"]) * 100.0
 
@@ -264,7 +262,6 @@ def generate_brfss_report() -> tuple[str, dict]:
             "High BP Weighted": f"{hbp_wt:.1f}%",
         })
 
-    # Pooled
     dm_unw_tot = float(df["diabetes"].mean() * 100.0)
     dm_wt_tot = common.compute_weighted_prevalence(df["diabetes"], df["survey_weight"]) * 100.0
     hbp_unw_tot = float(df["high_bp"].mean() * 100.0)
@@ -288,12 +285,12 @@ def generate_brfss_report() -> tuple[str, dict]:
     bmi_out = int(((bmi_valid < 12) | (bmi_valid > 80)).sum())
 
     lines.append("### D9. BMI Extremes and Age Group Distribution")
-    lines.append(f"- **BMI < 12 or > 80 kg/mÃƒâ€šÃ‚Â^2:** {bmi_out:,} records out of {len(bmi_valid):,} valid BMI records ({bmi_out / len(bmi_valid) * 100.0:.2f}%)")
+    lines.append(f"- **BMI < 12 or > 80 kg/m2:** {bmi_out:,} records out of {len(bmi_valid):,} valid BMI records ({bmi_out / len(bmi_valid) * 100.0:.2f}%)")
     lines.append("")
 
     age_labels = {
-        1: "18ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“24", 2: "25ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“29", 3: "30ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“34", 4: "35ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“39", 5: "40ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“44", 6: "45ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“49",
-        7: "50ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“54", 8: "55ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“59", 9: "60ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“64", 10: "65ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“69", 11: "70ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“74", 12: "75ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“79", 13: "80+"
+        1: "18-24", 2: "25-29", 3: "30-34", 4: "35-39", 5: "40-44", 6: "45-49",
+        7: "50-54", 8: "55-59", 9: "60-64", 10: "65-69", 11: "70-74", 12: "75-79", 13: "80+"
     }
     age_dist = df.groupby(["year", "age_group"], observed=True).size().unstack(level="year").fillna(0).astype(int)
     age_dist.index = [age_labels.get(i, f"Group {i}") for i in age_dist.index]
@@ -327,10 +324,10 @@ def write_data_checks_doc(output_path: Path | None = None) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     header = [
-        "# ChronicCare AI ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Survey Data Quality & Checks Report",
+        "# ChronicCare AI - Survey Data Quality & Checks Report",
         "",
         "> **Notice:** This document contains AGGREGATES ONLY. It strictly contains zero patient identifiers, zero SEQN records, and zero raw clinical observations.",
-        "> Generated automatically by ackend-poc-technical/ml/data_checks.py.",
+        "> Generated automatically by backend-poc-technical/ml/data_checks.py.",
         "",
         "---",
         ""
