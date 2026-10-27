@@ -251,3 +251,93 @@ def get_fhir_conditions(patient_id: str, base_url: Optional[str] = None) -> List
     bundle = fhir_get(base_url, "Condition", params={"patient": patient_id, "_count": 100})
     entries = bundle.get("entry", []) if isinstance(bundle, dict) else []
     return [entry["resource"] for entry in entries if "resource" in entry]
+
+
+def get_fhir_allergies(patient_id: str, base_url: Optional[str] = None, timeout: float = 3.0) -> List[Dict[str, Any]]:
+    """
+    Retrieves AllergyIntolerance resources for a given patient ID.
+    """
+    bundle = fhir_get(base_url, "AllergyIntolerance", params={"patient": patient_id, "_count": 100}, timeout_connect=timeout, timeout_read=timeout)
+    entries = bundle.get("entry", []) if isinstance(bundle, dict) else []
+    return [entry["resource"] for entry in entries if "resource" in entry]
+
+
+def get_fhir_practitioner_for_patient(patient_id: str, base_url: Optional[str] = None, timeout: float = 3.0) -> Optional[Dict[str, Any]]:
+    """
+    Resolves the practitioner on record for a given patient:
+    1. Checks Patient.generalPractitioner reference -> Practitioner
+    2. Else checks the latest Encounter participant reference -> Practitioner
+    3. Else returns None.
+    Uses unified fhir_get (SSRF-safe, cached, supports sim://).
+    """
+    try:
+        pat = get_fhir_patient(patient_id, base_url=base_url, timeout=int(timeout))
+    except Exception:
+        return None
+
+    if not isinstance(pat, dict):
+        return None
+
+    # 1. Try Patient.generalPractitioner
+    gen_prac = pat.get("generalPractitioner", [])
+    if gen_prac and isinstance(gen_prac, list):
+        for gp in gen_prac:
+            ref = gp.get("reference", "") if isinstance(gp, dict) else ""
+            if "Practitioner/" in ref:
+                prac_id = ref.split("Practitioner/")[-1].strip()
+                try:
+                    prac = fhir_get(base_url, f"Practitioner/{prac_id}", timeout_connect=timeout, timeout_read=timeout)
+                    if isinstance(prac, dict) and prac.get("resourceType") == "Practitioner":
+                        names = prac.get("name", [{}])
+                        p_name = names[0] if names else {}
+                        given = " ".join(p_name.get("given", []))
+                        family = p_name.get("family", "")
+                        full_name = f"{given} {family}".strip() or prac.get("id") or "Doctor on record"
+                        identifiers = prac.get("identifier", [])
+                        ident_val = identifiers[0].get("value") if identifiers and isinstance(identifiers[0], dict) else None
+                        as_of = pat.get("meta", {}).get("lastUpdated")
+                        return {
+                            "name": full_name,
+                            "identifier": ident_val,
+                            "source": "ehr_general_practitioner",
+                            "as_of": as_of,
+                        }
+                except Exception:
+                    pass
+
+    # 2. Fallback to latest Encounter participant
+    try:
+        enc_bundle = fhir_get(base_url, "Encounter", params={"patient": patient_id, "_count": 1, "_sort": "-date"}, timeout_connect=timeout, timeout_read=timeout)
+        enc_entries = enc_bundle.get("entry", []) if isinstance(enc_bundle, dict) else []
+        if enc_entries:
+            enc = enc_entries[0].get("resource", {})
+            parts = enc.get("participant", [])
+            for p in parts:
+                ind = p.get("individual", {})
+                ref = ind.get("reference", "")
+                if "Practitioner/" in ref:
+                    prac_id = ref.split("Practitioner/")[-1].strip()
+                    try:
+                        prac = fhir_get(base_url, f"Practitioner/{prac_id}", timeout_connect=timeout, timeout_read=timeout)
+                        if isinstance(prac, dict) and prac.get("resourceType") == "Practitioner":
+                            names = prac.get("name", [{}])
+                            p_name = names[0] if names else {}
+                            given = " ".join(p_name.get("given", []))
+                            family = p_name.get("family", "")
+                            full_name = f"{given} {family}".strip() or prac.get("id") or "Doctor on record"
+                            identifiers = prac.get("identifier", [])
+                            ident_val = identifiers[0].get("value") if identifiers and isinstance(identifiers[0], dict) else None
+                            period = enc.get("period", {})
+                            as_of = period.get("start") or period.get("end") or enc.get("meta", {}).get("lastUpdated")
+                            return {
+                                "name": full_name,
+                                "identifier": ident_val,
+                                "source": "ehr_encounter",
+                                "as_of": as_of,
+                            }
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+    return None

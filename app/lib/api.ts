@@ -112,6 +112,13 @@ export interface RecordObservationItem {
   measured_at: string;
 }
 
+export interface DoctorOnRecord {
+  name: string;
+  identifier?: string | null;
+  source: "ehr_general_practitioner" | "ehr_encounter";
+  as_of?: string | null;
+}
+
 export interface PatientRecordResponse {
   mode?: string;
   conditions: RecordConditionItem[];
@@ -173,6 +180,14 @@ export interface EHRConnectionInfo {
   last_verified_at: string | null;
 }
 
+export interface EHRAllergyItem {
+  substance: string;
+  criticality: string;
+  verification_status: string;
+  origin: "ehr";
+  trust: "high";
+}
+
 export interface EHRConnectionResponse {
   mode: string;
   connection?: EHRConnectionInfo | null;
@@ -191,6 +206,8 @@ export interface EHRConnectionResponse {
     active_medications: number;
   } | null;
   message?: string | null;
+  doctor_on_record?: DoctorOnRecord | null;
+  ehr_allergies?: EHRAllergyItem[];
 }
 
 export interface CheckinStartResponse {
@@ -710,8 +727,9 @@ export const api = {
     });
   },
 
-  getEHRConnection: async (): Promise<EHRConnectionResponse> => {
-    return request<EHRConnectionResponse>("/api/ehr/connection", {
+  getEHRConnection: async (includeDetails: boolean = false): Promise<EHRConnectionResponse> => {
+    const query = includeDetails ? "?include_details=true" : "";
+    return request<EHRConnectionResponse>(`/api/ehr/connection${query}`, {
       method: "GET",
     });
   },

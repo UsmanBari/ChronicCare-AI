@@ -1250,39 +1250,10 @@ def delete_allergy(allergy_id: str, user_id: Optional[str] = None,
 # EHR REGISTRY & CONNECTION HELPERS
 # =============================================================================
 
-SIMULATED_SAMPLE_PATIENTS = [
-    {
-        "id": "sim-ayesha",
-        "label": "Ayesha K. (Age 52)",
-        "description": "Type 2 diabetes & hypertension. Daily BP ~128/82 and fasting glucose 140-150 mg/dL for 7 days. Active Metformin & Lisinopril."
-    },
-    {
-        "id": "sim-bilal",
-        "label": "Bilal A. (Age 67)",
-        "description": "Hypertension. Low, stable personal baseline BP 110-116/70-74 for 10 days. Active Amlodipine."
-    },
-    {
-        "id": "sim-sana",
-        "label": "Sana M. (Age 45)",
-        "description": "Type 2 diabetes on insulin. Fasting glucose 150-175 mg/dL for 7 days. Active Insulin glargine & Metformin."
-    },
-    {
-        "id": "sim-imran",
-        "label": "Imran Q. (Age 71)",
-        "description": "Type 2 diabetes & hypertension. Rising BP 148-156/92-98 and elevated glucose 180-210 mg/dL. Active Metformin, Lisinopril, Atorvastatin."
-    },
-    {
-        "id": "sim-newpatient",
-        "label": "Nadia R. (Age 38)",
-        "description": "Hypertension. No recent observations in EHR (empty record test). Active Lisinopril."
-    }
-]
-
-PUBLIC_SANDBOX_SUGGESTED_PATIENT_IDS = [
-    "d48ac962-78c6-46cf-ba33-a24771bfa0e4",
-    "b85d7e00-3690-4e2a-87a0-f3d2dfc908b3",
-    "4551370c-c3eb-4164-a2ff-b528f73a4e0f",
-]
+from data_sources.ehr_test_patients import (
+    SIMULATED_SAMPLE_PATIENTS,
+    PUBLIC_SANDBOX_SUGGESTED_PATIENT_IDS,
+)
 
 
 def get_enabled_ehr_systems(backend: Optional[str] = None, db_path: Optional[str] = None,

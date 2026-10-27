@@ -375,6 +375,25 @@ Stores medication information associated with patients.
 
 ---
 
+## EHR Connection Response Additions (Iteration 2 Day 1 & Correction)
+
+### `doctor_on_record`
+Additive optional object in `EHRConnectionResponse` (connected mode, populated when `?include_details=true`):
+- `name` (TEXT): Display name of practitioner on record (from FHIR `generalPractitioner` or latest `Encounter.participant`).
+- `identifier` (TEXT, optional): Clinical identifier of the practitioner, if available in the EHR record.
+- `source` (TEXT): Provenance indicator, either `"ehr_general_practitioner"` or `"ehr_encounter"`.
+- `as_of` (TEXT, optional): Timestamp associated with the practitioner reference.
+
+### `ehr_allergies` (Connected Mode)
+In connected mode, FHIR `AllergyIntolerance` entries are returned in `EHRConnectionResponse.ehr_allergies` (when `?include_details=true`) as a read-only list:
+- `substance` (TEXT): Substance name or description.
+- `criticality` (TEXT): Clinical criticality level.
+- `verification_status` (TEXT): FHIR verification status (e.g. `confirmed`). Any entries marked `entered-in-error` are excluded at adapter normalisation.
+- `origin` (TEXT): Fixed value `"ehr"`.
+- `trust` (TEXT): Fixed value `"high"` to preserve authoritative hospital provenance.
+
+---
+
 ## Personal Data Summary
 
 Personal data is stored across several parts of the ChronicCare AI data model. Account identity and access information is stored in `users`; demographic, condition, consent, and other patient-specific information is stored in `patient_profiles`; check-in responses and clinical processing information are stored in `checkins` and `checkin_results`; provider review activity is stored in `review_actions`; allergy information is stored in `allergies`; and external patient identifiers and EHR linkage information are stored in `ehr_connections`. The separate local clinical data store contains patient identity information in `patients`, clinical measurements in `observations`, and medication information in `medications`. `audit_log` may also contain personal data when an event identifies a user or contains user-related details. By contrast, `schema_version` contains database migration metadata and `ehr_systems` primarily contains system configuration rather than patient information.

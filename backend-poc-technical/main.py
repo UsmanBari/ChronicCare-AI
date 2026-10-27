@@ -22,7 +22,7 @@ import time
 import copy
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Literal
 from contextlib import asynccontextmanager
 
 import requests
@@ -106,7 +106,14 @@ from data_sources.local_store import (
 from llm.groq_client import is_configured, get_configured_model, chat
 from auth.firebase_verify import verify_firebase_token, AuthError, get_firebase_project_id
 from data_sources.medication_scope import select_chronic_care_medications
-from data_sources.fhir_client import get_fhir_patient, fhir_get, check_fhir_metadata, FHIRError, clear_fhir_cache
+from data_sources import fhir_client, fhir_adapter
+from data_sources.fhir_client import (
+    get_fhir_patient,
+    fhir_get,
+    check_fhir_metadata,
+    FHIRError,
+    clear_fhir_cache,
+)
 from data_sources.fhir_sim import SAMPLE_PATIENTS
 from data_sources.validation import (
     calculate_age,
@@ -566,6 +573,13 @@ class RecordObservationItem(BaseModel):
     measured_at: str
 
 
+class DoctorOnRecord(BaseModel):
+    name: str
+    identifier: Optional[str] = None
+    source: str  # "ehr_general_practitioner" | "ehr_encounter"
+    as_of: Optional[str] = None
+
+
 class PatientRecordResponse(BaseModel):
     mode: str
     conditions: List[RecordConditionItem]
@@ -726,6 +740,14 @@ class EHRConnectionInfo(BaseModel):
     last_verified_at: Optional[str] = None
 
 
+class EHRAllergyItem(BaseModel):
+    substance: str
+    criticality: str
+    verification_status: str
+    origin: Literal["ehr"] = "ehr"
+    trust: Literal["high"] = "high"
+
+
 class EHRConnectionResponse(BaseModel):
     mode: str
     connection: Optional[EHRConnectionInfo] = None
@@ -735,6 +757,8 @@ class EHRConnectionResponse(BaseModel):
     record_source_label: Optional[str] = None
     summary: Optional[EHRConnectionSummary] = None
     warning: Optional[str] = None
+    doctor_on_record: Optional[DoctorOnRecord] = None
+    ehr_allergies: List[EHRAllergyItem] = Field(default_factory=list)
 
 
 class ConfigItem(BaseModel):
@@ -1919,19 +1943,17 @@ def _compute_record_source_label(mode: str, ehr_system_id: Optional[str] = None)
     return "Hospital EHR (FHIR test server)"
 
 
+from data_sources.ehr_test_patients import (
+    get_sample_patients_for_system,
+    get_suggested_patient_ids_for_system,
+)
+
 SAMPLE_PATIENTS_LIST = [
-    SamplePatient(id="sim-ayesha", label="Ayesha K. (age 52)", description="Type 2 diabetes & hypertension (BP ~128/82, glucose 140-150, active Metformin & Lisinopril)"),
-    SamplePatient(id="sim-bilal", label="Bilal A. (age 67)", description="Hypertension personal baseline (BP 110-116/70-74, active Amlodipine)"),
-    SamplePatient(id="sim-sana", label="Sana M. (age 45)", description="Type 2 diabetes on insulin (glucose 150-175, active Insulin glargine & Metformin)"),
-    SamplePatient(id="sim-imran", label="Imran Q. (age 71)", description="Type 2 diabetes & hypertension, rising readings (BP 148-156/92-98, glucose 180-210)"),
-    SamplePatient(id="sim-newpatient", label="Nadia R. (age 38)", description="Hypertension, no recent observations (empty record test)"),
+    SamplePatient(id=p["id"], label=p["label"], description=p["description"])
+    for p in get_sample_patients_for_system("demo-hospital")
 ]
 
-SUGGESTED_PATIENT_IDS = [
-    "d48ac962-78c6-46cf-ba33-a24771bfa0e4",
-    "b85d7e00-3690-4e2a-87a0-f3d2dfc908b3",
-    "4551370c-c3eb-4164-a2ff-b528f73a4e0f",
-]
+SUGGESTED_PATIENT_IDS = get_suggested_patient_ids_for_system("smart-sandbox")
 
 
 # =============================================================================
@@ -1945,8 +1967,11 @@ def get_ehr_systems_endpoint():
     res = []
     for s in systems:
         kind = s.get("kind", "public_sandbox")
-        sample_patients = SAMPLE_PATIENTS_LIST if kind == "simulated" else None
-        suggested_ids = SUGGESTED_PATIENT_IDS if kind == "public_sandbox" else None
+        sample_patients = [
+            SamplePatient(id=p["id"], label=p["label"], description=p["description"])
+            for p in get_sample_patients_for_system(s["ehr_system_id"])
+        ] if kind == "simulated" else None
+        suggested_ids = get_suggested_patient_ids_for_system(s["ehr_system_id"]) if kind == "public_sandbox" else None
         res.append(
             EHRSystemResponse(
                 ehr_system_id=s["ehr_system_id"],
@@ -2231,8 +2256,11 @@ def connect_ehr_endpoint(
 
 
 @app.get("/api/ehr/connection", response_model=EHRConnectionResponse, tags=["EHR Connection"])
-def get_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Retrieves current patient EHR connection status and masked identifiers."""
+def get_ehr_connection_endpoint(
+    include_details: bool = Query(False),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Retrieves current patient EHR connection status and masked identifiers. When include_details=True, fetches doctor on record and hospital allergies."""
     active = get_active_ehr_connection(current_user["user_id"])
     if not active:
         return EHRConnectionResponse(mode="isolated", connection=None)
@@ -2241,6 +2269,49 @@ def get_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(get_curre
     sys = get_ehr_system_by_id(active["ehr_system_id"])
     kind = sys.get("kind", "public_sandbox") if sys else "public_sandbox"
     record_label = _compute_record_source_label(mode="connected", ehr_system_id=active["ehr_system_id"])
+
+    doctor_on_record: Optional[DoctorOnRecord] = None
+    ehr_allergies: List[EHRAllergyItem] = []
+    warning = None
+
+    if include_details:
+        base_url = sys.get("fhir_base_url") if sys else None
+        ext_pid = active["external_patient_id"]
+
+        # 1. Doctor on record (3s timeout, cached, never 5xx)
+        try:
+            doc_dict = fhir_client.get_fhir_practitioner_for_patient(patient_id=ext_pid, base_url=base_url, timeout=3.0)
+            if doc_dict and doc_dict.get("name"):
+                doctor_on_record = DoctorOnRecord(
+                    name=doc_dict["name"],
+                    identifier=doc_dict.get("identifier"),
+                    source=doc_dict.get("source", "ehr_general_practitioner"),
+                    as_of=doc_dict.get("as_of"),
+                )
+        except Exception as e:
+            doctor_on_record = None
+            logger.warning("Failed to retrieve doctor on record: %s", type(e).__name__)
+            warning = "Could not load your doctor from the hospital record right now."
+
+        # 2. EHR allergies (3s timeout, cached, entered-in-error excluded, never 5xx)
+        try:
+            raw_allergies = fhir_client.get_fhir_allergies(patient_id=ext_pid, base_url=base_url, timeout=3.0)
+            norm_allergies = fhir_adapter.fhir_to_normalized_allergies(raw_allergies, patient_id=ext_pid)
+            for a in norm_allergies:
+                ehr_allergies.append(
+                    EHRAllergyItem(
+                        substance=a.get("substance", "Allergy"),
+                        criticality=a.get("criticality", "unable-to-assess"),
+                        verification_status=a.get("verification_status", "active"),
+                        origin="ehr",
+                        trust="high",
+                    )
+                )
+        except Exception as e:
+            ehr_allergies = []
+            logger.warning("Failed to retrieve hospital allergies: %s", type(e).__name__)
+            allergy_warn = "Could not load hospital allergies right now."
+            warning = f"{warning}; {allergy_warn}" if warning else allergy_warn
 
     return EHRConnectionResponse(
         mode="connected",
@@ -2254,6 +2325,9 @@ def get_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(get_curre
         system_id=active["ehr_system_id"],
         kind=kind,
         record_source_label=record_label,
+        warning=warning,
+        doctor_on_record=doctor_on_record,
+        ehr_allergies=ehr_allergies,
     )
 
 
