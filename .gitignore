@@ -48,3 +48,7 @@ backend-poc-technical/output/
 
 # Local NHANES ML data - never commit
 backend-poc-technical/ml/data/
+
+# Safety net for guideline PDFs - never commit
+rag-docs/
+*.pdf
