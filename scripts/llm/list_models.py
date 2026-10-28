@@ -115,7 +115,7 @@ def list_groq_models():
 
     print(f"\nAll models returned by Groq API ({len(raw_ids)} total):")
     for mid in sorted(raw_ids):
-        print(f"  • {mid}")
+        print(f"  * {mid}")
 
     print("\nFiltering for OPEN-WEIGHT CHAT models supported for ChronicCare AI explainer:")
     print("Documentation reference: https://console.groq.com/docs/models\n")

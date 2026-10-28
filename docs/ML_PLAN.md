@@ -85,7 +85,7 @@ As proven by `Select-String` on `C:\Users\usmanbari\Desktop\Chronicare-data\get_
 - 2017–2018 has both manual and automatic cuffs, so it is mostly manual.
 - 2021–2023 has only the automatic cuff.
 - 2019–2020 was not released independently due to COVID-19 disruption and is not in the data.
-- This protocol shift explains the by-cycle prevalence in the test split printed by `scripts/ml/count_label_populations.py`:
+- Test hypertension prevalence is 32.06% (2017–2018) vs 29.83% (2021–2023), so the cuff change does NOT explain the higher test rate (the automatic cuff cycle actually has lower prevalence than the manual cycle). We do not blame the measurement device:
 
 ```text
 === HYPERTENSION LABEL (130/80) TEST SPLIT PREVALENCE BY CYCLE ===
@@ -265,10 +265,10 @@ Because negative predictive value (NPV) exceeds 95% across virtually all thresho
 
 ### Export Format
 - Pure-Python export of Logistic Regression (unless a tree model beats it by $\ge 0.02$ validation AUROC).
-- **Calibration double-dipping avoided:** Isotonic calibration on the validation set is removed, because the validation set is already used to pick the operating threshold.
+- **Calibration double-dipping avoided:** Secondary calibration on the validation set is removed, because the validation set is already used to pick the operating threshold.
 - Calibration is only reported (slope/intercept). If the validation slope is outside $0.8–1.2$, Day 4 stops and asks Usman.
 
-**USMAN DECISION:** Pure-Python export of LR (unless a tree model beats it by >= 0.02 validation AUROC). REMOVE isotonic calibration on validation: the validation set picks the threshold, so calibrating on it too is double-dipping. Calibration is only reported (slope/intercept). If the validation slope is outside 0.8-1.2, Day 4 stops and asks Usman.
+**USMAN DECISION:** Pure-Python export of LR (unless a tree model beats it by >= 0.02 validation AUROC). REMOVE secondary calibration on validation: the validation set picks the threshold, so calibrating on it too is double-dipping. Calibration is only reported (slope/intercept). If the validation slope is outside 0.8-1.2, Day 4 stops and asks Usman.
 
 ---
 
@@ -302,7 +302,7 @@ If a model fails any gate, it is not shipped, remains disabled behind `RISK_ENAB
 | **D7** | Decision Threshold Policy | Option 1: Highest threshold on validation with sensitivity $\ge 0.80$, locked for test. |
 | **D8** | Risk Bands | Modified three-tier bands: LOW (< locked threshold), MODERATE (locked threshold to 90th percentile), HIGH (top 10%). Text: "below the screening threshold; keep your usual check-ups". |
 | **D9** | Triage Interaction | Option 1: Can only raise routine $\rightarrow$ review (doctor review). Controlled by existing `RISK_ENABLED=off` and `RISK_CAN_RAISE=off`. |
-| **D10** | Production Export Format | Pure-Python export of LR (unless a tree model beats it by $\ge 0.02$ validation AUROC). No isotonic calibration on validation. Day 4 stops if validation slope is outside 0.8–1.2. |
+| **D10** | Production Export Format | Pure-Python export of LR (unless a tree model beats it by $\ge 0.02$ validation AUROC). No secondary calibration on validation. Day 4 stops if validation slope is outside 0.8–1.2. |
 | **D11** | FYP-1 Acceptance Criteria | Modified 5 gates: Test AUROC $\ge 0.75$, Test Sens $\ge 0.75$, Calibration slope 0.8–1.2, Subgroup Sens $\ge 0.60$, FULL beats BASIC. Never move threshold on test. |
 
 ---
