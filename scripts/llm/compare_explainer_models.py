@@ -24,6 +24,7 @@ import re
 import sys
 import time
 from pathlib import Path
+from typing import Any
 from dotenv import load_dotenv
 
 if sys.platform == "win32":
