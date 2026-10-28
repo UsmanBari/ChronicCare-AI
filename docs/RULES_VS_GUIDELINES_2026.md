@@ -48,11 +48,17 @@
 - **Stage 2 Hypertension:** Systolic ≥ 140 mmHg or Diastolic ≥ 90 mmHg.
 - **Hypertensive Crisis:** Systolic ≥ 180 mmHg or Diastolic ≥ 120 mmHg.
 
-### Status: USMAN TO CONFIRM FROM PDF (Clinician Citation Update Item)
-As far as we know, the 2025 AHA/ACC guideline retained these same fundamental categories (normal <120/<80, elevated 120–129/<80, stage 1 130–139 or 80–89, stage 2 ≥140 or ≥90).
-- **AHA/ACC 2025 Values:** `USMAN TO CONFIRM FROM PDF (Section 2 & Table 5)`
-- **Clinician Review Item:** The primary update for the clinical team is that `CLINICAL_RULES.md` currently cites the 2017 edition and should cite the 2025 edition, plus any 2025 nuances Usman confirms by reading Section 2 himself.
-- **Current Action:** Retain existing code thresholds unchanged. Flagged for clinician citation update.
+### Status: CONFIRMED FROM PDF (Table 4, p. e222 & Section 8.1, p. e277)
+The 2025 AHA/ACC guideline (Jones et al., *Hypertension* 2025;82:e212–e316) retains these exact blood pressure categories in Table 4 (Section 2, p. e222):
+- **Normal:** SBP < 120 mmHg and DBP < 80 mmHg
+- **Elevated:** SBP 120–129 mmHg and DBP < 80 mmHg
+- **Stage 1 Hypertension:** SBP 130–139 mmHg or DBP 80–89 mmHg
+- **Stage 2 Hypertension:** SBP ≥ 140 mmHg or DBP ≥ 90 mmHg
+- **Severe Hypertension / Hypertensive Emergency:** SBP > 180 mmHg and/or DBP > 120 mmHg (Section 8.1, p. e277)
+
+- **AHA/ACC 2025 Citation:** Jones DW et al. 2025 AHA/ACC/AAPA/ABC/ACPM/AGS/APhA/ASH/ASPC/NMA/PCNA Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults. *Hypertension*. 2025;82:e212–e316. Table 4.
+- **Clinician Review Item:** The values in ChronicCare AI match the 2025 AHA/ACC guideline definitions. `CLINICAL_RULES.md` citation should be updated from Whelton et al. 2017 to Jones et al. 2025.
+- **Current Action:** Retain existing code thresholds unchanged. Citation update ready for clinician sign-off.
 
 
 ---
