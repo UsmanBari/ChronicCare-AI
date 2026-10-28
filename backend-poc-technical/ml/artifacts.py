@@ -1,5 +1,5 @@
 """
-Model artifact serialization, loading, and schema validation.
+Model artifact serialization, loading, schema validation, and production export.
 Defines the contract for saving and loading trained clinical risk models
 between Usman's experiment harness and downstream evaluation/inference tooling.
 """
@@ -33,6 +33,10 @@ REQUIRED_MODEL_CARD_KEYS = {
     "val_rows",
     "val_auroc",
     "notes",
+    "population",
+    "tier",
+    "test_metrics",
+    "bands",
 }
 
 
@@ -44,7 +48,7 @@ def validate_model_card(card: dict[str, Any]) -> None:
     ------
     ValueError:
         If required keys are missing, extra unexpected keys exist,
-        the label is unknown, or the threshold is outside [0.0, 1.0].
+        the label is unknown, or fields fail domain constraints.
     LeakageError:
         If the feature list contains forbidden features for the target label.
     UserWarning:
@@ -77,7 +81,29 @@ def validate_model_card(card: dict[str, Any]) -> None:
     if not isinstance(thresh, (int, float)) or thresh < 0.0 or thresh > 1.0:
         raise ValueError(f"Model card 'threshold' must be a float in range [0.0, 1.0], got {thresh}")
 
-    # 4. Scikit-learn version mismatch check
+    # 4. Tier validation
+    tier = card["tier"]
+    if tier not in ("basic", "full"):
+        raise ValueError(f"Model card 'tier' must be 'basic' or 'full', got '{tier}'")
+
+    # 5. Population validation
+    population = card["population"]
+    if not isinstance(population, str) or len(population.strip()) == 0:
+        raise ValueError("Model card 'population' must be a non-empty string descriptor.")
+
+    # 6. Test metrics validation
+    test_metrics = card["test_metrics"]
+    if not isinstance(test_metrics, dict):
+        raise ValueError("Model card 'test_metrics' must be a dictionary of evaluated metrics.")
+
+    # 7. Bands validation
+    bands = card["bands"]
+    if not isinstance(bands, dict) or "low_max" not in bands or "high_min" not in bands:
+        raise ValueError("Model card 'bands' must be a dict with 'low_max' and 'high_min' keys.")
+    if not isinstance(bands["low_max"], (int, float)) or not isinstance(bands["high_min"], (int, float)):
+        raise ValueError("Model card 'bands' values must be numeric thresholds.")
+
+    # 8. Scikit-learn version mismatch check
     installed_ver = sklearn.__version__
     card_ver = str(card.get("sklearn_version", ""))
     if card_ver != installed_ver:
@@ -157,3 +183,44 @@ def load_model_artifact(dir_path: Path | str) -> tuple[Any, dict[str, Any]]:
 
     pipeline = joblib.load(model_file)
     return pipeline, card_data
+
+
+def export_production_lr(
+    pipeline: Any,
+    card: dict[str, Any],
+    out_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """
+    Export a fitted StandardScaler + LogisticRegression pipeline as a pure JSON payload
+    for production scoring without scikit-learn or joblib dependencies.
+    """
+    validate_model_card(card)
+
+    scaler = pipeline.named_steps.get("scaler")
+    clf = pipeline.named_steps.get("clf")
+    if scaler is None or clf is None:
+        raise ValueError("Pipeline must contain 'scaler' (StandardScaler) and 'clf' (LogisticRegression) steps.")
+
+    export_payload = {
+        "model_name": card["name"],
+        "label": card["label"],
+        "tier": card["tier"],
+        "population": card["population"],
+        "feature_order": list(card["features"]),
+        "scaler_mean": [float(m) for m in scaler.mean_],
+        "scaler_scale": [float(s) for s in scaler.scale_],
+        "coef": [float(c) for c in clf.coef_[0]],
+        "intercept": float(clf.intercept_[0]),
+        "threshold": float(card["threshold"]),
+        "bands": {
+            "low_max": float(card["bands"]["low_max"]),
+            "high_min": float(card["bands"]["high_min"]),
+        },
+    }
+
+    if out_path is not None:
+        p = Path(out_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(export_payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    return export_payload

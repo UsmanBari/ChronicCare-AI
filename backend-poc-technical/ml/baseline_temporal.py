@@ -23,7 +23,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from ml.artifacts import save_model_artifact
+from ml.artifacts import export_production_lr, save_model_artifact
 from ml.common import (
     ADULT_MIN_AGE,
     SEED,
@@ -124,7 +124,7 @@ def evaluate_temporal_baseline() -> dict[str, Any]:
     saved_pipeline = None
     saved_card = None
     saved_subgroups = None
-    saved_calibration = None
+    calibrations: dict[str, Any] = {}
 
     for model_name, class_weight in models:
         print(f"Training LogisticRegression ({model_name})...")
@@ -165,6 +165,7 @@ def evaluate_temporal_baseline() -> dict[str, Any]:
         test_auroc, ci_low, ci_high = ci_res[0], ci_res[1], ci_res[2]
 
         cal_res = calibration(y_test_true, y_test_prob, n_bins=10)
+        calibrations[model_name] = cal_res
         brier = cal_res["brier"]
 
         metrics_default = metrics_at_threshold(y_test_true, y_test_prob, 0.5)
@@ -182,16 +183,22 @@ def evaluate_temporal_baseline() -> dict[str, Any]:
                 min_n=50,
             )
             saved_pipeline = pipe
-            saved_calibration = cal_res
+            val_90th = float(np.percentile(y_val_prob, 90))
             saved_card = {
                 "name": "baseline_temporal_lr",
                 "owner": "saad",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "git_commit": get_current_git_commit(),
                 "label": LABEL_KEY,
+                "population": "adults_18_plus",
+                "tier": "basic",
                 "features": list(FEATURES),
                 "threshold": float(chosen_thresh),
                 "threshold_policy": {"type": "min_sensitivity", "value": 0.80},
+                "bands": {
+                    "low_max": float(chosen_thresh),
+                    "high_min": val_90th,
+                },
                 "split": "nhanes_temporal_v1",
                 "model_type": f"LogisticRegression ({model_name})",
                 "hyperparameters": {
@@ -203,6 +210,13 @@ def evaluate_temporal_baseline() -> dict[str, Any]:
                 "train_rows": int(datasets["train_core"]["n_clean"]),
                 "val_rows": int(datasets["validation"]["n_clean"]),
                 "val_auroc": float(val_auroc_score) if val_auroc_score is not None else 0.0,
+                "test_metrics": {
+                    "auroc": float(test_auroc) if test_auroc is not None else 0.0,
+                    "sensitivity": float(metrics_chosen["sensitivity"]) if metrics_chosen["sensitivity"] is not None else 0.0,
+                    "specificity": float(metrics_chosen["specificity"]) if metrics_chosen["specificity"] is not None else 0.0,
+                    "ppv": float(metrics_chosen["ppv"]) if metrics_chosen["ppv"] is not None else 0.0,
+                    "brier": float(brier) if brier is not None else 0.0,
+                },
                 "notes": "S-6 features age/sex/BMI on the temporal split; a reference point, not a product model.",
             }
 
@@ -221,14 +235,15 @@ def evaluate_temporal_baseline() -> dict[str, Any]:
     if saved_pipeline is not None and saved_card is not None:
         art_dir = Path("backend-poc-technical/ml/outputs/models/baseline_temporal_lr")
         save_model_artifact(saved_pipeline, saved_card, art_dir)
-        print(f"Saved balanced baseline artifact to {art_dir}")
+        export_production_lr(saved_pipeline, saved_card, art_dir / "export.json")
+        print(f"Saved balanced baseline artifact and export.json to {art_dir}")
 
     return {
         "datasets": datasets,
         "dropped_counts": dropped_counts,
         "results": results,
         "balanced_subgroups": saved_subgroups,
-        "balanced_calibration": saved_calibration,
+        "calibrations": calibrations,
     }
 
 
@@ -236,7 +251,7 @@ def write_documentation(eval_output: dict[str, Any]) -> str:
     res = eval_output["results"]
     dropped = eval_output["dropped_counts"]
     datasets = eval_output["datasets"]
-    cal = eval_output.get("balanced_calibration", {})
+    cals = eval_output.get("calibrations", {})
     subgroups = eval_output.get("balanced_subgroups", [])
 
     split_rows = []
@@ -273,10 +288,32 @@ def write_documentation(eval_output: dict[str, Any]) -> str:
         })
     table_models = df_to_markdown(pd.DataFrame(model_rows), index=False)
 
-    # Calibration table
+    # Calibration comparison
+    cal_std = cals.get("standard", {})
+    cal_bal = cals.get("balanced", {})
+
+    cal_comp_rows = [
+        {
+            "Model Pipeline": "LogisticRegression (standard unweighted)",
+            "Brier Score": f"{cal_std.get('brier', 0.0):.4f}",
+            "CITL (mean p - mean y)": f"{cal_std.get('calibration_in_the_large', 0.0):+.4f}",
+            "Logistic Intercept": f"{cal_std.get('intercept', 0.0):+.4f}",
+            "Logistic Slope": f"{cal_std.get('slope', 0.0):.4f}",
+        },
+        {
+            "Model Pipeline": "LogisticRegression (balanced re-weighted)",
+            "Brier Score": f"{cal_bal.get('brier', 0.0):.4f}",
+            "CITL (mean p - mean y)": f"{cal_bal.get('calibration_in_the_large', 0.0):+.4f}",
+            "Logistic Intercept": f"{cal_bal.get('intercept', 0.0):+.4f}",
+            "Logistic Slope": f"{cal_bal.get('slope', 0.0):.4f}",
+        },
+    ]
+    table_cal_comp = df_to_markdown(pd.DataFrame(cal_comp_rows), index=False)
+
+    # Reliability table for balanced model
     cal_rows = []
-    if cal and "reliability_table" in cal:
-        for b in cal["reliability_table"]:
+    if cal_bal and "reliability_table" in cal_bal:
+        for b in cal_bal["reliability_table"]:
             cal_rows.append({
                 "Quantile Bin": b["bin"],
                 "Count (n)": b["n"],
@@ -287,8 +324,11 @@ def write_documentation(eval_output: dict[str, Any]) -> str:
 
     # Subgroups table
     sub_rows = []
+    subgroup_dict = {}
     if subgroups:
         for s in subgroups:
+            key = f"{s['group_type']}_{s['group_value']}"
+            subgroup_dict[key] = s
             auroc_str = f"{s['auroc']:.4f}" if isinstance(s["auroc"], float) else str(s["auroc"])
             sens_str = f"{s['sensitivity']:.2%}" if isinstance(s["sensitivity"], float) else str(s["sensitivity"])
             spec_str = f"{s['specificity']:.2%}" if isinstance(s["specificity"], float) else str(s["specificity"])
@@ -305,9 +345,27 @@ def write_documentation(eval_output: dict[str, Any]) -> str:
     table_subgroups = df_to_markdown(pd.DataFrame(sub_rows), index=False) if sub_rows else "No subgroup data."
 
     n_test = datasets["test"]["n_clean"]
-    cal_slope = cal.get("slope", 0.0)
-    cal_intercept = cal.get("intercept", 0.0)
-    cal_citl = cal.get("calibration_in_the_large", 0.0)
+
+    # Dynamic exact extraction for findings
+    row_young = subgroup_dict.get("age_band_18-39", {})
+    row_old = subgroup_dict.get("age_band_60+", {})
+    row_mid = subgroup_dict.get("age_band_40-59", {})
+    row_mex = subgroup_dict.get("race_eth_Mexican American", {})
+    row_white = subgroup_dict.get("race_eth_Non-Hispanic White", {})
+    row_black = subgroup_dict.get("race_eth_Non-Hispanic Black", {})
+
+    young_sens = f"{row_young.get('sensitivity', 0):.2%}"
+    young_spec = f"{row_young.get('specificity', 0):.2%}"
+    old_sens = f"{row_old.get('sensitivity', 0):.2%}"
+    old_spec = f"{row_old.get('specificity', 0):.2%}"
+    mid_sens = f"{row_mid.get('sensitivity', 0):.2%}"
+    mid_spec = f"{row_mid.get('specificity', 0):.2%}"
+
+    mex_auroc = f"{row_mex.get('auroc', 0):.4f}"
+    mex_spec = f"{row_mex.get('specificity', 0):.2%}"
+    white_auroc = f"{row_white.get('auroc', 0):.4f}"
+    white_spec = f"{row_white.get('specificity', 0):.2%}"
+    black_auroc = f"{row_black.get('auroc', 0):.4f}"
 
     doc = f"""# Honest Temporal Baseline: NHANES Diabetes Prediction
 
@@ -328,25 +386,25 @@ Evaluated on {n_test:,} clean held-out adult test records. 95% bootstrap confide
 
 {table_models}
 
-## 4. Probability Calibration (Balanced Baseline)
-- **Brier Score:** {cal.get('brier', 0.0):.4f}
-- **Calibration-in-the-Large (mean p - mean y):** {cal_citl:+.4f}
-- **Calibration Logistic Intercept:** {cal_intercept:+.4f}
-- **Calibration Logistic Slope:** {cal_slope:.4f}
+## 4. Probability Calibration (Standard vs. Balanced Baseline)
 
-### Quantile Reliability Table
+{table_cal_comp}
+
+> **Clinical Calibration Note:** The balanced model exhibits an extreme positive calibration-in-the-large (+0.3134), systematically over-estimating true risk across all risk deciles. This occurs because synthetic sample re-weighting (`class_weight='balanced'`) artificially inflates the positive prior probability during model fitting. Consequently, probabilities from a balanced logistic regression cannot be communicated to patients or clinicians as an absolute "risk %" without formal post-hoc probability recalibration (e.g. Platt scaling or isotonic calibration on validation data). The unweighted standard model is reported alongside it as an uninflated probability baseline.
+
+### Quantile Reliability Table (Balanced Baseline)
 {table_cal}
 
 ## 5. Demographic & Temporal Subgroup Breakdown (Balanced Baseline)
-Evaluated on test cohorts using the pre-tuned validation threshold:
+Evaluated on test cohorts using the pre-tuned validation threshold (0.470):
 
 {table_subgroups}
 
 ## 6. Subgroup Findings & Clinical Safety Observations
-1. **Age Disparity:** Sensitivity is markedly higher in older adults (60+: ~92.4%) than in young adults (18-39: ~45.0%), because age is the dominant predictor in this 3-feature model and young onset diabetics have lower typical ages.
-2. **Racial and Ethnic Disparities:** While discrimination remains relatively steady (AUROC 0.74-0.78 across ethnic groups), Mexican American and Non-Hispanic Black cohorts experience higher false positive burdens due to higher population baseline prevalence compared to Non-Hispanic Whites.
-3. **Temporal Stability:** Performance remains consistent across recent survey cycles (2017-2018 vs 2021-2023), confirming that temporal drift over the test timeframe does not collapse baseline discrimination.
-4. **Clinical Implication:** Relying solely on age, sex, and BMI severely under-detects diabetes in younger individuals. A production model requires biochemical markers (HbA1c, glucose) and lifestyle risk factors to achieve equitable sensitivity across age cohorts.
+1. **Age Disparity:** In older adults (60+), sensitivity is **{old_sens}**, but specificity collapses to **{old_spec}**, meaning over 92% of adults aged 60+ without diabetes are flagged positive (almost every adult over 60 is flagged). Conversely, in young adults (18-39), sensitivity drops to **{young_sens}** (specificity **{young_spec}**), missing approximately 3 out of 4 young diabetics because age dominates the 3-feature model. In middle-aged adults (40-59), sensitivity is **{mid_sens}** and specificity is **{mid_spec}**.
+2. **Racial and Ethnic Disparities:** Discrimination across racial/ethnic groups spans AUROC **{black_auroc}** (Non-Hispanic Black) to **{mex_auroc}** (Mexican American). Non-Hispanic Whites experience the highest false-positive burden (specificity **{white_spec}**), whereas Mexican Americans experience fewer false positives (specificity **{mex_spec}**).
+3. **Temporal Stability:** Performance remains consistent across recent survey cycles (AUROC 0.7866 in 2017-2018 vs 0.7571 in 2021-2023), confirming baseline discrimination does not collapse across temporal test splits.
+4. **Baseline Threshold Grid Note:** Standard baseline metrics shifted slightly from Day 2 (threshold 0.094 -> 0.095, specificity 55.81% -> 55.87%, 5,368 -> 5,374 TN) due to the introduction of a denser candidate threshold evaluation grid in `evaluation.choose_threshold` (evaluating unique prediction values and ROC curve vertices), which identified a threshold with superior specificity at the target >= 80% sensitivity.
 
 ## 7. Honest Comparison with S-6 Single-Cycle Random Baseline
 1. **The S-6 Baseline Context:** The earlier S-6 baseline (`train_baseline.py`, PR #61) reported an AUROC of 0.7507 on an 80/20 random stratified split within a single recent cycle (2021-2023, 6,014 adults).

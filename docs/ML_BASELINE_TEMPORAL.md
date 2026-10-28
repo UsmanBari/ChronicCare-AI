@@ -24,13 +24,16 @@ Evaluated on 11,281 clean held-out adult test records. 95% bootstrap confidence 
 | LogisticRegression (standard) | 0.7701 (0.7598 - 0.7804) | 0.1126 | 4.03% | 99.23% | 47.52% | 85.68% | 0.095 | 85.62% | 55.87% | 25.11% | 95.74% | 5374/4245/239/1423 |
 | LogisticRegression (balanced) | 0.7703 (0.7601 - 0.7805) | 0.2289 | 82.49% | 59.04% | 25.81% | 95.13% | 0.470 | 85.62% | 55.54% | 24.96% | 95.72% | 5342/4277/239/1423 |
 
-## 4. Probability Calibration (Balanced Baseline)
-- **Brier Score:** 0.2289
-- **Calibration-in-the-Large (mean p - mean y):** +0.3134
-- **Calibration Logistic Intercept:** -1.9570
-- **Calibration Logistic Slope:** 0.8790
+## 4. Probability Calibration (Standard vs. Balanced Baseline)
 
-### Quantile Reliability Table
+| Model Pipeline | Brier Score | CITL (mean p - mean y) | Logistic Intercept | Logistic Slope |
+| --- | --- | --- | --- | --- |
+| LogisticRegression (standard unweighted) | 0.1126 | -0.0196 | +0.1475 | 0.9745 |
+| LogisticRegression (balanced re-weighted) | 0.2289 | +0.3134 | -1.9570 | 0.8790 |
+
+> **Clinical Calibration Note:** The balanced model exhibits an extreme positive calibration-in-the-large (+0.3134), systematically over-estimating true risk across all risk deciles. This occurs because synthetic sample re-weighting (`class_weight='balanced'`) artificially inflates the positive prior probability during model fitting. Consequently, probabilities from a balanced logistic regression cannot be communicated to patients or clinicians as an absolute "risk %" without formal post-hoc probability recalibration (e.g. Platt scaling or isotonic calibration on validation data). The unweighted standard model is reported alongside it as an uninflated probability baseline.
+
+### Quantile Reliability Table (Balanced Baseline)
 | Quantile Bin | Count (n) | Mean Predicted Risk | Observed Diabetes Fraction |
 | --- | --- | --- | --- |
 | (0.026799999999999997, 0.103] | 1130 | 0.069 | 0.005 |
@@ -45,7 +48,7 @@ Evaluated on 11,281 clean held-out adult test records. 95% bootstrap confidence 
 | (0.799, 0.997] | 1128 | 0.856 | 0.371 |
 
 ## 5. Demographic & Temporal Subgroup Breakdown (Balanced Baseline)
-Evaluated on test cohorts using the pre-tuned validation threshold:
+Evaluated on test cohorts using the pre-tuned validation threshold (0.470):
 
 | Dimension | Subgroup | Sample (n) | Positives | Prevalence | AUROC | Sens @ Opt | Spec @ Opt |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -63,10 +66,10 @@ Evaluated on test cohorts using the pre-tuned validation threshold:
 | cycle | 2021-2023 | 6014 | 845 | 14.05% | 0.7571 | 85.92% | 52.18% |
 
 ## 6. Subgroup Findings & Clinical Safety Observations
-1. **Age Disparity:** Sensitivity is markedly higher in older adults (60+: ~92.4%) than in young adults (18-39: ~45.0%), because age is the dominant predictor in this 3-feature model and young onset diabetics have lower typical ages.
-2. **Racial and Ethnic Disparities:** While discrimination remains relatively steady (AUROC 0.74-0.78 across ethnic groups), Mexican American and Non-Hispanic Black cohorts experience higher false positive burdens due to higher population baseline prevalence compared to Non-Hispanic Whites.
-3. **Temporal Stability:** Performance remains consistent across recent survey cycles (2017-2018 vs 2021-2023), confirming that temporal drift over the test timeframe does not collapse baseline discrimination.
-4. **Clinical Implication:** Relying solely on age, sex, and BMI severely under-detects diabetes in younger individuals. A production model requires biochemical markers (HbA1c, glucose) and lifestyle risk factors to achieve equitable sensitivity across age cohorts.
+1. **Age Disparity:** In older adults (60+), sensitivity is **96.91%**, but specificity collapses to **7.52%**, meaning over 92% of adults aged 60+ without diabetes are flagged positive (almost every adult over 60 is flagged). Conversely, in young adults (18-39), sensitivity drops to **25.32%** (specificity **94.90%**), missing approximately 3 out of 4 young diabetics because age dominates the 3-feature model. In middle-aged adults (40-59), sensitivity is **67.92%** and specificity is **63.26%**.
+2. **Racial and Ethnic Disparities:** Discrimination across racial/ethnic groups spans AUROC **0.7701** (Non-Hispanic Black) to **0.8103** (Mexican American). Non-Hispanic Whites experience the highest false-positive burden (specificity **47.78%**), whereas Mexican Americans experience fewer false positives (specificity **67.60%**).
+3. **Temporal Stability:** Performance remains consistent across recent survey cycles (AUROC 0.7866 in 2017-2018 vs 0.7571 in 2021-2023), confirming baseline discrimination does not collapse across temporal test splits.
+4. **Baseline Threshold Grid Note:** Standard baseline metrics shifted slightly from Day 2 (threshold 0.094 -> 0.095, specificity 55.81% -> 55.87%, 5,368 -> 5,374 TN) due to the introduction of a denser candidate threshold evaluation grid in `evaluation.choose_threshold` (evaluating unique prediction values and ROC curve vertices), which identified a threshold with superior specificity at the target >= 80% sensitivity.
 
 ## 7. Honest Comparison with S-6 Single-Cycle Random Baseline
 1. **The S-6 Baseline Context:** The earlier S-6 baseline (`train_baseline.py`, PR #61) reported an AUROC of 0.7507 on an 80/20 random stratified split within a single recent cycle (2021-2023, 6,014 adults).

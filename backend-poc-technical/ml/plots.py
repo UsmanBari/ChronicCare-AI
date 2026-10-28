@@ -2,6 +2,9 @@
 Plotting utilities for ML model evaluation.
 Generates ROC curves and calibration reliability diagrams.
 Saves ONLY to git-ignored outputs directory (backend-poc-technical/ml/outputs/).
+
+NOTE: This module is an OPTIONAL visualizer for local developers and is NOT
+run or required in CI pipelines (matplotlib is not pinned as a CI test dependency).
 """
 from __future__ import annotations
 
