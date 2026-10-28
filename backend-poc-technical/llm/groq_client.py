@@ -16,6 +16,9 @@ script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 env_file = os.path.join(script_dir, ".env")
 if os.path.exists(env_file):
     load_dotenv(env_file)
+root_env_local = os.path.join(script_dir, "..", ".env.local")
+if os.path.exists(root_env_local):
+    load_dotenv(root_env_local)
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +124,9 @@ def chat(
                 f"Transient error calling Groq API (attempt {attempts}/{max_retries + 1}): {type(e).__name__}"
             )
             if attempts <= max_retries:
-                time.sleep(0.5 * attempts)
+                # Groq rate limits require at least 2s backoff
+                sleep_sec = 2.0 * attempts if isinstance(e, RateLimitError) else 0.5 * attempts
+                time.sleep(sleep_sec)
             else:
                 raise RuntimeError(f"Groq API call failed after {max_retries} retries: {e}") from e
         except Exception as e:
@@ -134,7 +139,7 @@ def chat(
                     f"Transient error calling Groq API (attempt {attempts}/{max_retries + 1}): {e}"
                 )
                 if attempts <= max_retries:
-                    time.sleep(0.5 * attempts)
+                    time.sleep(2.0 * attempts)
                     continue
             raise e
 
