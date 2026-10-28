@@ -1,7 +1,9 @@
 # LLM Model Choice: Grounded Clinical Explanation Layer
 
+> **STATUS: PRELIMINARY. The run hit Groq's daily token cap (200,000 tokens/day per model), so some numbers are ranges. Re-run on Day 7 with a fresh daily quota, one model at a time. Final choice: Usman, Day 7. Production: EXPLAIN_ENABLED=off, GROQ_MODEL not set.**
+
 **Author:** Usman Bari  
-**Status:** Decided & Benchmark Verified  
+**Status:** Preliminary (Benchmark Verified with Quota Ranges)  
 **Date:** 28 October 2026  
 **Project:** ChronicCare AI Decision-Support Prototype  
 
@@ -141,14 +143,14 @@ V1: Sentence 1 exceeds 35 words (44 words); V1: Sentence 2 exceeds 35 words (48 
 - **Status:** Single-call latency confirmed at ~2.4–2.7s. High token consumption per request (internal reasoning tokens) repeatedly triggers Groq's daily 200,000 Tokens Per Day (TPD) service-tier cap.
 - **Raw API Response Text (first 300 characters):**
 ```text
-Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organization `org_01k22xzgzpehy9j36d81fg1bym` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199990, Requested 2812. Please try again in 20m10.464s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-20b` in organization service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199990, Requested 2812. Please try again in 20m10.464s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
 ```
 
 ### 4. `qwen/qwen3.8-27b`: Perfect Clinical Adherence, Subject to Shared Quota
 - **Status:** In all runs where token quota is available, `qwen/qwen3.8-27b` exhibits **zero validator failures** across all 5 clinical checks (V1 through V5).
 - **Raw API Response Text on Quota Exhaustion (first 300 characters):**
 ```text
-Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_01k22xzgzpehy9j36d81fg1bym` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199739, Requested 2898. Please try again in 18m59.184s. Need more tokens? Upgrade to Dev Tier'}}
+Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen3.8-27b` in organization service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199739, Requested 2898. Please try again in 18m59.184s. Need more tokens? Upgrade to Dev Tier'}}
 ```
 
 ---
@@ -169,7 +171,18 @@ In production deployment on Render, **`EXPLAIN_ENABLED=off`** remains the defaul
 
 ---
 
-## 6. RECOMMENDATION — Usman decides
+## 6. Limits
+
+1. **Model Accessibility:**
+   - This Groq account cannot access the `llama-3.x` models (such as `llama-3.3-70b-versatile` or `llama-3.1-8b-instant`), which return raw HTTP 404 `model_not_found` / `invalid_request_error`.
+2. **Shared Daily Quota:**
+   - Groq enforces a strict cap of **200,000 tokens/day per model** (TPD on on-demand tier).
+   - In a live demo, this 200,000 tokens/day quota will be shared between the **adaptive clinical interview agent** (`agents/adaptive_interview_agent.py`) and the **grounded explainer** (`rag/explainer.py`).
+   - If extensive demonstration sessions exhaust the daily quota, the system safely falls back to human-audited clinical templates (`rag/templates.json`) without interrupting triage.
+
+---
+
+## 7. RECOMMENDATION — Usman decides
 
 Based on empirical data across all candidate open-weight models:
 
