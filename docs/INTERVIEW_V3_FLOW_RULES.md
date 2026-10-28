@@ -27,15 +27,23 @@ Following safety clearance, the interview transitions directly to self-reported 
   - If recent history or baseline records show that one condition was abnormal more recently (e.g., rising BP in recent check-ins or recurrent lows/highs), that reading is prioritized first.
   - Otherwise, the standard default order applies: **Glucose reading first**, followed immediately by **Blood pressure reading**.
 
-### Rule R3: Shared Symptoms Asked Once
-Symptoms that serve clinical evaluation in both diabetes and hypertension (including dizziness, headache, blurred vision, fatigue/tiredness, and chest discomfort probes) are asked **exactly once**.
-- When the patient answers a shared symptom question, the answer fills every clinical slot it serves (for example, dizziness fills both `diabetes_hypo_symptoms` and `hypertension_associated_symptoms`).
-- The runner populates `known_slots` for all mapped slots, records evidence, and extracts any relevant findings across both conditions.
+### Rule R3: Condition Symptoms Asked Separately (`also_fills` Strict Rule)
+`also_fills` is allowed ONLY when two question bank items ask the exact same clinical question in the exact same words.
+- `diabetes_hyperglycemia_symptoms` asks specifically about thirst, urination, tiredness, and blurry vision.
+- `hypertension_associated_symptoms` asks specifically about severe headache, shortness of breath, ankle swelling, and dizziness on standing.
+Because both question sets can identify independent life-threatening or acuity-raising complications, they must NEVER be linked via `also_fills`. Dual-diagnosis patients must be evaluated for **both** condition symptom sets. De-duplication applies strictly to prevent re-asking the exact same slot twice, never by skipping different clinical questions.
 
-### Rule R4: Medication Adherence Asked Once
-Medication adherence is asked as a single unified question covering all active prescribed medications across both conditions (e.g. oral hypoglycemics, insulin, and antihypertensives).
-- If the patient confirms taking all medications as prescribed, both adherence slots are recorded as positive and no follow-up is needed.
-- If the patient reports missing doses or difficulties, a single targeted follow-up asks for the specific reason or which medicine was missed.
+### Rule R4: Medication Adherence in Dual-Diagnosis Check-ins
+Currently, diabetes adherence asks about "diabetes medications" and hypertension adherence asks about "blood pressure medications". Because these address distinct prescribed regimens, an answer to one cannot automatically satisfy the other.
+- Until a unified adherence question receives formal clinical approval, dual-diagnosis patients are asked BOTH adherence questions (`adherence_diabetes` and `adherence_hypertension`).
+
+### PROPOSED — needs Usman + doctor approval
+Unified multi-condition medication adherence question for dual-diagnosis patients:
+- **English:** "Have you taken all your prescribed diabetes and blood pressure medications today as instructed by your doctor?"
+- **Urdu:** "کیا آپ نے آج ڈاکٹر کی ہدایت کے مطابق اپنی شوگر اور بلڈ پریشر کی تمام دوائیں وقت پر لی ہیں؟"
+- **Roman Urdu:** "Kya aap ne aaj doctor ki hidayat ke mutabiq apni sugar aur blood pressure ki tamam medicines le li hain?"
+
+*Status:* PROPOSED. Until this unified phrasing receives clinician review and approval from Usman and the clinical supervisor, dual-diagnosis check-ins must ask each condition's adherence question separately (`adherence_diabetes` and `adherence_hypertension`).
 
 ### Rule R5: Lifestyle & Wellbeing Asked Once, Last
 General lifestyle habits (dietary salt/carbohydrates, physical activity) and optional wellbeing screens (mood, stress, distress) are asked **once at the end of the clinical interview**, after all readings, acute symptoms, and adherence questions are concluded.

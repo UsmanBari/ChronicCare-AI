@@ -71,7 +71,13 @@ def _get_localized_text(item: Any, lang: str = "en") -> str:
     return str(item) if item else ""
 
 
-def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str) -> str:
+def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots: Optional[List[str]] = None) -> str:
+    """
+    R8: Constructs a structured summary listing captured readings and values
+    for both diabetes and hypertension in the session language.
+    """
+    if asked_slots is None:
+        asked_slots = []
     """
     R8: Constructs a structured summary listing captured readings and values
     for both diabetes and hypertension in the session language.
@@ -107,14 +113,24 @@ def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str) -> str:
     if known_slots.get("foot_problems") is True:
         symptoms.append("foot numbness or sores")
 
+    symptoms_asked = any(
+        k in known_slots for k in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems")
+    ) or any(
+        s in asked_slots for s in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems")
+    )
+
     if symptoms:
         symp_en = f"Symptoms: {', '.join(symptoms)}"
         symp_ur = "علامات: علامات کی اطلاع دی گئی"
         symp_ro = "Alamaat: Alamaat report ki gayi hain"
-    else:
+    elif symptoms_asked:
         symp_en = "Symptoms: None reported"
         symp_ur = "علامات: کوئی نہیں"
         symp_ro = "Alamaat: Koi nahi"
+    else:
+        symp_en = "Symptoms: not asked"
+        symp_ur = "علامات: پوچھی نہیں گئیں"
+        symp_ro = "Symptoms: nahi poochay gaye"
 
     # 4. Adherence
     adh = known_slots.get("adherence_diabetes")
@@ -602,7 +618,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         # R8: Re-show summary confirmation immediately after the corrected slot is answered
         session_state["is_probe"] = False
         step_id = "summary_confirmation"
-        question_text = _build_dual_summary_text(known_slots, lang)
+        question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots)
         why_text = "To confirm we noted your answers correctly before saving."
         if lang == "ur":
             options = ["تصدیق کریں", "تبدیل کرنا ہے"]
@@ -656,7 +672,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     if decision.action == "summary_confirm":
         session_state["is_probe"] = False
         step_id = "summary_confirmation"
-        question_text = _build_dual_summary_text(known_slots, lang)
+        question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots)
         why_text = "To confirm we noted your answers correctly before saving."
         if lang == "ur":
             options = ["تصدیق کریں", "تبدیل کرنا ہے"]

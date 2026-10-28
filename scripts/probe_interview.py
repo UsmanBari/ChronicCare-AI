@@ -157,6 +157,12 @@ def resolve_answer(
     if options and set(options) == {"mmol/L", "mg/dL"}:
         if "glucose_unit_clarify" in answers_by_step:
             return str(answers_by_step["glucose_unit_clarify"]), "step_map", "glucose_unit_clarify"
+
+    # Caregiver / third-party confirmation turn detection (options ["Continue check-in", "Need urgent help", "Finish later"])
+    if options and "Continue check-in" in options:
+        if "third_party_confirm" in answers_by_step:
+            return str(answers_by_step["third_party_confirm"]), "step_map", "third_party_confirm"
+        return "Continue check-in", "step_map", "third_party_confirm"
     
     # 1. Exact step_id match
     if step_id in answers_by_step:

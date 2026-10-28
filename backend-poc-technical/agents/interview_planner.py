@@ -165,10 +165,11 @@ def plan_next_step(
     if bank is None:
         bank = get_default_bank()
 
+    clean_known = {k for k in known_slots.keys() if not k.endswith("__evidence") and not k.endswith("__partial")}
     if asked_slots is None:
-        asked_slots = set(known_slots.keys())
+        asked_slots = clean_known
     else:
-        asked_slots = set(asked_slots) | set(known_slots.keys())
+        asked_slots = set(asked_slots) | clean_known
 
     if recent_checkins is None:
         recent_checkins = []
@@ -190,7 +191,13 @@ def plan_next_step(
         concerning = True
 
     effective_budget = min(12 if concerning else base_budget, hard_cap)
-    current_count = len([s for s in asked_slots if not s.startswith("probe_") and s != "summary_confirmation"])
+    current_count = len([
+        s for s in asked_slots 
+        if not s.startswith("probe_") 
+        and not s.endswith("__evidence") 
+        and not s.endswith("__partial") 
+        and s != "summary_confirmation"
+    ])
 
     # Hard cap check
     if current_count >= effective_budget:
