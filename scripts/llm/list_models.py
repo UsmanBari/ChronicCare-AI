@@ -5,11 +5,18 @@ Reference: https://console.groq.com/docs/models
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+repo_root = Path(__file__).resolve().parent.parent.parent
+env_local = repo_root / ".env.local"
+if env_local.exists():
+    load_dotenv(env_local)
 
 # Add backend to path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "backend-poc-technical"))
+sys.path.insert(0, str(repo_root / "backend-poc-technical"))
 
 from llm.groq_client import get_client
 
@@ -64,20 +71,36 @@ OPEN_WEIGHT_REGISTRY = {
         "context_window": 32768,
         "is_chat": True,
     },
-    "qwen-2.5-32b": {
-        "name": "Qwen 2.5 32B",
-        "developer": "Alibaba Cloud",
+    "qwen/qwen3.8-27b": {
+        "name": "Qwen 3.8 27B",
+        "developer": "Alibaba Cloud / Qwen",
         "open_weight": True,
-        "license": "Apache 2.0",
+        "license": "Apache 2.0 (Open Weights)",
         "context_window": 32768,
         "is_chat": True,
     },
-    "qwen-2.5-coder-32b": {
-        "name": "Qwen 2.5 Coder 32B",
-        "developer": "Alibaba Cloud",
+    "allam-2-7b": {
+        "name": "ALLaM 2 7B",
+        "developer": "SDAIA",
         "open_weight": True,
-        "license": "Apache 2.0",
-        "context_window": 32768,
+        "license": "Open Weights (Permissive)",
+        "context_window": 8192,
+        "is_chat": True,
+    },
+    "openai/gpt-oss-20b": {
+        "name": "GPT-OSS 20B",
+        "developer": "OpenAI / Open Source",
+        "open_weight": True,
+        "license": "Apache 2.0 (Open Weights)",
+        "context_window": 16384,
+        "is_chat": True,
+    },
+    "openai/gpt-oss-120b": {
+        "name": "GPT-OSS 120B",
+        "developer": "OpenAI / Open Source",
+        "open_weight": True,
+        "license": "Apache 2.0 (Open Weights)",
+        "context_window": 16384,
         "is_chat": True,
     },
 }
