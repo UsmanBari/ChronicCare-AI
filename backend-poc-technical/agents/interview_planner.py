@@ -170,9 +170,9 @@ def plan_next_step(
             req = item.requires
             if req.get("on_insulin_or_sulfonylurea") and not on_insulin and not trends["recurrent_lows"]:
                 continue
-            if req.get("is_fasting_today") and not known_slots.get("is_fasting_today"):
+            if req.get("is_fasting_today") is True and known_slots.get("is_fasting_today") is not True:
                 continue
-            if req.get("sick_vomiting_diarrhea") and not known_slots.get("sick_vomiting_diarrhea"):
+            if req.get("sick_vomiting_diarrhea") is True and known_slots.get("sick_vomiting_diarrhea") is not True:
                 continue
             return PlanDecision(
                 action="ask_bank_item",

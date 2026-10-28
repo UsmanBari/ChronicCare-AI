@@ -76,29 +76,10 @@ _WORD_TO_NUMBER: Dict[str, int] = {
 
 def _parse_number_words(text: str) -> Optional[float]:
     """Converts phrases like 'one twenty', 'ek sau bees', 'two hundred' into numeric values."""
-    words = re.findall(r"[a-z']+", text.lower())
-    if not words:
-        return None
-
-    # Check for compound verbal expressions: e.g. "ek sau bees" -> 120, "one twenty" -> 120
-    if len(words) == 3 and words[0] in ("ek", "aik", "one") and words[1] in ("sau", "so", "hundred"):
-        base = 100
-        third = _WORD_TO_NUMBER.get(words[2])
-        if third is not None and third < 100:
-            return float(base + third)
-
-    if len(words) == 2 and words[0] in ("one", "ek", "aik") and words[1] in ("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "bees", "tees", "chaalis", "pachaas", "saath", "sattar", "assi", "nabbe"):
-        # "one twenty" -> 120
-        tens_val = _WORD_TO_NUMBER.get(words[1], 0)
-        return float(100 + tens_val)
-
-    if len(words) == 2 and words[0] in ("do", "two") and words[1] in ("sau", "so", "hundred"):
-        return 200.0
-
-    if len(words) == 1 and words[0] in _WORD_TO_NUMBER:
-        return float(_WORD_TO_NUMBER[words[0]])
-
-    return None
+    from agents.answer_understanding import parse_number
+    res = parse_number(text)
+    val = res.get("value")
+    return float(val) if val is not None else None
 
 
 @dataclass

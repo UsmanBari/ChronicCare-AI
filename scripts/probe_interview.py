@@ -63,6 +63,22 @@ ALIASES: dict[str, list[str]] = {
 }
 
 
+PROTOCOL_BENIGN_DEFAULTS = {
+    "neuro": "no",
+    "orientation": "yes",
+    "can_swallow": "yes",
+    "symptoms": "no",
+    "thirst": "no",
+    "orthostatic": "no",
+    "falls": "no",
+    "context": "no",
+    "chest_pain": "no",
+    "shortness_of_breath": "no",
+    "severe_headache": "no",
+    "vision_changes": "no",
+    "weakness_numbness": "no",
+}
+
 def get_step_candidates(step_id: str) -> list[str]:
     """Generates candidate keys and aliases for a given step ID."""
     cands = [step_id]
@@ -137,21 +153,72 @@ def resolve_answer(
     answers_by_step = scenario.get("answers_by_step", {})
     defaults_by_kind = scenario.get("defaults_by_kind", {})
     
+    # E2: Unit clarification turn detection (options ["mmol/L", "mg/dL"])
+    if options and set(options) == {"mmol/L", "mg/dL"}:
+        if "glucose_unit_clarify" in answers_by_step:
+            return str(answers_by_step["glucose_unit_clarify"]), "step_map", "glucose_unit_clarify"
+    
     # 1. Exact step_id match
     if step_id in answers_by_step:
         return str(answers_by_step[step_id]), "step_map", step_id
-    
-    # 2. Wildcard pattern match in answers_by_step
-    for pattern, ans in answers_by_step.items():
-        if ("*" in pattern or "?" in pattern) and step_matches_pattern(step_id, pattern):
-            return str(ans), "step_map", pattern
-            
+
+    # Detect protocol step key from question_text or step_id
+    q_low = (question_text or "").lower()
+    proto_key = None
+    if "oriented in time" in q_low:
+        proto_key = "orientation"
+    elif "swallow and eat or drink" in q_low:
+        proto_key = "can_swallow"
+    elif "confused, very drowsy" in q_low:
+        proto_key = "neuro"
+    elif "shaky, sweaty" in q_low or "pounding heartbeat" in q_low:
+        proto_key = "symptoms"
+    elif "thirsty and passing urine" in q_low:
+        proto_key = "thirst"
+    elif "dizzy or faint when you stand" in q_low:
+        proto_key = "orthostatic"
+    elif "fallen or nearly fallen" in q_low:
+        proto_key = "falls"
+    elif "chest pain, shortness of breath" in q_low:
+        proto_key = "symptoms"
+    elif "mild headache, dizziness" in q_low:
+        proto_key = "symptoms"
+    elif "rest for at least 5 minutes" in q_low:
+        proto_key = "context"
+    elif "did this reading happen" in q_low:
+        proto_key = "context"
+
+    if not proto_key and step_id.startswith("triage:"):
+        parts = step_id.split(":")
+        if parts[-1] in PROTOCOL_BENIGN_DEFAULTS:
+            proto_key = parts[-1]
+        elif len(parts) >= 2 and parts[1] in PROTOCOL_BENIGN_DEFAULTS:
+            proto_key = parts[1]
+    if not proto_key:
+        for c in get_step_candidates(step_id):
+            if c in PROTOCOL_BENIGN_DEFAULTS:
+                proto_key = c
+                break
+
+    # 2. Specific protocol key in answers_by_step takes precedence over wildcards
+    if proto_key and proto_key in answers_by_step:
+        return str(answers_by_step[proto_key]), "step_map", proto_key
+
     # 3. Canonical candidate / alias match
     cands = get_step_candidates(step_id)
     for c in cands:
         if c in answers_by_step:
             return str(answers_by_step[c]), "step_map", c
-            
+
+    # 4. Wildcard pattern match in answers_by_step
+    for pattern, ans in answers_by_step.items():
+        if ("*" in pattern or "?" in pattern) and step_matches_pattern(step_id, pattern):
+            return str(ans), "step_map", pattern
+
+    # 5. Benign protocol default
+    if proto_key and proto_key in PROTOCOL_BENIGN_DEFAULTS:
+        return str(PROTOCOL_BENIGN_DEFAULTS[proto_key]), "protocol_default", None
+
     # 4. Defaults by kind
     kind = detect_question_kind(step_id, options)
     if kind == "choice" and options:

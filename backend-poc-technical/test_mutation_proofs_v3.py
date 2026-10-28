@@ -1,3 +1,4 @@
+from agents.answer_understanding import parse_yes_no, parse_bp
 """
 Mutation Proofs Suite for Interview Engine v3 (Stage 9A Task H).
 
@@ -179,3 +180,46 @@ def test_mutation_proof_15_extra_danger_detections():
     res = classify_input("zindagi ka shadeed tareen sar dard")
     assert res.is_emergency is True
     assert res.category == "danger_phrase"
+
+
+# -----------------------------------------------------------------------------
+# Day 2 Mutation Proof Tests (M-H2-1 through M-H2-5)
+# -----------------------------------------------------------------------------
+def test_mutation_proof_m_h2_1_pata_nahi_not_no():
+    """M-H2-1: 'pata nahi' must be mapped to 'unknown', never 'no'."""
+    res = parse_yes_no("pata nahi")
+    assert res["value"] == "unknown"
+
+
+def test_mutation_proof_m_h2_2_unknown_does_not_satisfy_requires_true():
+    """M-H2-2: 'unknown' must NOT satisfy 'requires: true' conditions."""
+    bank = get_default_bank()
+    patient_record = {"conditions": ["diabetes"], "on_insulin_or_sulfonylurea": False}
+    decision = plan_next_step(
+        known_slots={"is_fasting_today": "unknown"},
+        findings=[],
+        patient_record=patient_record,
+        bank=bank,
+        asked_slots={"is_fasting_today"},
+    )
+    assert decision.target_slot != "fasting_symptoms"
+
+
+def test_mutation_proof_m_h2_3_parse_bp_rejects_sys_le_dia():
+    """M-H2-3: parse_bp must strictly reject systolic <= diastolic."""
+    res = parse_bp("80/120")
+    assert res["value"] is None
+
+
+def test_mutation_proof_m_h2_4_unit_clarification_bare_7():
+    """M-H2-4: Bare '7' glucose must not skip unit clarification."""
+    s = start_v3_session("m4", "P1", ["diabetes"])
+    s["step"] = "glucose_reading"
+    s = next_turn(s, "7")
+    assert s.get("awaiting_glucose_unit") is True
+
+
+def test_mutation_proof_m_h2_5_tag_question_na_not_no():
+    """M-H2-5: Tag question 'na' at the end ('theek hai na?') must NOT be read as 'no'."""
+    res = parse_yes_no("theek hai na?")
+    assert res["value"] == "unknown"

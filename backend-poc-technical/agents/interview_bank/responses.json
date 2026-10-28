@@ -63,5 +63,10 @@
     "reply_en": "If you are feeling overwhelmed, hopeless, or having thoughts of harming yourself, please know support is available. Please reach out to your emergency services or a national crisis helpline right now. Your care team has also been alerted.",
     "reply_ur": "اگر آپ شدید مایوسی محسوس کر رہے ہیں یا خود کو نقصان پہنچانے کے خیالات آ رہے ہیں، تو فوری طور پر ایمرجنسی سروسز یا کرائسز ہیلپ لائن سے رابطہ کریں۔ آپ کی کیئر ٹیم کو بھی مطلع کیا جا رہا ہے۔",
     "reply_roman_ur": "Agar aap shadeed mayoosi mehsoos kar rahe hain ya khud ko nuqsan pohanchane ke khayalaat aa rahe hain, toh foran emergency services ya helpline se rabta karein. Aap ki care team ko bhi alert kiya ja raha hai."
+  },
+  "safety_unknown_clarify": {
+    "reply_en": "This is an important safety question. Could you please clarify if you are experiencing this? (Yes / No / Still not sure)",
+    "reply_ur": "یہ حفاظت کے لحاظ سے ایک اہم سوال ہے۔ کیا آپ واضح کر سکتے ہیں کہ کیا آپ کو یہ مسئلہ ہے؟ (ہاں / نہیں / معلوم نہیں) [needs_native_review]",
+    "reply_roman_ur": "Yeh hifazat ke lehaaz se aik ahem sawal hai. Kya aap wazeh kar sakte hain ke kya aap ko yeh masla hai? (Haan / Nahi / Maloom nahi) [needs_native_review]"
   }
 }
