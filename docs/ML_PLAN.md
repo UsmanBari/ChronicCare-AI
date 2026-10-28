@@ -48,7 +48,7 @@ ChronicCare AI patients are adults onboarded because they **already have diagnos
 1. **Option 1 (Condition-Reciprocal Risk Display):**
    - **Hypertension-only patient:** Evaluated and presented with the **Diabetes Risk Card** (screening for undetected diabetes).
    - **Diabetes-only patient:** Evaluated and presented with the **Hypertension Risk Card** (screening for undetected hypertension).
-   - **Dual-diagnosed patient (Both T2D & HTN):** **No risk card displayed**. Their daily check-in interface focuses purely on symptom monitoring, red-flag screening, medication adherence, and trend reconciliation. Predicting disease incidence for both conditions is not in this project's scope.
+   - **Dual-diagnosed patient (Both T2D & HTN):** **No risk card displayed**. Their daily check-in interface focuses purely on symptom monitoring, red-flag screening, medication adherence, and trend reconciliation. Disease progression models for dual-diagnosed patients are not in this project's scope.
 2. **Option 2 (Universal Risk Display):**
    - Every patient sees both risk scores regardless of prior diagnoses.
 3. **Option 3 (Disease Progression / Complication Risk Model):**
@@ -66,22 +66,34 @@ Option 1 (Condition-Reciprocal Display). Clinically coherent for an already-diag
 ### Clinical Context
 Evaluating risk requires choosing between self-reported survey awareness, objective biochemical/clinical measurements, combined total burden, or targeted undiagnosed/screening formulations.
 
-### Empirical Evidence & Arithmetic
+### Empirical Evidence & Arithmetic (Fix F1)
 - **Option 2A (`diabetes_undiagnosed`):** Positives = 1,197 / 32,647 (3.7%) in `train_core`, 380 / 9,371 (4.1%) in `validation`, 394 / 9,261 (4.3%) in `test`.
 - **Option 2B (`diabetes_told_or_measured`):** Positives = 5,629 / 41,189 (13.7%) in `train_core`, 2,023 / 12,081 (16.7%) in `validation`, 2,447 / 13,935 (17.6%) in `test`.
 - **Option 2C (`diabetes_told` - Self-Report Gap Arithmetic):**
-  - In `train_core`: Total = 5,629, Told = 4,250. Gap = 5,629 - 4,250 = 1,379 (1,379 / 5,629 = 24.5% missed by self-report).
-  - In `validation`: Total = 2,023, Told = 1,571. Gap = 2,023 - 1,571 = 452 (452 / 2,023 = 22.3% missed by self-report).
-  - In `test`: Total = 2,447, Told = 1,951. Gap = 2,447 - 1,951 = 496 (496 / 2,447 = 20.3% missed by self-report).
-  - Self-report consistently underestimates total diabetes burden by 20.3% to 24.5% across cycles because undiagnosed individuals with elevated lab values are classified as negative.
+  - In `train_core`, 5,629 adults are told-or-measured and 4,250 are told, so 1,379 more people (about 24% of the told-or-measured group) were found only by lab values. Note that the denominators differ slightly (41,189 vs 40,580).
 - **Option 2D (`hypertension_measured_130_80` undiagnosed):** Positives = 7,139 / 25,380 (28.1%) in `train_core`, 1,861 / 7,299 (25.5%) in `validation`, 2,244 / 7,268 (30.9%) in `test`.
 - **Option 2E (`hypertension_stage1_or_clinical`):** Positives = 20,125 / 41,184 (48.9%) in `train_core`, 6,106 / 12,104 (50.4%) in `validation`, 7,341 / 13,999 (52.4%) in `test`.
 
-### Blood Pressure Measurement Protocol Shift (Known Limitation)
-As documented in `get_nhanes.py` lines 54–55 and 157–160:
-- For `train_core` (1999–2012) and `validation` (2013–2016), blood pressure was measured using a manual auscultatory cuff (`BPX`).
-- For `test` (2017–2018 and 2021–2023), NHANES transitioned to an automated oscillometric cuff (`BPXO`).
-- This measurement protocol change across survey cycles is a known limitation of the hypertension label, contributing to the higher observed test prevalence (30.9% in test vs. 25.5% in validation).
+### Blood Pressure Measurement Protocol Shift (Known Limitation - Fix F2)
+As proven by `Select-String` on `C:\Users\usmanbari\Desktop\Chronicare-data\get_nhanes.py` (outside the repo):
+- Lines 54–55:
+  - `"BPX",    # blood pressure (manual cuff), up to 2017-2018`
+  - `"BPXO",   # blood pressure (automatic cuff), 2017-2018 and 2021-2023`
+- Lines 157–158:
+  - `"sbp": row_mean(full, ["BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4"]).fillna(row_mean(full, ["O_BPXOSY1", "O_BPXOSY2", "O_BPXOSY3"]))`
+- SBP/DBP is the mean of the MANUAL cuff readings (`BPX`), falling back to the AUTOMATIC cuff (`BPXO`) only when the manual reading is missing.
+- 2017–2018 has both manual and automatic cuffs, so it is mostly manual.
+- 2021–2023 has only the automatic cuff.
+- 2019–2020 was not released independently due to COVID-19 disruption and is not in the data.
+- This protocol shift explains the by-cycle prevalence in the test split printed by `scripts/ml/count_label_populations.py`:
+
+```text
+=== HYPERTENSION LABEL (130/80) TEST SPLIT PREVALENCE BY CYCLE ===
+| Test Cycle | Eligible (Not told, not on meds) | Positives (Measured >= 130/80) | Prevalence |
+| --- | --- | --- | --- |
+| 2017-2018 | 3,390 | 1,087 | 32.06% |
+| 2021-2023 | 3,878 | 1,157 | 29.83% |
+```
 
 ### Recommendation & Rationale
 Option 2A for Diabetes and Option 2D for Hypertension. The card answers "could you have the other condition without knowing it?", so the label is the undiagnosed version.
@@ -100,8 +112,8 @@ Models must be trained on an appropriate non-diagnosed cohort, but must also be 
 
 ### Cohorts Defined
 1. **Training Population (Option 1):**
-   - **Diabetes Model:** Adults without diagnosed diabetes (`told_diabetes == 0`). Evaluated rows: 32,647 (`train_core`), 9,371 (`validation`), 9,261 (`test`).
-   - **Hypertension Model:** Adults not told high BP and not on BP meds (`told_high_bp == 0 & takes_bp_meds != 1`). Evaluated rows: 25,380 (`train_core`), 7,299 (`validation`), 7,268 (`test`).
+   - **Diabetes Model:** Adults WITHOUT the diagnosed condition (`told_diabetes == 0`). Evaluated rows: 32,647 (`train_core`), 9,371 (`validation`), 9,261 (`test`).
+   - **Hypertension Model:** Adults WITHOUT the diagnosed condition (not told high BP and not on BP meds: `told_high_bp == 0 & takes_bp_meds != 1`). Evaluated rows: 25,380 (`train_core`), 7,299 (`validation`), 7,268 (`test`).
 2. **Card Population (for Evaluation):**
    These are the patients who actually see the card in the app:
    - **Diabetes Card Population:** Rows in the diabetes population with `told_high_bp == 1` (hypertensive adults screened for diabetes).
@@ -115,14 +127,14 @@ Models must be trained on an appropriate non-diagnosed cohort, but must also be 
 3. **Condition-Specific Training Subpopulation (Option 3):**
    - Training solely on cross-diagnosed adults would restrict training records to 8,634 for diabetes and only 1,223 for hypertension in `train_core`, which drastically reduces training sample size.
 
-**USMAN DECISION:** Option 1 for TRAINING (adults without the diagnosed condition). Card populations (hypertensive adults for diabetes model; diabetic adults for hypertension model) used for EVALUATION.
+**USMAN DECISION:** Option 1 for TRAINING: adults WITHOUT the diagnosed condition (`told_diabetes == 0` for diabetes; `told_high_bp == 0 & takes_bp_meds != 1` for hypertension). Card populations (hypertensive adults for diabetes model; diabetic adults for hypertension model) are used for EVALUATION.
 
 ---
 
 ## Decision D4: Feature Sets (BASIC and FULL)
 
 ### Feature Availability in NHANES Core
-Computed via `scripts/ml/count_label_populations.py`:
+Directly printed by `scripts/ml/count_label_populations.py`:
 
 ```text
 === FEATURE AVAILABILITY AND NON-MISSING % PER SPLIT ===
@@ -143,12 +155,12 @@ Computed via `scripts/ml/count_label_populations.py`:
 | phys_active | No | 0.0% (Missing from data) | 0.0% (Missing from data) | 0.0% (Missing from data) |
 ```
 
-### Feature Inclusion and Exclusion Rules
-Per decision rule: "Drop any feature that is missing from the data or > 40% missing in train_core":
+### Feature Inclusion and Exclusion Rules (Fix 2g)
+- **Exam Availability Limitation:** Notice that test-split exam availability is lower (`bmi` 83.3%, `sbp` 82.0%, `hba1c` 80.4%, `waist_cm` 80.0%, vs about 90–95% in `train_core` and `validation`).
 - **`phys_active`:** Dropped (missing from `nhanes_core`).
-- **`family_hx_diabetes`:** Dropped (46.2% missing in `train_core`, exceeding the 40% threshold).
-- **`fasting_glucose`:** Dropped (56.2% missing in `train_core`). For the hypertension model, `hba1c` is used instead (only 10.2% missing in `train_core`).
-- **Demographics & Equity:** Race/ethnicity, `income_poverty_ratio`, and education are **NOT** model features. They are reserved solely for post-hoc fairness and subgroup evaluation.
+- **`family_hx_diabetes`:** Dropped because its availability swings wildly across splits (53.8% in `train_core` / 93.0% in `validation` / 39.2% in `test`), which introduces temporal distribution instability beyond just the 40% missingness rule.
+- **`fasting_glucose`:** Dropped (56.2% missing in `train_core`; exists only in fasting morning subsample). For the hypertension model, `hba1c` is used instead.
+- **Demographics & Equity:** Race/ethnicity, `income_poverty_ratio`, and education are **NOT** model features. They are reserved solely for post-hoc subgroup evaluation.
 
 ### Model Feature Sets
 1. **BASIC Model (Profile fields only):**
@@ -162,7 +174,7 @@ Per decision rule: "Drop any feature that is missing from the data or > 40% miss
 ### App Data Collection Requirements ("App must collect")
 To execute the FULL model in future releases, the ChronicCare AI profile or check-in must collect:
 - **`waist_cm` (Waist Circumference in cm):** Not currently collected in the application profile.
-*(Note: Age, sex, BMI, smoking status, condition flags, blood pressure, and HbA1c are already part of the existing app profile and check-in schema).*
+*(Note: Age, sex, BMI, smoking status, condition flags, blood pressure, and HbA1c are already collected).*
 
 **USMAN DECISION:** Option 1 (two tiers: BASIC profile-only, FULL with vital/lab + waist_cm). Features missing from data or > 40% missing in train_core dropped. Race/ethnicity, income, and education reserved for subgroup evaluation only.
 
@@ -176,30 +188,21 @@ To execute the FULL model in future releases, the ChronicCare AI profile or chec
 - If mandatory BASIC features (`age`, `sex`, or `bmi`) are missing, return `null` risk card with status `"not_enough_information"`.
 
 ### Training Policy (Complete Cases Only)
-- Models are trained on complete cases without imputed values.
+Models are trained on complete cases without imputed values.
 
-#### Complete Case Counts by Split:
-1. **Diabetes Model (Evaluated Pop: `told_diabetes == 0` & lab valid):**
-   - `train_core` (Total evaluable: 32,647):
-     - BASIC complete: 29,084 (1,135 pos, 3.90%) | Dropped missing BASIC: 3,563 (10.9%)
-     - FULL complete: 27,448 (1,043 pos, 3.80%) | Dropped missing FULL: 5,199 (15.9%)
-   - `validation` (Total evaluable: 9,371):
-     - BASIC complete: 9,264 (372 pos, 4.02%) | Dropped missing BASIC: 107 (1.1%)
-     - FULL complete: 8,714 (336 pos, 3.86%) | Dropped missing FULL: 657 (7.0%)
-   - `test` (Total evaluable: 9,261):
-     - BASIC complete: 9,117 (388 pos, 4.26%) | Dropped missing BASIC: 144 (1.6%)
-     - FULL complete: 8,681 (360 pos, 4.15%) | Dropped missing FULL: 580 (6.3%)
-
-2. **Hypertension Model (Evaluated Pop: `told_high_bp == 0 & takes_bp_meds != 1` & BP valid):**
-   - `train_core` (Total evaluable: 25,380):
-     - BASIC complete: 22,061 (6,623 pos, 30.02%) | Dropped missing BASIC: 3,319 (13.1%)
-     - FULL complete: 20,766 (6,186 pos, 29.79%) | Dropped missing FULL: 4,614 (18.2%)
-   - `validation` (Total evaluable: 7,299):
-     - BASIC complete: 7,126 (1,803 pos, 25.30%) | Dropped missing BASIC: 173 (2.4%)
-     - FULL complete: 6,609 (1,642 pos, 24.84%) | Dropped missing FULL: 690 (9.5%)
-   - `test` (Total evaluable: 7,268):
-     - BASIC complete: 7,037 (2,158 pos, 30.67%) | Dropped missing BASIC: 231 (3.2%)
-     - FULL complete: 6,537 (2,004 pos, 30.66%) | Dropped missing FULL: 731 (10.1%)
+```text
+=== COMPLETE-CASE COUNTS ACROSS TEMPORAL SPLITS (BASIC vs FULL) ===
+| Model | Tier | Audience / Population | train_core (Pos / Total) | validation (Pos / Total) | test (Pos / Total) |
+| --- | --- | --- | --- | --- | --- |
+| Diabetes Model | BASIC | Adults without diagnosed diabetes | 1,135 / 29,084 (3.9%) | 372 / 9,264 (4.0%) | 388 / 9,117 (4.3%) |
+| Diabetes Model | FULL | Adults without diagnosed diabetes | 1,043 / 27,448 (3.8%) | 336 / 8,714 (3.9%) | 360 / 8,681 (4.1%) |
+| Diabetes Model (Card) | BASIC | Card Audience (told_high_bp == 1) | 593 / 8,279 (7.2%) | 186 / 2,708 (6.9%) | 190 / 2,720 (7.0%) |
+| Diabetes Model (Card) | FULL | Card Audience (told_high_bp == 1) | 540 / 7,751 (7.0%) | 171 / 2,513 (6.8%) | 176 / 2,579 (6.8%) |
+| Hypertension Model | BASIC | Adults not told high BP & not on meds | 6,623 / 22,061 (30.0%) | 1,803 / 7,126 (25.3%) | 2,158 / 7,037 (30.7%) |
+| Hypertension Model | FULL | Adults not told high BP & not on meds | 6,186 / 20,766 (29.8%) | 1,642 / 6,609 (24.8%) | 2,004 / 6,537 (30.7%) |
+| Hypertension Model (Card) | BASIC | Card Audience (told_diabetes == 1) | 510 / 1,172 (43.5%) | 170 / 445 (38.2%) | 191 / 482 (39.6%) |
+| Hypertension Model (Card) | FULL | Card Audience (told_diabetes == 1) | 474 / 1,092 (43.4%) | 155 / 409 (37.9%) | 173 / 440 (39.3%) |
+```
 
 **USMAN DECISION:** Option 1. No imputation at inference. Training uses complete cases only; dropped counts per split documented above.
 
@@ -236,11 +239,11 @@ External dependencies like LightGBM and EBM/interpret are excluded.
 ### Band Definitions
 Because negative predictive value (NPV) exceeds 95% across virtually all thresholds at 4% baseline prevalence, the bands are defined using the validated operating points:
 - **LOW:** Predicted probability $< \tau_{\text{opt}}$ (below the locked D7 threshold).  
-  *Patient-facing text:* "Below the screening threshold; keep your usual check-ups."
+  *Patient-facing text:* "below the screening threshold; keep your usual check-ups".
 - **MODERATE:** $\tau_{\text{opt}} \le \text{Predicted probability} < P_{90}$ (from the locked threshold up to the 90th percentile of validation set probabilities).
 - **HIGH:** Predicted probability $\ge P_{90}$ (top 10% of validation set probabilities).
 
-**USMAN DECISION:** Modified three-tier bands: LOW (< locked D7 threshold), MODERATE (locked threshold to 90th percentile validation), HIGH (top 10% validation scores). Patient text updated as specified.
+**USMAN DECISION:** Modified three-tier bands: LOW (< locked D7 threshold), MODERATE (locked threshold to 90th percentile validation), HIGH (top 10% validation scores). Patient text: "below the screening threshold; keep your usual check-ups".
 
 ---
 
@@ -258,13 +261,14 @@ Because negative predictive value (NPV) exceeds 95% across virtually all thresho
 
 ---
 
-## Decision D10: Production Model Export and Runtime Format
+## Decision D10: Production Model Export and Runtime Format (Fix 2d)
 
 ### Export Format
-- If Logistic Regression meets performance criteria (or if a tree model fails to beat Logistic Regression validation AUROC by at least $+0.02$ with acceptable calibration), export Logistic Regression coefficients, intercept, and scaler parameters to a pure Python class or JSON format.
-- Pure Python execution requires standard library only (`math.exp`), with zero additional runtime dependencies and minimal memory overhead.
+- Pure-Python export of Logistic Regression (unless a tree model beats it by $\ge 0.02$ validation AUROC).
+- **Calibration double-dipping avoided:** Isotonic calibration on the validation set is removed, because the validation set is already used to pick the operating threshold.
+- Calibration is only reported (slope/intercept). If the validation slope is outside $0.8–1.2$, Day 4 stops and asks Usman.
 
-**USMAN DECISION:** Option 1. Export Logistic Regression parameters to pure Python unless a tree model beats LR validation AUROC by $\ge 0.02$ with acceptable calibration.
+**USMAN DECISION:** Pure-Python export of LR (unless a tree model beats it by >= 0.02 validation AUROC). REMOVE isotonic calibration on validation: the validation set picks the threshold, so calibrating on it too is double-dipping. Calibration is only reported (slope/intercept). If the validation slope is outside 0.8-1.2, Day 4 stops and asks Usman.
 
 ---
 
@@ -278,7 +282,7 @@ A model must satisfy all five gates on the held-out temporal test set (`test` 20
 4. **Subgroup Sensitivity:** No evaluated demographic or clinical subgroup with $\ge 50$ positive cases (sex, age band, race/ethnicity, card population) has sensitivity $< 0.60$.
 5. **Model Selection:** The FULL model is shipped only if it beats the BASIC model on validation AUROC; otherwise ship BASIC.
 
-If a model fails any gate, it is not shipped, remains disabled behind `RISK_ENABLED=off`, and the documentation states which gate was missed.
+If a model fails any gate, it is not shipped, remains disabled behind `RISK_ENABLED=off`, and the documentation states which gate was missed. Never move the threshold on test.
 
 **USMAN DECISION:** Modified 5 gates (test AUROC $\ge 0.75$, test sensitivity $\ge 0.75$, calibration slope 0.8–1.2, subgroup sensitivity $\ge 0.60$, FULL beats BASIC).
 
@@ -291,14 +295,14 @@ If a model fails any gate, it is not shipped, remains disabled behind `RISK_ENAB
 | **D1** | Target User & Reciprocal Display | Option 1: Reciprocal display (HTN sees T2D risk; T2D sees HTN risk; dual sees none). Progression models not in scope. |
 | **D2 (T2D)** | Diabetes Target Label | Option 2A: `diabetes_undiagnosed` (`(hba1c >= 6.5) \| (fasting_glucose >= 126.0)` on non-diabetics). |
 | **D2 (HTN)** | Hypertension Target Label | Option 2D: Measured BP $\ge 130/80$ on adults not told high BP and not on BP meds. |
-| **D3** | Training & Card Populations | Option 1 for training (non-diagnosed adults). Card populations used for evaluation. |
+| **D3** | Training & Card Populations | Option 1 for training: adults WITHOUT the diagnosed condition. Card populations used for evaluation. |
 | **D4** | Feature Sets | Option 1: Two tiers (BASIC profile-only; FULL with vitals/labs + waist_cm). Dropped: `phys_active`, `family_hx_diabetes`, `fasting_glucose`. App must collect: `waist_cm`. |
 | **D5** | Missing Input Handling | Option 1: No imputation at inference. Training on complete cases only. |
 | **D6** | Model Slate to Benchmark | Modified slate: scikit-learn only (`LogisticRegression`, `LogisticRegression` balanced, `RandomForest`, `HistGradientBoosting`). |
 | **D7** | Decision Threshold Policy | Option 1: Highest threshold on validation with sensitivity $\ge 0.80$, locked for test. |
-| **D8** | Risk Bands | Modified three-tier bands: LOW (< locked threshold), MODERATE (locked threshold to 90th percentile), HIGH (top 10%). |
+| **D8** | Risk Bands | Modified three-tier bands: LOW (< locked threshold), MODERATE (locked threshold to 90th percentile), HIGH (top 10%). Text: "below the screening threshold; keep your usual check-ups". |
 | **D9** | Triage Interaction | Option 1: Can only raise routine $\rightarrow$ review (doctor review). Controlled by existing `RISK_ENABLED=off` and `RISK_CAN_RAISE=off`. |
-| **D10** | Production Export Format | Option 1: Pure Python export if tree does not beat LR by $\ge 0.02$ validation AUROC. |
-| **D11** | FYP-1 Acceptance Criteria | Modified 5 gates: Test AUROC $\ge 0.75$, Test Sens $\ge 0.75$, Calibration slope 0.8–1.2, Subgroup Sens $\ge 0.60$, FULL beats BASIC. |
+| **D10** | Production Export Format | Pure-Python export of LR (unless a tree model beats it by $\ge 0.02$ validation AUROC). No isotonic calibration on validation. Day 4 stops if validation slope is outside 0.8–1.2. |
+| **D11** | FYP-1 Acceptance Criteria | Modified 5 gates: Test AUROC $\ge 0.75$, Test Sens $\ge 0.75$, Calibration slope 0.8–1.2, Subgroup Sens $\ge 0.60$, FULL beats BASIC. Never move threshold on test. |
 
 ---

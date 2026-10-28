@@ -1,22 +1,7 @@
 """
-Compute train_core, validation, and test counts and prevalence
-for candidate ML risk labels and card evaluation populations in ChronicCare AI.
-
-Compares:
-1. Diabetes:
-   - Option 2A (Screening / Undiagnosed): Label diabetes_undiagnosed, trained on adults WITHOUT diagnosed diabetes (told_diabetes == 0).
-   - Option 2B (Total Burden): Label diabetes_told_or_measured, trained on all adults.
-   - Option 2C (Self-Reported): Label diabetes_told, trained on all adults.
-2. Hypertension:
-   - Option 2D (Screening / Undiagnosed): Measured BP >= 130/80, trained on adults NOT told they have high BP and NOT on BP meds.
-   - Option 2E (Comprehensive / Total Burden): Label hypertension_stage1_or_clinical, trained on all adults.
-   - Option 2F (Clinical History): Label hypertension_told_or_meds, trained on all adults.
-   - Option 2G (Measured 130/80 on All Adults): Label hypertension_measured_130_80, trained on all adults.
-3. Card Populations (for Evaluation):
-   - Diabetes Card Population: Evaluates diabetes model strictly on adults with told_high_bp == 1 (the patients who see the diabetes card).
-   - Hypertension Card Population: Evaluates hypertension model strictly on adults with told_diabetes == 1 (the patients who see the hypertension card).
-4. Feature Missingness:
-   - Checks feature presence and non-missing % per split for BASIC and candidate FULL features.
+Compute train_core, validation, and test counts, prevalence, complete cases,
+and cycle breakdowns for ML risk models in ChronicCare AI.
+Outputs strictly aggregated counts, percentages, and markdown tables.
 """
 from __future__ import annotations
 
@@ -44,7 +29,7 @@ def compute_counts():
     df = load_nhanes_core()
     splits = load_split("nhanes_temporal_v1")
 
-    # Hypertension undiagnosed series
+    # Hypertension undiagnosed series: measured >= 130/80 among adults NOT told high BP and NOT on BP meds
     htn_pop_mask = (df["told_high_bp"] == 0) & (df["takes_bp_meds"] != 1)
     y_htn_und_130_80 = pd.Series(
         np.where(
@@ -55,12 +40,14 @@ def compute_counts():
         index=df.index,
     )
 
+    y_dm_und = extract_diabetes_undiagnosed(df)
+
+    # 1. Target Label Populations & Prevalence
     targets = [
-        # (label_name, population_name, y_series, extra_filter_mask)
         (
             "diabetes_undiagnosed (Option 2A)",
             "Adults WITHOUT diagnosed diabetes (told_diabetes == 0)",
-            extract_diabetes_undiagnosed(df),
+            y_dm_und,
             None,
         ),
         (
@@ -103,7 +90,7 @@ def compute_counts():
         (
             "Diabetes Card Eval Population",
             "Non-diabetics with told_high_bp == 1 (Card audience)",
-            extract_diabetes_undiagnosed(df),
+            y_dm_und,
             (df["told_diabetes"] == 0) & (df["told_high_bp"] == 1),
         ),
         (
@@ -134,7 +121,7 @@ def compute_counts():
     print("=== POPULATION COUNTS AND PREVALENCE ACROSS TEMPORAL SPLITS ===")
     print(df_to_markdown(res_df, index=False))
 
-    # Feature completeness table
+    # 2. Feature Availability Table (% Non-Missing)
     features = [
         "age",
         "sex_male",
@@ -168,7 +155,75 @@ def compute_counts():
     print("\n=== FEATURE AVAILABILITY AND NON-MISSING % PER SPLIT ===")
     print(df_to_markdown(feat_df, index=False))
 
-    return res_df, feat_df
+    # 3. Complete-Case Counts for BASIC and FULL Models
+    # Definitions:
+    # Diabetes BASIC: age, sex_male, bmi, ever_smoked_100, told_high_bp
+    # Diabetes FULL:  BASIC + sbp, dbp, waist_cm
+    # Hypertension BASIC: age, sex_male, bmi, ever_smoked_100, told_diabetes
+    # Hypertension FULL:  BASIC + hba1c, waist_cm
+
+    dm_basic_cols = ["age", "sex_male", "bmi", "ever_smoked_100", "told_high_bp"]
+    dm_full_cols = dm_basic_cols + ["sbp", "dbp", "waist_cm"]
+
+    htn_basic_cols = ["age", "sex_male", "bmi", "ever_smoked_100", "told_diabetes"]
+    htn_full_cols = htn_basic_cols + ["hba1c", "waist_cm"]
+
+    cc_configs = [
+        ("Diabetes Model", "BASIC", dm_basic_cols, y_dm_und, df["told_diabetes"] == 0, "Adults without diagnosed diabetes"),
+        ("Diabetes Model", "FULL", dm_full_cols, y_dm_und, df["told_diabetes"] == 0, "Adults without diagnosed diabetes"),
+        ("Diabetes Model (Card)", "BASIC", dm_basic_cols, y_dm_und, (df["told_diabetes"] == 0) & (df["told_high_bp"] == 1), "Card Audience (told_high_bp == 1)"),
+        ("Diabetes Model (Card)", "FULL", dm_full_cols, y_dm_und, (df["told_diabetes"] == 0) & (df["told_high_bp"] == 1), "Card Audience (told_high_bp == 1)"),
+        ("Hypertension Model", "BASIC", htn_basic_cols, y_htn_und_130_80, htn_pop_mask, "Adults not told high BP & not on meds"),
+        ("Hypertension Model", "FULL", htn_full_cols, y_htn_und_130_80, htn_pop_mask, "Adults not told high BP & not on meds"),
+        ("Hypertension Model (Card)", "BASIC", htn_basic_cols, y_htn_und_130_80, htn_pop_mask & (df["told_diabetes"] == 1), "Card Audience (told_diabetes == 1)"),
+        ("Hypertension Model (Card)", "FULL", htn_full_cols, y_htn_und_130_80, htn_pop_mask & (df["told_diabetes"] == 1), "Card Audience (told_diabetes == 1)"),
+    ]
+
+    cc_records = []
+    for model_name, tier, feat_list, y_series, pop_filter, pop_desc in cc_configs:
+        row = {"Model": model_name, "Tier": tier, "Audience / Population": pop_desc}
+        for split_name in ["train_core", "validation", "test"]:
+            seqns = splits[split_name]
+            mask = df["seqn"].isin(seqns) & pop_filter & y_series.notna()
+            # Require all features in feat_list to be non-null
+            for c in feat_list:
+                mask = mask & df[c].notna()
+
+            sub_y = y_series[mask]
+            n_rows = len(sub_y)
+            n_pos = int((sub_y == 1.0).sum())
+            prev = (n_pos / n_rows * 100.0) if n_rows > 0 else 0.0
+            row[f"{split_name} (Pos / Total)"] = f"{n_pos:,} / {n_rows:,} ({prev:.1f}%)"
+        cc_records.append(row)
+
+    cc_df = pd.DataFrame(cc_records)
+    print("\n=== COMPLETE-CASE COUNTS ACROSS TEMPORAL SPLITS (BASIC vs FULL) ===")
+    print(df_to_markdown(cc_df, index=False))
+
+    # 4. Test Split Hypertension Prevalence by NHANES Cycle
+    test_seqns = splits["test"]
+    test_df = df[df["seqn"].isin(test_seqns)].copy()
+    test_y = y_htn_und_130_80[df["seqn"].isin(test_seqns)]
+
+    cycle_records = []
+    for cycle_val in sorted(test_df["cycle"].unique()):
+        cycle_mask = (test_df["cycle"] == cycle_val)
+        sub_y = test_y[cycle_mask]
+        n_eval = int(sub_y.notna().sum())
+        n_pos = int((sub_y == 1.0).sum())
+        prev = (n_pos / n_eval * 100.0) if n_eval > 0 else 0.0
+        cycle_records.append({
+            "Test Cycle": cycle_val,
+            "Eligible (Not told, not on meds)": f"{n_eval:,}",
+            "Positives (Measured >= 130/80)": f"{n_pos:,}",
+            "Prevalence": f"{prev:.2f}%",
+        })
+
+    cycle_df = pd.DataFrame(cycle_records)
+    print("\n=== HYPERTENSION LABEL (130/80) TEST SPLIT PREVALENCE BY CYCLE ===")
+    print(df_to_markdown(cycle_df, index=False))
+
+    return res_df, feat_df, cc_df, cycle_df
 
 
 if __name__ == "__main__":
