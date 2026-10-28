@@ -1,5 +1,5 @@
 {
-  "_comment": "Expected full question lists for single-condition flows (DM-only and HTN-only) across en, ur, roman_ur for normal and elevated readings. Generated from deterministic v3 planner and runner rules.",
+  "_comment": "Generated from feat/i2-4-v3-dual-diagnosis (commit 04281ed), establishing the corrected v3 single-condition flow baseline. In dev (commit 22af452), known_slots keys (including __evidence and __partial parser artifacts) were merged into asked_slots and counted in current_count, prematurely exhausting the budget after only 4-5 questions and cutting normal flows before adherence. In this PR, clean_known excludes parser artifacts so current_count tracks actual clinical questions asked, enabling normal flows to reach adherence and high-reading flows to properly utilize the 12-question expanded budget.",
   "dm_high_en": [
     "greeting",
     "glucose_reading",

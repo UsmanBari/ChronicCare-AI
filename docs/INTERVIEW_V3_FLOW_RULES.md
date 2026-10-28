@@ -77,8 +77,72 @@ Before completing the check-in, the interview presents a structured summary of a
 - Downstream clinical intake confidence is automatically lowered by one level (e.g., `"High"` becomes `"Medium"`, `"Medium"` becomes `"Low"`).
 - The `answered_by` attribute is preserved in the stored check-in result, returned in the `/complete` endpoint response, and surfaced in the provider review detail.
 
-### Rule R10: Single-Condition Flow Invariance
-The question sequence and triage outcomes for single-condition patients (diabetes only or hypertension only) must remain unchanged from baseline, except where explicitly updated by verified safety fixes (such as glucose unit clarification). This invariance is continuously enforced by automated equivalence tests.
+### Rule R10: Single-Condition Flow Invariance & R10 Exception
+
+The baseline principle is that question sequences and triage outcomes for single-condition patients (diabetes only or hypertension only) must remain predictable, safe, and clinically sound.
+
+#### Usman's Decision on Single-Condition Flow Changes
+> **ACCEPTED for v3 (it's behind the flag, and dev skipping adherence in normal-reading flows was a gap).**
+
+#### Code Reason for Flow Differences (dev 22af452 vs PR #77)
+In `dev` (commit `22af452`), `interview_planner.py` had a slot-tallying bug:
+1. **Parser Artifact Leak into Budget Counter (`interview_planner.py:167-172`)**: In `dev`, `asked_slots = set(asked_slots) | set(known_slots.keys())`. Because the answer understanding parser populates `slot__evidence` and `slot__partial` alongside `slot`, `current_count` counted these metadata keys as asked questions. After only 4–5 turns, `current_count` hit the standard 8-question budget cap, prematurely halting the interview before `adherence_diabetes` or `adherence_hypertension` could ever be asked in normal-reading flows.
+2. **Corrected Slot Counting in PR #77**: `clean_known = {k for k in known_slots.keys() if not k.endswith("__evidence") and not k.endswith("__partial")}`. Filtering out parser metadata ensures `current_count` measures actual patient questions asked.
+3. **Dynamic Budget Expansion (`interview_planner.py:186-200`)**: When readings are elevated (glucose ≥ 250 or BP ≥ 140), `concerning = True`, expanding the budget to 12. With accurate question counting, high-reading flows systematically reach adherence, missed doses, lifestyle, fasting, patient free-text note, and wellbeing screens up to the 12-question cap.
+
+#### Budget & Progress Hint Rules
+1. **Budget Counting**: `wellbeing_depressed_mood`, `wellbeing_little_interest` (2 questions), and `patient_free_text_note` count toward the budget like any other clinical question.
+2. **Progress Hint Format**: `progress_hint` displays `current_count/max_budget` starting from Turn 1.
+
+#### Before (dev 22af452) vs After (PR #77) Comparison Table (All 12 Cases)
+
+| Scenario ID | dev Count | PR #77 Count | dev Step Sequence | PR #77 Step Sequence | Flow Change |
+|---|:---:|:---:|---|---|---|
+| `dm_high_en` | 6 | 12 | `greeting, glucose_reading, glucose_context, hyperglycemia_symptoms, foot_problems, adherence_diabetes, summary_confirmation` | `greeting, glucose_reading, glucose_context, hyperglycemia_symptoms, foot_problems, adherence_diabetes, missed_doses_reason_diabetes, lifestyle_diabetes, is_fasting_today, patient_free_text_note, wellbeing_depressed_mood, wellbeing_little_interest, summary_confirmation` | +6 questions (missed doses, lifestyle, fasting, free text, wellbeing 1 & 2 under expanded 12 budget) |
+| `dm_high_ro` | 6 | 12 | `greeting, glucose_reading, glucose_context, hyperglycemia_symptoms, foot_problems, adherence_diabetes, summary_confirmation` | `greeting, glucose_reading, glucose_context, hyperglycemia_symptoms, foot_problems, adherence_diabetes, missed_doses_reason_diabetes, lifestyle_diabetes, is_fasting_today, patient_free_text_note, wellbeing_depressed_mood, wellbeing_little_interest, summary_confirmation` | +6 questions |
+| `dm_high_ur` | 6 | 12 | `greeting, glucose_reading, glucose_context, hyperglycemia_symptoms, foot_problems, adherence_diabetes, summary_confirmation` | `greeting, glucose_reading, glucose_context, hyperglycemia_symptoms, foot_problems, adherence_diabetes, missed_doses_reason_diabetes, lifestyle_diabetes, is_fasting_today, patient_free_text_note, wellbeing_depressed_mood, wellbeing_little_interest, summary_confirmation` | +6 questions |
+| `dm_normal_en` | 5 | 8 | `greeting, glucose_reading, glucose_context, hyperglycemia_symptoms, foot_problems, summary_confirmation` | `greeting, glucose_reading, glucose_context, hyperglycemia_symptoms, foot_problems, adherence_diabetes, missed_doses_reason_diabetes, lifestyle_diabetes, summary_confirmation` | +3 questions (adherence, missed doses, lifestyle now asked; gap closed) |
+| `dm_normal_ro` | 5 | 8 | `greeting, glucose_reading, glucose_context, hyperglycemia_symptoms, foot_problems, summary_confirmation` | `greeting, glucose_reading, glucose_context, hyperglycemia_symptoms, foot_problems, adherence_diabetes, missed_doses_reason_diabetes, lifestyle_diabetes, summary_confirmation` | +3 questions |
+| `dm_normal_ur` | 5 | 8 | `greeting, glucose_reading, glucose_context, hyperglycemia_symptoms, foot_problems, summary_confirmation` | `greeting, glucose_reading, glucose_context, hyperglycemia_symptoms, foot_problems, adherence_diabetes, missed_doses_reason_diabetes, lifestyle_diabetes, summary_confirmation` | +3 questions |
+| `htn_high_en` | 5 | 12 | `greeting, bp_reading, bp_technique, associated_symptoms, otc_meds_bp, summary_confirmation` | `greeting, bp_reading, bp_technique, associated_symptoms, otc_meds_bp, adherence_hypertension, missed_doses_reason_hypertension, lifestyle_hypertension, is_fasting_today, patient_free_text_note, wellbeing_depressed_mood, wellbeing_little_interest, summary_confirmation` | +7 questions (adherence, missed doses, lifestyle, fasting, free text, wellbeing 1 & 2 under expanded 12 budget) |
+| `htn_high_ro` | 5 | 12 | `greeting, bp_reading, bp_technique, associated_symptoms, otc_meds_bp, summary_confirmation` | `greeting, bp_reading, bp_technique, associated_symptoms, otc_meds_bp, adherence_hypertension, missed_doses_reason_hypertension, lifestyle_hypertension, is_fasting_today, patient_free_text_note, wellbeing_depressed_mood, wellbeing_little_interest, summary_confirmation` | +7 questions |
+| `htn_high_ur` | 5 | 12 | `greeting, bp_reading, bp_technique, associated_symptoms, otc_meds_bp, summary_confirmation` | `greeting, bp_reading, bp_technique, associated_symptoms, otc_meds_bp, adherence_hypertension, missed_doses_reason_hypertension, lifestyle_hypertension, is_fasting_today, patient_free_text_note, wellbeing_depressed_mood, wellbeing_little_interest, summary_confirmation` | +7 questions |
+| `htn_normal_en` | 4 | 8 | `greeting, bp_reading, bp_technique, associated_symptoms, summary_confirmation` | `greeting, bp_reading, bp_technique, associated_symptoms, adherence_hypertension, missed_doses_reason_hypertension, lifestyle_hypertension, is_fasting_today, summary_confirmation` | +4 questions (adherence, missed doses, lifestyle, fasting now asked; gap closed) |
+| `htn_normal_ro` | 4 | 8 | `greeting, bp_reading, bp_technique, associated_symptoms, summary_confirmation` | `greeting, bp_reading, bp_technique, associated_symptoms, adherence_hypertension, missed_doses_reason_hypertension, lifestyle_hypertension, is_fasting_today, summary_confirmation` | +4 questions |
+| `htn_normal_ur` | 4 | 8 | `greeting, bp_reading, bp_technique, associated_symptoms, summary_confirmation` | `greeting, bp_reading, bp_technique, associated_symptoms, adherence_hypertension, missed_doses_reason_hypertension, lifestyle_hypertension, is_fasting_today, summary_confirmation` | +4 questions |
+
+#### Progress Hint at Every Turn
+
+##### Case 1: `dm_high_en` (Glucose 250, Single-Condition Diabetes High)
+- **Turn 1**: step=`greeting` -> `progress_hint="1/8"`
+- **Turn 2**: step=`glucose_reading` -> `progress_hint="2/8"`
+- **Turn 3**: step=`glucose_context` -> `progress_hint="3/12"` *(budget expands to 12 upon receiving elevated glucose 250)*
+- **Turn 4**: step=`hyperglycemia_symptoms` -> `progress_hint="4/12"`
+- **Turn 5**: step=`foot_problems` -> `progress_hint="5/12"`
+- **Turn 6**: step=`adherence_diabetes` -> `progress_hint="6/12"`
+- **Turn 7**: step=`missed_doses_reason_diabetes` -> `progress_hint="7/12"`
+- **Turn 8**: step=`lifestyle_diabetes` -> `progress_hint="8/12"`
+- **Turn 9**: step=`is_fasting_today` -> `progress_hint="9/12"`
+- **Turn 10**: step=`patient_free_text_note` -> `progress_hint="10/12"`
+- **Turn 11**: step=`wellbeing_depressed_mood` -> `progress_hint="11/12"`
+- **Turn 12**: step=`wellbeing_little_interest` -> `progress_hint="12/12"`
+- **Turn 13**: step=`summary_confirmation` -> `progress_hint="12/12"` *(summary confirmation reached, session ready for submit)*
+
+##### Case 2: `dual_high` (Glucose 250, BP 165/100, Dual-Diagnosis High)
+- **Turn 1**: step=`greeting` -> `progress_hint="1/8"`
+- **Turn 2**: step=`glucose_reading` -> `progress_hint="2/8"`
+- **Turn 3**: step=`bp_reading` -> `progress_hint="3/12"` *(budget expands to 12 upon elevated glucose 250)*
+- **Turn 4**: step=`glucose_context` -> `progress_hint="4/12"`
+- **Turn 5**: step=`bp_technique` -> `progress_hint="5/12"`
+- **Turn 6**: step=`hyperglycemia_symptoms` -> `progress_hint="6/12"`
+- **Turn 7**: step=`foot_problems` -> `progress_hint="7/12"`
+- **Turn 8**: step=`associated_symptoms` -> `progress_hint="8/12"`
+- **Turn 9**: step=`otc_meds_bp` -> `progress_hint="9/12"`
+- **Turn 10**: step=`adherence_diabetes` -> `progress_hint="10/12"`
+- **Turn 11**: step=`adherence_hypertension` -> `progress_hint="11/12"`
+- **Turn 12**: step=`missed_doses_reason_diabetes` -> `progress_hint="12/12"`
+- **Turn 13**: step=`summary_confirmation` -> `progress_hint="12/12"` *(summary confirmation reached, session ready for submit)*
+
 
 ---
 
@@ -114,19 +178,16 @@ The question sequence and triage outcomes for single-condition patients (diabete
 - **Profile**: Type 2 Diabetes and Hypertension, baseline stable.
 1. **Reading 1** (R2): `diabetes_glucose_reading` -> `135` mg/dL.
 2. **Reading 2** (R2): `hypertension_bp_reading` -> `124/82` mmHg.
-3. **Shared Symptoms** (R3): `shared_symptoms_headache_vision` -> "No dizziness or vision problems".
-   *(Fills both diabetes hypo/hyper symptoms and hypertension associated symptoms)*.
-4. **Specific Symptoms**: `diabetes_foot_problems` -> "No sores or numbness".
-5. **Shared Adherence** (R4): `shared_medication_adherence` -> "Yes, took both metformin and amlodipine".
-   *(Fills both `adherence_diabetes` and `adherence_hypertension`)*.
-6. **Shared Lifestyle** (R5): `shared_lifestyle` -> "Eating home cooked meals, moderate salt".
-7. **Summary Confirmation** (R8):
-   - Glucose: 135 mg/dL
-   - Blood Pressure: 124/82 mmHg
-   - Symptoms: None
-   - Adherence: All medications taken
-   Patient selects "Confirm".
-- **Outcome**: Routine triage, 7 questions, 0 duplicate slots.
+3. **Context**: `diabetes_glucose_context` -> "Fasting".
+4. **Technique**: `hypertension_bp_technique` -> "Rested 5 minutes".
+5. **Diabetes Symptoms** (R3): `diabetes_hyperglycemia_symptoms` -> "No".
+6. **Foot Screen**: `diabetes_foot_problems` -> "No sores or numbness".
+7. **Hypertension Symptoms** (R3): `hypertension_associated_symptoms` -> "No headache or dizziness".
+8. **Summary Confirmation** (R8):
+   - Displays both captured readings (Glucose: 135 mg/dL, BP: 124/82 mmHg).
+   - Confirms no reported acute symptoms.
+   - Patient selects "Confirm".
+- **Outcome**: Routine triage, both biometric readings captured upfront, 0 duplicate slots.
 
 ---
 

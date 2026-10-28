@@ -483,12 +483,16 @@ def test_family_history_does_not_trigger_caregiver():
 
 
 def test_single_condition_full_flow_parity():
-    """R10 & FIX 2: Full question lists for DM-only and HTN-only must match dev baseline fixture.
+    """R10 Exception Baseline: Full question lists for DM-only and HTN-only must match established v3 baseline.
 
-    The expected question lists in `single_condition_expected_flows.json` were generated
-    by running dev's code (commit 22af452d18124c7b14481928e44eeab743610a9d) across en, ur,
-    and roman_ur for both normal and elevated readings. This test guarantees that single-condition
-    interview flows remain 100% identical and uncorrupted by dual-diagnosis planner changes.
+    The expected question lists in `single_condition_expected_flows.json` were generated from
+    `feat/i2-4-v3-dual-diagnosis` (commit 04281ed), establishing the corrected v3 single-condition flow baseline.
+    In dev (commit 22af452), known_slots keys (including __evidence and __partial parser artifacts) were merged
+    into asked_slots and counted in current_count, prematurely exhausting the budget after only 4-5 questions
+    and cutting normal flows before adherence. In this PR, clean_known excludes parser artifacts so current_count
+    tracks actual clinical questions asked, enabling normal flows to reach adherence and high-reading flows to
+    properly utilize the 12-question expanded budget (Usman decision: ACCEPTED for v3).
+    This test locks this corrected single-condition behavior against regression.
     """
     assert EXPECTED_FLOWS_PATH.exists(), f"Missing fixture at {EXPECTED_FLOWS_PATH}"
     with open(EXPECTED_FLOWS_PATH, "r", encoding="utf-8") as f:
