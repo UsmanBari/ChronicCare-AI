@@ -157,6 +157,12 @@ def resolve_answer(
     if options and set(options) == {"mmol/L", "mg/dL"}:
         if "glucose_unit_clarify" in answers_by_step:
             return str(answers_by_step["glucose_unit_clarify"]), "step_map", "glucose_unit_clarify"
+
+    # Caregiver / third-party confirmation turn detection (options ["Continue check-in", "Need urgent help", "Finish later"])
+    if options and "Continue check-in" in options:
+        if "third_party_confirm" in answers_by_step:
+            return str(answers_by_step["third_party_confirm"]), "step_map", "third_party_confirm"
+        return "Continue check-in", "step_map", "third_party_confirm"
     
     # 1. Exact step_id match
     if step_id in answers_by_step:
@@ -649,6 +655,7 @@ def main():
     parser = argparse.ArgumentParser(description="ChronicCare AI Adaptive Interview Probe Tool")
     parser.add_argument("--engine", choices=["v2", "v3", "both"], default="both", help="Interview engine to evaluate")
     parser.add_argument("--scenario", default="all", help="Scenario name from probe_scenarios.json or 'all'")
+    parser.add_argument("--groups", default=None, help="Comma-separated group names to filter scenarios (e.g. 'a,b,g,h')")
     parser.add_argument("--out", required=False, help="Path to output markdown report file")
     parser.add_argument("--json", required=False, help="Path to output JSON audit file")
     parser.add_argument("--check-invalid", action="store_true", help="Run HC1 unit check demonstrating INVALID detection")
@@ -678,6 +685,10 @@ def main():
             sys.exit(1)
     else:
         selected_scenarios = all_scenarios
+
+    if args.groups:
+        allowed_groups = {g.strip() for g in args.groups.split(",") if g.strip()}
+        selected_scenarios = [s for s in selected_scenarios if s.get("group") in allowed_groups]
         
     engines_to_run = ["v2", "v3"] if args.engine == "both" else [args.engine]
     

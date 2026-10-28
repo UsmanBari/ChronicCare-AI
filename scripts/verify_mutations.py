@@ -51,7 +51,7 @@ MUTATIONS = [
         "id": "MUT-4",
         "name": "Planner Never Re-asks Filled Slot",
         "file": BACKEND_DIR / "agents" / "interview_planner.py",
-        "target": "        asked_slots = set(asked_slots) | set(known_slots.keys())",
+        "target": "        asked_slots = set(asked_slots) | clean_known",
         "replacement": "        asked_slots = set()",
         "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_4_planner_never_reasks_filled_slot",
     },
@@ -250,6 +250,31 @@ MUTATIONS = [
         "replacement": "            if True:\n                return {",
         "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h2_5_tag_question_na_not_no",
     },
+        # --- Day 3 Mutations (M-H3-1 to M-H3-3) ---
+    {
+        "id": "M-H3-1",
+        "name": "Dual patient asked symptoms before readings are done",
+        "file": BACKEND_DIR / "agents" / "interview_planner.py",
+        "target": "    if is_dual_diagnosis and \"greeting\" in asked_slots:\n        dual_order = get_dual_readings_order(recent_checkins, patient_record)",
+        "replacement": "    if is_dual_diagnosis and \"greeting\" in asked_slots:\n        return PlanDecision(action=\"ask_bank_item\", item=bank.get_by_id(\"diabetes_hyperglycemia_symptoms\"), reason=\"mutant_symptoms_first\", question_count=current_count + 1, max_budget=effective_budget, target_slot=\"hyperglycemia_symptoms\")",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h3_1_readings_before_symptoms",
+    },
+    {
+        "id": "M-H3-2",
+        "name": "Same slot asked twice in dual flow",
+        "file": BACKEND_DIR / "agents" / "interview_planner.py",
+        "target": "        if is_slot_already_satisfied(item.slot, asked_slots, known_slots, bank):",
+        "replacement": "        if False and is_slot_already_satisfied(item.slot, asked_slots, known_slots, bank):",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h3_2_slot_never_asked_twice",
+    },
+    {
+        "id": "M-H3-3",
+        "name": "also_fills re-added between hyperglycemia_symptoms and associated_symptoms",
+        "file": BACKEND_DIR / "agents" / "interview_bank" / "diabetes.json",
+        "target": '    "id": "diabetes_hyperglycemia_symptoms",\n    "module": "diabetes",\n    "slot": "hyperglycemia_symptoms",\n    "why_text": "High blood sugar can cause thirst, frequent urination, and blurry vision.",',
+        "replacement": '    "id": "diabetes_hyperglycemia_symptoms",\n    "module": "diabetes",\n    "slot": "hyperglycemia_symptoms",\n    "also_fills": ["associated_symptoms"],\n    "why_text": "High blood sugar can cause thirst, frequent urination, and blurry vision.",',
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h3_3_symptoms_not_also_filled",
+    },
 ]
 
 
@@ -375,10 +400,12 @@ def main():
 
         print(f"\n[{res['id']}] {res['name']} -> {status}")
         print(f"  File: {res['file']}:{res['line_no']} (SHA256: {res['sha_before'][:12]}...)")
-        print(f"  Unified Diff:\n{res['diff'].strip()}")
+        safe_diff = res['diff'].strip().encode('ascii', 'backslashreplace').decode('ascii')
+        print(f"  Unified Diff:\n{safe_diff}")
         print(f"  Pytest Subprocess: {res['test_node']}")
         print(f"  Exit Code: {res['return_code']}")
-        print(f"  Real Failure Output: {res['failing_output']}")
+        safe_out = res['failing_output'].encode('ascii', 'backslashreplace').decode('ascii')
+        print(f"  Real Failure Output: {safe_out}")
         print(f"  Byte Integrity Verified: SHA matches ({res['sha_after'][:12]}...)")
 
     # Diagnostic proof that missing target exits non-zero

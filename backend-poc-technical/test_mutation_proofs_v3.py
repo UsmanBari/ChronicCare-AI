@@ -223,3 +223,75 @@ def test_mutation_proof_m_h2_5_tag_question_na_not_no():
     """M-H2-5: Tag question 'na' at the end ('theek hai na?') must NOT be read as 'no'."""
     res = parse_yes_no("theek hai na?")
     assert res["value"] == "unknown"
+
+# -----------------------------------------------------------------------------
+# Day 3 Mutation Proof Tests (M-H3-1 and M-H3-2)
+# -----------------------------------------------------------------------------
+def test_mutation_proof_m_h3_1_readings_before_symptoms():
+    """M-H3-1: Dual diagnosis patient must be asked both readings before any symptoms."""
+    bank = get_default_bank()
+    patient_record = {"conditions": ["diabetes", "hypertension"], "on_insulin_or_sulfonylurea": False}
+    # Greeting asked, no readings answered yet
+    asked = {"greeting"}
+    known = {}
+    decision = plan_next_step(
+        known_slots=known,
+        findings=[],
+        patient_record=patient_record,
+        bank=bank,
+        asked_slots=asked,
+        base_budget=14,
+    )
+    # Must prioritize a reading question first, not symptoms
+    assert decision.target_slot in ("glucose_reading", "bp_reading"), (
+        f"Expected reading first, got {decision.target_slot}"
+    )
+
+
+def test_mutation_proof_m_h3_2_slot_never_asked_twice():
+    """M-H3-2: Same slot must never be asked twice in dual flow."""
+    bank = get_default_bank()
+    patient_record = {"conditions": ["diabetes", "hypertension"], "on_insulin_or_sulfonylurea": False}
+    asked = {"greeting", "glucose_reading", "glucose_context", "bp_reading", "bp_technique"}
+    known = {"glucose_reading": 130.0, "glucose_context": "fasting", "bp_reading": [120, 80], "bp_technique": "seated"}
+
+    decision = plan_next_step(
+        known_slots=known,
+        findings=[],
+        patient_record=patient_record,
+        bank=bank,
+        asked_slots=asked,
+        base_budget=14,
+    )
+    assert decision.target_slot not in asked, (
+        f"M-H3-2 failed: planner re-asked already satisfied slot {decision.target_slot}"
+    )
+
+
+def test_mutation_proof_m_h3_3_symptoms_not_also_filled():
+    """M-H3-3: Hyperglycemia symptoms must NOT also_fill associated_symptoms."""
+    bank = get_default_bank()
+    item = bank.get_by_id("diabetes_hyperglycemia_symptoms")
+    assert not (item.also_fills and "associated_symptoms" in item.also_fills), (
+        "M-H3-3 failed: hyperglycemia_symptoms has also_fills containing associated_symptoms"
+    )
+    # Answering hyperglycemia_symptoms in dual flow must not satisfy associated_symptoms
+    from agents.interview_v3_runner import start_v3_session, next_turn
+    s = start_v3_session("mut-h3-3", "P1", ["diabetes", "hypertension"], language="en")
+    s = next_turn(s, "fine")
+    s = next_turn(s, "140")
+    s = next_turn(s, "165/100")
+    s = next_turn(s, "fasting")
+    s = next_turn(s, "seated")
+    assert s.get("step") == "hyperglycemia_symptoms"
+    s = next_turn(s, "no")
+    assert "associated_symptoms" not in s.get("known_slots", {}), (
+        "M-H3-3 failed: answering hyperglycemia_symptoms filled associated_symptoms"
+    )
+    steps = [s.get("step")]
+    for _ in range(5):
+        if s.get("step") == "summary_confirmation" or s.get("complete"):
+            break
+        s = next_turn(s, "no")
+        steps.append(s.get("step"))
+    assert "associated_symptoms" in steps, f"associated_symptoms was never asked: {steps}"

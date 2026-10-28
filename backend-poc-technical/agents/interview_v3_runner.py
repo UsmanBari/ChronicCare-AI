@@ -71,6 +71,91 @@ def _get_localized_text(item: Any, lang: str = "en") -> str:
     return str(item) if item else ""
 
 
+def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots: Optional[List[str]] = None) -> str:
+    """
+    R8: Constructs a structured summary listing captured readings and values
+    for both diabetes and hypertension in the session language.
+    """
+    if asked_slots is None:
+        asked_slots = []
+    """
+    R8: Constructs a structured summary listing captured readings and values
+    for both diabetes and hypertension in the session language.
+    """
+    # 1. Glucose
+    gluc = known_slots.get("glucose_reading")
+    if gluc is not None:
+        ctx = known_slots.get("glucose_context", "")
+        ctx_str = f" ({ctx})" if ctx else ""
+        gluc_en = f"Blood Glucose: {gluc:g} mg/dL{ctx_str}"
+        gluc_ur = f"شوگر: {gluc:g} mg/dL{ctx_str}"
+        gluc_ro = f"Sugar: {gluc:g} mg/dL{ctx_str}"
+    else:
+        gluc_en = "Blood Glucose: Not provided"
+        gluc_ur = "شوگر: درج نہیں کی گئی"
+        gluc_ro = "Sugar: Darj nahi ki gayi"
+
+    # 2. Blood Pressure
+    bp = known_slots.get("bp_reading")
+    if bp and isinstance(bp, (list, tuple)) and len(bp) >= 2:
+        bp_en = f"Blood Pressure: {bp[0]}/{bp[1]} mmHg"
+        bp_ur = f"بلڈ پریشر: {bp[0]}/{bp[1]} mmHg"
+        bp_ro = f"Blood Pressure: {bp[0]}/{bp[1]} mmHg"
+    else:
+        bp_en = "Blood Pressure: Not provided"
+        bp_ur = "بلڈ پریشر: درج نہیں کیا گیا"
+        bp_ro = "Blood Pressure: Darj nahi kiya gaya"
+
+    # 3. Symptoms
+    symptoms = []
+    if known_slots.get("hyperglycemia_symptoms") is True or known_slots.get("associated_symptoms") is True:
+        symptoms.append("reported symptoms")
+    if known_slots.get("foot_problems") is True:
+        symptoms.append("foot numbness or sores")
+
+    symptoms_asked = any(
+        k in known_slots for k in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems")
+    ) or any(
+        s in asked_slots for s in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems")
+    )
+
+    if symptoms:
+        symp_en = f"Symptoms: {', '.join(symptoms)}"
+        symp_ur = "علامات: علامات کی اطلاع دی گئی"
+        symp_ro = "Alamaat: Alamaat report ki gayi hain"
+    elif symptoms_asked:
+        symp_en = "Symptoms: None reported"
+        symp_ur = "علامات: کوئی نہیں"
+        symp_ro = "Alamaat: Koi nahi"
+    else:
+        symp_en = "Symptoms: not asked"
+        symp_ur = "علامات: پوچھی نہیں گئیں"
+        symp_ro = "Symptoms: nahi poochay gaye"
+
+    # 4. Adherence
+    adh = known_slots.get("adherence_diabetes")
+    if adh is None:
+        adh = known_slots.get("adherence_hypertension")
+    if adh is True:
+        adh_en = "Medication: Taken as prescribed"
+        adh_ur = "ادویات: باقاعدگی سے لیں"
+        adh_ro = "Dawai: Time par li"
+    elif adh is False:
+        adh_en = "Medication: Missed doses reported"
+        adh_ur = "ادویات: خوراک چھوٹنے کی اطلاع"
+        adh_ro = "Dawai: Dose miss hone ki ittila"
+    else:
+        adh_en = "Medication: Not recorded"
+        adh_ur = "ادویات: درج نہیں"
+        adh_ro = "Dawai: Record nahi hui"
+
+    if lang == "ur":
+        return f"ہم نے آج یہ معلومات درج کی ہیں:\n- {gluc_ur}\n- {bp_ur}\n- {symp_ur}\n- {adh_ur}\nکیا سب کچھ ٹھیک ہے؟"
+    if lang == "roman_ur":
+        return f"Hum ne aaj yeh record kiya hai:\n- {gluc_ro}\n- {bp_ro}\n- {symp_ro}\n- {adh_ro}\nKya sab theek hai?"
+    return f"Here is what we recorded today:\n- {gluc_en}\n- {bp_en}\n- {symp_en}\n- {adh_en}\nDoes everything look right to you?"
+
+
 def start_v3_session(
     checkin_id: str,
     patient_id: str,
@@ -79,6 +164,7 @@ def start_v3_session(
     is_cold_start: bool = False,
     baseline: Optional[Dict[str, Any]] = None,
     language: str = "en",
+    answered_by: str = "patient",
 ) -> Dict[str, Any]:
     """
     Initializes a new v3 check-in session using the Question Bank and Adaptive Planner.
@@ -171,6 +257,10 @@ def start_v3_session(
         "needs_clinician_flag": False,
         "ended_early_off_topic": False,
         "current_decision_target": decision.target_slot,
+        "answered_by": answered_by,
+        "summary_correction_rounds": 0,
+        "awaiting_correction_slot": False,
+        "patient_notes": [],
     }
 
     return session_state
@@ -421,8 +511,18 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             known_slots[f"{current_slot}__evidence"] = yn_res["evidence"]
             known_slots[f"{current_slot}__partial"] = yn_res["partial"]
 
+            # R3: Propagate answers to shared slots via also_fills
+            if bank_item and bank_item.also_fills:
+                for extra_s in bank_item.also_fills:
+                    known_slots[extra_s] = known_slots[current_slot]
+                    known_slots[f"{extra_s}__evidence"] = yn_res["evidence"]
+                    known_slots[f"{extra_s}__partial"] = yn_res["partial"]
+
     # Record slot answer
     raw_answers[current_slot] = clean_answer
+    if bank_item and bank_item.also_fills:
+        for extra_s in bank_item.also_fills:
+            raw_answers[extra_s] = clean_answer
     if current_slot not in asked_slots:
         asked_slots.append(current_slot)
 
@@ -440,11 +540,99 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
 
     session_state["findings"] = [asdict(f) for f in current_findings]
 
-    # Check for confirmation answering
+    # R8: Summary Confirmation & Correction Loop
     if current_slot == "summary_confirmation":
-        session_state["completed"] = True
-        session_state["step"] = "COMPLETE"
-        session_state["current_question"] = None
+        yn_res = parse_yes_no(clean_answer, lang=lang)
+        lower_raw = clean_answer.lower()
+        is_change_intent = (
+            yn_res["value"] is False
+            or any(w in lower_raw for w in ["change", "tabdeel", "galat", "wrong", "need to change", "nahi", "no", "edit"])
+        )
+        if is_change_intent:
+            rounds = session_state.get("summary_correction_rounds", 0)
+            if rounds < 2:
+                session_state["summary_correction_rounds"] = rounds + 1
+                session_state["awaiting_correction_slot"] = True
+                prompt_text = {
+                    "en": "Which reading or answer would you like to update?",
+                    "ur": "آپ کون سا اندراج تبدیل کرنا چاہتے ہیں؟",
+                    "roman_ur": "Aap kaun si maloomat tabdeel karna chahte hain?",
+                }.get(lang, "Which reading or answer would you like to update?")
+                session_state["step"] = "summary_correction_select"
+                session_state["current_question"] = prompt_text
+                session_state["options"] = ["Blood Glucose", "Blood Pressure", "Symptoms", "Medication Adherence"]
+                return session_state
+            else:
+                session_state["needs_clinician_flag"] = True
+                session_state.setdefault("patient_notes", []).append("Patient requested corrections beyond maximum rounds (2). Submitting with clinician review flag.")
+                session_state["completed"] = True
+                session_state["complete"] = True
+                session_state["step"] = "COMPLETE"
+                session_state["current_question"] = None
+                return session_state
+        else:
+            session_state["completed"] = True
+            session_state["complete"] = True
+            session_state["step"] = "COMPLETE"
+            session_state["current_question"] = None
+            return session_state
+
+    # Handling slot selection during summary correction
+    if session_state.get("awaiting_correction_slot"):
+        session_state["awaiting_correction_slot"] = False
+        lower_ans = clean_answer.lower()
+        if any(k in lower_ans for k in ["blood pressure", "bp", "presher", "pressure"]):
+            target_id = "hypertension_bp_reading"
+            target_slot = "bp_reading"
+        elif any(k in lower_ans for k in ["glucose", "sugar", "blood sugar"]):
+            target_id = "diabetes_glucose_reading"
+            target_slot = "glucose_reading"
+        elif any(k in lower_ans for k in ["symptom", "alamaat", "takleef"]):
+            target_id = "diabetes_hyperglycemia_symptoms"
+            target_slot = "hyperglycemia_symptoms"
+        elif any(k in lower_ans for k in ["adherence", "med", "dawa", "goli"]):
+            target_id = "diabetes_adherence"
+            target_slot = "adherence_diabetes"
+        else:
+            target_id = "diabetes_glucose_reading"
+            target_slot = "glucose_reading"
+
+        target_item = bank.get_by_id(target_id)
+        if target_item:
+            session_state["asked_slots"] = [s for s in asked_slots if s not in (target_slot, target_id)]
+            if target_slot in known_slots:
+                del known_slots[target_slot]
+            if target_item.also_fills:
+                for ex_s in target_item.also_fills:
+                    if ex_s in known_slots:
+                        del known_slots[ex_s]
+            session_state["correcting_slot"] = target_slot
+            session_state["step"] = target_item.slot
+            session_state["current_question"] = _get_localized_text(target_item, lang)
+            session_state["why_text"] = target_item.why_text
+            session_state["options"] = target_item.choices
+            return session_state
+
+    if session_state.get("correcting_slot"):
+        session_state["correcting_slot"] = None
+        # R8: Re-show summary confirmation immediately after the corrected slot is answered
+        session_state["is_probe"] = False
+        step_id = "summary_confirmation"
+        question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots)
+        why_text = "To confirm we noted your answers correctly before saving."
+        if lang == "ur":
+            options = ["تصدیق کریں", "تبدیل کرنا ہے"]
+        elif lang == "roman_ur":
+            options = ["Confirm karein", "Tabdeel karna hai"]
+        else:
+            options = ["Confirm and submit", "Need to change something"]
+
+        session_state["step"] = step_id
+        session_state["current_question"] = question_text
+        session_state["why_text"] = why_text
+        session_state["options"] = options
+        session_state["can_skip"] = False
+        session_state["can_say_unknown"] = False
         return session_state
 
     # =========================================================================
@@ -481,7 +669,18 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     can_say_unknown = True
     step_id = decision.target_slot or "question"
 
-    if decision.item:
+    if decision.action == "summary_confirm":
+        session_state["is_probe"] = False
+        step_id = "summary_confirmation"
+        question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots)
+        why_text = "To confirm we noted your answers correctly before saving."
+        if lang == "ur":
+            options = ["تصدیق کریں", "تبدیل کرنا ہے"]
+        elif lang == "roman_ur":
+            options = ["Confirm karein", "Tabdeel karna hai"]
+        else:
+            options = ["Confirm and submit", "Need to change something"]
+    elif decision.item:
         session_state["is_probe"] = False
         step_id = decision.item.slot
         question_text = _get_localized_text(decision.item, lang)
@@ -498,16 +697,6 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         can_say_unknown = True
         session_state.setdefault("probes_asked", []).append(decision.probe.get("probe_id") or step_id)
         session_state["is_probe"] = True
-    elif decision.action == "summary_confirm":
-        session_state["is_probe"] = False
-        step_id = "summary_confirmation"
-        if decision.item:
-            question_text = _get_localized_text(decision.item, lang)
-            why_text = decision.item.why_text
-            options = decision.item.choices
-        else:
-            question_text = "Thank you. Would you like to confirm and submit your check-in?"
-            options = ["Yes, submit", "Need to change something"]
 
     session_state["step"] = step_id
     session_state["current_question"] = question_text
@@ -529,7 +718,23 @@ def finish_v3_session(session_state: Dict[str, Any]) -> Dict[str, Any]:
     conditions = session_state.get("conditions_on_file", ["diabetes"])
     readings_dict = session_state.get("readings", {})
     raw_answers = session_state.get("raw_answers", {})
+    answered_by = session_state.get("answered_by", "patient")
     intakes = []
+
+    # R9: Confidence calculation (lowered by one level if caregiver)
+    base_confidence = "High"
+    if session_state.get("ended_early_off_topic") or session_state.get("possible_severe_low"):
+        base_confidence = "Low"
+
+    if answered_by == "caregiver":
+        if base_confidence == "High":
+            confidence = "Medium"
+        elif base_confidence == "Medium":
+            confidence = "Low"
+        else:
+            confidence = "Low"
+    else:
+        confidence = base_confidence
 
     for cond in conditions:
         cond_readings = []
@@ -572,6 +777,11 @@ def finish_v3_session(session_state: Dict[str, Any]) -> Dict[str, Any]:
         for pq in session_state.get("patient_questions", []):
             cond_notes.append(f"Patient question: {pq.get('text')}")
 
+        if answered_by == "caregiver":
+            cond_notes.append("answers are from a caregiver")
+        for pn in session_state.get("patient_notes", []):
+            cond_notes.append(pn)
+
         intakes.append({
             "condition": cond,
             "readings": cond_readings,
@@ -579,7 +789,8 @@ def finish_v3_session(session_state: Dict[str, Any]) -> Dict[str, Any]:
             "notes": cond_notes,
             "emergency": session_state.get("emergency", False),
             "emergency_reason": session_state.get("emergency_reason"),
-            "confidence": "Low" if session_state.get("ended_early_off_topic") or session_state.get("possible_severe_low") else "High",
+            "confidence": confidence,
+            "answered_by": answered_by,
         })
 
     return {
@@ -590,6 +801,7 @@ def finish_v3_session(session_state: Dict[str, Any]) -> Dict[str, Any]:
         "needs_review": session_state.get("needs_clinician_flag", False) or session_state.get("possible_severe_low", False),
         "findings": session_state.get("findings", []),
         "possible_severe_low": session_state.get("possible_severe_low", False),
+        "answered_by": answered_by,
     }
 
 

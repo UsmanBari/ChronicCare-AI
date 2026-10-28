@@ -1255,5 +1255,338 @@
     "notes": "Bilateral ankle swelling with dietary sodium trigger",
     "expected_level": "review",
     "author": "engineer"
+  },
+  {
+    "id": "dual_normal_ur",
+    "name": "Dual Normal Urdu",
+    "archetype": "dual_normal_ur",
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
+    "on_insulin": false,
+    "language": "ur",
+    "answers": [
+      "السلام علیکم، میں ٹھیک ہوں",
+      "115 mg/dL",
+      "نہار منہ",
+      "120/80",
+      "آرام سے بیٹھ کر چیک کیا",
+      "کوئی علامات نہیں ہیں",
+      "پاؤں بالکل ٹھیک ہیں",
+      "جی ادویات باقاعدگی سے لیں",
+      "کھانے پینے میں احتیاط ہے",
+      "کچھ نہیں، سب ٹھیک ہے",
+      "ہاں، تصدیق کریں"
+    ],
+    "expected_triage_level": "routine",
+    "expected_level": "routine",
+    "notes": "expected level set by rules, needs doctor review",
+    "author": "engineer"
+  },
+  {
+    "id": "dual_normal_roman_ur",
+    "name": "Dual Normal Roman Urdu",
+    "archetype": "dual_normal_roman_ur",
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
+    "on_insulin": false,
+    "language": "roman_ur",
+    "answers": [
+      "Main theek hoon shukar hai",
+      "120 mg/dL",
+      "fasting",
+      "118/78",
+      "aaram se check kiya",
+      "koi takleef nahi hai",
+      "paon theek hain",
+      "haan saari dawai time par li",
+      "parhez kar raha hoon",
+      "kuch nahi",
+      "haan theek hai"
+    ],
+    "expected_triage_level": "routine",
+    "expected_level": "routine",
+    "notes": "expected level set by rules, needs doctor review",
+    "author": "engineer"
+  },
+  {
+    "id": "dual_both_high",
+    "name": "Dual Both High",
+    "archetype": "dual_both_high",
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
+    "on_insulin": false,
+    "language": "en",
+    "answers": [
+      "Feeling a bit sluggish today",
+      "280 mg/dL",
+      "after_meal",
+      "165/102",
+      "rested 5 minutes",
+      "feeling more thirsty and mild dull headache",
+      "no foot ulcers",
+      "yes took metformin and lisinopril",
+      "normal meals",
+      "nothing else",
+      "yes"
+    ],
+    "expected_triage_level": "review",
+    "expected_level": "review",
+    "notes": "expected level set by rules, needs doctor review",
+    "author": "engineer"
+  },
+  {
+    "id": "dual_glucose_low_bp_normal",
+    "name": "Dual Glucose Low BP Normal",
+    "archetype": "dual_glucose_low_bp_normal",
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
+    "on_insulin": true,
+    "language": "en",
+    "answers": [
+      "Felt shaky a while ago",
+      "55 mg/dL",
+      "before_meal",
+      "122/80",
+      "seated quietly",
+      "yes shaky and sweating earlier",
+      "had fruit juice and feeling better",
+      "1 low episode this week",
+      "no foot issues",
+      "yes took all meds",
+      "eating normally",
+      "nothing else",
+      "yes"
+    ],
+    "expected_triage_level": "urgent",
+    "expected_level": "urgent",
+    "notes": "expected level set by rules, needs doctor review",
+    "author": "engineer"
+  },
+  {
+    "id": "dual_bp_crisis_first",
+    "name": "Dual BP Crisis First",
+    "archetype": "dual_bp_crisis_first",
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
+    "on_insulin": false,
+    "language": "en",
+    "answers": [
+      "Severe crushing chest pain radiating to shoulder",
+      "195/125",
+      "140 mg/dL",
+      "yes"
+    ],
+    "expected_triage_level": "emergency",
+    "expected_level": "emergency",
+    "notes": "expected level set by rules, needs doctor review",
+    "author": "engineer"
+  },
+  {
+    "id": "dual_fasting",
+    "name": "Dual Fasting Ramadan",
+    "archetype": "dual_fasting",
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
+    "on_insulin": false,
+    "language": "ur",
+    "answers": [
+      "السلام علیکم، آج روزہ ہے",
+      "92 mg/dL",
+      "روزہ رکھا ہے",
+      "116/76",
+      "پرسکون بیٹھ کر ناپا",
+      "جی آج روزہ ہے",
+      "الحمدللہ کوئی چکر یا کپکپاہٹ نہیں",
+      "پاؤں بالکل ٹھیک ہیں",
+      "سحری کے وقت دوائی لی تھی",
+      "پانی زیادہ پیا تھا سحری میں",
+      "کوئی مزید بات نہیں",
+      "ہاں سب ٹھیک ہے"
+    ],
+    "expected_triage_level": "routine",
+    "expected_level": "routine",
+    "notes": "expected level set by rules, needs doctor review",
+    "author": "engineer"
+  },
+  {
+    "id": "dual_sick_day",
+    "name": "Dual Sick Day",
+    "archetype": "dual_sick_day",
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
+    "on_insulin": false,
+    "language": "roman_ur",
+    "answers": [
+      "Subah se tabiyat kharab hai",
+      "145 mg/dL",
+      "random",
+      "125/82",
+      "aaram se check kiya",
+      "subah se vomiting aur dast hain",
+      "paani aur namkol pee raha hoon",
+      "paon theek hain",
+      "aaj subah ki dawai nahi li",
+      "tabiyat ki wajah se skip hui",
+      "kuch nahi",
+      "theek hai confirm karein"
+    ],
+    "expected_triage_level": "review",
+    "expected_level": "review",
+    "notes": "expected level set by rules, needs doctor review",
+    "author": "engineer"
+  },
+  {
+    "id": "dual_caregiver_roman_ur",
+    "name": "Dual Caregiver Roman Urdu",
+    "archetype": "dual_caregiver_roman_ur",
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
+    "on_insulin": false,
+    "language": "roman_ur",
+    "answers": [
+      "Main apni ammi ke liye answer kar raha hoon",
+      "150 mg/dL",
+      "fasting",
+      "132/84",
+      "baith kar check kiya",
+      "subah thoda chakkar aaya tha",
+      "paon theek hain",
+      "maine subah ki dawai de di thi",
+      "khana time par kha rahi hain",
+      "kuch nahi",
+      "haan confirm karein"
+    ],
+    "expected_triage_level": "review",
+    "expected_level": "review",
+    "notes": "expected level set by rules, needs doctor review",
+    "author": "engineer"
+  },
+  {
+    "id": "dual_changes_answer_at_summary",
+    "name": "Dual Changes Answer at Summary",
+    "archetype": "dual_changes_answer_at_summary",
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
+    "on_insulin": false,
+    "language": "en",
+    "answers": [
+      "Hello, all fine",
+      "140 mg/dL",
+      "fasting",
+      "190/100",
+      "seated quietly",
+      "no symptoms",
+      "no foot issues",
+      "yes took all meds",
+      "regular walks",
+      "nothing else",
+      "Need to change something",
+      "blood pressure",
+      "120/80",
+      "Confirm and submit"
+    ],
+    "expected_triage_level": "routine",
+    "expected_level": "routine",
+    "notes": "expected level set by rules, needs doctor review",
+    "author": "engineer"
+  },
+  {
+    "id": "dual_unclear_everything",
+    "name": "Dual Unclear Everything",
+    "archetype": "dual_unclear_everything",
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
+    "on_insulin": false,
+    "language": "roman_ur",
+    "answers": [
+      "pata nahi theek hoon ya nahi",
+      "130 mg/dL",
+      "pata nahi",
+      "128/82",
+      "maloom nahi",
+      "pata nahi koi takleef hai ya nahi",
+      "maloom nahi",
+      "pata nahi dawai li ya nahi",
+      "kuch keh nahi sakta",
+      "kuch nahi pata",
+      "haan confirm karein"
+    ],
+    "expected_triage_level": "review",
+    "expected_level": "review",
+    "notes": "expected level set by rules, needs doctor review",
+    "author": "engineer"
+  },
+  {
+    "id": "dual_record_contradiction",
+    "name": "Dual Record Contradiction",
+    "archetype": "dual_record_contradiction",
+    "conditions": [
+      "diabetes",
+      "hypertension"
+    ],
+    "on_insulin": false,
+    "language": "en",
+    "answers": [
+      "I only have diabetes, no high blood pressure history",
+      "138 mg/dL",
+      "fasting",
+      "126/82",
+      "seated",
+      "no symptoms",
+      "no foot problems",
+      "yes took diabetes meds",
+      "moderate diet",
+      "nothing else",
+      "yes confirm"
+    ],
+    "expected_triage_level": "review",
+    "expected_level": "review",
+    "notes": "expected level set by rules, needs doctor review",
+    "author": "engineer"
+  },
+  {
+    "id": "family_history_not_caregiver",
+    "name": "Family History Not Caregiver",
+    "archetype": "family_history_not_caregiver",
+    "conditions": [
+      "diabetes"
+    ],
+    "on_insulin": false,
+    "language": "en",
+    "answers": [
+      "My mother also has diabetes, should I be worried?",
+      "125 mg/dL",
+      "fasting",
+      "no high blood sugar symptoms",
+      "no foot problems",
+      "yes taking metformin",
+      "walking daily",
+      "nothing else",
+      "yes confirm"
+    ],
+    "expected_triage_level": "routine",
+    "expected_level": "routine",
+    "notes": "expected level set by rules, needs doctor review",
+    "author": "engineer"
   }
 ]
