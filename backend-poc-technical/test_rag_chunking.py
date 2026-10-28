@@ -27,7 +27,7 @@ def test_clean_page_text_headers_footers_and_hyphenation():
         "FAKE GUIDELINE HEADER VOLUME 2026\n3. Lifestyle Advice\nFinal recommendations.\nPage 3\nFAKE GUIDELINE FOOTER 2026",
     ]
 
-    cleaned = clean_page_text(pages)
+    cleaned, dropped_ref = clean_page_text(pages)
     assert len(cleaned) == 3
 
     # Repeated headers and footers should be removed
@@ -44,11 +44,68 @@ def test_clean_page_text_headers_footers_and_hyphenation():
 def test_clean_page_text_drops_references():
     """Verify reference sections from 'References' to the end are dropped."""
     pages = [
-        "FAKE GUIDELINE: Section 4 Treatment\nPatients should measure blood pressure daily.\nReferences\n1. Smith et al. 2020\n2. Doe et al. 2021",
+        "FAKE GUIDELINE: Section 4 Treatment\nPatients should measure blood pressure daily.\nReferences\n1. Smith AB, Jones CD. Blood pressure control. doi:10.1016/j.jacc.2020.01.001\n2. Doe EF, et al. Hypertension care. 2021;14(2):100-105",
     ]
-    cleaned = clean_page_text(pages)
-    assert "Smith et al." not in cleaned[0]
+    cleaned, dropped_ref = clean_page_text(pages)
+    assert "Smith AB" not in cleaned[0]
     assert "Patients should measure blood pressure daily." in cleaned[0]
+    assert dropped_ref >= 1
+
+
+def test_hard_cap_1500_word_sentence():
+    """Verify a single 1,500-word sentence gives chunks that are all <= 400 words."""
+    word = "clinicalevidence"
+    fake_1500_words = " ".join([word] * 1500)  # exactly 1500 words, no period in the middle
+
+    section = {
+        "section_path": "Section 3 > Continuous Large Table",
+        "text": fake_1500_words,
+        "page_start": 1,
+        "page_end": 3,
+        "is_recommendation": False,
+        "grade": None,
+    }
+
+    chunks = chunk_section(section, min_words=200, max_words=400, overlap_words=40)
+    assert len(chunks) >= 4
+    for c in chunks:
+        assert c["word_count"] <= 400
+        assert len(c["text"].split()) <= 400
+
+
+def test_citation_block_dropped():
+    """Verify blocks where >40% lines look like citations are dropped."""
+    citation_block = (
+        "140 Hoshide S, Kario K, de la Sierra A. Ambulatory BP monitoring. doi:10.1038/s41371-020-0381-8\n"
+        "141 Nieman LK, Biller BM, Findling JW. Endocrine evaluation. 2020;105(3):e12-e25\n"
+        "142 Tomaszewski M, White C, Patel P. Adherence to therapy. et al.\n"
+        "Some occasional clinical narrative sentence here."
+    )
+    section = {
+        "section_path": "Section 9 > Reference Citations",
+        "text": citation_block,
+        "page_start": 20,
+        "page_end": 20,
+        "is_recommendation": False,
+        "grade": None,
+    }
+    chunks = chunk_section(section)
+    assert chunks == []
+
+
+def test_numbered_citation_not_detected_as_heading():
+    """Verify numbered citation lines like '140 Hoshide S,' are not treated as section headings."""
+    pages = [
+        "140 Hoshide S, Kario K, de la Sierra A, Bilo G. Guideline references text.\n"
+        "141 Nieman LK, Biller BM. More citation content.\n"
+        "1. Real Clinical Section\nReal section body text."
+    ]
+    sections = split_sections(pages)
+    headings = [s["heading"] for s in sections]
+    assert not any("140 Hoshide" in h for h in headings)
+    assert not any("141 Nieman" in h for h in headings)
+    assert any("1 Real Clinical Section" in h for h in headings)
+
 
 
 def test_split_sections_heading_hierarchy():
