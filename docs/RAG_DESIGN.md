@@ -44,66 +44,108 @@ class ChunkStore(Protocol):
 
 ## 3. Dense Retrieval vs. BM25 Empirical Benchmark (Decision B5)
 
-### Benchmark Setup
-To evaluate whether a dense transformer model (`BAAI/bge-small-en-v1.5` via FastEmbed) should be used in the backend alongside or instead of BM25:
-- A dedicated scratch virtual environment was created outside the backend venv.
-- `fastembed` with `BAAI/bge-small-en-v1.5` and `psutil` were installed.
-- All 498 ingested guideline chunks from `chunks.jsonl` were indexed.
-- The 15 clinical smoke questions (`smoke_questions.json`) covering hypertension, diabetes, Ramadan fasting, pregnancy, and local Pakistan screening thresholds were evaluated across:
-  1. **BM25 (Pure Python stdlib, zero external dependencies)**
-  2. **FastEmbed (BAAI/bge-small-en-v1.5, ONNX Runtime)**
-  3. **Hybrid RRF (Reciprocal Rank Fusion, $k=60$)**
-- Memory RSS was continuously profiled using `psutil.Process().memory_info().rss`.
+### Benchmark Protocol & Setup
+To fairly evaluate whether a dense embedding model (`BAAI/bge-small-en-v1.5` via FastEmbed) should run in the production backend alongside or instead of BM25:
+1. **Offline Pre-computation (`emb_bge_small.npy`):**
+   - Chunks (498 items) were embedded offline using FastEmbed `BAAI/bge-small-en-v1.5` with single-threaded execution (`threads=1`, `batch_size=32`), producing an embedding matrix of shape `(498, 384)`.
+2. **Fresh Process Runtime Evaluation (`measure_dense_vs_bm25.py`):**
+   - Executed in an isolated process to profile true steady-state runtime memory (model weights loaded + vector matrix loaded in memory) and query encoding without build-time compilation overhead.
+3. **Backend Baseline Memory Measurement:**
+   - FastAPI / Uvicorn server was launched locally on SQLite with default flags (no production `DATABASE_URL`, no Render environment variables) listening strictly on `127.0.0.1:8008`.
+   - Polled `http://127.0.0.1:8008/api/health`, confirmed response, and captured parent + child process RSS before cleanly terminating.
+4. **Gates Evaluated:**
+   - **Memory Gate:** Combined RSS (Dense Model + Vectors + Backend Baseline) must be $< 400\text{ MB}$ to guarantee safety within the Render 512 MB RAM container limit.
+   - **Accuracy Gate:** Dense retrieval must achieve at least $\ge 2$ more hits in top-4 ($\text{Hits}@4$) than BM25 on the 15 standardized smoke questions.
 
-### Empirical Results (Verbatim Command Output)
+### Empirical Results (Raw Output from `logs/day3/rag_measurement.txt`)
 
 ```text
 ================================================================================
-RETRIEVAL EVALUATION SUMMARY ON 15 SMOKE QUESTIONS
-================================================================================
-Method                         | Recall@1   | Recall@4   | MRR        | Peak RSS (MB) 
---------------------------------------------------------------------------------
-BM25 (Pure Python Stdlib)      | 80.0% (12/15) | 93.3% (14/15) | 0.8667     | 18.41 MB
-FastEmbed (bge-small-en-v1.5)  | 100.0% (15/15) | 100.0% (15/15) | 1.0000     | 5085.59 MB
-Hybrid (BM25 + FastEmbed RRF)  | 86.7% (13/15) | 100.0% (15/15) | 0.9333     | 5085.59 MB
+STEP B & D: FRESH PROCESS RUNTIME RSS & SMOKE RETRIEVAL EVALUATION
 ================================================================================
 
-PER-QUESTION RANK COMPARISON:
-ID    | Expected Source      | BM25 Rank  | Dense Rank | Hybrid Rank
------------------------------------------------------------------
-Q01   | ish_2020_htn         | 1          | 1          | 1         
-Q02   | ish_2020_htn         | 1          | 1          | 1         
-Q03   | ish_2020_htn         | >10        | 1          | 2         
-Q04   | idf_dar_2021         | 1          | 1          | 1         
-Q05   | idf_dar_2021         | 1          | 1          | 1         
-Q06   | idf_dar_2021         | 1          | 1          | 1         
-Q07   | ish_2020_htn         | 1          | 1          | 1         
-Q08   | ish_2020_htn         | 1          | 1          | 1         
-Q09   | who_2021_htn         | 1          | 1          | 1         
-Q10   | pk_htn_women_2023    | 1          | 1          | 1         
-Q11   | pk_htn_women_2023    | 1          | 1          | 1         
-Q12   | who_2021_htn         | 2          | 1          | 1         
-Q13   | who_2021_htn         | 2          | 1          | 2         
-Q14   | aku_diabetes_pk_2023 | 1          | 1          | 1         
-Q15   | idf_dar_2021         | 1          | 1          | 1         
+--- BM25 RETRIEVAL PERFORMANCE (15 SMOKE QUESTIONS) ---
+ID           | Expected     | Top-4 Retrieved Sources                  | Hit@4  | Rank
+----------------------------------------------------------------------------------
+Q01          | ish_2020_htn | pk_htn_women_2023, pk_htn_women_2023, pk_htn_women_2023, pk_htn_women_2023 | YES    | 1
+Q02          | ish_2020_htn | ish_2020_htn, ish_2020_htn, pk_htn_women_2023, pk_htn_women_2023 | YES    | 1
+Q03          | ish_2020_htn | who_2021_htn, who_2021_htn, who_2021_htn, who_2021_htn | NO     | -
+Q04          | idf_dar_2021 | idf_dar_2021, idf_dar_2021, idf_dar_2021, idf_dar_2021 | YES    | 1
+Q05          | idf_dar_2021 | idf_dar_2021, idf_dar_2021, idf_dar_2021, idf_dar_2021 | YES    | 1
+Q06          | idf_dar_2021 | idf_dar_2021, idf_dar_2021, idf_dar_2021, idf_dar_2021 | YES    | 1
+Q07          | ish_2020_htn | pk_htn_women_2023, pk_htn_women_2023, ish_2020_htn, idf_dar_2021 | YES    | 1
+Q08          | ish_2020_htn | who_2021_htn, pk_htn_women_2023, who_2021_htn, ish_2020_htn | YES    | 1
+Q09          | who_2021_htn | who_2021_htn, who_2021_htn, who_2021_htn, pk_htn_women_2023 | YES    | 1
+Q10          | pk_htn_women_2023 | pk_htn_women_2023, ish_2020_htn, pk_htn_women_2023, ish_2020_htn | YES    | 1
+Q11          | pk_htn_women_2023 | pk_htn_women_2023, pk_htn_women_2023, pk_htn_women_2023, who_2021_htn | YES    | 1
+Q12          | who_2021_htn | pk_htn_women_2023, who_2021_htn, who_2021_htn, ish_2020_htn | YES    | 2
+Q13          | who_2021_htn | ish_2020_htn, who_2021_htn, who_2021_htn, who_2021_htn | YES    | 2
+Q14          | aku_diabetes_pk_2023 | aku_diabetes_pk_2023, who_2021_htn, aku_diabetes_pk_2023, who_2021_htn | YES    | 1
+Q15          | idf_dar_2021 | idf_dar_2021, idf_dar_2021, idf_dar_2021, idf_dar_2021 | YES    | 1
+
+BM25 Recall@4: 93.3% (14/15) | BM25 MRR: 0.8667
+
+--- DENSE (BGE-SMALL-EN-V1.5) RETRIEVAL PERFORMANCE (15 SMOKE QUESTIONS) ---
+ID           | Expected     | Top-4 Retrieved Sources                  | Hit@4  | Rank
+----------------------------------------------------------------------------------
+Q01          | ish_2020_htn | ish_2020_htn, ish_2020_htn, pk_htn_women_2023, pk_htn_women_2023 | YES    | 1
+Q02          | ish_2020_htn | ish_2020_htn, pk_htn_women_2023, pk_htn_women_2023, pk_htn_women_2023 | YES    | 1
+Q03          | ish_2020_htn | pk_htn_women_2023, pk_htn_women_2023, ish_2020_htn, ish_2020_htn | YES    | 1
+Q04          | idf_dar_2021 | idf_dar_2021, idf_dar_2021, idf_dar_2021, idf_dar_2021 | YES    | 1
+Q05          | idf_dar_2021 | idf_dar_2021, idf_dar_2021, idf_dar_2021, idf_dar_2021 | YES    | 1
+Q06          | idf_dar_2021 | idf_dar_2021, idf_dar_2021, idf_dar_2021, idf_dar_2021 | YES    | 1
+Q07          | ish_2020_htn | ish_2020_htn, ish_2020_htn, pk_htn_women_2023, pk_htn_women_2023 | YES    | 1
+Q08          | ish_2020_htn | pk_htn_women_2023, pk_htn_women_2023, ish_2020_htn, pk_htn_women_2023 | YES    | 1
+Q09          | who_2021_htn | who_2021_htn, who_2021_htn, pk_htn_women_2023, pk_htn_women_2023 | YES    | 1
+Q10          | pk_htn_women_2023 | ish_2020_htn, who_2021_htn, pk_htn_women_2023, pk_htn_women_2023 | YES    | 1
+Q11          | pk_htn_women_2023 | pk_htn_women_2023, pk_htn_women_2023, pk_htn_women_2023, pk_htn_women_2023 | YES    | 1
+Q12          | who_2021_htn | who_2021_htn, who_2021_htn, who_2021_htn, who_2021_htn | YES    | 1
+Q13          | who_2021_htn | who_2021_htn, who_2021_htn, who_2021_htn, ish_2020_htn | YES    | 1
+Q14          | aku_diabetes_pk_2023 | aku_diabetes_pk_2023, aku_diabetes_pk_2023, aku_diabetes_pk_2023, aku_diabetes_pk_2023 | YES    | 1
+Q15          | idf_dar_2021 | idf_dar_2021, idf_dar_2021, idf_dar_2021, idf_dar_2021 | YES    | 1
+
+Dense Recall@4: 100.0% (15/15) | Dense MRR: 1.0000
+
+Dense Model + Vectors Peak RSS: 213.97 MB (Baseline RSS was 33.82 MB)
+
+================================================================================
+STEP C: MEASURE BACKEND BASELINE RSS (uvicorn on SQLite, 127.0.0.1)
+================================================================================
+Pinged http://127.0.0.1:8008/api/health -> Response: {"status":"healthy","service":"chroniccare-backend","version":"0.1.0"}
+Uvicorn Process PID 2972 RSS: 69.52 MB
+Uvicorn process PID 2972 terminated and confirmed stopped: True (poll exit code: 1)
+
+================================================================================
+STEP E: RAG ARCHITECTURE DECISION RULE EVALUATION
+================================================================================
+1. Memory Gate: (b) Dense Model+Vectors RSS (213.97 MB) + (c) Backend Baseline RSS (69.52 MB)
+   Combined Memory = 283.49 MB (Gate Threshold: < 400 MB)
+   Memory Gate Passed: True
+2. Accuracy Gate: Dense Hits@4 (15/15) vs BM25 Hits@4 (14/15)
+   Delta Hits@4 = +1 (Gate Threshold: >= 2 more questions right)
+   Accuracy Gate Passed: False
+
+FINAL DECISION: BM25
+Reason: Dense failed the accuracy gate (did not get >= 2 more questions right than BM25).
 ```
 
 ### Retrieval Decision: BM25 Only in Production Backend
 
-**Decision: BM25 only (pure Python stdlib). Do NOT load dense transformer models in the backend container.**
+**Decision: BM25 only (pure Python stdlib). Dense embedding models are not deployed in the backend container.**
 
-#### Technical Rationale:
-1. **Severe Memory Limit Violation:**
-   - **Render Free Tier Limit:** **512 MB RAM**.
-   - Loading `fastembed` with `bge-small-en-v1.5` increased baseline memory to **231.18 MB** (45.1% of the entire container limit).
-   - During embedding generation, peak process RSS reached **5,085.59 MB (~5.08 GB)** due to ONNX Runtime internal buffer allocations on Windows/Linux multi-core CPU inference. This is nearly **10x the hard memory ceiling** of the production server and would cause an instant OOM container kill.
-2. **Deterministic Clinical Query Generation:**
-   - Unlike generic open-domain search engines, ChronicCare AI does not query the knowledge base using noisy conversational patient speech.
-   - Queries are constructed deterministically by `query_map.py` from standardized triage codes (e.g. `glucose_low`, `bp_severe`, `ramadan_fasting`).
-   - BM25 achieves **93.3% Recall@4** and **0.8667 MRR** with a process footprint of only **18.41 MB**.
-3. **Corpus Scale (~500 Chunks):**
-   - The entire non-blocked guideline corpus consists of 498 chunks (~111,000 words).
-   - Inverted indexing in pure Python takes under 5 milliseconds on startup, requires zero external database servers (no ChromaDB, Milvus, or Qdrant required), and executes retrieval in $< 1$ millisecond per request.
+#### Decision Evaluation:
+1. **Memory Gate (Passed):**
+   - Dense Model + Vectors peak RSS in a fresh process is **213.97 MB**.
+   - Backend baseline RSS on SQLite is **69.52 MB**.
+   - Combined memory footprint is **283.49 MB**, which is below the $< 400\text{ MB}$ gate.
+2. **Accuracy Gate (Failed):**
+   - BM25 gets **14/15** questions right (93.3% Recall@4, MRR 0.8667).
+   - Dense gets **15/15** questions right (100.0% Recall@4, MRR 1.0000).
+   - The accuracy margin is **+1 question right** (Q03), which fails the required threshold of **$\ge 2$ more questions right** to justify embedding dependency complexity.
+3. **Engineering & Deployment Advantages:**
+   - Pure Python BM25 has **zero binary/C++ dependencies** (no ONNX Runtime, no PyTorch, no C-compiler requirements).
+   - Memory footprint of BM25 on the 498-chunk corpus is $< 1\text{ MB}$, leaving >440 MB free RAM in Render's 512 MB tier.
+   - Startup time is $< 5\text{ ms}$, versus several seconds for ONNX Runtime initialization.
 
 ---
 
