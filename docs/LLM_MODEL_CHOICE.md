@@ -175,10 +175,9 @@ In production deployment on Render, **`EXPLAIN_ENABLED=off`** remains the defaul
 
 1. **Model Accessibility:**
    - This Groq account cannot access the `llama-3.x` models (such as `llama-3.3-70b-versatile` or `llama-3.1-8b-instant`), which return raw HTTP 404 `model_not_found` / `invalid_request_error`.
-2. **Shared Daily Quota:**
+2. **Daily Quota Cap:**
    - Groq enforces a strict cap of **200,000 tokens/day per model** (TPD on on-demand tier).
-   - In a live demo, this 200,000 tokens/day quota will be shared between the **adaptive clinical interview agent** (`agents/adaptive_interview_agent.py`) and the **grounded explainer** (`rag/explainer.py`).
-   - If extensive demonstration sessions exhaust the daily quota, the system safely falls back to human-audited clinical templates (`rag/templates.json`) without interrupting triage.
+   - In a demo, the 200,000 tokens/day cap applies to the explainer (rag/explainer.py) for the chosen model. The interview engines are rule-based and make no Groq chat calls; voice transcription uses Whisper, which has its own separate limit. When the cap is reached, the explainer falls back to the templates (rag/templates.json); triage is never affected.
 
 ---
 
