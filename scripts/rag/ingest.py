@@ -74,18 +74,26 @@ def ingest_corpus() -> Dict[str, Any]:
             raw_pages.append(p.extract_text() or "")
 
         # 1. Clean pages
-        cleaned_pages = clean_page_text(raw_pages)
+        cleaned_pages, dropped_ref_blocks = clean_page_text(raw_pages)
 
         # 2. Split sections
         sections = split_sections(cleaned_pages)
 
-        # 3. Chunk sections
+        # 3. Chunk sections with per-source deduplication
         source_chunks: List[Dict[str, Any]] = []
         rec_count = 0
+        seen_texts = set()
+        duplicates_dropped = 0
 
         for sec in sections:
             sec_chunks = chunk_section(sec)
             for c in sec_chunks:
+                norm_text = " ".join(c["text"].split())
+                if norm_text in seen_texts:
+                    duplicates_dropped += 1
+                    continue
+                seen_texts.add(norm_text)
+
                 record = build_chunk_record(
                     chunk_dict=c,
                     source_id=source_id,
@@ -115,6 +123,8 @@ def ingest_corpus() -> Dict[str, Any]:
             "chunks": len(source_chunks),
             "rec_chunks": rec_count,
             "mean_words": mean_words,
+            "ref_blocks_dropped": dropped_ref_blocks,
+            "duplicates_dropped": duplicates_dropped,
             "sample_headings": sample_headings,
         })
 
@@ -157,8 +167,12 @@ def print_and_save_reports(results: Dict[str, Any]):
     lines.append("-" * 80)
     total_chunks = len(all_chunks)
     total_words = sum(c["word_count"] for c in all_chunks)
+    total_ref_dropped = sum(s.get("ref_blocks_dropped", 0) for s in source_stats)
+    total_dup_dropped = sum(s.get("duplicates_dropped", 0) for s in source_stats)
     lines.append(f"TOTAL CHUNKS: {total_chunks} | TOTAL WORDS: {total_words}")
+    lines.append(f"REFERENCE BLOCKS DROPPED: {total_ref_dropped} | DUPLICATES DROPPED: {total_dup_dropped}")
     lines.append("")
+
 
     lines.append("=" * 80)
     lines.append("SAMPLE HEADINGS PER INGESTED SOURCE (3 randomly sampled headings):")

@@ -10,33 +10,52 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 
-def clean_page_text(pages: List[str]) -> List[str]:
+# Citation line pattern: "Surname AB,", "doi:", "et al.", "year;vol(issue):pages", or numbered author lines "140 Hoshide S,"
+CITATION_LINE_RE = re.compile(
+    r"(?:doi:\s*10\.\d{4,9}/|\bet\s+al\.?|\b\d{4};\s*\d+(?:\(\d+\))?:\s*\d+|^\s*\d{1,4}\.?\s+[A-Z][a-z]+(?:\s+[A-Z]{1,3})?,|^\s*[A-Z][a-z]+\s+[A-Z]{1,3}(?:,\s+[A-Z][a-z]+\s+[A-Z]{1,3})+\b)",
+    re.IGNORECASE,
+)
+
+
+def is_citation_line(line: str) -> bool:
+    """Check if a line matches academic reference/citation patterns."""
+    return bool(CITATION_LINE_RE.search(line.strip()))
+
+
+def is_citation_block(text: str, threshold: float = 0.40) -> bool:
+    """Check if more than 40% of non-empty lines look like citation entries."""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return False
+    cite_count = sum(1 for ln in lines if is_citation_line(ln))
+    return (cite_count / len(lines)) > threshold
+
+
+def clean_page_text(pages: List[str]) -> Tuple[List[str], int]:
     """Clean extracted page texts.
 
     - Removes running headers/footers appearing on > 50% of pages.
     - Removes isolated page numbers and journal pagination banners.
     - Joins hyphenated words broken across line endings.
-    - Drops reference sections (from 'References' to end of section).
+    - Drops reference sections (from 'References' until next major top-level heading).
+    Returns (cleaned_pages, dropped_ref_blocks_count).
     """
     if not pages:
-        return []
+        return [], 0
 
     num_pages = len(pages)
     threshold = num_pages / 2.0
 
     # Count line occurrences across pages (stripped of surrounding whitespace)
-    page_line_sets = []
     line_page_counts: Counter[str] = Counter()
 
     for page in pages:
         seen_in_page = set()
         for raw_line in page.splitlines():
             line_str = raw_line.strip()
-            # Ignore very short lines for header/footer counting to avoid dropping bullet points or whitespace
             if len(line_str) >= 5 and line_str not in seen_in_page:
                 seen_in_page.add(line_str)
                 line_page_counts[line_str] += 1
-        page_line_sets.append(seen_in_page)
 
     repeated_headers = set()
     if num_pages >= 2:
@@ -44,18 +63,21 @@ def clean_page_text(pages: List[str]) -> List[str]:
             line for line, count in line_page_counts.items() if count >= 2 and count > threshold
         }
 
-    cleaned_pages: List[str] = []
-
-    # Page number patterns: "12", "Page 12", "S132", "e212", "12 of 105"
     page_num_re = re.compile(
         r"^(?:(?:page\s+)?(?:[se]?\d{1,4}|\d{1,4}\s*(?:/|of)\s*\d{1,4})|s\d{2,4}\s*–\s*s\d{2,4})$",
         re.IGNORECASE,
     )
+    major_heading_re = re.compile(
+        r"^(?:Section\s+)?(?:[1-9]|1[0-9]|20)\.?\s+[A-Z][A-Za-z0-9\s,\-–:;/()]{3,80}$"
+    )
+
+    cleaned_pages: List[str] = []
+    in_references = False
+    dropped_ref_blocks = 0
 
     for page in pages:
         lines = page.splitlines()
         kept_lines: List[str] = []
-        in_references = False
 
         for line in lines:
             stripped = line.strip()
@@ -63,7 +85,12 @@ def clean_page_text(pages: List[str]) -> List[str]:
             # Check if entering reference section
             if re.match(r"^(?:references|bibliography|works cited)\b", stripped, re.IGNORECASE):
                 in_references = True
+                dropped_ref_blocks += 1
                 continue
+
+            # Check if exiting reference section at the next real top-level heading
+            if in_references and major_heading_re.match(stripped):
+                in_references = False
 
             if in_references:
                 continue
@@ -76,21 +103,18 @@ def clean_page_text(pages: List[str]) -> List[str]:
             if page_num_re.match(stripped):
                 continue
 
-            # Drop Table of Contents lines with dot leaders (e.g. "Section 1. .... 1334")
+            # Drop Table of Contents lines with dot leaders
             if re.search(r"\.{4,}\s*\d+", stripped):
                 continue
 
             kept_lines.append(line)
 
         page_text = "\n".join(kept_lines)
-
-        # Join hyphenated words split across line breaks: "inter-\nvention" -> "intervention"
-        # Match a word char, hyphen, newline, and word char
         page_text = re.sub(r"(\b[A-Za-z]+)-\n\s*([A-Za-z]+\b)", r"\1\2", page_text)
-
         cleaned_pages.append(page_text.strip())
 
-    return cleaned_pages
+    return cleaned_pages, dropped_ref_blocks
+
 
 
 def _detect_grade(text: str) -> Optional[str]:
@@ -194,6 +218,21 @@ def split_sections(pages: List[str]) -> List[Dict[str, Any]]:
                 and not re.match(r"^(?:TABLE|FIGURE|BOX|AUTHORS?)\b", stripped, re.IGNORECASE)
             )
 
+            # Prevent citation lines from triggering headings: e.g. "140 Hoshide S, Kario K, ..."
+            if is_citation_line(stripped):
+                m_num = None
+                m_rec = None
+                is_all_caps = False
+            elif m_num:
+                num_part = m_num.group(1)
+                title_part = m_num.group(2).strip()
+                if (
+                    ("." not in num_part and int(num_part) > 25)
+                    or re.search(r"^[A-Z][a-z]+\s+[A-Z]{1,3},", title_part)
+                    or "et al" in title_part.lower()
+                ):
+                    m_num = None
+
             if m_num or m_rec or is_all_caps:
                 flush_section(current_page)
                 section_page_start = current_page
@@ -223,8 +262,21 @@ def split_sections(pages: List[str]) -> List[Dict[str, Any]]:
     return sections
 
 
-def _split_into_sentences(text: str) -> List[str]:
-    """Split text into sentences while keeping table rows intact."""
+def _hard_split_words(text: str, max_words: int) -> List[str]:
+    """Hard-split text on whitespace when a single block exceeds max_words."""
+    words = text.split()
+    if len(words) <= max_words:
+        return [text]
+    pieces: List[str] = []
+    for i in range(0, len(words), max_words):
+        sub_words = words[i : i + max_words]
+        if sub_words:
+            pieces.append(" ".join(sub_words))
+    return pieces
+
+
+def _split_into_sentences(text: str, max_words: int = 400) -> List[str]:
+    """Split text into sentences while keeping table rows intact, with hard split on max_words."""
     lines = text.splitlines()
     sentences: List[str] = []
     buf: List[str] = []
@@ -232,12 +284,15 @@ def _split_into_sentences(text: str) -> List[str]:
     def flush_buf():
         if buf:
             joined = " ".join(buf).strip()
-            # Split sentences on .!? followed by space or end
             raw_sents = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9])", joined)
             for s in raw_sents:
                 s_strip = s.strip()
                 if s_strip:
-                    sentences.append(s_strip)
+                    # Apply hard word cap split if a single sentence exceeds max_words
+                    if len(s_strip.split()) > max_words:
+                        sentences.extend(_hard_split_words(s_strip, max_words))
+                    else:
+                        sentences.append(s_strip)
             buf.clear()
 
     for line in lines:
@@ -247,12 +302,16 @@ def _split_into_sentences(text: str) -> List[str]:
         # Check if table row (starts with | or has markdown table separators)
         if stripped.startswith("|") or stripped.startswith("+--") or "\t" in stripped:
             flush_buf()
-            sentences.append(stripped)
+            if len(stripped.split()) > max_words:
+                sentences.extend(_hard_split_words(stripped, max_words))
+            else:
+                sentences.append(stripped)
         else:
             buf.append(stripped)
 
     flush_buf()
     return sentences
+
 
 
 def chunk_section(
@@ -264,13 +323,18 @@ def chunk_section(
     """Chunk a single section into windows of 200-400 words with 40-word overlap.
 
     - Never crosses section boundaries.
-    - Never splits sentences or table rows.
+    - Never splits sentences or table rows unless exceeding max_words.
     - Recommendations with grades are kept as distinct chunks.
+    - Drops reference/bibliography blocks (> 40% citation lines).
+    - Hard cap: no chunk ever exceeds max_words words.
     """
     text = section["text"]
+    if is_citation_block(text):
+        return []
+
     is_rec = section.get("is_recommendation", False)
     grade = section.get("grade")
-    sentences = _split_into_sentences(text)
+    sentences = _split_into_sentences(text, max_words=max_words)
 
     if not sentences:
         return []
@@ -292,7 +356,7 @@ def chunk_section(
             }
         ]
 
-    chunks: List[Dict[str, Any]] = []
+    raw_chunks: List[Dict[str, Any]] = []
     current_sentences: List[str] = []
     current_count = 0
 
@@ -303,15 +367,9 @@ def chunk_section(
         sent_words = sent_word_counts[idx]
         total_remaining -= sent_words
 
-        # If adding this sentence exceeds max_words and we have met min_words,
-        # but only cut if the remaining words can form a viable chunk (>= min_words // 2)
-        if (
-            current_count + sent_words > max_words
-            and current_count >= min_words
-            and total_remaining >= (min_words // 2)
-        ):
+        if current_count + sent_words > max_words and current_count >= min_words:
             chunk_text = "\n".join(current_sentences).strip()
-            chunks.append(
+            raw_chunks.append(
                 {
                     "section_path": section["section_path"],
                     "text": chunk_text,
@@ -341,8 +399,19 @@ def chunk_section(
         current_count += sent_words
 
     if current_sentences:
+        # If the trailing chunk is under min_words, backfill from preceding sentences in the previous chunk
+        if current_count < min_words and raw_chunks:
+            prev_sents = _split_into_sentences(raw_chunks[-1]["text"], max_words=max_words)
+            for s in reversed(prev_sents):
+                w = len(s.split())
+                if current_count + w <= max_words:
+                    current_sentences.insert(0, s)
+                    current_count += w
+                if current_count >= min_words:
+                    break
+
         chunk_text = "\n".join(current_sentences).strip()
-        chunks.append(
+        raw_chunks.append(
             {
                 "section_path": section["section_path"],
                 "text": chunk_text,
@@ -354,7 +423,28 @@ def chunk_section(
             }
         )
 
-    return chunks
+    # Post-process: enforce strict hard word cap on every chunk
+    final_chunks: List[Dict[str, Any]] = []
+    for c in raw_chunks:
+        c_words = c["text"].split()
+        if len(c_words) > max_words:
+            # Hard split on whitespace with overlap
+            step = max_words - overlap_words if max_words > overlap_words else max_words
+            for i in range(0, len(c_words), step):
+                sub = c_words[i : i + max_words]
+                if not sub or (len(sub) < 15 and final_chunks and not c.get("is_recommendation")):
+                    continue
+                new_c = dict(c)
+                new_c["text"] = " ".join(sub)
+                new_c["word_count"] = len(sub)
+                final_chunks.append(new_c)
+                if i + max_words >= len(c_words):
+                    break
+        else:
+            final_chunks.append(c)
+
+    return final_chunks
+
 
 
 def tag_condition(text: str, source_id: str = "") -> str:

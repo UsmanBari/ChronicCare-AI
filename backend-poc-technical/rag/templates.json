@@ -1,0 +1,288 @@
+{
+  "bp_severe": {
+    "en": {
+      "sentences": [
+        "Your blood pressure reading of {systolic}/{diastolic} mmHg is in the severely high range, which requires emergency medical attention.",
+        "Clinical guidelines recommend immediate evaluation by a doctor or emergency services to ensure your safety.",
+        "Please rest quietly in a seated position and seek urgent emergency assistance."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "آپ کا بلڈ پریشر {systolic}/{diastolic} mmHg شدید زیادہ کی حد میں ہے، جس کے لیے فوری ہنگامی طبی امداد درکار ہے۔",
+        "طبی ہدایات کے مطابق آپ کی حفاظت کے لیے فوری طور پر ڈاکٹر یا ایمرجنسی سے رابطہ ضروری ہے۔",
+        "براہ کرم پرسکون بیٹھ کر فوری ہنگامی مدد حاصل کریں۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ka blood pressure {systolic}/{diastolic} mmHg bohat zyada hai, jis ke liye fori emergency madad darkaar hai.",
+        "Clinical guidelines ke mutabiq aap ki hifazat ke liye doctor ya emergency se fori rabta zaroori hai.",
+        "Bara-e-meherbani araam se baith kar fori emergency madad hasil karein."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "bp_urgent": {
+    "en": {
+      "sentences": [
+        "Your blood pressure reading of {systolic}/{diastolic} mmHg indicates Stage 2 elevation.",
+        "Guidelines recommend re-checking your blood pressure after 5 minutes of quiet seated rest.",
+        "A clinician review is scheduled to evaluate your blood pressure management."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "آپ کا بلڈ پریشر {systolic}/{diastolic} mmHg اسٹیج 2 بلندی ظاہر کرتا ہے۔",
+        "طبی رہنمائی کے مطابق 5 منٹ پرسکون بیٹھنے کے بعد دوبارہ ناپنا تجویز کیا جاتا ہے۔",
+        "آپ کے بلڈ پریشر کے جائزے کے لیے معالج کے ریویو کا بندوبست کیا گیا ہے۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ka blood pressure {systolic}/{diastolic} mmHg Stage 2 barhao zahir karta hai.",
+        "Guidelines ke mutabiq 5 minute araam se baith kar dobara check karein.",
+        "Doctor aap ki readings ka jaiza le kar mazeed rehnumai karein gay."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "bp_low": {
+    "en": {
+      "sentences": [
+        "Your blood pressure reading of {systolic}/{diastolic} mmHg is lower than normal targets.",
+        "Clinical practice suggests monitoring for symptoms of dizziness or lightheadedness upon standing.",
+        "Please rest safely and discuss these low readings with your healthcare provider."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "آپ کا بلڈ پریشر {systolic}/{diastolic} mmHg معمول کے ہدف سے کم ہے۔",
+        "طبی ہدایات کے مطابق کھڑے ہوتے وقت چکر آنے یا کمزوری کی علامات کا خیال رکھیں۔",
+        "براہ کرم احتیاط سے آرام کریں اور اپنے ڈاکٹر سے اس کمی پر بات کریں۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ka blood pressure {systolic}/{diastolic} mmHg mamool se kam hai.",
+        "Kharay hotay waqt chakkar ya kamzori ki alamaat ka khayal rakhein.",
+        "Bara-e-meherbani araam karein aur apnay doctor se is reading par baat karein."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "bp_change": {
+    "en": {
+      "sentences": [
+        "Your systolic blood pressure has increased by more than 20 mmHg compared to your recent baseline.",
+        "Clinical guidance advises repeating the measurement under calm conditions to verify the change.",
+        "Your care team will review this notable rise alongside your recent health logs."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "آپ کا سسٹولک بلڈ پریشر آپ کی حالیہ معمول کی سطح سے 20 mmHg سے زیادہ بڑھ گیا ہے۔",
+        "طبی رہنمائی کے مطابق اس تبدیلی کی تصدیق کے لیے پرسکون ماحول میں دوبارہ چیک کریں۔",
+        "آپ کی میڈیکل ٹیم آپ کے حالیہ ریکارڈز کے ساتھ اس نمایاں اضافے کا جائزہ لے گی۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ka systolic blood pressure aap ki mamool ki reading se 20 mmHg zyada aya hai.",
+        "Is tabdeeli ki tasdeeq ke liye pursukoon mahool mein dobara naapein.",
+        "Aap ki medical team aap ke record ke sath is izafay ka jaiza le gi."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "glucose_low": {
+    "en": {
+      "sentences": [
+        "Your blood glucose reading of {glucose} mg/dL is below 70 mg/dL, indicating hypoglycemia.",
+        "Guidelines recommend consuming 15 grams of fast-acting carbohydrates and re-testing in 15 minutes.",
+        "Please follow standard hypoglycemia recovery steps and alert your caregiver or doctor if it remains low."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "آپ کی شوگر کی ریڈنگ {glucose} mg/dL ہے جو 70 mg/dL سے کم ہے، جو شوگر میں کمی (ہائپوگلیسیمیا) کو ظاہر کرتی ہے۔",
+        "طبی رہنمائی کے مطابق 15 گرام فوری اثر کرنے والی میٹھی چیز کھائیں اور 15 منٹ بعد دوبارہ چیک کریں۔",
+        "براہ کرم شوگر بحالی کے طریقہ کار پر عمل کریں اور اگر شوگر کم رہے تو اپنے معالج کو مطلع کریں۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ki sugar reading {glucose} mg/dL hai jo 70 mg/dL se kam hai (hypoglycemia).",
+        "Guidelines ke mutabiq 15 gram fori meethi cheez lein aur 15 minute baad dobara check karein.",
+        "Bara-e-meherbani ahtiyat karein aur agar sugar kam rahay to doctor ko aagah karein."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "glucose_very_low": {
+    "en": {
+      "sentences": [
+        "Your blood glucose reading of {glucose} mg/dL is critically low and requires immediate assistance.",
+        "Clinical protocols advise taking rapid-acting sugar immediately and having someone assist you.",
+        "Seek emergency medical help if you feel confused, dizzy, or cannot raise your glucose level."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "آپ کی شوگر کی ریڈنگ {glucose} mg/dL انتہائی کم ہے اور فوری مدد کی متقاضی ہے۔",
+        "طبی پروٹوکول کے مطابق فوری طور پر میٹھا لیں اور کسی قریبی فرد سے مدد لیں۔",
+        "اگر آپ کو چکر آئیں، الجھن ہو، یا شوگر نہ بڑھے تو فوری ہنگامی طبی امداد طلب کریں۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ki sugar reading {glucose} mg/dL intehai kam hai aur fori madad ki zaroorat hai.",
+        "Fori taur par meetha lein aur kisi qareebi fard se madad hasil karein.",
+        "Agar chakkar ya behoshi mehsoos ho to fori emergency madad mangayein."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "glucose_high": {
+    "en": {
+      "sentences": [
+        "Your blood glucose reading of {glucose} mg/dL is elevated above standard post-meal targets.",
+        "Guidelines recommend drinking water to stay hydrated and checking for symptoms such as excessive thirst.",
+        "Your healthcare provider will review your glucose pattern in the regular review queue."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "آپ کی شوگر کی ریڈنگ {glucose} mg/dL معمول کے ہدف سے زیادہ بلند ہے۔",
+        "طبی رہنمائی کے مطابق پانی پی کر ہائیڈریٹ رہیں اور شدید پیاس جیسی علامات پر نظر رکھیں۔",
+        "آپ کا ڈاکٹر ریویو کیو میں آپ کے شوگر پیٹرن کا جائزہ لے گا۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ki sugar reading {glucose} mg/dL mamool ke target se zyada hai.",
+        "Paani pi kar hydrated rahein aur shadeed pyas jaisi alamaat par tawajjah dein.",
+        "Aap ka doctor review queue mein aap ki sugar ka jaiza le ga."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "glucose_urgent_high": {
+    "en": {
+      "sentences": [
+        "Your blood glucose reading of {glucose} mg/dL is severely elevated.",
+        "Clinical guidance stresses monitoring for vomiting, abdominal pain, or shortness of breath.",
+        "Please contact your clinic today for medical evaluation of severe hyperglycemia."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "آپ کی شوگر کی ریڈنگ {glucose} mg/dL شدید زیادہ ہے۔",
+        "طبی رہنمائی کے مطابق الٹی، پیٹ میں درد، یا سانس پھولنے جیسی علامات پر فوری توجہ درکار ہے۔",
+        "شدید ہائی شوگر کے طبی معائنے کے لیے براہ کرم آج ہی اپنے کلینک سے رابطہ کریں۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ki sugar reading {glucose} mg/dL bohat zyada buland hai.",
+        "Ulti, pait mein dard, ya saans phoolnay jaisi alamaat par fori tawajjah dein.",
+        "Severe high sugar ke mutalliq mashwaray ke liye aaj hi apnay clinic se rabta karein."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "ramadan_fasting": {
+    "en": {
+      "sentences": [
+        "International diabetes and Ramadan guidelines recommend checking blood glucose regularly during fasting hours.",
+        "You must break your fast immediately if your blood glucose drops below 70 mg/dL or exceeds 300 mg/dL.",
+        "Consult your doctor before adjusting treatment schedules during Ramadan."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "ذیابیطس اور رمضان کی بین الاقوامی ہدایات کے مطابق روزے کے دوران باقاعدگی سے شوگر چیک کریں۔",
+        "اگر آپ کی شوگر 70 mg/dL سے کم ہو جائے یا 300 mg/dL سے تجاوز کر جائے تو فوری روزہ توڑنا لازمی ہے۔",
+        "رمضان کے دوران ادویات کے اوقات تبدیل کرنے سے پہلے اپنے ڈاکٹر سے مشورہ کریں۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Diabetes aur Ramadan guidelines ke mutabiq rozay ke dauran baqaidgi se sugar check karein.",
+        "Agar aap ki sugar 70 mg/dL se kam ya 300 mg/dL se barh jaye to fori roza todna lazmi hai.",
+        "Ramadan ke dauran dawaon ke auqaat badalnay se pehle doctor se zaroor mashwara karein."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "pregnancy_hypertension": {
+    "en": {
+      "sentences": [
+        "High blood pressure during pregnancy requires specialized maternal care and close monitoring.",
+        "Guidelines highlight watching for persistent headache, visual disturbances, or sudden swelling.",
+        "Contact your obstetrician or healthcare team promptly for safe evaluation."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "دورانِ حمل ہائی بلڈ پریشر میں خصوصی دیکھ بھال اور مسلسل نگرانی لازمی ہے۔",
+        "طبی ہدایات کے مطابق شدید سر درد، نظر کی دھندلاہٹ، یا سوجن جیسی علامات پر فوری توجہ دیں۔",
+        "محفوظ معائنے کے لیے فوری طور پر اپنے ماہر امراض نسواں سے رابطہ کریں۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Hamal ke dauran high blood pressure mein makhsoos nigrani zaroori hai.",
+        "Guidelines ke mutabiq shadeed sar dard, nazr ki kharabi, ya soojan par fori tawajjah dein.",
+        "Mehfooz jaizay ke liye fori taur par apnay doctor se rabta karein."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "routine": {
+    "en": {
+      "sentences": [
+        "Your reported readings are within your agreed target monitoring range today.",
+        "Guidelines emphasize maintaining regular physical activity, a balanced diet, and steady adherence to your routine.",
+        "Continue your daily check-ins to help track your long-term health trends."
+      ],
+      "needs_doctor_review": false
+    },
+    "ur": {
+      "sentences": [
+        "آپ کی درج کردہ ریڈنگز آج آپ کے طے شدہ ہدف کے دائرے میں ہیں۔",
+        "طبی رہنمائی کے مطابق متوازن غذا، ہلکی ورزش، اور معمول کی احتیاط کو جاری رکھیں۔",
+        "اپنی صحت کے رجحانات پر نظر رکھنے کے لیے روزانہ چیک ان جاری رکھیں۔"
+      ],
+      "needs_doctor_review": false
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ki darj shuda readings aaj aap ke tay shuda target ke mutabiq hain.",
+        "Guidelines ke mutabiq munasib ghiza, halki warzish, aur mamool ki ahtiyat ko barqarar rakhein.",
+        "Apni sehat par nazar rakhnay ke liye rozana check-in jari rakhein."
+      ],
+      "needs_doctor_review": false
+    }
+  }
+}
