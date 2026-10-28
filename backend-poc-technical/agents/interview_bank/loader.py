@@ -65,6 +65,8 @@ class BankItem:
     source: str
     review_status: str
     bank_version: str
+    also_fills: Optional[List[str]] = None
+    shared: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -212,6 +214,8 @@ def load_question_bank(bank_dir: Optional[str] = None) -> QuestionBank:
                 source=source_key,
                 review_status=raw_item.get("review_status", "proposed, not reviewed by a clinician"),
                 bank_version=raw_item.get("bank_version", "3.0"),
+                also_fills=raw_item.get("also_fills"),
+                shared=bool(raw_item.get("shared", False)),
             )
             items.append(item)
 

@@ -223,3 +223,58 @@ def test_mutation_proof_m_h2_5_tag_question_na_not_no():
     """M-H2-5: Tag question 'na' at the end ('theek hai na?') must NOT be read as 'no'."""
     res = parse_yes_no("theek hai na?")
     assert res["value"] == "unknown"
+
+# -----------------------------------------------------------------------------
+# Day 3 Mutation Proof Tests (M-H3-1 and M-H3-2)
+# -----------------------------------------------------------------------------
+def test_mutation_proof_m_h3_1_dedup_guard():
+    """M-H3-1: Centralized de-duplication guard must prevent scheduling a slot if an alias is already satisfied."""
+    bank = get_default_bank()
+    patient_record = {"conditions": ["diabetes", "hypertension"], "on_insulin_or_sulfonylurea": False}
+    asked = {
+        "greeting", "glucose_reading", "glucose_context", "bp_reading",
+        "bp_technique", "hyperglycemia_symptoms", "foot_problems",
+        "associated_symptoms", "otc_meds_bp", "adherence_diabetes"
+    }
+    known = {s: True for s in asked}
+    known["glucose_reading"] = 110
+    known["bp_reading"] = [120, 80]
+
+    decision = plan_next_step(
+        known_slots=known,
+        findings=[],
+        patient_record=patient_record,
+        bank=bank,
+        asked_slots=asked,
+        base_budget=14,
+    )
+    # adherence_diabetes also satisfies adherence_hypertension; guard must skip adherence_hypertension
+    assert decision.target_slot != "adherence_hypertension"
+    assert decision.target_slot == "lifestyle_diabetes"
+
+
+def test_mutation_proof_m_h3_2_budget_shared_double_count():
+    """M-H3-2: Shared questions must count once towards budget, not twice."""
+    bank = get_default_bank()
+    patient_record = {"conditions": ["diabetes", "hypertension"], "on_insulin_or_sulfonylurea": False}
+    asked = {
+        "greeting", "glucose_reading", "glucose_context", "bp_reading",
+        "bp_technique", "hyperglycemia_symptoms", "adherence_diabetes"
+    }
+    known = {s: True for s in asked}
+    known["glucose_reading"] = 110
+    known["bp_reading"] = [120, 80]
+
+    decision = plan_next_step(
+        known_slots=known,
+        findings=[],
+        patient_record=patient_record,
+        bank=bank,
+        asked_slots=asked,
+        base_budget=8,
+    )
+    # 7 questions asked. Next must be the 8th question (action: ask_bank_item).
+    # If shared questions are counted twice, budget (8) would be reached prematurely triggering summary_confirm.
+    assert decision.action == "ask_bank_item"
+    assert decision.target_slot == "foot_problems"
+    assert decision.question_count == 8

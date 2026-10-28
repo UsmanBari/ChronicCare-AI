@@ -9,9 +9,17 @@
     "template_roman_ur": "Kya aap ne aaj sugar check ki hai? Agar haan, toh kya reading thi?",
     "answer_type": "number",
     "choices": null,
-    "valid_range": [20.0, 600.0],
-    "unit_options": ["mg/dL", "mmol/L"],
-    "requires": {"condition": "diabetes"},
+    "valid_range": [
+      20.0,
+      600.0
+    ],
+    "unit_options": [
+      "mg/dL",
+      "mmol/L"
+    ],
+    "requires": {
+      "condition": "diabetes"
+    },
     "priority_class": "open",
     "can_raise_level": true,
     "rule_id": "glucose_triage_trigger",
@@ -28,10 +36,19 @@
     "template_ur": "کیا یہ ریڈنگ نہار منہ تھی، کھانے سے پہلے، کھانے کے بعد، یا رات سونے سے پہلے؟",
     "template_roman_ur": "Kya yeh reading nahar munh thi, khanay se pehle, khanay ke baad, ya raat sone se pehle?",
     "answer_type": "choice",
-    "choices": ["fasting", "before_meal", "after_meal", "bedtime", "random"],
+    "choices": [
+      "fasting",
+      "before_meal",
+      "after_meal",
+      "bedtime",
+      "random"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "diabetes", "has_glucose_reading": true},
+    "requires": {
+      "condition": "diabetes",
+      "has_glucose_reading": true
+    },
     "priority_class": "open",
     "can_raise_level": false,
     "rule_id": null,
@@ -48,16 +65,25 @@
     "template_ur": "کیا آپ کو حال ہی میں پیاس زیادہ لگنا، بار بار پیشاب آنا، غیر معمولی تھکاوٹ، یا دھندلا نظر آنا محسوس ہوا ہے؟",
     "template_roman_ur": "Kya aap ko haal hi mein pyas ziada lagna, bar bar peshab aana, ghair mamooli thakawat, ya dhundla nazar aana mehsoos hua hai?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "diabetes"},
+    "requires": {
+      "condition": "diabetes"
+    },
     "priority_class": "open",
     "can_raise_level": true,
     "rule_id": "hyperglycemia_symptoms_review",
     "source": "ada_2026_soc_sec6",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "also_fills": [
+      "associated_symptoms"
+    ],
+    "shared": true
   },
   {
     "id": "diabetes_foot_problems",
@@ -68,10 +94,15 @@
     "template_ur": "کیا آپ کے پاؤں پر کوئی نیا زخم، چھالا، درد، یا بے حسی (سن ہونا) ہے؟",
     "template_roman_ur": "Kya aap ke paon par koi naya zakham, chaala, dard, ya sunn hona (numbness) hai?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "diabetes"},
+    "requires": {
+      "condition": "diabetes"
+    },
     "priority_class": "open",
     "can_raise_level": true,
     "rule_id": "foot_problems_review",
@@ -88,16 +119,25 @@
     "template_ur": "کیا آپ نے آج اپنی شوگر کی دوائیاں ہدایت کے مطابق لی ہیں؟",
     "template_roman_ur": "Kya aap ne aaj apni sugar ki dawaiyan hidayat ke mutabiq li hain?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "diabetes"},
+    "requires": {
+      "condition": "diabetes"
+    },
     "priority_class": "open",
     "can_raise_level": false,
     "rule_id": null,
     "source": "ada_2026_soc_sec5",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "also_fills": [
+      "adherence_hypertension"
+    ],
+    "shared": true
   },
   {
     "id": "diabetes_missed_doses_reason",
@@ -111,13 +151,20 @@
     "choices": null,
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "diabetes", "adherence_diabetes": false},
+    "requires": {
+      "condition": "diabetes",
+      "adherence_diabetes": false
+    },
     "priority_class": "barrier",
     "can_raise_level": false,
     "rule_id": null,
     "source": "ada_2026_soc_sec5",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "also_fills": [
+      "missed_doses_reason_hypertension"
+    ],
+    "shared": true
   },
   {
     "id": "diabetes_lifestyle",
@@ -131,12 +178,18 @@
     "choices": null,
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "diabetes"},
+    "requires": {
+      "condition": "diabetes"
+    },
     "priority_class": "open",
     "can_raise_level": false,
     "rule_id": null,
     "source": "ada_2026_soc_sec5",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "also_fills": [
+      "lifestyle_hypertension"
+    ],
+    "shared": true
   }
 ]

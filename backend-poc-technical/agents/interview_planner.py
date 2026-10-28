@@ -95,6 +95,58 @@ def detect_historical_trends(recent_checkins: List[Dict[str, Any]]) -> Dict[str,
     return trends
 
 
+
+
+def is_slot_already_satisfied(
+    slot: str,
+    asked_slots: Set[str],
+    known_slots: Dict[str, Any],
+    bank: QuestionBank,
+) -> bool:
+    """
+    R3/R6 Centralized De-duplication Guard.
+    A slot is already satisfied if:
+    1. It has been asked directly (in asked_slots), OR
+    2. Any bank item whose also_fills includes this slot has already been asked (in asked_slots).
+    Note: asked_slots contains set(asked_slots) | set(known_slots.keys()) in plan_next_step.
+    """
+    if slot in asked_slots:
+        return True
+    for it in bank.all_items():
+        if it.also_fills and slot in it.also_fills:
+            if it.slot in asked_slots:
+                return True
+    return False
+
+
+def get_dual_readings_order(
+    recent_checkins: List[Dict[str, Any]],
+    patient_record: Dict[str, Any],
+) -> List[str]:
+    """
+    R2: Determines reading presentation order for dual-diagnosis patients.
+    If recent history shows one condition was abnormal more recently,
+    ask that reading first; otherwise default to glucose first.
+    """
+    bp_abnormal = False
+    glucose_abnormal = False
+
+    if recent_checkins:
+        for it in (recent_checkins[0].get("intakes") or []):
+            for r in it.get("readings", []):
+                obs_t = r.get("observation_type")
+                val = float(r.get("value", 0))
+                if obs_t == "blood_pressure_systolic" and (val >= 140 or (0 < val < 90)):
+                    bp_abnormal = True
+                elif obs_t == "blood_pressure_diastolic" and (val >= 90 or (0 < val < 60)):
+                    bp_abnormal = True
+                elif obs_t == "glucose" and (0 < val < 70 or val >= 180):
+                    glucose_abnormal = True
+
+    if bp_abnormal and not glucose_abnormal:
+        return ["hypertension_bp_reading", "diabetes_glucose_reading"]
+    return ["diabetes_glucose_reading", "hypertension_bp_reading"]
+
 def plan_next_step(
     known_slots: Dict[str, Any],
     findings: List[Finding],
@@ -203,7 +255,8 @@ def plan_next_step(
             probe = get_next_probe_for_finding(finding, bank.get_probes(), max_probes=2)
             if probe:
                 probe_slot = probe.get("slot")
-                if probe_slot and probe_slot not in asked_slots:
+                # R6: Probes drill into newest finding but never repeat an asked/satisfied slot
+                if probe_slot and not is_slot_already_satisfied(probe_slot, asked_slots, known_slots, bank):
                     return PlanDecision(
                         action="ask_probe",
                         probe=probe,
@@ -298,9 +351,30 @@ def plan_next_step(
         "core_patient_free_text",
     ]
 
+    # R2 Dual Diagnosis Reading Priority: If both conditions are on file and greeting has been asked,
+    # ask BOTH readings before any symptom question.
+    is_dual_diagnosis = ("diabetes" in conditions and "hypertension" in conditions)
+    if is_dual_diagnosis and "greeting" in asked_slots:
+        dual_order = get_dual_readings_order(recent_checkins, patient_record)
+        for r_item_id in dual_order:
+            r_item = bank.get_by_id(r_item_id)
+            if r_item and not is_slot_already_satisfied(r_item.slot, asked_slots, known_slots, bank):
+                return PlanDecision(
+                    action="ask_bank_item",
+                    item=r_item,
+                    reason=f"dual_diagnosis_reading_priority_{r_item.slot}",
+                    question_count=current_count + 1,
+                    max_budget=effective_budget,
+                    target_slot=r_item.slot,
+                )
+
     for item_id in standard_order:
         item = bank.get_by_id(item_id)
-        if not item or item.slot in asked_slots:
+        if not item:
+            continue
+
+        # Centralized De-duplication Guard (R3/R6): check if slot is already satisfied
+        if is_slot_already_satisfied(item.slot, asked_slots, known_slots, bank):
             continue
 
         req = item.requires

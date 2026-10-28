@@ -250,6 +250,23 @@ MUTATIONS = [
         "replacement": "            if True:\n                return {",
         "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h2_5_tag_question_na_not_no",
     },
+    # --- Day 3 Mutations (M-H3-1 to M-H3-2) ---
+    {
+        "id": "M-H3-1",
+        "name": "De-duplication guard removed (allow re-asking satisfied slot)",
+        "file": BACKEND_DIR / "agents" / "interview_planner.py",
+        "target": "        if is_slot_already_satisfied(item.slot, asked_slots, known_slots, bank):",
+        "replacement": "        if False and is_slot_already_satisfied(item.slot, asked_slots, known_slots, bank):",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h3_1_dedup_guard",
+    },
+    {
+        "id": "M-H3-2",
+        "name": "Shared questions counted twice towards budget",
+        "file": BACKEND_DIR / "agents" / "interview_planner.py",
+        "target": "    current_count = len([s for s in asked_slots if not s.startswith(\"probe_\") and s != \"summary_confirmation\"])",
+        "replacement": "    current_count = len([s for s in asked_slots if not s.startswith(\"probe_\") and s != \"summary_confirmation\"]) + sum(1 for s in asked_slots if bank.get_by_slot(s) and bank.get_by_slot(s).also_fills)",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h3_2_budget_shared_double_count",
+    },
 ]
 
 

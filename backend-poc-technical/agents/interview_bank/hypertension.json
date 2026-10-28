@@ -9,9 +9,16 @@
     "template_roman_ur": "Kya aap ne aaj apna blood pressure check kiya hai? Agar haan, toh kya reading thi (maslan 130/85)?",
     "answer_type": "number",
     "choices": null,
-    "valid_range": [60, 260],
-    "unit_options": ["mmHg"],
-    "requires": {"condition": "hypertension"},
+    "valid_range": [
+      60,
+      260
+    ],
+    "unit_options": [
+      "mmHg"
+    ],
+    "requires": {
+      "condition": "hypertension"
+    },
     "priority_class": "open",
     "can_raise_level": true,
     "rule_id": "bp_triage_trigger",
@@ -28,10 +35,16 @@
     "template_ur": "کیا بلڈ پریشر چیک کرنے سے پہلے آپ نے 5 منٹ پرسکون بیٹھ کر آرام کیا تھا اور کمر اور بازو کو سہارا دیا تھا؟",
     "template_roman_ur": "Kya BP check karne se pehle aap ne 5 minute pursukoon baith kar aaram kiya tha aur kamar aur baazu ko sahara diya tha?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension", "has_bp_reading": true},
+    "requires": {
+      "condition": "hypertension",
+      "has_bp_reading": true
+    },
     "priority_class": "open",
     "can_raise_level": false,
     "rule_id": null,
@@ -48,16 +61,25 @@
     "template_ur": "کیا آپ کو شدید سر درد، سانس پھولنا، ٹخنوں پر سوجن، یا کھڑے ہونے پر چکر آنا محسوس ہو رہا ہے؟",
     "template_roman_ur": "Kya aap ko shadeed sar dard, saans phoolna, takhno par sojan, ya kharay hone par chakkar aana mehsoos ho raha hai?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension"},
+    "requires": {
+      "condition": "hypertension"
+    },
     "priority_class": "open",
     "can_raise_level": true,
     "rule_id": "associated_symptoms_triage",
     "source": "nice_ng136_hypertension",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "also_fills": [
+      "hyperglycemia_symptoms"
+    ],
+    "shared": true
   },
   {
     "id": "hypertension_otc_meds_bp",
@@ -68,10 +90,16 @@
     "template_ur": "کیا آپ نے حال ہی میں درد کش دوائیں (جیسے بروفین)، نزلہ زکام کا شربت، یا دیسی جڑی بوٹیاں لی ہیں؟",
     "template_roman_ur": "Kya aap ne haal hi mein dard ki dawaiyan (jaise ibuprofen), nazla zukam ka syrup, ya desi jari bootiyan li hain?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension", "bp_elevated": true},
+    "requires": {
+      "condition": "hypertension",
+      "bp_elevated": true
+    },
     "priority_class": "open",
     "can_raise_level": true,
     "rule_id": "otc_meds_bp_review",
@@ -88,16 +116,25 @@
     "template_ur": "کیا آپ نے آج اپنے بلڈ پریشر کی دوائیاں لے لی ہیں؟",
     "template_roman_ur": "Kya aap ne aaj apne blood pressure ki dawaiyan le li hain?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension"},
+    "requires": {
+      "condition": "hypertension"
+    },
     "priority_class": "open",
     "can_raise_level": false,
     "rule_id": null,
     "source": "aha_acc_2025_hypertension",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "also_fills": [
+      "adherence_diabetes"
+    ],
+    "shared": true
   },
   {
     "id": "hypertension_missed_doses_reason",
@@ -111,13 +148,20 @@
     "choices": null,
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension", "adherence_hypertension": false},
+    "requires": {
+      "condition": "hypertension",
+      "adherence_hypertension": false
+    },
     "priority_class": "barrier",
     "can_raise_level": false,
     "rule_id": null,
     "source": "aha_acc_2025_hypertension",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "also_fills": [
+      "missed_doses_reason_diabetes"
+    ],
+    "shared": true
   },
   {
     "id": "hypertension_lifestyle",
@@ -131,12 +175,18 @@
     "choices": null,
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension"},
+    "requires": {
+      "condition": "hypertension"
+    },
     "priority_class": "open",
     "can_raise_level": false,
     "rule_id": null,
     "source": "aha_acc_2025_hypertension",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "also_fills": [
+      "lifestyle_diabetes"
+    ],
+    "shared": true
   }
 ]

@@ -9,11 +9,11 @@
 
 | Metric | Measured Value | Standard / Target |
 |---|---|---|
-| **Total Simulated Personas Tested** | `52` | $\ge 50$ personas |
-| **Average Questions Per Check-in** | `7.71` | $\le 10$ normal, $\le 14$ hard cap |
-| **Average Slots Captured Per Session** | `7.65` | Comprehensive profile capture |
+| **Total Simulated Personas Tested** | `64` | $\ge 50$ personas |
+| **Average Questions Per Check-in** | `8.11` | $\le 10$ normal, $\le 14$ hard cap |
+| **Average Slots Captured Per Session** | `7.98` | Comprehensive profile capture |
 | **Clarifications & Odd Input Reroutes** | `5` | Handled via fixed response bank |
-| **Early Safety / Eligibility Exits** | `3` (2 emergencies, 1 pregnancy) | Immediate safety bypass |
+| **Early Safety / Eligibility Exits** | `4` (3 emergencies, 1 pregnancy) | Immediate safety bypass |
 | **LLM Fallback Rate (Stage 9A)** | `100.0% (Templates Default)` | 100% operational with LLM off |
 
 ---
@@ -35,10 +35,22 @@
 | `crisis_bp` | 1 | 0.0 | 0.0 |
 | `dka_sick_day` | 1 | 8.0 | 8.0 |
 | `dont_know` | 1 | 7.0 | 7.0 |
+| `dual_both_high` | 1 | 11.0 | 11.0 |
+| `dual_bp_crisis_first` | 1 | 0.0 | 0.0 |
+| `dual_caregiver_roman_ur` | 1 | 11.0 | 11.0 |
+| `dual_changes_answer_at_summary` | 1 | 10.0 | 9.0 |
+| `dual_fasting` | 1 | 12.0 | 12.0 |
+| `dual_glucose_low_bp_normal` | 1 | 13.0 | 13.0 |
 | `dual_normal` | 1 | 10.0 | 9.0 |
+| `dual_normal_roman_ur` | 1 | 10.0 | 9.0 |
+| `dual_normal_ur` | 1 | 10.0 | 9.0 |
+| `dual_record_contradiction` | 1 | 10.0 | 9.0 |
+| `dual_sick_day` | 1 | 12.0 | 12.0 |
+| `dual_unclear_everything` | 1 | 10.0 | 9.0 |
 | `dyspnea_exertion` | 1 | 8.0 | 8.0 |
 | `elderly_complex` | 1 | 14.0 | 13.0 |
 | `elderly_slow` | 1 | 8.0 | 8.0 |
+| `family_history_not_caregiver` | 1 | 9.0 | 9.0 |
 | `fasting_broke` | 1 | 8.0 | 8.0 |
 | `fasting_low` | 1 | 8.0 | 8.0 |
 | `fasting_safe` | 1 | 8.0 | 8.0 |

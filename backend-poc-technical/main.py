@@ -826,6 +826,7 @@ class CheckinCompleteResponse(BaseModel):
     max_severity: Optional[str] = None
     triage: Optional[Dict[str, Any]] = None
     record_source_label: Optional[str] = None
+    answered_by: Optional[str] = None
 
 
 class UserCheckinSummaryResponse(BaseModel):
@@ -901,6 +902,7 @@ class ReviewDetailResponse(BaseModel):
     actions: List[ReviewActionResponse]
     record_source_label: Optional[str] = None
     patient_background: Optional[Dict[str, Any]] = None
+    answered_by: Optional[str] = None
 
 
 class VoiceTranscribeResponse(BaseModel):
@@ -3299,6 +3301,11 @@ def complete_checkin_endpoint(
                 med_state_dict=None,
                 protocol_state_dict=None,
             )
+            answered_by_val = None
+            for it in intakes:
+                if it.get("answered_by"):
+                    answered_by_val = it["answered_by"]
+                    break
             return CheckinCompleteResponse(
                 emergency=True,
                 intakes=intakes,
@@ -3308,6 +3315,7 @@ def complete_checkin_endpoint(
                 max_severity="high",
                 triage=None,
                 record_source_label=record_label,
+                answered_by=answered_by_val,
             )
 
         v3_summary = finish_v3_session(raw_state)
@@ -3411,6 +3419,11 @@ def complete_checkin_endpoint(
                 med_state_dict=med_state.to_dict() if med_state else None,
                 protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
             )
+            answered_by_val = None
+            for it in intakes:
+                if it.get("answered_by"):
+                    answered_by_val = it["answered_by"]
+                    break
             return CheckinCompleteResponse(
                 emergency=True,
                 intakes=intakes,
@@ -3420,6 +3433,7 @@ def complete_checkin_endpoint(
                 max_severity="high",
                 triage=triage_dict,
                 record_source_label=record_label,
+                answered_by=answered_by_val,
             )
 
     # 2. Non-Emergency Flow
@@ -3634,6 +3648,11 @@ def complete_checkin_endpoint(
             protocol_state_dict=None,
         )
 
+        answered_by_val = None
+        for it in (state.intakes or []):
+            if it.get("answered_by"):
+                answered_by_val = it["answered_by"]
+                break
         return CheckinCompleteResponse(
             emergency=False,
             intakes=state.intakes,
@@ -3643,6 +3662,7 @@ def complete_checkin_endpoint(
             max_severity=final_max_sev,
             triage=triage_dict,
             record_source_label=record_label,
+            answered_by=answered_by_val,
         )
 
 
@@ -3771,6 +3791,12 @@ def get_provider_review_detail_endpoint(
 
     patient_bg = _build_patient_background(checkin["user_id"])
 
+    answered_by_val = None
+    for it in (result.get("intakes") or []):
+        if it.get("answered_by"):
+            answered_by_val = it["answered_by"]
+            break
+
     return ReviewDetailResponse(
         checkin_id=checkin_id,
         patient_id=checkin["record_patient_id"],
@@ -3792,6 +3818,7 @@ def get_provider_review_detail_endpoint(
         actions=[ReviewActionResponse(**a) for a in actions],
         record_source_label=record_label,
         patient_background=patient_bg,
+        answered_by=answered_by_val,
     )
 
 
