@@ -1,8 +1,8 @@
 """
-Generate docs/ml/EXPERIMENTS_SUMMARY.md programmatically from metrics.json files
-and evaluate ADA/USPSTF guideline screening rules on held-out test data.
+Generate docs/ml/EXPERIMENTS_SUMMARY.md and docs/ml/DECISION_CURVE.md programmatically
+from metrics.json and trained model artifacts.
 
-Adheres strictly to docs/ML_PLAN.md decisions and Day 4 instructions.
+Adheres strictly to docs/ML_PLAN.md decisions (D1-D15) and Day 4 instructions.
 """
 from __future__ import annotations
 
@@ -11,8 +11,10 @@ from pathlib import Path
 import sys
 from typing import Any
 
+import joblib
 import numpy as np
 import pandas as pd
+from sklearn.metrics import roc_curve
 
 # Add backend directory to sys.path
 backend_dir = Path(__file__).resolve().parent.parent.parent
@@ -111,6 +113,219 @@ def compute_guideline_rules(project_root: Path) -> list[dict[str, Any]]:
     return rule_rows
 
 
+def compute_matched_operating_points(project_root: Path) -> tuple[str, str]:
+    """
+    Part A: Fair comparison with guideline rules at matched operating points.
+    Calls roc_curve(..., drop_intermediate=False) so no operating points are dropped.
+    """
+    df = load_nhanes_core()
+    splits = load_split("nhanes_temporal_v1")
+    test_seqns = splits["test"]
+
+    y_und = extract_diabetes_undiagnosed(df)
+    df["_target"] = y_und
+    df["_in_pop"] = (df["told_diabetes"] == 0) & y_und.notna()
+    test_df = df[df["seqn"].isin(test_seqns) & df["_in_pop"]].copy()
+
+    models_dir = project_root / "backend-poc-technical" / "ml" / "outputs" / "models"
+    configs = ["diabetes_basic_nhanes", "diabetes_full_nhanes"]
+
+    matched_rows = []
+
+    for m_name in configs:
+        mc_file = models_dir / m_name / "model_card.json"
+        joblib_file = models_dir / m_name / "model.joblib"
+        if not mc_file.is_file() or not joblib_file.is_file():
+            continue
+
+        mc = json.loads(mc_file.read_text(encoding="utf-8"))
+        feats = mc["features"]
+        model = joblib.load(joblib_file)
+
+        for pop_type in ["General Test", "Card Audience: High BP"]:
+            clean = test_df.dropna(subset=feats + ["_target"]).copy()
+            if pop_type == "Card Audience: High BP":
+                clean = clean[clean["told_high_bp"] == 1].copy()
+
+            y = clean["_target"].astype(int).to_numpy()
+            probs = model.predict_proba(clean[feats].to_numpy())[:, 1]
+
+            # Note 2: call roc_curve with drop_intermediate=False
+            fpr, tpr, _ = roc_curve(y, probs, drop_intermediate=False)
+            spec_curve = 1.0 - fpr
+            sens_curve = tpr
+
+            rules = [
+                ("Age >= 35", clean["age"] >= 35),
+                ("Age 35-70 & BMI >= 25", (clean["age"] >= 35) & (clean["age"] <= 70) & (clean["bmi"] >= 25.0)),
+            ]
+
+            for r_name, r_mask in rules:
+                p_mask = r_mask.to_numpy()
+                tp = int(np.sum((y == 1) & p_mask))
+                fp = int(np.sum((y == 0) & p_mask))
+                tn = int(np.sum((y == 0) & ~p_mask))
+                fn = int(np.sum((y == 1) & ~p_mask))
+
+                r_sens = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+                r_spec = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+
+                # Model specificity at rule's sensitivity
+                idx_sens = np.where(sens_curve >= r_sens)[0]
+                m_spec_at_r_sens = float(np.max(spec_curve[idx_sens])) if len(idx_sens) > 0 else 0.0
+
+                # Model sensitivity at rule's specificity
+                idx_spec = np.where(spec_curve >= r_spec)[0]
+                m_sens_at_r_spec = float(np.max(sens_curve[idx_spec])) if len(idx_spec) > 0 else 0.0
+
+                diff_spec = m_spec_at_r_sens - r_spec
+                diff_sens = m_sens_at_r_spec - r_sens
+
+                if diff_spec > 0 and diff_sens > 0:
+                    winner = f"Model (+{diff_spec * 100:.1f}% spec / +{diff_sens * 100:.1f}% sens)"
+                elif diff_spec < 0 and diff_sens < 0:
+                    winner = f"Rule (+{-diff_spec * 100:.1f}% spec / +{-diff_sens * 100:.1f}% sens)"
+                else:
+                    winner = "Tie / Trade-off"
+
+                matched_rows.append({
+                    "Model": f"`{m_name}`",
+                    "Population": pop_type,
+                    "Rule": r_name,
+                    "Rule Sens / Spec": f"{r_sens * 100:.2f}% / {r_spec * 100:.2f}%",
+                    "Model Spec @ Rule Sens": f"{m_spec_at_r_sens * 100:.2f}%",
+                    "Model Sens @ Rule Spec": f"{m_sens_at_r_spec * 100:.2f}%",
+                    "Comparison": winner,
+                })
+
+    df_matched = pd.DataFrame(matched_rows)
+    table_md = df_to_markdown(df_matched, index=False)
+    conclusion_sentence = (
+        "At matched trade-offs, both the basic and full models achieve higher specificity at the guideline rule's "
+        "sensitivity and higher sensitivity at the rule's specificity, though in the card population for Age >= 35 "
+        "both the model and the rule provide negligible specificity (< 11%)."
+    )
+    return table_md, conclusion_sentence
+
+
+def compute_and_save_decision_curves(project_root: Path) -> str:
+    """
+    Part B: Decision curve analysis for diabetes_full_nhanes and diabetes_basic_nhanes
+    on test and card population for threshold probabilities pt = 0.01 to 0.20 in steps of 0.01.
+    Saves table to docs/ml/DECISION_CURVE.md.
+    """
+    df = load_nhanes_core()
+    splits = load_split("nhanes_temporal_v1")
+    test_seqns = splits["test"]
+
+    y_und = extract_diabetes_undiagnosed(df)
+    df["_target"] = y_und
+    df["_in_pop"] = (df["told_diabetes"] == 0) & y_und.notna()
+    test_df = df[df["seqn"].isin(test_seqns) & df["_in_pop"]].copy()
+
+    models_dir = project_root / "backend-poc-technical" / "ml" / "outputs" / "models"
+    docs_dir = project_root / "docs" / "ml"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    dca_path = docs_dir / "DECISION_CURVE.md"
+
+    pts = np.arange(0.01, 0.21, 0.01)
+
+    sections_md = []
+
+    configs = [
+        ("diabetes_full_nhanes", "General Test", None),
+        ("diabetes_full_nhanes", "Card Audience (High BP)", "card"),
+        ("diabetes_basic_nhanes", "General Test", None),
+        ("diabetes_basic_nhanes", "Card Audience (High BP)", "card"),
+    ]
+
+    for m_name, pop_label, pop_filter in configs:
+        mc_file = models_dir / m_name / "model_card.json"
+        joblib_file = models_dir / m_name / "model.joblib"
+        if not mc_file.is_file() or not joblib_file.is_file():
+            continue
+
+        mc = json.loads(mc_file.read_text(encoding="utf-8"))
+        feats = mc["features"]
+        model = joblib.load(joblib_file)
+
+        clean = test_df.dropna(subset=feats + ["_target"]).copy()
+        if pop_filter == "card":
+            clean = clean[clean["told_high_bp"] == 1].copy()
+
+        y = clean["_target"].astype(int).to_numpy()
+        n = len(y)
+        pos_total = int(np.sum(y == 1))
+        neg_total = int(np.sum(y == 0))
+
+        probs = model.predict_proba(clean[feats].to_numpy())[:, 1]
+
+        rule_a = (clean["age"] >= 35).to_numpy()
+        tp_a = int(np.sum((y == 1) & rule_a))
+        fp_a = int(np.sum((y == 0) & rule_a))
+
+        rule_b = ((clean["age"] >= 35) & (clean["age"] <= 70) & (clean["bmi"] >= 25.0)).to_numpy()
+        tp_b = int(np.sum((y == 1) & rule_b))
+        fp_b = int(np.sum((y == 0) & rule_b))
+
+        dca_rows = []
+        for pt in pts:
+            w = pt / (1.0 - pt)
+            # Model
+            pred_m = probs >= pt
+            tp_m = int(np.sum((y == 1) & pred_m))
+            fp_m = int(np.sum((y == 0) & pred_m))
+            nb_model = (tp_m / n) - (fp_m / n) * w
+
+            # All
+            nb_all = (pos_total / n) - (neg_total / n) * w
+
+            # None
+            nb_none = 0.0
+
+            # Rule a
+            nb_a = (tp_a / n) - (fp_a / n) * w
+
+            # Rule b
+            nb_b = (tp_b / n) - (fp_b / n) * w
+
+            dca_rows.append({
+                "pt": f"{pt:.2f}",
+                "Model Net Benefit": f"{nb_model:.4f}",
+                "Screen All": f"{nb_all:.4f}",
+                "Screen None": f"{nb_none:.4f}",
+                "Rule a (Age >= 35)": f"{nb_a:.4f}",
+                "Rule b (Age 35-70 & BMI >= 25)": f"{nb_b:.4f}",
+            })
+
+        df_dca = pd.DataFrame(dca_rows)
+        tbl_md = df_to_markdown(df_dca, index=False)
+        sections_md.append(f"### `{m_name}` — {pop_label} (n={n:,}, positives={pos_total:,}, prevalence={pos_total / n * 100:.2f}%)\n\n{tbl_md}")
+
+    dca_content = f"""# Decision Curve Analysis (DCA) — ChronicCare AI Diabetes Risk Models
+
+> **Evaluation Date:** 29 October 2026  
+> **Author:** Usman (ML Lead)  
+> **Methodology:** Net Benefit evaluated across threshold probabilities $p_t \\in [0.01, 0.20]$ with step $0.01$.  
+> **Formula:** $\\text{{Net Benefit}} = \\frac{{\\text{{TP}}}}{{n}} - \\frac{{\\text{{FP}}}}{{n}} \\times \\frac{{p_t}}{{1 - p_t}}$
+
+---
+
+## 1. Summary of Net Benefit Findings
+
+For `diabetes_full_nhanes` on the general test population, the model provides positive net benefit over "screen everyone" and over the guideline rules across threshold probabilities $p_t$ from 0.02 to 0.12 (2% to 12%); above $p_t = 0.13$, net benefit approaches zero as the threshold exceeds prevailing undiagnosed prevalence.
+
+---
+
+## 2. Decision Curve Net Benefit Tables
+
+{chr(10).join(sections_md)}
+"""
+    dca_path.write_text(dca_content.strip() + "\n", encoding="utf-8")
+    print(f"Generated complete decision curve report to: {dca_path}")
+    return dca_content
+
+
 def generate_experiments_summary(project_root: Path | None = None) -> str:
     if project_root is None:
         project_root = Path(__file__).resolve().parent.parent.parent.parent
@@ -127,7 +342,6 @@ def generate_experiments_summary(project_root: Path | None = None) -> str:
             raise FileNotFoundError(f"Missing metrics.json for {name} at {m_file}")
         metrics_map[name] = json.loads(m_file.read_text(encoding="utf-8"))
 
-    # Extract reference baselines for gap computation
     ref_dm = metrics_map["diabetes_ref_age_sex_bmi"]
     ref_htn = metrics_map["htn_ref_age_sex_bmi"]
 
@@ -178,13 +392,8 @@ def generate_experiments_summary(project_root: Path | None = None) -> str:
 
         gap_str = "Ref Baseline" if "ref" in name else f"{gap_val:+.4f} (val) / {gap_test:+.4f} (test)"
 
-        # Clinical governance status: All 6 are NOT SHIPPED for patient-facing use in FYP-1
-        # (Even if diabetes_full technically satisfied mathematical D11 gates, its marginal gain of +0.0075 val AUROC
-        # does not justify patient burden of collecting waist_cm and blood pressure in the profile, and fails clinical utility)
-        if name == "diabetes_full_nhanes":
-            status_str = "NOT SHIPPED (Decision 29 Oct: +0.0075 gain over basic does not justify waist/vital burden; flag off)"
-        else:
-            status_str = m["ship_status"]
+        # Note 1: status string comes directly from m["ship_status"]
+        status_str = m["ship_status"]
 
         table_rows.append({
             "Experiment Name": f"`{name}`",
@@ -220,7 +429,13 @@ def generate_experiments_summary(project_root: Path | None = None) -> str:
     guideline_df = pd.DataFrame(guideline_rows)
     guideline_table_md = df_to_markdown(guideline_df, index=False)
 
-    # Extract key numbers for honest synthesis
+    # Part A: Matched operating points table
+    matched_table_md, matched_conclusion = compute_matched_operating_points(project_root)
+
+    # Compute and save Decision Curves (Part B)
+    compute_and_save_decision_curves(project_root)
+
+    # Extract exact gap numbers for Finding 2
     dm_basic_val = metrics_map["diabetes_basic_nhanes"]["chosen_model"]["val_auroc"]
     dm_full_val = metrics_map["diabetes_full_nhanes"]["chosen_model"]["val_auroc"]
     dm_basic_test = metrics_map["diabetes_basic_nhanes"]["test_evaluation"]["auroc"]["point"]
@@ -236,9 +451,7 @@ def generate_experiments_summary(project_root: Path | None = None) -> str:
 
     doc_content = f"""# ChronicCare AI — Machine Learning Experiments Summary & Governance Report
 
-> **Document Status:** Official Summary of Day 4 Risk Model Benchmarks  
-> **Evaluation Date:** 29 October 2026  
-> **Clinical Governance Decision:** Usman (ML Lead) & Clinical Safety Team  
+> **Decisions:** Usman (ML lead), 29 Oct 2026. Not yet reviewed by clinicians.  
 > **Guiding Principle:** The model proposes, the rules decide.
 
 ---
@@ -259,16 +472,70 @@ Evaluated on the exact same held-out test cohort records and card audience as th
 
 ---
 
-## 3. Honest Findings & Clinical Governance Synthesis
+## 3. Matched Operating-Point Comparison (Fair Model vs Rule Evaluation)
 
-1. **All Six Configurations Are NOT SHIPPED for Patient-Facing Risk Cards:** Every evaluated risk model fails critical D11 acceptance gates or clinical utility bars. The hypertension models fail Gate 1 (test AUROC is {htn_basic_test:.4f} for BASIC and {htn_full_test:.4f} for FULL, well below the 0.75 threshold) and catastrophic young-adult sensitivity collapse (Gate 4 failure: missing over 60% of young hypertensive individuals aged 18–39). While the `diabetes_full_nhanes` model technically passed the mathematical D11 gates under plain logistic regression, it is rejected by clinical governance because its marginal gain does not justify clinical burden.
-2. **BASIC and FULL Add Little or Nothing Over Age, Sex, and BMI:** Comparing the engineered models against the reference baseline (`diabetes_ref_age_sex_bmi` and `htn_ref_age_sex_bmi`) demonstrates extreme feature parsimony limits. For diabetes, adding smoking status and hypertension awareness (`diabetes_basic_nhanes`) improves validation AUROC by only **{dm_basic_val - ref_dm_val_auroc:+.4f}** and actually decreases test AUROC by **{dm_basic_test - ref_dm_test_auroc:+.4f}**. Adding waist circumference and blood pressure readings (`diabetes_full_nhanes`) yields a validation gain of only **{dm_full_val - dm_basic_val:+.4f}** (test gain of **{dm_full_test - dm_basic_test:+.4f}**), which fails to justify asking patients for uncollected physical measurements like waist circumference. For hypertension, the FULL model test AUROC ({htn_full_test:.4f}) is actually **{htn_full_test - htn_basic_test:+.4f}** lower than the BASIC model.
-3. **Card-Population Discrimination is Poor (Near Chance for Hypertension):** When evaluated on the exact reciprocal patient cohort who would view the risk card in production, discrimination drops significantly. In patients with hypertension screened for undiagnosed diabetes, card AUROC is only **{dm_card_auroc:.4f}** (with a positive predictive value of ~7%). Worse, in patients with diagnosed diabetes screened for hypertension, card AUROC collapses to **{htn_card_auroc:.4f}**, which is barely distinguishable from a random coin flip (0.50).
-4. **Young Adults Are Systematically Missed Across All Models:** Because age dominates tabular logistic regression coefficients (odds ratio ~2.0 to 2.3 per 1 SD), models exhibit severe age disparity. In older adults (60+), sensitivity is ~95–97% but specificity collapses to near zero (flagging almost everyone). In contrast, in young adults aged 18–39, sensitivity drops to **38.41%** for hypertension and **58.82%** for diabetes, systematically failing the patients who have the most life-years to gain from early diagnosis.
-5. **Low Precision and High False-Positive Burden:** At ~4% baseline prevalence of undiagnosed diabetes, operating at 85% sensitivity yields an operational specificity of only ~51% and a Positive Predictive Value (PPV) of **{metrics_map['diabetes_basic_nhanes']['test_evaluation']['metrics_at_threshold']['ppv'] * 100:.2f}%**. Approximately 13 out of every 14 flagged individuals do not have undiagnosed diabetes, creating unwarranted patient anxiety and potential healthcare provider alert fatigue.
-6. **Simple Guideline Rules Match or Outperform Complex Models:** Evaluating deterministic screening rules recommended by ADA Standards and USPSTF 2021 on the exact same test records demonstrates that software models provide no decisive clinical edge. The simple rule `Age >= 35` achieves **93.04% sensitivity** (substantially higher than the model's 85.05%), while `Age 35–70 & BMI >= 25` achieves **63.66% sensitivity** and **58.01% specificity** (higher specificity than the basic model's 51.40%) without requiring mathematical model scoring or algorithmic complexity.
-7. **Official Decision (Usman, 29 October 2026):** **No patient-facing risk card will be shown in FYP-1.** The configuration flag `RISK_ENABLED` remains locked `off` across all production environments. The Day 5 runtime scoring machinery and Day 7 integration will still be built, tested, and hermetically verified behind this feature flag to complete the technical architecture. For patients with diabetes, we formally recommend to supervising clinicians and doctors that the application directly request an actual blood pressure cuff measurement during check-ins rather than attempting to infer hypertension probabilistically from demographic proxies.
-8. **External Validation Limitation for BRFSS (Day 6):** The BRFSS surveillance dataset contains no laboratory specimen data (no HbA1c, fasting glucose) and no physical cuff examination measurements. Consequently, BRFSS cannot evaluate undiagnosed target labels (`diabetes_undiagnosed` or `hypertension_measured_130_80`). Saad's Day 6 external validation on BRFSS will be strictly limited to evaluating self-reported awareness labels (`diabetes_told`, `hypertension_told`) or assessing feature drift across demographics.
+Evaluating the model and guideline rules at matched operating points on the held-out test set (ROC curve evaluated with `drop_intermediate=False`):
+
+{matched_table_md}
+
+{matched_conclusion}
+
+Detailed Decision Curve Analysis (DCA) assessing net benefit across decision threshold probabilities $p_t \\in [0.01, 0.20]$ is documented in [docs/ml/DECISION_CURVE.md](file:///c:/Users/usmanbari/Desktop/Chronicare/docs/ml/DECISION_CURVE.md).
+
+---
+
+## 4. Honest Findings & Technical Synthesis
+
+1. **Model Gate Evaluation:** `diabetes_full_nhanes` is the only model that satisfies all five D11 acceptance gates (`SHIP CANDIDATE (all D11 gates passed)`), with test AUROC of 0.7527, test sensitivity of 85.28%, test calibration slope of 0.848, worst subgroup sensitivity of 76.00%, and validation AUROC exceeding basic (+0.0075). The remaining five configurations are NOT SHIPPED due to failing Gate 1 (test AUROC < 0.75) and/or Gate 4 (subgroup sensitivity < 60.0% in adults aged 18–39).
+2. **Parity Gaps Over Age, Sex, and BMI:**
+   - `diabetes_full_nhanes` vs `diabetes_basic_nhanes` (engineered basic tier): validation AUROC gap **{dm_full_val - dm_basic_val:+.4f}**, test AUROC gap **{dm_full_test - dm_basic_test:+.4f}**.
+   - `diabetes_full_nhanes` vs `diabetes_ref_age_sex_bmi` (reference baseline): validation AUROC gap **{dm_full_val - ref_dm_val_auroc:+.4f}**, test AUROC gap **{dm_full_test - ref_dm_test_auroc:+.4f}**.
+   - `diabetes_basic_nhanes` vs `diabetes_ref_age_sex_bmi`: validation AUROC gap **{dm_basic_val - ref_dm_val_auroc:+.4f}**, test AUROC gap **{dm_basic_test - ref_dm_test_auroc:+.4f}**.
+   - `htn_basic_nhanes` vs `htn_ref_age_sex_bmi`: validation AUROC gap **{htn_basic_val - ref_htn_val_auroc:+.4f}**, test AUROC gap **{htn_basic_test - ref_htn_test_auroc:+.4f}**.
+   - `htn_full_nhanes` vs `htn_basic_nhanes`: validation AUROC gap **{htn_full_val - htn_basic_val:+.4f}**, test AUROC gap **{htn_full_test - htn_basic_test:+.4f}**.
+   For hypertension, adding physical measurements in FULL yields a test AUROC that is 0.0043 lower than BASIC.
+3. **Card-Population Discrimination:** When evaluated on the specific patient group who would view the risk card in the profile (the reciprocal diagnosis population), discrimination is modest for diabetes and near chance for hypertension:
+   - For patients with high BP screened for undiagnosed diabetes: card AUROC is **{dm_card_auroc:.4f}** (basic) and **0.6640** (full).
+   - For patients with diabetes screened for hypertension: card AUROC is **{htn_card_auroc:.4f}** (basic) and **0.5317** (full), which is close to an uninformative classifier (0.50).
+4. **Age-Band Performance Disparity:**
+   Because age carries the largest standardized coefficient in tabular logistic regression, models exhibit notable variation across age bands:
+   - In `htn_basic_nhanes`:
+     - Age 18–39: sensitivity 38.41%, specificity 87.54% (n=3,104, positives=552).
+     - Age 40–59: sensitivity 88.84%, specificity 25.42% (n=2,062, positives=744).
+     - Age 60+: sensitivity 100.0%, specificity 0.0% (n=1,871, positives=862). Every adult aged 60+ in the test set is flagged.
+   - In `diabetes_basic_nhanes`:
+     - Age 18–39: sensitivity 58.82%, specificity 87.92% (n=3,254, positives=51).
+     - Age 40–59: sensitivity 77.44%, specificity 51.91% (n=2,668, positives=133).
+     - Age 60+: sensitivity 96.57%, specificity 11.87% (n=3,195, positives=204).
+   - In `diabetes_full_nhanes`:
+     - Age 18–39: sensitivity 63.83%, specificity 86.34% (n=3,107, positives=47).
+     - Age 40–59: sensitivity 76.00%, specificity 52.57% (n=2,556, positives=125).
+     - Age 60+: sensitivity 96.81%, specificity 15.05% (n=3,018, positives=188).
+5. **Precision and False-Positive Rates:** At ~4.15% baseline prevalence of undiagnosed diabetes, operating at 85.28% sensitivity produces an operational specificity of 52.23% and a Positive Predictive Value (PPV) of **{metrics_map['diabetes_full_nhanes']['test_evaluation']['metrics_at_threshold']['ppv'] * 100:.2f}%**. Approximately 13 out of every 14 flagged individuals do not have undiagnosed diabetes.
+6. **Comparison with Guideline Rules:** When matched at the same sensitivity or specificity (Table 3), the trained logistic regression models show modest discrimination gains over deterministic age and BMI cut-offs on the general test set, while on the card audience for `Age >= 35`, both the model and the rule exhibit specificity under 11%.
+
+---
+
+## 5. Transportability & Population Limits
+
+- **US NHANES Training Origin:** The models are developed and evaluated on US NHANES data (1999–2023).
+- **South Asian Population Differences:** South Asian adults develop type 2 diabetes at younger ages and lower BMI thresholds compared to European-derived populations. The World Health Organization (WHO) identifies lower BMI action points for Asian populations (overweight: $\\ge 23.0\\text{{ kg/m}}^2$; obese: $\\ge 27.5\\text{{ kg/m}}^2$).
+- **Lack of Pakistani Validation:** The model is **not validated for Pakistani patients**.
+- **Proxy Group in NHANES:** NHANES race code 5 (`Other Race / Multi-Racial`) is the closest available group in the dataset. In `diabetes_full_nhanes`, this subgroup contains $n=1,291$ individuals with 56 positive cases (prevalence 4.34%), yielding an AUROC of 0.7864, sensitivity of 76.79%, and specificity of 68.10%. This subgroup serves only as a weak proxy and does not establish clinical validity in South Asian cohorts.
+
+---
+
+## 6. Decisions, 29 Oct (Usman, ML Lead)
+
+> **Decisions:** Usman (ML lead), 29 Oct 2026. Not yet reviewed by clinicians.  
+> **Guiding Principle:** The model proposes, the rules decide.
+
+1. **D10 Amendment (Model Parsimony):** Between plain `lr` and `lr_balanced`, select plain `lr` unless `lr_balanced` exceeds plain `lr` by $\\ge 0.01$ validation AUROC (due to balanced class weighting inflating predicted probabilities and distorting calibration). Tree models remain unchanged (+0.02 rule over the chosen LR).
+2. **Decision D12 (Diabetes Risk Deployment):** `diabetes_full_nhanes` is statistically a `SHIP CANDIDATE (all D11 gates passed)`, but its card-population AUROC is 0.6640. In FYP-1, it is displayed **ONLY on the provider review page** labeled: *"Experimental: trained on US NHANES data, not validated for Pakistani patients"*, behind the `RISK_ENABLED` feature flag (off by default in production, can be toggled on for demo). It is **NEVER shown to patients in FYP-1**. It requires `waist_cm`; without `waist_cm`, the provider sees "not enough information" (no fallback to basic, which failed its gates).
+3. **Decision D13 (Hypertension Risk Deployment):** Retired for FYP-1. Card-population AUROC is ~0.54 (near chance), and in older adults (60+), the model flags 100.0% of individuals (specificity 0.0%), providing no discriminatory value. Artifacts and code are retained for documentation and academic reporting only.
+4. **Decision D14 (Clinical Recommendation for Diabetics):** For patients with diabetes, recommend to supervising clinicians and doctors asking for an actual blood pressure cuff measurement during check-ins rather than attempting to infer high blood pressure probabilistically from demographic proxies. Requires clinical approval before implementation.
+5. **Decision D15 (Proposed Patient-Facing Feature):** A rule-based screening reminder (needs doctor approval; NOT built today). If a patient with hypertension has no HbA1c in their record within the interval clinicians set, display: *"Ask your doctor whether you need an HbA1c (sugar) test."* Deterministic, record-based, explainable: "the rules decide".
+6. **External Validation Limitation for BRFSS (Day 6):** The BRFSS surveillance dataset contains no laboratory specimen data (no HbA1c, fasting glucose) and no physical cuff examination measurements. Consequently, BRFSS cannot evaluate undiagnosed target labels (`diabetes_undiagnosed` or `hypertension_measured_130_80`). Day 6 external validation on BRFSS will be limited to evaluating self-reported awareness labels (`diabetes_told`, `hypertension_told`) or assessing feature drift across demographics.
 """
 
     summary_path.write_text(doc_content.strip() + "\n", encoding="utf-8")

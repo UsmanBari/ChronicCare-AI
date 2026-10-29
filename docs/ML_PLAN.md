@@ -286,16 +286,33 @@ A model must satisfy all five gates on the held-out temporal test set (`test` 20
 
 If a model fails any gate, it is not shipped, remains disabled behind `RISK_ENABLED=off`, and the documentation states which gate was missed. Never move the threshold on test.
 
-**USMAN DECISION:** Modified 5 gates (test AUROC $\ge 0.75$, test sensitivity $\ge 0.75$, calibration slope 0.8–1.2, subgroup sensitivity $\ge 0.60$, FULL beats BASIC).
+**USMAN DECISION:** Modified 5 gates (test AUROC $\ge 0.75$, test sensitivity $\ge 0.75$, calibration slope 0.8–1.2, subgroup sensitivity $\ge 0.60$, FULL beats BASIC). `diabetes_full_nhanes` passes all 5 gates and is classified as `SHIP CANDIDATE (all D11 gates passed)`. The other 5 models fail Gate 1 and/or Gate 4 and are `NOT SHIPPED`.
 
 ---
 
-## Final Clinical Governance Decision (Usman, 29 Oct 2026)
+## Decisions, 29 Oct 2026 (Usman, ML Lead)
 
-Based on empirical evidence across all 6 temporal benchmark experiments:
-1. **No Patient-Facing Risk Card in FYP-1:** All 6 candidate configurations fail one or more D11 acceptance gates (test AUROC < 0.75, extreme young-adult sensitivity collapse to 38–51% in 18–39s, and low card-population discrimination of 0.54 in diabetics and 0.66 in hypertensives).
-2. **Flag Locked Off:** `RISK_ENABLED` remains locked `off` in production. The underlying Day 5 and Day 7 risk runtime infrastructure will be built and hermetically verified behind this flag.
-3. **Clinical Recommendation for Diabetics:** For patients with diabetes, recommend to clinical stakeholders that the app directly ask for actual blood pressure cuff readings during routine check-ins, rather than attempting to predict undetected hypertension through noisy demographic surrogates.
+> **Decisions:** Usman (ML lead), 29 Oct 2026. Not yet reviewed by clinicians.  
+> **Guiding Principle:** The model proposes, the rules decide.
+
+### Decision D12: Diabetes Risk Deployment
+- `diabetes_full_nhanes` is statistically a `SHIP CANDIDATE (all D11 gates passed)`, but its card-population AUROC is 0.6640.
+- In FYP-1, it is displayed **ONLY on the provider review page** labeled: *"Experimental: trained on US NHANES data, not validated for Pakistani patients"*, behind the `RISK_ENABLED` feature flag (off by default in production, can be toggled on for demo).
+- It is **NEVER shown to patients in FYP-1**.
+- It requires `waist_cm`; without `waist_cm`, the provider sees "not enough information" (no fallback to basic, which failed its gates).
+
+### Decision D13: Hypertension Risk Deployment
+- Retired for FYP-1. Card-population AUROC is ~0.54 (near chance), and in older adults (60+), the model flags 100.0% of individuals (specificity 0.0%), providing no discriminatory value.
+- Artifacts and code are retained for documentation and academic reporting only.
+
+### Decision D14: Recommendation to Supervising Clinicians
+- For patients with diabetes, ask for an actual blood pressure reading (or "when was your BP last checked?") instead of predicting high BP through demographic surrogates.
+- Requires clinical approval before implementation.
+
+### Decision D15: Proposed Patient-Facing Feature
+- A rule-based screening reminder (needs doctor approval; NOT built today).
+- If a patient with hypertension has no HbA1c in their record within the interval clinicians set, display: *"Ask your doctor whether you need an HbA1c (sugar) test."*
+- Deterministic, record-based, explainable: "the rules decide".
 
 ---
 
@@ -314,6 +331,10 @@ Based on empirical evidence across all 6 temporal benchmark experiments:
 | **D8** | Risk Bands | Modified three-tier bands: LOW (< locked threshold), MODERATE (locked threshold to 90th percentile), HIGH (top 10%). Text: "below the screening threshold; keep your usual check-ups". |
 | **D9** | Triage Interaction | Option 1: Can only raise routine $\rightarrow$ review (doctor review). Controlled by existing `RISK_ENABLED=off` and `RISK_CAN_RAISE=off`. |
 | **D10** | Production Export Format | Pure-Python export of LR (unless a tree model beats it by $\ge 0.02$ validation AUROC; plain LR chosen over balanced unless balanced beats it by $\ge 0.01$). No secondary calibration on validation. Day 4 stops if validation slope is outside 0.8–1.2. |
-| **D11** | FYP-1 Acceptance Criteria | Modified 5 gates: Test AUROC $\ge 0.75$, Test Sens $\ge 0.75$, Calibration slope 0.8–1.2, Subgroup Sens $\ge 0.60$, FULL beats BASIC. All 6 models NOT SHIPPED; risk card disabled behind `RISK_ENABLED=off`. |
+| **D11** | FYP-1 Acceptance Criteria | Modified 5 gates: Test AUROC $\ge 0.75$, Test Sens $\ge 0.75$, Calibration slope 0.8–1.2, Subgroup Sens $\ge 0.60$, FULL beats BASIC. `diabetes_full_nhanes` is `SHIP CANDIDATE (all D11 gates passed)`. Other 5 models `NOT SHIPPED`. |
+| **D12** | Diabetes Risk Deployment | `diabetes_full_nhanes` shown only on provider review page (never patient-facing in FYP-1) as experimental behind `RISK_ENABLED=off`. Requires `waist_cm` (no fallback to basic). |
+| **D13** | Hypertension Risk Deployment | Retired for FYP-1 due to 0.54 card AUROC and 100% flag rate in 60+. Artifacts kept for reporting. |
+| **D14** | Clinical BP Recommendation | Recommend asking diabetic patients for an actual BP reading instead of predicting high BP. Needs clinician approval. |
+| **D15** | Proposed Patient Screening Reminder | Rule-based reminder for hypertensive patients without recent HbA1c: "Ask your doctor whether you need an HbA1c (sugar) test." Needs doctor approval; not built today. |
 
 ---

@@ -9,7 +9,7 @@
 - **Candidate Models:** `lr, lr_balanced, rf, hgb`
 - **Threshold Policy:** `{"type": "min_sensitivity", "value": 0.8}`
 - **Seed:** `42`
-- **Wall Time:** 16.98 seconds (0.3 minutes)
+- **Wall Time:** 23.92 seconds (0.4 minutes)
 
 ## Data
 ### Complete Case Cohort Statistics Across Temporal Splits
@@ -56,7 +56,7 @@
 - Gate 3 (Test Calibration Slope 0.8-1.2): **PASS** (0.848)
 - Gate 4 (Subgroup Sens >= 0.60): **PASS** (Worst: 76.00%)
 - Gate 5 (FULL beats BASIC on Val AUROC): **PASS (FULL 0.7617 vs BASIC 0.7542, diff: +0.0075)**
-- **Overall FYP-1 Status:** **SHIP CANDIDATE**
+- **Overall FYP-1 Status:** **SHIP CANDIDATE (all D11 gates passed)**
 
 ## Calibration
 ### Test Calibration Diagnostics

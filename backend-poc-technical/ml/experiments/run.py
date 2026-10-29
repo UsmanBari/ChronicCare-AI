@@ -221,7 +221,7 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     print(f"=======================================================")
     print("Checking target leakage before data loading...")
     check_leakage(label_name, features)
-    print("✓ Leakage check passed: features are valid for target.")
+    print("[PASS] Leakage check passed: features are valid for target.")
 
     # Step A2.2: Load data
     print("Loading NHANES core dataset...")
@@ -617,7 +617,7 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     if not calibration_gate_passed:
         failed_gates.append("val_calibration_slope")
 
-    ship_status = "SHIP CANDIDATE" if (len(failed_gates) == 0 and calibration_gate_passed) else f"NOT SHIPPED ({', '.join(failed_gates)})"
+    ship_status = "SHIP CANDIDATE (all D11 gates passed)" if (len(failed_gates) == 0 and calibration_gate_passed) else f"NOT SHIPPED ({', '.join(failed_gates)})"
     slope_str = f"{test_slope:.3f}" if test_slope is not None else "N/A"
     print(f"  Gate 1 (Test AUROC >= 0.75): {gate_results['gate_1_test_auroc_ge_0_75']} ({ci_auroc.point:.4f})")
     print(f"  Gate 2 (Test Sens >= 0.75) : {gate_results['gate_2_test_sens_ge_0_75']} ({m_test['sensitivity']:.2%})")
