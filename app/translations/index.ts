@@ -204,6 +204,16 @@ export interface Translations {
   glucoseChartTitle: string;
   bloodPressureChartTitle: string;
   adherenceChartTitle: string;
+  trendRising: string;
+  trendFalling: string;
+  trendStable: string;
+  trendNotEnoughHistory: string;
+  trendNotEnoughExplain: string;
+  trendsErrorTitle: string;
+  trendsErrorRetry: string;
+  trendsReadingsInDays: string;
+  providerTrendsTitle: string;
+  noTrendsAvailable: string;
   systolicLabel: string;
   diastolicLabel: string;
   targetRangeLabel: string;
@@ -592,6 +602,16 @@ export const translations: Record<Language, Translations> = {
     glucoseChartTitle: "Blood Glucose (mg/dL)",
     bloodPressureChartTitle: "Blood Pressure (mmHg)",
     adherenceChartTitle: "Medication Adherence (%)",
+    trendRising: "Rising",
+    trendFalling: "Falling",
+    trendStable: "Stable",
+    trendNotEnoughHistory: "Not enough history",
+    trendNotEnoughExplain: "Not enough readings yet. Trends appear after 3 check-ins.",
+    trendsErrorTitle: "Unable to load trends right now.",
+    trendsErrorRetry: "Try Again",
+    trendsReadingsInDays: "{n} readings in {days} days",
+    providerTrendsTitle: "Trends (30 days)",
+    noTrendsAvailable: "No trend data available.",
     systolicLabel: "Systolic",
     diastolicLabel: "Diastolic",
     targetRangeLabel: "Target Range",
@@ -979,6 +999,16 @@ export const translations: Record<Language, Translations> = {
     glucoseChartTitle: "بلڈ شوگر (mg/dL)",
     bloodPressureChartTitle: "بلڈ پریشر (mmHg)",
     adherenceChartTitle: "ادویات کی پابندی (%)",
+    trendRising: "اوپر کی طرف",
+    trendFalling: "نیچے کی طرف",
+    trendStable: "مستحکم",
+    trendNotEnoughHistory: "ناکافی ریکارڈ",
+    trendNotEnoughExplain: "ابھی ناکافی ریڈنگز ہیں۔ رجحانات 3 چیک ان کے بعد ظاہر ہوتے ہیں۔",
+    trendsErrorTitle: "اس وقت رجحانات لوڈ نہیں ہو سکے",
+    trendsErrorRetry: "دوبارہ کوشش کریں",
+    trendsReadingsInDays: "{days} دن میں {n} ریڈنگ",
+    providerTrendsTitle: "رجحانات (30 دن)",
+    noTrendsAvailable: "کوئی رجحان کا ڈیٹا دستیاب نہیں ہے۔",
     systolicLabel: "سسٹولک",
     diastolicLabel: "ڈائسٹولک",
     targetRangeLabel: "ہدف کی حد",

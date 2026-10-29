@@ -19,6 +19,10 @@ import {
   Pill,
   User,
   Activity,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Clock,
 } from "lucide-react";
 import { api, ApiError, ReviewDetailResponse } from "../../lib/api";
 import { describeSide, describeReviewReason, describeMedicationItem } from "../../lib/presentation";
@@ -305,6 +309,87 @@ export const ReconciliationAlertDetail = () => {
           <p className="text-[10px] text-slate-400 italic pt-1">
             {liveDetail.patient_background.disclaimer || "Self-reported background details provided by patient during enrolment. Not clinically verified."}
           </p>
+        </div>
+      )}
+
+      {/* Provider Longitudinal Trends (30 Days) — Hidden if liveDetail?.trends is null */}
+      {liveDetail?.trends && (
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3" data-testid="provider-trends-section">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-navy-800 flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-teal-700" />
+              <span>{t.providerTrendsTitle || "Trends (30 days)"}</span>
+            </span>
+            <span className="text-[10px] text-slate-500 font-medium italic">
+              Longitudinal window: {liveDetail.trends.window_days} days
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {[
+              { key: "blood_pressure_systolic", label: t.systolicLabel || "Systolic BP", unit: "mmHg" },
+              { key: "blood_pressure_diastolic", label: t.diastolicLabel || "Diastolic BP", unit: "mmHg" },
+              { key: "glucose", label: t.glucoseChartTitle || "Glucose", unit: "mg/dL" },
+            ].map(({ key, label, unit }) => {
+              const series = liveDetail.trends?.trends?.[key];
+              if (!series) return null;
+
+              const isNotEnough = series.direction === "not_enough_history";
+              const lastThree = (series.values || []).slice(-3).reverse();
+
+              let badgeColor = "bg-slate-100 text-slate-800 border-slate-300";
+              let badgeText = t.trendStable || "Stable";
+              let badgeIcon = <Minus className="w-3 h-3 text-slate-600" />;
+
+              if (series.direction === "rising") {
+                badgeColor = "bg-amber-50 text-amber-900 border-amber-300";
+                badgeText = t.trendRising || "Rising";
+                badgeIcon = <TrendingUp className="w-3 h-3 text-amber-700" />;
+              } else if (series.direction === "falling") {
+                badgeColor = "bg-teal-50 text-teal-900 border-teal-300";
+                badgeText = t.trendFalling || "Falling";
+                badgeIcon = <TrendingDown className="w-3 h-3 text-teal-700" />;
+              } else if (isNotEnough) {
+                badgeColor = "bg-slate-100 text-slate-600 border-slate-200";
+                badgeText = t.trendNotEnoughHistory || "Not enough history";
+                badgeIcon = <Clock className="w-3 h-3 text-slate-500" />;
+              }
+
+              return (
+                <div key={key} className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-bold text-navy-900">{label}</span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-bold ${badgeColor}`}>
+                      {badgeIcon}
+                      <span>{badgeText}</span>
+                    </span>
+                  </div>
+
+                  {isNotEnough ? (
+                    <p className="text-[11px] text-slate-500 italic">
+                      {t.trendNotEnoughExplain || "Not enough readings yet. Trends appear after 3 check-ins."}
+                    </p>
+                  ) : lastThree.length > 0 ? (
+                    <div className="space-y-1 pt-1">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Recent readings:</span>
+                      <div className="space-y-0.5">
+                        {lastThree.map((v, i) => (
+                          <div key={i} className="text-xs flex items-center justify-between text-slate-700 font-mono">
+                            <bdi className="font-semibold text-navy-800">{v.value} {unit}</bdi>
+                            <span className="text-[10px] text-slate-500 font-sans">
+                              {new Date(v.at).toLocaleDateString(isUrdu ? "ur-PK" : "en-US", { month: "short", day: "numeric" })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic">No readings in window</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

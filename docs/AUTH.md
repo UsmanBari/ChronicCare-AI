@@ -55,6 +55,7 @@ Roles are stored in the `users` table and enforced via the backend `require_role
 | `/api/ehr/systems` | GET | None | **Public** |
 | `/api/auth/session` | POST | Any valid token | Authenticated |
 | `/api/me` | GET | Any active user | Authenticated |
+| `/api/me/trends` | GET | `patient` | Authenticated |
 | `/api/profile` | GET / PUT | `patient` | Authenticated |
 | `/api/consent` | GET / POST | `patient` | Authenticated |
 | `/api/ehr/connect` | POST | `patient` | Authenticated |

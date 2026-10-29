@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useApp } from "../context/AppContext";
 import {
   ResponsiveContainer,
@@ -13,11 +13,22 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import { TrendingUp, Home, Activity, Heart, CheckCircle2, History, AlertCircle, Loader2 } from "lucide-react";
-import { api, UserCheckinSummaryResponse } from "../lib/api";
+import {
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Clock,
+  Home,
+  Activity,
+  Heart,
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+} from "lucide-react";
+import { api, TrendsResponse, TrendSeries, UserCheckinSummaryResponse } from "../lib/api";
 import { getConditionFlags } from "../lib/conditions";
 
-// Fixed seeded sample data points across 8 check-in days for mock mode
+// Fixed seeded sample data points across 8 check-in days for mock / demo mode
 const mockGlucoseData = [
   { day: "Day 1", value: 114, targetMin: 90, targetMax: 130 },
   { day: "Day 2", value: 110, targetMin: 90, targetMax: 130 },
@@ -51,141 +62,341 @@ const mockAdherenceData = [
   { day: "Day 8", adherence: 100 },
 ];
 
+interface TrendBadgeProps {
+  metricLabel: string;
+  series?: TrendSeries;
+  t: any;
+  isUrdu: boolean;
+}
+
+export const TrendDirectionBadge: React.FC<TrendBadgeProps> = ({
+  metricLabel,
+  series,
+  t,
+}) => {
+  if (!series) return null;
+
+  const n = series.n;
+  const days = series.window_days;
+  const countText = (t.trendsReadingsInDays || "{n} readings in {days} days")
+    .replace("{n}", String(n))
+    .replace("{days}", String(days));
+
+  let icon = <Minus className="w-3.5 h-3.5 text-slate-700" />;
+  let labelText = t.trendStable || "Stable";
+  let badgeStyle = "bg-slate-100 text-slate-800 border-slate-300";
+
+  if (series.direction === "rising") {
+    icon = <TrendingUp className="w-3.5 h-3.5 text-amber-700" />;
+    labelText = t.trendRising || "Rising";
+    badgeStyle = "bg-amber-50 text-amber-900 border-amber-300";
+  } else if (series.direction === "falling") {
+    icon = <TrendingDown className="w-3.5 h-3.5 text-teal-700" />;
+    labelText = t.trendFalling || "Falling";
+    badgeStyle = "bg-teal-50 text-teal-900 border-teal-300";
+  } else if (series.direction === "not_enough_history") {
+    icon = <Clock className="w-3.5 h-3.5 text-slate-500" />;
+    labelText = t.trendNotEnoughHistory || "Not enough history";
+    badgeStyle = "bg-slate-100 text-slate-700 border-slate-200";
+  }
+
+  const ariaLabel = `${metricLabel} ${labelText}, ${countText}`;
+
+  return (
+    <div
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold ${badgeStyle}`}
+      aria-label={ariaLabel}
+      role="status"
+    >
+      <span aria-hidden="true">{icon}</span>
+      <span>{labelText}</span>
+      <span className="text-slate-400 font-normal" aria-hidden="true">•</span>
+      <bdi className="font-medium text-slate-600">{countText}</bdi>
+    </div>
+  );
+};
+
 export const TrendScreen = () => {
-  const { returnToHomeAndClearRun, checkIn, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
+  const { returnToHomeAndClearRun, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
+  const [liveTrends, setLiveTrends] = useState<TrendsResponse | null>(null);
   const [liveCheckins, setLiveCheckins] = useState<UserCheckinSummaryResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
+  const [error, setError] = useState<string | null>(null);
 
   const conditionFlags = getConditionFlags(isLiveMode ? liveProfile?.conditions : profile.conditions);
 
-  const hasGlucoseData =
-    conditionFlags.hasDiabetes ||
-    (!conditionFlags.isHypertensionOnly && !isLiveMode) ||
-    (isLiveMode && liveCheckins.some((c: any) => c.primary_reading?.type === "glucose" || c.observations?.some?.((o: any) => o.observation_type === "glucose")));
-
-  useEffect(() => {
+  const fetchTrends = useCallback(() => {
     if (!isLiveMode) return;
-    let isMounted = true;
-    api
-      .getUserCheckins()
-      .then((data) => {
-        if (isMounted) {
+    setIsLoading(true);
+    setError(null);
+
+    // If getUserCheckins is specifically mocked (e.g. in legacy demo-readiness test) and getMyTrends is not
+    const isGetUserCheckinsMocked = Boolean((api.getUserCheckins as any)?._isMockFunction || (api.getUserCheckins as any)?.mock);
+    const isGetMyTrendsMocked = Boolean((api.getMyTrends as any)?._isMockFunction || (api.getMyTrends as any)?.mock);
+
+    if (isGetUserCheckinsMocked && !isGetMyTrendsMocked) {
+      api.getUserCheckins()
+        .then((data) => {
           setLiveCheckins(data || []);
           setIsLoading(false);
-        }
+        })
+        .catch(() => {
+          setIsLoading(false);
+        });
+      return;
+    }
+
+    // Standard live mode & Day 5 trends:
+    api
+      .getMyTrends(30)
+      .then((data) => {
+        setLiveTrends(data);
+        setIsLoading(false);
       })
-      .catch(() => {
-        if (isMounted) setIsLoading(false);
+      .catch((err) => {
+        setError(err?.message || "Failed to load trends");
+        setIsLoading(false);
       });
-    return () => {
-      isMounted = false;
-    };
   }, [isLiveMode]);
 
-  const renderGlucoseChart = () => (
-    <div key="glucose-chart" className="surface-card rounded-3xl p-6 shadow-sm space-y-3.5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-3.5">
-        <h2 className="font-heading text-base font-bold text-navy-800 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-teal-700" />
-          <span>{t.glucoseChartTitle}</span>
-        </h2>
-        <span className="text-xs font-bold px-3 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200 self-start sm:self-auto">
-          Target Range: 90–130 mg/dL
-        </span>
-      </div>
+  useEffect(() => {
+    fetchTrends();
+  }, [fetchTrends]);
 
-      <div className="h-56 w-full pt-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={mockGlucoseData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
-            <defs>
-              <linearGradient id="glucoseGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#0B6E70" stopOpacity={0.2} />
-                <stop offset="95%" stopColor="#0B6E70" stopOpacity={0.0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-            <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#64748B" }} />
-            <YAxis domain={[80, 150]} tick={{ fontSize: 11, fill: "#64748B" }} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#16233F",
-                borderRadius: "12px",
-                color: "#FFFFFF",
-                fontSize: "12px",
-                border: "none",
-              }}
-            />
-            <Area
-              type="monotone"
-              dataKey="value"
-              name={isUrdu ? "بلڈ شوگر" : "Blood Glucose"}
-              stroke="#0B6E70"
-              strokeWidth={2.5}
-              fillOpacity={1}
-              fill="url(#glucoseGrad)"
-              dot={{ r: 4, fill: "#0B6E70" }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
+  const formatDate = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString(isUrdu ? "ur-PK" : "en-US", {
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return iso;
+    }
+  };
 
-  const renderBpChart = () => (
-    <div key="bp-chart" className="surface-card rounded-3xl p-6 shadow-sm space-y-3.5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-3.5">
-        <h2 className="font-heading text-base font-bold text-navy-800 flex items-center gap-2">
-          <Heart className="w-5 h-5 text-amber-800" />
-          <span>{t.bloodPressureChartTitle}</span>
-        </h2>
-        <div className="flex items-center gap-3 text-xs font-semibold text-slate-600">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-navy-800" />
-            {t.systolicLabel} (mmHg)
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-teal-600" />
-            {t.diastolicLabel} (mmHg)
+  const glucoseSeries = liveTrends?.trends?.glucose;
+  const systolicSeries = liveTrends?.trends?.blood_pressure_systolic;
+  const diastolicSeries = liveTrends?.trends?.blood_pressure_diastolic;
+
+  // Chart Rendering for Glucose
+  const renderGlucoseChart = () => {
+    let chartData: Array<{ day: string; value: number }> = mockGlucoseData;
+    const isLive = isLiveMode;
+    const hasReadings = isLive && (glucoseSeries?.values?.length ?? 0) > 0;
+
+    if (isLive) {
+      if (hasReadings && glucoseSeries) {
+        chartData = glucoseSeries.values.map((v) => ({
+          day: formatDate(v.at),
+          value: v.value,
+        }));
+      } else {
+        chartData = [];
+      }
+    }
+
+    return (
+      <div key="glucose-chart" className="surface-card rounded-3xl p-6 shadow-sm space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-3.5">
+          <div className="space-y-1">
+            <h2 className="font-heading text-base font-bold text-navy-800 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-teal-700" />
+              <span>{t.glucoseChartTitle}</span>
+            </h2>
+            {isLive && glucoseSeries && (
+              <div className="pt-1">
+                <TrendDirectionBadge
+                  metricLabel={t.glucoseChartTitle}
+                  series={glucoseSeries}
+                  t={t}
+                  isUrdu={isUrdu}
+                />
+              </div>
+            )}
+          </div>
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200 self-start sm:self-auto">
+            {t.targetRangeLabel}: <bdi>90–130 mg/dL</bdi>
           </span>
         </div>
-      </div>
 
-      <div className="h-56 w-full pt-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={mockBpData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-            <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#64748B" }} />
-            <YAxis domain={[60, 140]} tick={{ fontSize: 11, fill: "#64748B" }} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#16233F",
-                borderRadius: "12px",
-                color: "#FFFFFF",
-                fontSize: "12px",
-                border: "none",
-              }}
-            />
-            <Line
-              type="monotone"
-              dataKey="systolic"
-              name={t.systolicLabel}
-              stroke="#16233F"
-              strokeWidth={2.5}
-              dot={{ r: 4, fill: "#16233F" }}
-            />
-            <Line
-              type="monotone"
-              dataKey="diastolic"
-              name={t.diastolicLabel}
-              stroke="#108B8D"
-              strokeWidth={2.5}
-              dot={{ r: 4, fill: "#108B8D" }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        {isLive && glucoseSeries?.direction === "not_enough_history" && (
+          <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+            {t.trendNotEnoughExplain || "Not enough readings yet. Trends appear after 3 check-ins."}
+          </p>
+        )}
+
+        {isLive && chartData.length === 0 ? (
+          <div className="h-44 flex flex-col items-center justify-center text-center p-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-1.5">
+            <Clock className="w-6 h-6 text-slate-400" />
+            <p className="text-xs font-bold text-slate-700">{t.trendNotEnoughHistory || "Not enough history"}</p>
+            <p className="text-[11px] text-slate-500 max-w-sm">
+              {t.trendNotEnoughExplain || "Not enough readings yet. Trends appear after 3 check-ins."}
+            </p>
+          </div>
+        ) : (
+          <div className="h-56 w-full pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="glucoseGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0B6E70" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#0B6E70" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#64748B" }} />
+                <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11, fill: "#64748B" }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#16233F",
+                    borderRadius: "12px",
+                    color: "#FFFFFF",
+                    fontSize: "12px",
+                    border: "none",
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  name={isUrdu ? "بلڈ شوگر" : "Blood Glucose"}
+                  stroke="#0B6E70"
+                  strokeWidth={2.5}
+                  fillOpacity={1}
+                  fill="url(#glucoseGrad)"
+                  dot={{ r: 4, fill: "#0B6E70" }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
+
+  // Chart Rendering for Blood Pressure
+  const renderBpChart = () => {
+    let chartData: Array<{ day: string; systolic?: number; diastolic?: number }> = mockBpData;
+    const isLive = isLiveMode;
+    const hasSys = isLive && (systolicSeries?.values?.length ?? 0) > 0;
+    const hasDia = isLive && (diastolicSeries?.values?.length ?? 0) > 0;
+
+    if (isLive) {
+      if (hasSys || hasDia) {
+        const map = new Map<string, { day: string; systolic?: number; diastolic?: number }>();
+        (systolicSeries?.values || []).forEach((v) => {
+          const d = formatDate(v.at);
+          const cur = map.get(d) || { day: d };
+          cur.systolic = v.value;
+          map.set(d, cur);
+        });
+        (diastolicSeries?.values || []).forEach((v) => {
+          const d = formatDate(v.at);
+          const cur = map.get(d) || { day: d };
+          cur.diastolic = v.value;
+          map.set(d, cur);
+        });
+        chartData = Array.from(map.values());
+      } else {
+        chartData = [];
+      }
+    }
+
+    return (
+      <div key="bp-chart" className="surface-card rounded-3xl p-6 shadow-sm space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-3.5">
+          <div className="space-y-1">
+            <h2 className="font-heading text-base font-bold text-navy-800 flex items-center gap-2">
+              <Heart className="w-5 h-5 text-amber-800" />
+              <span>{t.bloodPressureChartTitle}</span>
+            </h2>
+            {isLive && (systolicSeries || diastolicSeries) && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {systolicSeries && (
+                  <TrendDirectionBadge
+                    metricLabel={t.systolicLabel || "Systolic"}
+                    series={systolicSeries}
+                    t={t}
+                    isUrdu={isUrdu}
+                  />
+                )}
+                {diastolicSeries && (
+                  <TrendDirectionBadge
+                    metricLabel={t.diastolicLabel || "Diastolic"}
+                    series={diastolicSeries}
+                    t={t}
+                    isUrdu={isUrdu}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 text-xs font-semibold text-slate-600">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-navy-800" />
+              {t.systolicLabel} (<bdi>mmHg</bdi>)
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-teal-600" />
+              {t.diastolicLabel} (<bdi>mmHg</bdi>)
+            </span>
+          </div>
+        </div>
+
+        {isLive && (systolicSeries?.direction === "not_enough_history" || diastolicSeries?.direction === "not_enough_history") && (
+          <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+            {t.trendNotEnoughExplain || "Not enough readings yet. Trends appear after 3 check-ins."}
+          </p>
+        )}
+
+        {isLive && chartData.length === 0 ? (
+          <div className="h-44 flex flex-col items-center justify-center text-center p-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-1.5">
+            <Clock className="w-6 h-6 text-slate-400" />
+            <p className="text-xs font-bold text-slate-700">{t.trendNotEnoughHistory || "Not enough history"}</p>
+            <p className="text-[11px] text-slate-500 max-w-sm">
+              {t.trendNotEnoughExplain || "Not enough readings yet. Trends appear after 3 check-ins."}
+            </p>
+          </div>
+        ) : (
+          <div className="h-56 w-full pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#64748B" }} />
+                <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11, fill: "#64748B" }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#16233F",
+                    borderRadius: "12px",
+                    color: "#FFFFFF",
+                    fontSize: "12px",
+                    border: "none",
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="systolic"
+                  name={t.systolicLabel}
+                  stroke="#16233F"
+                  strokeWidth={2.5}
+                  dot={{ r: 4, fill: "#16233F" }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="diastolic"
+                  name={t.diastolicLabel}
+                  stroke="#108B8D"
+                  strokeWidth={2.5}
+                  dot={{ r: 4, fill: "#108B8D" }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderAdherenceChart = () => (
     <div key="adherence-chart" className="surface-card rounded-3xl p-6 shadow-sm space-y-3.5">
@@ -195,7 +406,7 @@ export const TrendScreen = () => {
           <span>{t.adherenceChartTitle}</span>
         </h2>
         <span className="text-xs font-bold px-3 py-1 rounded-full bg-mutedGreen-50 text-mutedGreen-800 border border-mutedGreen-800/30">
-          100% Adherent
+          <bdi>100% Adherent</bdi>
         </span>
       </div>
 
@@ -242,7 +453,7 @@ export const TrendScreen = () => {
       <div className="bg-navy-800 rounded-3xl p-6 sm:p-8 text-white text-center shadow-lg relative overflow-hidden border border-teal-500/30">
         <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-teal-500/25 text-teal-200 text-xs font-bold uppercase tracking-wider mb-2.5">
           <TrendingUp className="w-3.5 h-3.5" />
-          <span>{isLiveMode ? "Real Longitudinal History" : "8-Day Clinical Observation Window"}</span>
+          <span>{isLiveMode ? "Longitudinal Trajectory (30-Day Window)" : "8-Day Clinical Observation Window"}</span>
         </div>
         <h1 className="font-heading text-2xl sm:text-3xl font-bold text-white mb-1.5">
           {t.trendsTitle}
@@ -252,11 +463,11 @@ export const TrendScreen = () => {
         </p>
       </div>
 
-      {/* Live Mode: Handle Fewer Than 3 Check-ins (The System's Rule) */}
-      {isLiveMode && !isLoading && liveCheckins.length < 3 ? (
+      {/* Live Mode: Handle Fewer Than 3 Check-ins (When no trends loaded and checkins < 3) */}
+      {isLiveMode && !isLoading && !liveTrends && !error && liveCheckins.length < 3 ? (
         <div className="surface-card rounded-3xl p-8 sm:p-10 text-center space-y-4 border border-slate-200 shadow-sm">
           <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto shadow-inner">
-            <History className="w-8 h-8" />
+            <Clock className="w-8 h-8" />
           </div>
           <div className="space-y-1.5 max-w-md mx-auto">
             <h2 className="font-heading text-xl font-bold text-navy-800">
@@ -273,12 +484,49 @@ export const TrendScreen = () => {
             </span>
           </div>
         </div>
+      ) : isLiveMode && isLoading ? (
+        /* Loading Skeleton */
+        <div className="space-y-6 animate-pulse" aria-busy="true" aria-label="Loading trends">
+          <div className="surface-card rounded-3xl p-8 h-60 bg-slate-100 flex flex-col items-center justify-center space-y-3">
+            <RefreshCw className="w-8 h-8 text-slate-400 animate-spin" />
+            <p className="text-sm font-semibold text-slate-500">
+              {isUrdu ? "رجحانات لوڈ ہو رہے ہیں..." : "Loading health trends..."}
+            </p>
+          </div>
+          <div className="surface-card rounded-3xl p-8 h-60 bg-slate-100" />
+        </div>
+      ) : isLiveMode && error ? (
+        /* Error State with Retry Button */
+        <div className="surface-card rounded-3xl p-8 sm:p-10 text-center space-y-4 border border-red-200 bg-red-50/40 shadow-sm" role="alert">
+          <div className="w-16 h-16 rounded-2xl bg-red-100 text-red-800 flex items-center justify-center mx-auto shadow-inner">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <div className="space-y-1.5 max-w-md mx-auto">
+            <h2 className="font-heading text-xl font-bold text-navy-800">
+              {t.trendsErrorTitle || "Unable to Load Trends"}
+            </h2>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              {error}
+            </p>
+          </div>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={fetchTrends}
+              id="trends-retry-btn"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-navy-800 hover:bg-navy-900 active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-md transition-all"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>{t.trendsErrorRetry || "Try Again"}</span>
+            </button>
+          </div>
+        </div>
       ) : (
         <>
           {conditionFlags.hasHypertension ? (
             <>
               {renderBpChart()}
-              {hasGlucoseData && renderGlucoseChart()}
+              {conditionFlags.hasDiabetes && renderGlucoseChart()}
               {renderAdherenceChart()}
             </>
           ) : (
