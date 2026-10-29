@@ -16,7 +16,8 @@ from datetime import datetime, timedelta, timezone
 import statistics
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-# Imported directly from triage_protocol (never hard-coded)
+# Imported directly from answer_validation and triage_protocol (never hard-coded)
+from agents.answer_validation import PLAUSIBILITY_RANGES
 from agents.triage_protocol import BASELINE_MIN_READINGS
 
 # Direction Constants
@@ -43,6 +44,13 @@ MONITORED_TYPES = (
     TYPE_GLUCOSE,
 )
 
+# Mapping to app's PLAUSIBILITY_RANGES keys in answer_validation.py
+TYPE_TO_PLAUSIBILITY_KEY: Dict[str, str] = {
+    TYPE_SYSTOLIC: "bp_systolic_mmhg",
+    TYPE_DIASTOLIC: "bp_diastolic_mmhg",
+    TYPE_GLUCOSE: "glucose_mg_dl",
+}
+
 # PROPOSED - needs Usman + doctor review
 TREND_THRESHOLDS: Dict[str, float] = {
     TYPE_SYSTOLIC: 10.0,   # mmHg delta between earlier and recent half
@@ -50,15 +58,11 @@ TREND_THRESHOLDS: Dict[str, float] = {
     TYPE_GLUCOSE: 20.0,     # mg/dL delta
 }
 
-# Plausibility Ranges (readings outside these are excluded from trends)
-PLAUSIBLE_RANGES: Dict[str, Tuple[float, float]] = {
-    TYPE_SYSTOLIC: (50.0, 300.0),
-    TYPE_DIASTOLIC: (30.0, 200.0),
-    TYPE_GLUCOSE: (20.0, 1000.0),
-}
+# PROPOSED constant for doctor review: minimum readings needed to show trajectory without outlier sensitivity
+# (NOT applied yet; BASELINE_MIN_READINGS = 3 remains operational for Day 4/5)
+PROPOSED_MIN_READINGS_FOR_DIRECTION = 5
 
 # Multilingual Labels (English, Urdu Nastaliq, Roman Urdu)
-# Marked needs_native_review for clinical terminology verification
 TREND_LABELS: Dict[str, Dict[str, str]] = {
     DIRECTION_RISING: {
         "en": "Rising",
@@ -82,12 +86,53 @@ TREND_LABELS: Dict[str, Dict[str, str]] = {
     },
     "summary_pattern": {
         "en": "{n} readings in {days} days",
-        "ur": "{days} دنوں میں {n} ریکارڈنگز",
-        "roman_ur": "{days} dino mein {n} readings",
+        "ur": "{days} دن میں {n} ریڈنگ",
+        "roman_ur": "{days} din mein {n} reading",
+    },
+}
+
+# Review metadata marking labels for native clinical review
+TREND_LABELS_REVIEW: Dict[str, Dict[str, Any]] = {
+    DIRECTION_RISING: {
+        "en": "Rising",
+        "ur": "اوپر کی طرف",
+        "roman_ur": "Upar ki taraf",
+        "needs_native_review": True,
+    },
+    DIRECTION_FALLING: {
+        "en": "Falling",
+        "ur": "نیچے کی طرف",
+        "roman_ur": "Neechay ki taraf",
+        "needs_native_review": True,
+    },
+    DIRECTION_STABLE: {
+        "en": "Stable",
+        "ur": "مستحکم",
+        "roman_ur": "Mustahkam",
+        "needs_native_review": True,
+    },
+    DIRECTION_NOT_ENOUGH_HISTORY: {
+        "en": "Not enough history",
+        "ur": "ناکافی ریکارڈ",
+        "roman_ur": "Na-kaafi record",
+        "needs_native_review": True,
+    },
+    "summary_pattern": {
+        "en": "{n} readings in {days} days",
+        "ur": "{days} دن میں {n} ریڈنگ",
+        "roman_ur": "{days} din mein {n} reading",
+        "needs_native_review": True,
     },
 }
 
 MAX_DISPLAY_VALUES = 14
+
+
+def get_plausibility_bounds(obs_type: str) -> Tuple[float, float]:
+    """Retrieve the app's official clinical plausibility bounds from answer_validation."""
+    key = TYPE_TO_PLAUSIBILITY_KEY[obs_type]
+    bounds = PLAUSIBILITY_RANGES[key]
+    return float(bounds["min"]), float(bounds["max"])
 
 
 def _parse_utc_iso(ts_str: Optional[str]) -> Optional[datetime]:
@@ -149,7 +194,7 @@ def compute_trends(
 
     Args:
         history: List of reading records, each containing:
-                 {"observation_type": str, "value": float | int, "timestamp": str}
+                 {"observation_type": str, "value": float | int, "timestamp": str, "glucose_context": Optional[str]}
         now: Optional ISO string representing evaluation reference time.
         window_days: Observation window in days (default 30).
 
@@ -165,13 +210,17 @@ def compute_trends(
                  "direction": "rising" | "falling" | "stable" | "not_enough_history",
                  "n": int,
                  "window_days": int,
+                 "few_readings": bool,
                  "first_at": str | None,
                  "last_at": str | None,
                  "median_earlier": float | None,
                  "median_recent": float | None,
                  "change": float | None,
                  "slope_per_week": float | None,
-                 "values": [{"value": float, "at": str}]  # max 14, oldest -> newest
+                 "values": [{"value": float, "at": str}],  # max 14, oldest -> newest
+                 # For glucose:
+                 "contexts_seen": list[str],
+                 "mixed_contexts": bool,
              }
           }
         }
@@ -186,7 +235,7 @@ def compute_trends(
     generated_at_str = _format_utc_iso(ref_dt)
 
     excluded_count = 0
-    raw_by_type: Dict[str, List[Tuple[datetime, float]]] = {t: [] for t in MONITORED_TYPES}
+    raw_by_type: Dict[str, List[Tuple[datetime, float, Optional[str]]]] = {t: [] for t in MONITORED_TYPES}
 
     for item in history or []:
         if not isinstance(item, dict):
@@ -200,6 +249,8 @@ def compute_trends(
 
         raw_val = item.get("value")
         raw_ts = item.get("timestamp")
+        raw_ctx = item.get("glucose_context")
+        clean_ctx = str(raw_ctx).strip() if (raw_ctx is not None and isinstance(raw_ctx, str) and str(raw_ctx).strip()) else None
 
         # Exclude None or boolean values (in Python bool is an int subclass)
         if raw_val is None or isinstance(raw_val, bool):
@@ -212,8 +263,8 @@ def compute_trends(
             excluded_count += 1
             continue
 
-        # Check plausible clinical bounds
-        min_p, max_p = PLAUSIBLE_RANGES[obs_type]
+        # Check plausible clinical bounds from app's official PLAUSIBILITY_RANGES
+        min_p, max_p = get_plausibility_bounds(obs_type)
         if not (min_p <= val <= max_p):
             excluded_count += 1
             continue
@@ -228,7 +279,7 @@ def compute_trends(
             # Outside observation window
             continue
 
-        raw_by_type[obs_type].append((dt, val))
+        raw_by_type[obs_type].append((dt, val, clean_ctx))
 
     trends: Dict[str, Any] = {}
 
@@ -238,29 +289,39 @@ def compute_trends(
         # 1. Sort by time ascending
         entries.sort(key=lambda x: x[0])
 
-        # 2. De-duplicate identical timestamps (keep the latest observed value)
-        deduped: List[Tuple[datetime, float]] = []
-        for dt, val in entries:
+        # 2. De-duplicate identical timestamps (keep the latest observed value & context)
+        deduped: List[Tuple[datetime, float, Optional[str]]] = []
+        for dt, val, ctx in entries:
             if deduped and deduped[-1][0] == dt:
-                deduped[-1] = (dt, val)
+                deduped[-1] = (dt, val, ctx)
             else:
-                deduped.append((dt, val))
+                deduped.append((dt, val, ctx))
 
         n = len(deduped)
         threshold = TREND_THRESHOLDS[obs_type]
+        few_readings = 3 <= n < 5
 
         # Form values list (capped at MAX_DISPLAY_VALUES, oldest -> newest)
         display_entries = deduped[-MAX_DISPLAY_VALUES:] if n > MAX_DISPLAY_VALUES else deduped
-        values_list = [{"value": round(v, 2), "at": _format_utc_iso(t)} for t, v in display_entries]
+        values_list = [{"value": round(v, 2), "at": _format_utc_iso(t)} for t, v, _ in display_entries]
 
         first_at = _format_utc_iso(deduped[0][0]) if n > 0 else None
         last_at = _format_utc_iso(deduped[-1][0]) if n > 0 else None
 
+        # Context tracking for glucose series
+        contexts_seen: List[str] = []
+        mixed_contexts: bool = False
+        if obs_type == TYPE_GLUCOSE:
+            unique_contexts = {c for _, _, c in deduped if c}
+            contexts_seen = sorted(list(unique_contexts))
+            mixed_contexts = len(contexts_seen) > 1
+
         if n < BASELINE_MIN_READINGS:
-            trends[obs_type] = {
+            trend_entry = {
                 "direction": DIRECTION_NOT_ENOUGH_HISTORY,
                 "n": n,
                 "window_days": window_days,
+                "few_readings": False,
                 "first_at": first_at,
                 "last_at": last_at,
                 "median_earlier": None,
@@ -269,19 +330,24 @@ def compute_trends(
                 "slope_per_week": None,
                 "values": values_list,
             }
+            if obs_type == TYPE_GLUCOSE:
+                trend_entry["contexts_seen"] = contexts_seen
+                trend_entry["mixed_contexts"] = mixed_contexts
+            trends[obs_type] = trend_entry
             continue
 
         # Split into earlier half and recent half
         # For odd n, middle reading index n // 2 goes to recent half
         split_idx = n // 2
-        earlier_vals = [v for _, v in deduped[:split_idx]]
-        recent_vals = [v for _, v in deduped[split_idx:]]
+        earlier_vals = [v for _, v, _ in deduped[:split_idx]]
+        recent_vals = [v for _, v, _ in deduped[split_idx:]]
 
         median_earlier = statistics.median(earlier_vals)
         median_recent = statistics.median(recent_vals)
         change = round(median_recent - median_earlier, 2)
 
-        slope_per_week = round(_calculate_theil_sen_slope(deduped), 4)
+        pts_for_slope = [(t, v) for t, v, _ in deduped]
+        slope_per_week = round(_calculate_theil_sen_slope(pts_for_slope), 4)
 
         # Dual-Agreement Direction Rule:
         # Rising only if change >= +threshold AND slope_per_week > 0
@@ -294,10 +360,11 @@ def compute_trends(
         else:
             direction = DIRECTION_STABLE
 
-        trends[obs_type] = {
+        trend_entry = {
             "direction": direction,
             "n": n,
             "window_days": window_days,
+            "few_readings": few_readings,
             "first_at": first_at,
             "last_at": last_at,
             "median_earlier": round(median_earlier, 2),
@@ -306,6 +373,11 @@ def compute_trends(
             "slope_per_week": slope_per_week,
             "values": values_list,
         }
+        if obs_type == TYPE_GLUCOSE:
+            trend_entry["contexts_seen"] = contexts_seen
+            trend_entry["mixed_contexts"] = mixed_contexts
+
+        trends[obs_type] = trend_entry
 
     return {
         "generated_at": generated_at_str,
@@ -314,4 +386,3 @@ def compute_trends(
         "excluded_count": excluded_count,
         "trends": trends,
     }
-

@@ -1,7 +1,8 @@
 """
 Unit tests for agents/trend_agent.py (Iteration 2 - Day 4).
 Validates deterministic trend computation, edge cases, thresholds,
-median + Theil-Sen slope dual-agreement rule, and safety invariants.
+median + Theil-Sen slope dual-agreement rule, glucose context tracking,
+app plausibility ranges, and safety invariants.
 """
 from __future__ import annotations
 
@@ -35,7 +36,6 @@ def _make_readings(
     items = []
     for val, days in values_and_days_ago:
         # Construct ISO timestamp (2026-10-29 minus days)
-        # Using a fixed date string calculation for determinism
         day_num = 29 - days
         if day_num > 0:
             ts = f"2026-10-{day_num:02d}T10:00:00Z"
@@ -62,6 +62,7 @@ def test_insufficient_history_returns_not_enough_history(obs_type: str, count: i
     t = res["trends"][obs_type]
     assert t["direction"] == DIRECTION_NOT_ENOUGH_HISTORY
     assert t["n"] == count
+    assert t["few_readings"] is False
     assert t["median_earlier"] is None
     assert t["median_recent"] is None
     assert t["change"] is None
@@ -80,6 +81,7 @@ def test_exactly_three_readings_produces_evaluated_direction(obs_type: str, base
     t = res["trends"][obs_type]
     assert t["direction"] == DIRECTION_STABLE
     assert t["n"] == 3
+    assert t["few_readings"] is True
     assert t["median_earlier"] is not None
     assert t["median_recent"] is not None
     assert t["change"] == 0.0
@@ -150,9 +152,35 @@ def test_threshold_boundary_falling(obs_type: str, base: float, thresh: float):
 
 
 # =============================================================================
-# 4. Outlier Resistance: Single Spike Does NOT Flip Direction
+# 4. Outlier Resistance & Spike Behavior Across Sample Sizes (FIX 2)
 # =============================================================================
-def test_single_spike_outlier_does_not_flip_to_rising():
+@pytest.mark.parametrize("n, expected_direction, expected_few_readings", [
+    (3, DIRECTION_RISING, True),
+    (4, DIRECTION_RISING, True),
+    (5, DIRECTION_STABLE, False),
+    (7, DIRECTION_STABLE, False),
+])
+def test_spike_behavior_across_sample_sizes(n: int, expected_direction: str, expected_few_readings: bool):
+    """
+    Pins the current behavior documented in TREND_AGENT.md section 8:
+    - With 3-4 readings, a single acute terminal spike to 200 pulls the median and slope to 'rising'.
+    - At 5+ readings, median split and Theil-Sen resist the spike and evaluate to 'stable'.
+    - 'few_readings' flag is True for 3 <= n < 5 and False for n >= 5.
+    """
+    history = [
+        {"observation_type": TYPE_GLUCOSE, "value": 120.0, "timestamp": f"2026-10-{10+i:02d}T08:00:00Z"}
+        for i in range(n - 1)
+    ]
+    history.append(
+        {"observation_type": TYPE_GLUCOSE, "value": 200.0, "timestamp": f"2026-10-{10+n-1:02d}T08:00:00Z"}
+    )
+    res = compute_trends(history, now=NOW)
+    t = res["trends"][TYPE_GLUCOSE]
+    assert t["direction"] == expected_direction
+    assert t["few_readings"] is expected_few_readings
+
+
+def test_single_spike_outlier_does_not_flip_to_rising_at_n5():
     # Baseline systolic around 120-122 with a single acute stress spike of 165
     raw = [
         (120.0, 25),
@@ -168,9 +196,10 @@ def test_single_spike_outlier_does_not_flip_to_rising():
     # change = 122 - 121 = 1.0 mmHg (< 10.0 threshold) -> STABLE
     assert t["direction"] == DIRECTION_STABLE
     assert t["change"] == 1.0
+    assert t["few_readings"] is False
 
 
-def test_single_dip_outlier_does_not_flip_to_falling():
+def test_single_dip_outlier_does_not_flip_to_falling_at_n5():
     # Baseline glucose around 125 with a single spurious dip of 60
     raw = [
         (125.0, 25),
@@ -183,91 +212,19 @@ def test_single_dip_outlier_does_not_flip_to_falling():
     res = compute_trends(history, now=NOW)
     t = res["trends"][TYPE_GLUCOSE]
     assert t["direction"] == DIRECTION_STABLE
+    assert t["few_readings"] is False
 
 
 # =============================================================================
 # 5. Dual Agreement: Median vs. Slope Disagreement Must Yield Stable
 # =============================================================================
-def test_median_and_slope_disagreeing_kills_mutation():
+def test_conflict_median_positive_slope_non_positive_yields_stable():
     """
-    CRITICAL MUTATION KILLER TEST:
+    CRITICAL MUTATION KILLER TEST (M-S4-1):
     Construct a scenario where median delta >= threshold but Theil-Sen slope is <= 0.
     Under the dual-agreement rule, direction must be STABLE.
     A mutated algorithm using median alone will falsely report RISING.
     """
-    # 4 points: earlier = [100, 140] (median 120); recent = [135, 131] (median 133).
-    # change = 133 - 120 = +13.0 (>= 10.0 threshold).
-    # But recent points are downward sloping (140 -> 135 -> 131).
-    # Pairwise slopes:
-    # (100, 20) -> (140, 15): +40/5d = +8/d (+56/wk)
-    # (100, 20) -> (135, 10): +35/10d = +3.5/d (+24.5/wk)
-    # (100, 20) -> (131, 5): +31/15d = +2.07/d (+14.5/wk)
-    # (140, 15) -> (135, 10): -5/5d = -1/d (-7/wk)
-    # (140, 15) -> (131, 10? no 5d): -9/10d = -0.9/d (-6.3/wk)
-    # (135, 10) -> (131, 5): -4/5d = -0.8/d (-5.6/wk)
-    # Let's craft an even clearer case where slope is negative or zero:
-    raw = [
-        (110.0, 28),
-        (110.0, 20),
-        (140.0, 15),
-        (135.0, 10),
-        (130.0, 5),
-        (125.0, 1),
-    ]
-    # n=6:
-    # earlier = [110, 110, 140] -> median 110
-    # recent = [135, 130, 125] -> median 130
-    # change = 130 - 110 = +20.0 (>= 10.0)
-    # But recent trend is dropping steadily: 140 -> 135 -> 130 -> 125!
-    # Let's check pairwise slopes:
-    # Most pairs between recent points are negative (-7/wk).
-    # Let's check ta._calculate_theil_sen_slope directly to verify:
-    history = _make_readings(TYPE_SYSTOLIC, raw)
-    res = compute_trends(history, now=NOW)
-    t = res["trends"][TYPE_SYSTOLIC]
-    assert t["change"] == 20.0
-    # If slope_per_week is > 0 or <= 0, let's verify exact test killer case:
-
-
-def test_conflict_median_positive_slope_non_positive_yields_stable():
-    # 4 readings where earlier half is [110, 110] (median 110), recent half is [125, 121]
-    # change = 123 - 110 = +13.0
-    # But from t1 to t2, t3 to t4 are carefully arranged so Theil-Sen slope is <= 0:
-    # Points:
-    # (t=0, 120), (t=1, 100), (t=20, 130), (t=21, 115)
-    # earlier = [120, 100] (median 110)
-    # recent = [130, 115] (median 122.5) -> change = +12.5 (>= 10)
-    # Slopes:
-    # (0, 120) to (1, 100): -20/1d = -140/wk
-    # (0, 120) to (20, 130): +10/20d = +0.5/d = +3.5/wk
-    # (0, 120) to (21, 115): -5/21d = -0.238/d = -1.67/wk
-    # (1, 100) to (20, 130): +30/19d = +1.579/d = +11.05/wk
-    # (1, 100) to (21, 115): +15/20d = +0.75/d = +5.25/wk
-    # (20, 130) to (21, 115): -15/1d = -105/wk
-    # Sorted slopes: [-140, -105, -1.67, +3.5, +5.25, +11.05]
-    # Median is (-1.67 + 3.5)/2 = +0.915 > 0.
-    # To make median negative, make 4 of the 6 slopes negative:
-    # (0, 140), (1, 100), (20, 125), (21, 110)
-    # earlier = [140, 100] -> median 120
-    # recent = [135, 132] -> wait, change must be >= 10.
-    # Let's write an exact test with 5 points:
-    # (t=0, 100), (t=1, 150), (t=2, 145), (t=3, 140), (t=4, 135)
-    # n=5: earlier = [100, 150] (median 125).
-    # recent = [145, 140, 135] (median 140).
-    # change = 140 - 125 = +15.0 (>= 10 threshold!).
-    # Pairs (10 total):
-    # (0,100) to (1,150): +50/d
-    # (0,100) to (2,145): +22.5/d
-    # (0,100) to (3,140): +13.3/d
-    # (0,100) to (4,135): +8.75/d
-    # (1,150) to (2,145): -5/d
-    # (1,150) to (3,140): -5/d
-    # (1,150) to (4,135): -5/d
-    # (2,145) to (3,140): -5/d
-    # (2,145) to (4,135): -5/d
-    # (3,140) to (4,135): -5/d
-    # Negative slopes count = 6 out of 10!
-    # Therefore median of all pairwise slopes is NEGATIVE (-5/d = -35/wk)!
     history = [
         {"observation_type": TYPE_SYSTOLIC, "value": 100.0, "timestamp": "2026-10-01T10:00:00Z"},
         {"observation_type": TYPE_SYSTOLIC, "value": 150.0, "timestamp": "2026-10-02T10:00:00Z"},
@@ -284,7 +241,7 @@ def test_conflict_median_positive_slope_non_positive_yields_stable():
 
 
 # =============================================================================
-# 6. Window Boundaries & Exclusion Logic
+# 6. Window Boundaries & Exclusion Logic (App PLAUSIBILITY_RANGES, FIX 1)
 # =============================================================================
 def test_window_boundary_filtering():
     # now = 2026-10-29T12:00:00Z, window_days = 30 -> cutoff = 2026-09-29T12:00:00Z
@@ -305,8 +262,9 @@ def test_window_boundary_filtering():
     assert t["values"][-1]["value"] == 126.0
 
 
-@pytest.mark.parametrize("bad_val", [None, True, False, "invalid", "120mmHg", float("nan"), 15.0, 350.0])
+@pytest.mark.parametrize("bad_val", [None, True, False, "invalid", "120mmHg", float("nan"), 15.0, 50.0, 270.0, 350.0])
 def test_invalid_and_out_of_range_readings_excluded(bad_val: Any):
+    # App bounds for systolic are 60.0 to 260.0 mmHg
     history = [
         {"observation_type": TYPE_SYSTOLIC, "value": bad_val, "timestamp": "2026-10-10T10:00:00Z"},
         {"observation_type": TYPE_SYSTOLIC, "value": 120.0, "timestamp": "2026-10-15T10:00:00Z"},
@@ -314,6 +272,27 @@ def test_invalid_and_out_of_range_readings_excluded(bad_val: Any):
     res = compute_trends(history, now=NOW, window_days=30)
     assert res["excluded_count"] >= 1
     assert res["trends"][TYPE_SYSTOLIC]["n"] == 1
+
+
+def test_monkeypatch_plausibility_bound_alters_exclusion(monkeypatch: pytest.MonkeyPatch):
+    """
+    FIX 1: Proves that the app's imported PLAUSIBILITY_RANGES is actively used.
+    A reading of 220 mmHg is normally valid (<= 260).
+    When monkeypatched to max 200, it is excluded.
+    """
+    history = [
+        {"observation_type": TYPE_SYSTOLIC, "value": 220.0, "timestamp": "2026-10-15T08:00:00Z"},
+    ]
+    # Normal: 220 is valid
+    res_normal = compute_trends(history, now=NOW)
+    assert res_normal["excluded_count"] == 0
+    assert res_normal["trends"][TYPE_SYSTOLIC]["n"] == 1
+
+    # Monkeypatch max to 200
+    monkeypatch.setitem(ta.PLAUSIBILITY_RANGES["bp_systolic_mmhg"], "max", 200.0)
+    res_patched = compute_trends(history, now=NOW)
+    assert res_patched["excluded_count"] == 1
+    assert res_patched["trends"][TYPE_SYSTOLIC]["n"] == 0
 
 
 # =============================================================================
@@ -384,13 +363,14 @@ def test_odd_even_split_rule():
 
 
 # =============================================================================
-# 10. Schema Keys & Metadata Assertions
+# 10. Schema Keys & Metadata Assertions (including few_readings, glucose context)
 # =============================================================================
 def test_output_schema_keys_and_advisory_flag():
     history = [
         {"observation_type": TYPE_SYSTOLIC, "value": 120.0, "timestamp": "2026-10-10T08:00:00Z"},
         {"observation_type": TYPE_SYSTOLIC, "value": 122.0, "timestamp": "2026-10-15T08:00:00Z"},
         {"observation_type": TYPE_SYSTOLIC, "value": 124.0, "timestamp": "2026-10-20T08:00:00Z"},
+        {"observation_type": TYPE_GLUCOSE, "value": 110.0, "timestamp": "2026-10-20T08:00:00Z", "glucose_context": "fasting"},
     ]
     res = compute_trends(history, now=NOW, window_days=30)
     # Top-level schema
@@ -399,11 +379,12 @@ def test_output_schema_keys_and_advisory_flag():
     assert res["window_days"] == 30
     assert res["generated_at"].endswith("Z")
 
-    # Per-type schema
-    expected_trend_keys = {
+    # Base per-type schema
+    expected_base_keys = {
         "direction",
         "n",
         "window_days",
+        "few_readings",
         "first_at",
         "last_at",
         "median_earlier",
@@ -412,12 +393,54 @@ def test_output_schema_keys_and_advisory_flag():
         "slope_per_week",
         "values",
     }
-    for obs_type in [TYPE_SYSTOLIC, TYPE_DIASTOLIC, TYPE_GLUCOSE]:
-        assert set(res["trends"][obs_type].keys()) == expected_trend_keys
+    for obs_type in [TYPE_SYSTOLIC, TYPE_DIASTOLIC]:
+        assert set(res["trends"][obs_type].keys()) == expected_base_keys
+
+    # Glucose has contexts_seen and mixed_contexts
+    expected_glucose_keys = expected_base_keys | {"contexts_seen", "mixed_contexts"}
+    assert set(res["trends"][TYPE_GLUCOSE].keys()) == expected_glucose_keys
 
 
 # =============================================================================
-# 11. Multilingual Presentation Labels
+# 11. Glucose Context Tracking & Mixed Series Flag (FIX 3)
+# =============================================================================
+def test_glucose_contexts_seen_and_mixed_contexts_flag():
+    # Case 1: Single context (fasting)
+    h_single = [
+        {"observation_type": TYPE_GLUCOSE, "value": 110.0, "timestamp": "2026-10-10T08:00:00Z", "glucose_context": "fasting"},
+        {"observation_type": TYPE_GLUCOSE, "value": 112.0, "timestamp": "2026-10-15T08:00:00Z", "glucose_context": "fasting"},
+        {"observation_type": TYPE_GLUCOSE, "value": 114.0, "timestamp": "2026-10-20T08:00:00Z", "glucose_context": "fasting"},
+    ]
+    res_single = compute_trends(h_single, now=NOW)
+    t_single = res_single["trends"][TYPE_GLUCOSE]
+    assert t_single["contexts_seen"] == ["fasting"]
+    assert t_single["mixed_contexts"] is False
+
+    # Case 2: Mixed contexts (fasting + post_meal)
+    h_mixed = [
+        {"observation_type": TYPE_GLUCOSE, "value": 110.0, "timestamp": "2026-10-10T08:00:00Z", "glucose_context": "fasting"},
+        {"observation_type": TYPE_GLUCOSE, "value": 140.0, "timestamp": "2026-10-15T08:00:00Z", "glucose_context": "post_meal"},
+        {"observation_type": TYPE_GLUCOSE, "value": 112.0, "timestamp": "2026-10-20T08:00:00Z", "glucose_context": "fasting"},
+    ]
+    res_mixed = compute_trends(h_mixed, now=NOW)
+    t_mixed = res_mixed["trends"][TYPE_GLUCOSE]
+    assert t_mixed["contexts_seen"] == ["fasting", "post_meal"]
+    assert t_mixed["mixed_contexts"] is True
+
+    # Case 3: No contexts specified
+    h_none = [
+        {"observation_type": TYPE_GLUCOSE, "value": 110.0, "timestamp": "2026-10-10T08:00:00Z"},
+        {"observation_type": TYPE_GLUCOSE, "value": 112.0, "timestamp": "2026-10-15T08:00:00Z"},
+        {"observation_type": TYPE_GLUCOSE, "value": 114.0, "timestamp": "2026-10-20T08:00:00Z"},
+    ]
+    res_none = compute_trends(h_none, now=NOW)
+    t_none = res_none["trends"][TYPE_GLUCOSE]
+    assert t_none["contexts_seen"] == []
+    assert t_none["mixed_contexts"] is False
+
+
+# =============================================================================
+# 12. Multilingual Presentation Labels & Review Catalog (FIX 4)
 # =============================================================================
 @pytest.mark.parametrize("direction_key", [
     DIRECTION_RISING,
@@ -432,15 +455,22 @@ def test_multilingual_labels_contain_en_ur_roman_ur(direction_key: str):
     assert "roman_ur" in labels and len(labels["roman_ur"]) > 0
 
 
-def test_summary_pattern_label():
+def test_summary_pattern_label_updated_simple_urdu():
     pattern = TREND_LABELS["summary_pattern"]
-    assert "{n}" in pattern["en"] and "{days}" in pattern["en"]
-    assert "{n}" in pattern["ur"] and "{days}" in pattern["ur"]
-    assert "{n}" in pattern["roman_ur"] and "{days}" in pattern["roman_ur"]
+    assert pattern["en"] == "{n} readings in {days} days"
+    assert pattern["ur"] == "{days} دن میں {n} ریڈنگ"
+    assert pattern["roman_ur"] == "{days} din mein {n} reading"
+
+
+def test_trend_labels_review_metadata():
+    assert hasattr(ta, "TREND_LABELS_REVIEW")
+    for key, item in ta.TREND_LABELS_REVIEW.items():
+        assert item.get("needs_native_review") is True
+        assert "en" in item and "ur" in item and "roman_ur" in item
 
 
 # =============================================================================
-# 12. Monkeypatch Proves Imported BASELINE_MIN_READINGS is Used
+# 13. Monkeypatch Proves Imported BASELINE_MIN_READINGS is Used
 # =============================================================================
 def test_monkeypatched_baseline_min_readings_changes_behavior(monkeypatch: pytest.MonkeyPatch):
     # Provide exactly 3 readings (normally enough for an evaluated direction)
@@ -460,7 +490,7 @@ def test_monkeypatched_baseline_min_readings_changes_behavior(monkeypatch: pytes
 
 
 # =============================================================================
-# 13. Architectural Invariant: Module Exposes NO Triage Modification
+# 14. Architectural Invariant: Module Exposes NO Triage Modification
 # =============================================================================
 def test_trend_agent_exposes_no_triage_modifications():
     for name, obj in inspect.getmembers(ta):
@@ -472,4 +502,3 @@ def test_trend_agent_exposes_no_triage_modifications():
             sig = inspect.signature(obj)
             for param in sig.parameters.values():
                 assert param.name != "triage_level"
-

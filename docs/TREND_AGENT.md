@@ -29,10 +29,12 @@ The trend agent ingests the same underlying data sources as `get_user_baseline_h
 - `blood_pressure_diastolic` (mmHg)
 - `glucose` (mg/dL)
 
-### Glucose by Context & Documented Limitation:
+### Glucose by Context & Mixed Series Flag:
 - In clinical practice, blood glucose trajectory varies significantly by meal context (`fasting`, `before_meal`, `after_meal`, `bedtime`).
-- **Limitation:** In the current data model, while `adaptive_interview_agent.py` can capture glucose context within qualitative answer slots, quantitative readings in `intakes_json` and Local Store observations do not yet store a standardized context tag across all historical entries.
-- **Protocol:** If a context tag is present on an entry, it is preserved in the reading history (`glucose_context`). However, for the Day 4 trend computation, all glucose readings are aggregated as a unified series. This constraint is documented as an exploratory limitation scheduled for context-stratified splitting in Iteration 3.
+- **Limitation:** In the current v2 data model, `glucose_context` is stored as free text or `"extracted_from_reading"`, so automatic partitioning into isolated series is not yet supported.
+- **Provider Transparency (`contexts_seen` & `mixed_contexts`):** To ensure clinicians are not misled by an unstratified glucose series that mixes fasting and postprandial measurements, the glucose trend output explicitly includes:
+  - `"contexts_seen"`: A sorted list of all distinct non-empty `glucose_context` tags encountered in the window (e.g. `["fasting", "post_meal"]`).
+  - `"mixed_contexts"`: A boolean flag set to `true` whenever more than one distinct non-empty context is present in the series (otherwise `false`).
 
 ---
 
@@ -44,7 +46,7 @@ To ensure maximum robustness against measurement noise, white-coat spikes, and i
 Raw Readings (last 30 days)
     │
     ▼
-1. Validation & Range Filtering (Exclude None, strings, out-of-bounds)
+1. Validation & Range Filtering (Imported PLAUSIBILITY_RANGES from answer_validation.py)
     │
     ▼
 2. Timestamp Sort & Deduplication (Ascending order; latest reading kept)
@@ -71,14 +73,14 @@ Raw Readings (last 30 days)
 ### Detailed Steps:
 
 1. **Filtering & Plausibility Boundaries:**
-   Readings outside physiological plausibility limits are excluded from trend calculations and tallied in `excluded_count`:
-   - Systolic BP: `50.0 <= value <= 300.0 mmHg`
-   - Diastolic BP: `30.0 <= value <= 200.0 mmHg`
-   - Glucose: `20.0 <= value <= 1000.0 mg/dL`
+   Readings outside physiological plausibility limits are excluded from trend calculations and tallied in `excluded_count`. Bounds are imported directly from the app's authoritative `agents.answer_validation.PLAUSIBILITY_RANGES`:
+   - Systolic BP: `60.0 <= value <= 260.0 mmHg` (`bp_systolic_mmhg`)
+   - Diastolic BP: `30.0 <= value <= 160.0 mmHg` (`bp_diastolic_mmhg`)
+   - Glucose: `20.0 <= value <= 600.0 mg/dL` (`glucose_mg_dl`)
    - `None`, booleans, NaN, and unparseable types are discarded.
 
 2. **Temporal Sorting & Deduplication:**
-   Readings are sorted in ascending chronological order (`oldest -> newest`). If two readings of the same type share identical timestamps, the latest observed value is retained.
+   Readings are sorted in ascending chronological order (`oldest -> newest`). If two readings of the same type share identical timestamps, the latest observed value and context are retained.
 
 3. **Window Boundary:**
    Only readings where `now - window_days <= timestamp <= now` are evaluated. Readings older than `window_days` or timestamped in the future are excluded.
@@ -105,7 +107,7 @@ Raw Readings (last 30 days)
 
 ---
 
-## 5. Proposed Thresholds
+## 5. Proposed Thresholds & Minimum Sample Review
 
 All thresholds are centralized in a single configuration block in `agents/trend_agent.py`:
 
@@ -116,6 +118,10 @@ TREND_THRESHOLDS = {
     "blood_pressure_diastolic": 5.0,    # mmHg
     "glucose": 20.0,                   # mg/dL
 }
+
+# PROPOSED constant for doctor review: minimum readings needed to show trajectory without outlier sensitivity
+# (NOT applied yet; BASELINE_MIN_READINGS = 3 remains operational for Day 4/5)
+PROPOSED_MIN_READINGS_FOR_DIRECTION = 5
 ```
 
 ---
@@ -135,6 +141,7 @@ The top-level JSON structure returned by `compute_trends`:
       "direction": "rising",
       "n": 4,
       "window_days": 30,
+      "few_readings": true,
       "first_at": "2026-10-05T08:00:00Z",
       "last_at": "2026-10-28T09:30:00Z",
       "median_earlier": 122.0,
@@ -148,35 +155,25 @@ The top-level JSON structure returned by `compute_trends`:
         {"value": 138.0, "at": "2026-10-28T09:30:00Z"}
       ]
     },
-    "blood_pressure_diastolic": {
-      "direction": "stable",
-      "n": 4,
-      "window_days": 30,
-      "first_at": "2026-10-05T08:00:00Z",
-      "last_at": "2026-10-28T09:30:00Z",
-      "median_earlier": 78.0,
-      "median_recent": 80.0,
-      "change": 2.0,
-      "slope_per_week": 0.6,
-      "values": [
-        {"value": 78.0, "at": "2026-10-05T08:00:00Z"},
-        {"value": 78.0, "at": "2026-10-12T08:15:00Z"},
-        {"value": 80.0, "at": "2026-10-20T08:00:00Z"},
-        {"value": 80.0, "at": "2026-10-28T09:30:00Z"}
-      ]
-    },
     "glucose": {
-      "direction": "not_enough_history",
-      "n": 1,
+      "direction": "stable",
+      "n": 5,
       "window_days": 30,
-      "first_at": "2026-10-28T09:30:00Z",
+      "few_readings": false,
+      "contexts_seen": ["fasting", "post_meal"],
+      "mixed_contexts": true,
+      "first_at": "2026-10-01T08:00:00Z",
       "last_at": "2026-10-28T09:30:00Z",
-      "median_earlier": null,
-      "median_recent": null,
-      "change": null,
-      "slope_per_week": null,
+      "median_earlier": 110.0,
+      "median_recent": 115.0,
+      "change": 5.0,
+      "slope_per_week": 1.2,
       "values": [
-        {"value": 140.0, "at": "2026-10-28T09:30:00Z"}
+        {"value": 110.0, "at": "2026-10-01T08:00:00Z"},
+        {"value": 112.0, "at": "2026-10-08T08:00:00Z"},
+        {"value": 115.0, "at": "2026-10-15T08:00:00Z"},
+        {"value": 114.0, "at": "2026-10-22T08:00:00Z"},
+        {"value": 118.0, "at": "2026-10-28T09:30:00Z"}
       ]
     }
   }
@@ -187,9 +184,9 @@ The top-level JSON structure returned by `compute_trends`:
 
 ---
 
-## 7. Multilingual Labels (`TREND_LABELS`)
+## 7. Multilingual Labels (`TREND_LABELS` & Review Table)
 
-Multilingual presentation strings are provided in English, Urdu (Nastaliq script), and Roman Urdu. Marked `needs_native_review` for clinical terminology verification:
+Multilingual presentation strings are provided in English, Urdu (Nastaliq script), and Roman Urdu.
 
 | Key | English (`en`) | Urdu (`ur`) | Roman Urdu (`roman_ur`) |
 |---|---|---|---|
@@ -197,19 +194,35 @@ Multilingual presentation strings are provided in English, Urdu (Nastaliq script
 | `falling` | "Falling" | "نیچے کی طرف" | "Neechay ki taraf" |
 | `stable` | "Stable" | "مستحکم" | "Mustahkam" |
 | `not_enough_history` | "Not enough history" | "ناکافی ریکارڈ" | "Na-kaafi record" |
-| `summary_pattern` | "{n} readings in {days} days" | "{days} دنوں میں {n} ریکارڈنگز" | "{days} dino mein {n} readings" |
+| `summary_pattern` | "{n} readings in {days} days" | "{days} دن میں {n} ریڈنگ" | "{days} din mein {n} reading" |
+
+### Dedicated Native Urdu Review List (`TREND_LABELS_REVIEW`):
+Because `docs/URDU_REVIEW_LIST.md` does not exist on `dev`, the review items are cataloged below:
+
+| Label Key | Proposed Urdu | Roman Urdu | Context / Notes | Native Review Status |
+|---|---|---|---|---|
+| `rising` | اوپر کی طرف | Upar ki taraf | Direction badge for increasing physiological trend | `needs_native_review: true` |
+| `falling` | نیچے کی طرف | Neechay ki taraf | Direction badge for decreasing physiological trend | `needs_native_review: true` |
+| `stable` | مستحکم | Mustahkam | Direction badge for stable/neutral trajectory | `needs_native_review: true` |
+| `not_enough_history` | ناکافی ریکارڈ | Na-kaafi record | Displayed when fewer than 3 readings exist | `needs_native_review: true` |
+| `summary_pattern` | {days} دن میں {n} ریڈنگ | {days} din mein {n} reading | Card subtext showing observation count in window | `needs_native_review: true` |
 
 ---
 
 ## 8. Edge Case Defenses & Clinical Justifications
 
-1. **Single Measurement Spike (White-Coat Effect / Acute Transient):**
-   - *Scenario:* A patient with normal baseline BP (120, 122, 121) has an acute stress spike to 160 on reading 4, followed by 122 on reading 5: `[120, 122, 121, 160, 122]`.
-   - *Defense:* The earlier half `[120, 122]` has median 121. The recent half `[121, 160, 122]` has median 122. Change is $+1$ mmHg ($< 10$ mmHg threshold). Furthermore, the pairwise slopes from the spike back down to 122 pull the Theil-Sen slope toward zero. The model labels this **stable**, preventing spurious alerts.
+1. **Outlier Sensitivity with 3–4 Readings vs. Outlier Resistance at $\ge 5$ Readings:**
+   - **Empirical Reality:** With only 3 or 4 readings, a single anomalous terminal reading can shift the trajectory to "rising" or "falling":
+     - `[120, 120, 200]` ($n=3$): earlier = `[120]`, recent = `[120, 200]`, $\Delta = +40$, slope = $+280$/week $\to$ **`rising`**.
+     - `[120, 120, 120, 200]` ($n=4$): earlier = `[120, 120]`, recent = `[120, 200]`, $\Delta = +40$, slope = $+93$/week $\to$ **`rising`**.
+   - **Protection Starts at 5 Readings:** As sample size reaches 5 or more, the median split and Theil-Sen pairwise slopes successfully resist single acute spikes:
+     - `[120, 120, 120, 120, 200]` ($n=5$): earlier = `[120, 120]` (med 120), recent = `[120, 120, 200]` (med 120), $\Delta = 0$ $\to$ **`stable`**.
+     - `[120, 120, 120, 120, 120, 120, 200]` ($n=7$): earlier = `[120, 120, 120]`, recent = `[120, 120, 120, 200]`, $\Delta = 0$ $\to$ **`stable`**.
+   - **`few_readings` Warning Flag:** Whenever $3 \le n < 5$, the agent marks `"few_readings": true`, allowing the Day 5 frontend to present an informational disclaimer ("based on only n readings").
+   - **Proposal for Doctor Review:** Formally propose setting `MIN_READINGS_FOR_DIRECTION = 5` in Iteration 3 to eliminate outlier vulnerability entirely before showing a directional arrow.
 2. **Median / Slope Conflict:**
-   - If an anomalous distribution yields a median delta $\ge 10$ but pairwise slopes are negative or zero (e.g. stepped drop followed by flat line), the direction defaults to **stable**.
+   - If an anomalous distribution yields a median delta $\ge \text{threshold}$ but pairwise slopes are negative or zero (e.g. stepped drop followed by flat line), the direction defaults to **stable**.
 3. **Missing or Corrupted Data:**
    - Any reading with `value=None`, boolean, non-numeric strings, or timestamps failing ISO parsing is dropped and recorded under `excluded_count`.
 4. **Timezone Normalization:**
    - All string timestamps are parsed and converted to UTC timezone-aware datetimes before chronological sorting and window difference computations. Outputs are serialized with trailing `Z`.
-
