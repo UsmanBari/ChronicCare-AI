@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
+from agents.interview_bank.loader import get_message
 
 
 # =============================================================================
@@ -130,10 +131,10 @@ def validate_glucose_input(text: str, previously_asked_unit: bool = False) -> Va
                 needs_review=True,
                 is_possible_severe_low=True,
                 review_reason="glucose value unit unclear, possible low",
-                safety_guidance="If you feel shaky, sweaty, dizzy, or unwell, please consume fast-acting sugar (fruit juice or sweets) and re-check, or seek medical advice.",
+                safety_guidance=get_message("glucose_low_safety_guidance", "en"),
                 confidence="Low",
                 raw_quote=clean,
-                clarification_prompt="Glucose unit unclear. Treated as possible low sugar for safety review."
+                clarification_prompt=get_message("glucose_unit_unclear_prompt", "en")
             )
         return ValidationResult(valid=False, is_unclear=True, needs_review=True, confidence="Low", raw_quote=clean)
 
@@ -181,10 +182,10 @@ def validate_glucose_input(text: str, previously_asked_unit: bool = False) -> Va
                 needs_review=True,
                 is_possible_severe_low=True,
                 review_reason="glucose value unit unclear, possible low",
-                safety_guidance="If you feel shaky, sweaty, dizzy, or unwell, please consume fast-acting sugar (fruit juice or sweets) and re-check, or seek medical advice.",
+                safety_guidance=get_message("glucose_low_safety_guidance", "en"),
                 confidence="Low",
                 raw_quote=clean,
-                clarification_prompt="Glucose unit unclear. Treated as possible low sugar for safety review."
+                clarification_prompt=get_message("glucose_unit_unclear_prompt", "en")
             )
         return ValidationResult(
             valid=False,
@@ -192,7 +193,7 @@ def validate_glucose_input(text: str, previously_asked_unit: bool = False) -> Va
             is_ambiguous=True,
             needs_unit_clarification=True,
             raw_quote=clean,
-            clarification_prompt=f"I heard {val:g}. Is that mmol/L or mg/dL?"
+            clarification_prompt=get_message("glucose_unit_clarify_heard", "en", value=f"{val:g}")
         )
 
     if PLAUSIBILITY_RANGES["glucose_mg_dl"]["min"] <= val <= PLAUSIBILITY_RANGES["glucose_mg_dl"]["max"]:
@@ -252,7 +253,7 @@ def detect_cross_checks_and_contradictions(
         return {
             "slot": current_slot,
             "type": "record_mismatch",
-            "message": "Your medical profile lists insulin or sulfonylurea, but you mentioned not taking it. Did your doctor recently change this medication?",
+            "message": get_message("contradiction_insulin_record", "en"),
             "record_value": "on_insulin_or_sulfonylurea=True",
             "reported_value": answer_text,
         }
@@ -263,7 +264,7 @@ def detect_cross_checks_and_contradictions(
             return {
                 "slot": current_slot,
                 "type": "answer_contradiction",
-                "message": "Earlier you mentioned taking all doses, but also mentioned running out of medicine. Would you like to clarify?",
+                "message": get_message("contradiction_adherence_ran_out", "en"),
                 "previous_value": "adherence=True",
                 "reported_value": answer_text,
             }
@@ -274,7 +275,7 @@ def detect_cross_checks_and_contradictions(
             return {
                 "slot": current_slot,
                 "type": "context_mismatch",
-                "message": "We noted this reading as fasting, but you mentioned eating recently. Was this reading taken before or after your meal?",
+                "message": get_message("contradiction_fasting_just_ate", "en"),
                 "previous_value": "fasting",
                 "reported_value": answer_text,
             }
