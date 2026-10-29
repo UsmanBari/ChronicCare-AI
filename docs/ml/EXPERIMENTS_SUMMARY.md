@@ -39,14 +39,14 @@ Evaluating the model and guideline rules at matched operating points on the held
 
 | Model | Population | Rule | Rule Sens / Spec | Model Spec @ Rule Sens | Model Sens @ Rule Spec | Comparison |
 | --- | --- | --- | --- | --- | --- | --- |
-| `diabetes_basic_nhanes` | General Test | Age >= 35 | 93.04% / 28.71% | 39.02% | 96.91% | Model (+10.3% spec / +3.9% sens) |
-| `diabetes_basic_nhanes` | General Test | Age 35-70 & BMI >= 25 | 63.66% / 58.01% | 70.09% | 75.52% | Model (+12.1% spec / +11.9% sens) |
-| `diabetes_basic_nhanes` | Card Audience: High BP | Age >= 35 | 96.32% / 8.46% | 9.68% | 97.89% | Model (+1.2% spec / +1.6% sens) |
-| `diabetes_basic_nhanes` | Card Audience: High BP | Age 35-70 & BMI >= 25 | 60.00% / 46.17% | 65.18% | 77.89% | Model (+19.0% spec / +17.9% sens) |
-| `diabetes_full_nhanes` | General Test | Age >= 35 | 93.06% / 28.77% | 41.34% | 96.67% | Model (+12.6% spec / +3.6% sens) |
-| `diabetes_full_nhanes` | General Test | Age 35-70 & BMI >= 25 | 65.00% / 57.83% | 69.96% | 79.44% | Model (+12.1% spec / +14.4% sens) |
-| `diabetes_full_nhanes` | Card Audience: High BP | Age >= 35 | 97.16% / 8.61% | 10.65% | 98.30% | Model (+2.0% spec / +1.1% sens) |
-| `diabetes_full_nhanes` | Card Audience: High BP | Age 35-70 & BMI >= 25 | 63.07% / 45.48% | 63.75% | 77.27% | Model (+18.3% spec / +14.2% sens) |
+| `diabetes_basic_nhanes` | General Test | Age >= 35 | 93.04% / 28.71% | 39.02% | 96.91% | Model (+10.3 pp spec / +3.9 pp sens) |
+| `diabetes_basic_nhanes` | General Test | Age 35-70 & BMI >= 25 | 63.66% / 58.01% | 70.09% | 75.52% | Model (+12.1 pp spec / +11.9 pp sens) |
+| `diabetes_basic_nhanes` | Card Audience: High BP | Age >= 35 | 96.32% / 8.46% | 9.68% | 97.89% | Model (+1.2 pp spec / +1.6 pp sens) |
+| `diabetes_basic_nhanes` | Card Audience: High BP | Age 35-70 & BMI >= 25 | 60.00% / 46.17% | 65.18% | 77.89% | Model (+19.0 pp spec / +17.9 pp sens) |
+| `diabetes_full_nhanes` | General Test | Age >= 35 | 93.06% / 28.77% | 41.34% | 96.67% | Model (+12.6 pp spec / +3.6 pp sens) |
+| `diabetes_full_nhanes` | General Test | Age 35-70 & BMI >= 25 | 65.00% / 57.83% | 69.96% | 79.44% | Model (+12.1 pp spec / +14.4 pp sens) |
+| `diabetes_full_nhanes` | Card Audience: High BP | Age >= 35 | 97.16% / 8.61% | 10.65% | 98.30% | Model (+2.0 pp spec / +1.1 pp sens) |
+| `diabetes_full_nhanes` | Card Audience: High BP | Age 35-70 & BMI >= 25 | 63.07% / 45.48% | 63.75% | 77.27% | Model (+18.3 pp spec / +14.2 pp sens) |
 
 At matched trade-offs, both the basic and full models achieve higher specificity at the guideline rule's sensitivity and higher sensitivity at the rule's specificity, though in the card population for Age >= 35 both the model and the rule provide negligible specificity (< 11%).
 
@@ -82,7 +82,7 @@ Detailed Decision Curve Analysis (DCA) assessing net benefit across decision thr
      - Age 40–59: sensitivity 76.00%, specificity 52.57% (n=2,556, positives=125).
      - Age 60+: sensitivity 96.81%, specificity 15.05% (n=3,018, positives=188).
 5. **Precision and False-Positive Rates:** At ~4.15% baseline prevalence of undiagnosed diabetes, operating at 85.28% sensitivity produces an operational specificity of 52.23% and a Positive Predictive Value (PPV) of **7.17%**. Approximately 13 out of every 14 flagged individuals do not have undiagnosed diabetes.
-6. **Comparison with Guideline Rules:** When matched at the same sensitivity or specificity (Table 3), the trained logistic regression models show modest discrimination gains over deterministic age and BMI cut-offs on the general test set, while on the card audience for `Age >= 35`, both the model and the rule exhibit specificity under 11%.
+6. **Comparison with Guideline Rules & Clinical Low Thresholds:** When matched at the same sensitivity or specificity (Table 3), the trained logistic regression models show modest discrimination gains over deterministic age and BMI cut-offs on the general test set, while on the card audience for `Age >= 35`, both the model and the rule exhibit specificity under 11%. HbA1c is a low-cost test, so clinicians are likely to use a low threshold (≤3%); in that range, testing every patient with high BP is as good as the model. This supports D15 (a rule-based reminder) over a patient-facing ML card.
 
 ---
 
@@ -104,5 +104,5 @@ Detailed Decision Curve Analysis (DCA) assessing net benefit across decision thr
 2. **Decision D12 (Diabetes Risk Deployment):** `diabetes_full_nhanes` is statistically a `SHIP CANDIDATE (all D11 gates passed)`, but its card-population AUROC is 0.6640. In FYP-1, it is displayed **ONLY on the provider review page** labeled: *"Experimental: trained on US NHANES data, not validated for Pakistani patients"*, behind the `RISK_ENABLED` feature flag (off by default in production, can be toggled on for demo). It is **NEVER shown to patients in FYP-1**. It requires `waist_cm`; without `waist_cm`, the provider sees "not enough information" (no fallback to basic, which failed its gates).
 3. **Decision D13 (Hypertension Risk Deployment):** Retired for FYP-1. Card-population AUROC is ~0.54 (near chance), and in older adults (60+), the model flags 100.0% of individuals (specificity 0.0%), providing no discriminatory value. Artifacts and code are retained for documentation and academic reporting only.
 4. **Decision D14 (Clinical Recommendation for Diabetics):** For patients with diabetes, recommend to supervising clinicians and doctors asking for an actual blood pressure cuff measurement during check-ins rather than attempting to infer high blood pressure probabilistically from demographic proxies. Requires clinical approval before implementation.
-5. **Decision D15 (Proposed Patient-Facing Feature):** A rule-based screening reminder (needs doctor approval; NOT built today). If a patient with hypertension has no HbA1c in their record within the interval clinicians set, display: *"Ask your doctor whether you need an HbA1c (sugar) test."* Deterministic, record-based, explainable: "the rules decide".
+5. **Decision D15 (Proposed Patient-Facing Feature):** A rule-based screening reminder (needs doctor approval; NOT built today). If a patient with hypertension has no HbA1c in their record within the interval clinicians set, display: *"Ask your doctor whether you need an HbA1c (sugar) test."* Deterministic, record-based, explainable: "the rules decide". HbA1c is a low-cost test, so clinicians are likely to use a low threshold (≤3%); in that range, testing every patient with high BP is as good as the model. This supports D15 (a rule-based reminder) over a patient-facing ML card.
 6. **External Validation Limitation for BRFSS (Day 6):** The BRFSS surveillance dataset contains no laboratory specimen data (no HbA1c, fasting glucose) and no physical cuff examination measurements. Consequently, BRFSS cannot evaluate undiagnosed target labels (`diabetes_undiagnosed` or `hypertension_measured_130_80`). Day 6 external validation on BRFSS will be limited to evaluating self-reported awareness labels (`diabetes_told`, `hypertension_told`) or assessing feature drift across demographics.

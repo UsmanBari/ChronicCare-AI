@@ -9,7 +9,9 @@
 
 ## 1. Summary of Net Benefit Findings
 
-For `diabetes_full_nhanes` on the general test population, the model provides positive net benefit over "screen everyone" and over the guideline rules across threshold probabilities $p_t$ from 0.02 to 0.12 (2% to 12%); above $p_t = 0.13$, net benefit approaches zero as the threshold exceeds prevailing undiagnosed prevalence.
+- **General Test:** Across pt 0.01-0.12, the model Net Benefit exceeds 'screen everyone' and both guideline rules (Rule a and Rule b). Above pt 0.12, net benefit approaches zero as the decision threshold exceeds population prevalence.
+- **Card Audience (High BP):** At pt 0.01-0.03 the model is equal to or below 'screen all' / rule a (pt 0.03: model 0.0391 vs all 0.0394 vs rule a 0.0400); the model adds net benefit only from pt 0.04 to 0.13.
+- HbA1c is a low-cost test, so clinicians are likely to use a low threshold (≤3%); in that range, testing every patient with high BP is as good as the model. This supports D15 (a rule-based reminder) over a patient-facing ML card.
 
 ---
 

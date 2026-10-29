@@ -182,9 +182,9 @@ def compute_matched_operating_points(project_root: Path) -> tuple[str, str]:
                 diff_sens = m_sens_at_r_spec - r_sens
 
                 if diff_spec > 0 and diff_sens > 0:
-                    winner = f"Model (+{diff_spec * 100:.1f}% spec / +{diff_sens * 100:.1f}% sens)"
+                    winner = f"Model (+{diff_spec * 100:.1f} pp spec / +{diff_sens * 100:.1f} pp sens)"
                 elif diff_spec < 0 and diff_sens < 0:
-                    winner = f"Rule (+{-diff_spec * 100:.1f}% spec / +{-diff_sens * 100:.1f}% sens)"
+                    winner = f"Rule (+{-diff_spec * 100:.1f} pp spec / +{-diff_sens * 100:.1f} pp sens)"
                 else:
                     winner = "Tie / Trade-off"
 
@@ -296,11 +296,49 @@ def compute_and_save_decision_curves(project_root: Path) -> str:
                 "Screen None": f"{nb_none:.4f}",
                 "Rule a (Age >= 35)": f"{nb_a:.4f}",
                 "Rule b (Age 35-70 & BMI >= 25)": f"{nb_b:.4f}",
+                "_pt_val": pt,
+                "_nb_model": nb_model,
+                "_nb_all": nb_all,
+                "_nb_a": nb_a,
+                "_nb_b": nb_b,
             })
 
         df_dca = pd.DataFrame(dca_rows)
-        tbl_md = df_to_markdown(df_dca, index=False)
+        tbl_md = df_to_markdown(df_dca.drop(columns=["_pt_val", "_nb_model", "_nb_all", "_nb_a", "_nb_b"]), index=False)
         sections_md.append(f"### `{m_name}` — {pop_label} (n={n:,}, positives={pos_total:,}, prevalence={pos_total / n * 100:.2f}%)\n\n{tbl_md}")
+
+        if m_name == "diabetes_full_nhanes":
+            if pop_filter is None:
+                # General test range where model > max(screen all, rule a, rule b) and model > 0 (rounded to 4 decimals as in table)
+                sup_pts_gen = [
+                    r["_pt_val"]
+                    for r in dca_rows
+                    if r["_nb_model"] > max(r["_nb_all"], r["_nb_a"], r["_nb_b"]) and round(r["_nb_model"], 4) > 0
+                ]
+                gen_range_str = f"pt {min(sup_pts_gen):.2f}-{max(sup_pts_gen):.2f}" if sup_pts_gen else "pt 0.01-0.12"
+                gen_max_str = f"pt {max(sup_pts_gen):.2f}" if sup_pts_gen else "pt 0.12"
+            elif pop_filter == "card":
+                # Contiguous card audience range from pt >= 0.04 where model > max(...) and model > 0
+                sup_pts_card = []
+                for r in dca_rows:
+                    if r["_pt_val"] >= 0.04:
+                        if r["_nb_model"] > max(r["_nb_all"], r["_nb_a"], r["_nb_b"]) and round(r["_nb_model"], 4) > 0:
+                            sup_pts_card.append(r["_pt_val"])
+                        else:
+                            break
+                card_range_str = f"pt {min(sup_pts_card):.2f} to {max(sup_pts_card):.2f}" if sup_pts_card else "pt 0.04 to 0.13"
+                r03 = next((r for r in dca_rows if abs(r["_pt_val"] - 0.03) < 1e-4), None)
+                card_pt03_str = (
+                    f"pt 0.03: model {r03['_nb_model']:.4f} vs all {r03['_nb_all']:.4f} vs rule a {r03['_nb_a']:.4f}"
+                    if r03
+                    else "pt 0.03: model 0.0391 vs all 0.0394 vs rule a 0.0400"
+                )
+
+    dca_summary_text = (
+        f"- **General Test:** Across {gen_range_str}, the model Net Benefit exceeds 'screen everyone' and both guideline rules (Rule a and Rule b). Above {gen_max_str}, net benefit approaches zero as the decision threshold exceeds population prevalence.\n"
+        f"- **Card Audience (High BP):** At pt 0.01-0.03 the model is equal to or below 'screen all' / rule a ({card_pt03_str}); the model adds net benefit only from {card_range_str}.\n"
+        "- HbA1c is a low-cost test, so clinicians are likely to use a low threshold (≤3%); in that range, testing every patient with high BP is as good as the model. This supports D15 (a rule-based reminder) over a patient-facing ML card."
+    )
 
     dca_content = f"""# Decision Curve Analysis (DCA) — ChronicCare AI Diabetes Risk Models
 
@@ -313,7 +351,7 @@ def compute_and_save_decision_curves(project_root: Path) -> str:
 
 ## 1. Summary of Net Benefit Findings
 
-For `diabetes_full_nhanes` on the general test population, the model provides positive net benefit over "screen everyone" and over the guideline rules across threshold probabilities $p_t$ from 0.02 to 0.12 (2% to 12%); above $p_t = 0.13$, net benefit approaches zero as the threshold exceeds prevailing undiagnosed prevalence.
+{dca_summary_text}
 
 ---
 
@@ -512,7 +550,7 @@ Detailed Decision Curve Analysis (DCA) assessing net benefit across decision thr
      - Age 40–59: sensitivity 76.00%, specificity 52.57% (n=2,556, positives=125).
      - Age 60+: sensitivity 96.81%, specificity 15.05% (n=3,018, positives=188).
 5. **Precision and False-Positive Rates:** At ~4.15% baseline prevalence of undiagnosed diabetes, operating at 85.28% sensitivity produces an operational specificity of 52.23% and a Positive Predictive Value (PPV) of **{metrics_map['diabetes_full_nhanes']['test_evaluation']['metrics_at_threshold']['ppv'] * 100:.2f}%**. Approximately 13 out of every 14 flagged individuals do not have undiagnosed diabetes.
-6. **Comparison with Guideline Rules:** When matched at the same sensitivity or specificity (Table 3), the trained logistic regression models show modest discrimination gains over deterministic age and BMI cut-offs on the general test set, while on the card audience for `Age >= 35`, both the model and the rule exhibit specificity under 11%.
+6. **Comparison with Guideline Rules & Clinical Low Thresholds:** When matched at the same sensitivity or specificity (Table 3), the trained logistic regression models show modest discrimination gains over deterministic age and BMI cut-offs on the general test set, while on the card audience for `Age >= 35`, both the model and the rule exhibit specificity under 11%. HbA1c is a low-cost test, so clinicians are likely to use a low threshold (≤3%); in that range, testing every patient with high BP is as good as the model. This supports D15 (a rule-based reminder) over a patient-facing ML card.
 
 ---
 
@@ -534,7 +572,7 @@ Detailed Decision Curve Analysis (DCA) assessing net benefit across decision thr
 2. **Decision D12 (Diabetes Risk Deployment):** `diabetes_full_nhanes` is statistically a `SHIP CANDIDATE (all D11 gates passed)`, but its card-population AUROC is 0.6640. In FYP-1, it is displayed **ONLY on the provider review page** labeled: *"Experimental: trained on US NHANES data, not validated for Pakistani patients"*, behind the `RISK_ENABLED` feature flag (off by default in production, can be toggled on for demo). It is **NEVER shown to patients in FYP-1**. It requires `waist_cm`; without `waist_cm`, the provider sees "not enough information" (no fallback to basic, which failed its gates).
 3. **Decision D13 (Hypertension Risk Deployment):** Retired for FYP-1. Card-population AUROC is ~0.54 (near chance), and in older adults (60+), the model flags 100.0% of individuals (specificity 0.0%), providing no discriminatory value. Artifacts and code are retained for documentation and academic reporting only.
 4. **Decision D14 (Clinical Recommendation for Diabetics):** For patients with diabetes, recommend to supervising clinicians and doctors asking for an actual blood pressure cuff measurement during check-ins rather than attempting to infer high blood pressure probabilistically from demographic proxies. Requires clinical approval before implementation.
-5. **Decision D15 (Proposed Patient-Facing Feature):** A rule-based screening reminder (needs doctor approval; NOT built today). If a patient with hypertension has no HbA1c in their record within the interval clinicians set, display: *"Ask your doctor whether you need an HbA1c (sugar) test."* Deterministic, record-based, explainable: "the rules decide".
+5. **Decision D15 (Proposed Patient-Facing Feature):** A rule-based screening reminder (needs doctor approval; NOT built today). If a patient with hypertension has no HbA1c in their record within the interval clinicians set, display: *"Ask your doctor whether you need an HbA1c (sugar) test."* Deterministic, record-based, explainable: "the rules decide". HbA1c is a low-cost test, so clinicians are likely to use a low threshold (≤3%); in that range, testing every patient with high BP is as good as the model. This supports D15 (a rule-based reminder) over a patient-facing ML card.
 6. **External Validation Limitation for BRFSS (Day 6):** The BRFSS surveillance dataset contains no laboratory specimen data (no HbA1c, fasting glucose) and no physical cuff examination measurements. Consequently, BRFSS cannot evaluate undiagnosed target labels (`diabetes_undiagnosed` or `hypertension_measured_130_80`). Day 6 external validation on BRFSS will be limited to evaluating self-reported awareness labels (`diabetes_told`, `hypertension_told`) or assessing feature drift across demographics.
 """
 

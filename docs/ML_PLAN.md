@@ -313,6 +313,7 @@ If a model fails any gate, it is not shipped, remains disabled behind `RISK_ENAB
 - A rule-based screening reminder (needs doctor approval; NOT built today).
 - If a patient with hypertension has no HbA1c in their record within the interval clinicians set, display: *"Ask your doctor whether you need an HbA1c (sugar) test."*
 - Deterministic, record-based, explainable: "the rules decide".
+- HbA1c is a low-cost test, so clinicians are likely to use a low threshold (≤3%); in that range, testing every patient with high BP is as good as the model. This supports D15 (a rule-based reminder) over a patient-facing ML card.
 
 ---
 
@@ -335,6 +336,6 @@ If a model fails any gate, it is not shipped, remains disabled behind `RISK_ENAB
 | **D12** | Diabetes Risk Deployment | `diabetes_full_nhanes` shown only on provider review page (never patient-facing in FYP-1) as experimental behind `RISK_ENABLED=off`. Requires `waist_cm` (no fallback to basic). |
 | **D13** | Hypertension Risk Deployment | Retired for FYP-1 due to 0.54 card AUROC and 100% flag rate in 60+. Artifacts kept for reporting. |
 | **D14** | Clinical BP Recommendation | Recommend asking diabetic patients for an actual BP reading instead of predicting high BP. Needs clinician approval. |
-| **D15** | Proposed Patient Screening Reminder | Rule-based reminder for hypertensive patients without recent HbA1c: "Ask your doctor whether you need an HbA1c (sugar) test." Needs doctor approval; not built today. |
+| **D15** | Proposed Patient Screening Reminder | Rule-based reminder for hypertensive patients without recent HbA1c: "Ask your doctor whether you need an HbA1c (sugar) test." Low cost (<=3% threshold) means testing all high BP patients is as good as the model, supporting D15 over an ML card. Needs doctor approval; not built today. |
 
 ---
