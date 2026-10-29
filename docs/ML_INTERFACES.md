@@ -36,7 +36,7 @@ The model card is validated by `ml.artifacts.validate_model_card(card)`. All 20 
 | `git_commit` | `string` | 40-character SHA from `git rev-parse HEAD` | `"<40-char SHA from git rev-parse HEAD>"` |
 | `label` | `string` | Target label registered in `ml.labels.LABELS` | `"diabetes_undiagnosed"` |
 | `population` | `string` | Target population definition / cohort inclusion filter | `"told_diabetes == 0"` |
-| `tier` | `string` | Feature tier level (`basic`, `intermediate`, `advanced`) | `"basic"` |
+| `tier` | `string` | Feature tier level (`basic` | `full`) | `"basic"` |
 | `features` | `list[string]` | Ordered list of candidate input features | `["age", "sex_male", "bmi", "ever_smoked_100", "told_high_bp"]` |
 | `threshold` | `float` | Operational decision threshold in range `[0.0, 1.0]` | `0.082` |
 | `threshold_policy` | `dict` | Policy dict used to select the threshold on validation | `{"type": "min_sensitivity", "value": 0.80}` |

@@ -31,7 +31,7 @@ Evaluated on 11,281 clean held-out adult test records. 95% bootstrap confidence 
 | LogisticRegression (standard unweighted) | 0.1126 | -0.0196 | +0.1475 | 0.9745 |
 | LogisticRegression (balanced re-weighted) | 0.2289 | +0.3134 | -1.9570 | 0.8790 |
 
-> **Clinical Calibration Note:** The balanced model exhibits an extreme positive calibration-in-the-large (+0.3134), systematically over-estimating true risk across all risk deciles. This occurs because synthetic sample re-weighting (`class_weight='balanced'`) artificially inflates the positive prior probability during model fitting. Consequently, probabilities from a balanced logistic regression cannot be communicated to patients or clinicians as an absolute "risk %" without formal post-hoc probability recalibration (e.g. Platt scaling or isotonic calibration on validation data). The unweighted standard model is reported alongside it as an uninflated probability baseline.
+> **Clinical Calibration Note:** The balanced model exhibits an extreme positive calibration-in-the-large (+0.3134), systematically over-estimating true risk across all risk deciles. This occurs because synthetic sample re-weighting (`class_weight='balanced'`) artificially inflates the positive prior probability during model fitting. Consequently, probabilities from a balanced logistic regression cannot be communicated to patients or clinicians as an absolute "risk %" without formal post-hoc probability recalibration (e.g. Platt scaling). The unweighted standard model is reported alongside it as an uninflated probability baseline.
 
 ### Quantile Reliability Table (Balanced Baseline)
 | Quantile Bin | Count (n) | Mean Predicted Risk | Observed Diabetes Fraction |
