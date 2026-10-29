@@ -85,13 +85,13 @@ def compute_guideline_rules(project_root: Path) -> list[dict[str, Any]]:
             "Rule Baseline: BMI >= 25 & High BP, any age (Card Audience: High BP)",
             card_clean,
             (card_clean["bmi"] >= 25.0) & (card_clean["told_high_bp"] == 1),
-            "ADA Standards of Care 2026, Section 2, Table 2.5 item 1 — Usman to confirm",
+            "ADA Standards of Care 2026, Section 2, Table 2.5 (item 1, risk factor: hypertension)",
         ),
         (
             "Rule Baseline: BMI >= 23 & High BP, any age (Card Audience: High BP)",
             card_clean,
             (card_clean["bmi"] >= 23.0) & (card_clean["told_high_bp"] == 1),
-            "USPSTF 2021 Asian BMI cut-off",
+            "ADA 2026 Table 2.5 / USPSTF 2021 (BMI >= 23 for Asian American adults)",
         ),
     ]
 

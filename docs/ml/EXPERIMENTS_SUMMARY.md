@@ -30,8 +30,8 @@ Evaluated on the exact same held-out test cohort records and card audience as th
 | Rule Baseline: Age 35-70 & BMI >= 25 (General Test) | n=9,117 (pos=388) | 4.26% | 63.66% | 58.01% | 6.31% | USPSTF 2021 |
 | Rule Baseline: Age >= 35 (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 96.32% | 8.46% | 7.32% | ADA Standards of Care 2026, Section 2 |
 | Rule Baseline: Age 35-70 & BMI >= 25 (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 60.00% | 46.17% | 7.72% | USPSTF 2021 |
-| Rule Baseline: BMI >= 25 & High BP, any age (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 91.58% | 20.12% | 7.93% | ADA Standards of Care 2026, Section 2, Table 2.5 item 1 — Usman to confirm |
-| Rule Baseline: BMI >= 23 & High BP, any age (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 96.32% | 10.08% | 7.45% | USPSTF 2021 Asian BMI cut-off |
+| Rule Baseline: BMI >= 25 & High BP, any age (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 91.58% | 20.12% | 7.93% | ADA Standards of Care 2026, Section 2, Table 2.5 (item 1, risk factor: hypertension) |
+| Rule Baseline: BMI >= 23 & High BP, any age (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 96.32% | 10.08% | 7.45% | ADA 2026 Table 2.5 / USPSTF 2021 (BMI >= 23 for Asian American adults) |
 
 ---
 
