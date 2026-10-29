@@ -1975,3 +1975,110 @@ def get_user_baseline_history(user_id: str, exclude_checkin_id: Optional[str] = 
     return history
 
 
+def get_user_reading_history(
+    user_id: str,
+    days: int = 30,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Returns the signed-in patient's reading history over a configurable window (default 30 days)
+    for trend analysis, including check-in readings (completed, non-emergency) and isolated-mode
+    Local Store observations (excluding CHECKIN- copies).
+    Scoped strictly to user_id.
+
+    Returns:
+        List of dicts with keys:
+        {"observation_type", "value", "timestamp", "source", "checkin_id", "glucose_context"}
+    """
+    now_dt = datetime.now(timezone.utc)
+    window_cutoff = now_dt - timedelta(days=days)
+    cutoff_iso = window_cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    history: List[Dict[str, Any]] = []
+
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        query = f"""
+            SELECT c.checkin_id, c.completed_at, r.intakes_json, r.emergency
+            FROM checkins c
+            INNER JOIN checkin_results r ON c.checkin_id = r.checkin_id
+            WHERE c.user_id = {ph}
+              AND c.status = 'complete'
+              AND r.emergency = 0
+              AND c.completed_at >= {ph}
+            ORDER BY c.completed_at DESC
+        """
+        cursor.execute(query, (user_id, cutoff_iso))
+        rows = cursor.fetchall()
+        for row in rows:
+            d = dict(row)
+            checkin_id = d.get("checkin_id")
+            raw_intakes = d.get("intakes_json")
+            completed_at = d.get("completed_at")
+            if not raw_intakes or not completed_at:
+                continue
+            try:
+                intakes = json.loads(raw_intakes)
+            except Exception:
+                intakes = []
+            for intake in intakes:
+                # Check for context in intake or intake answers/slots
+                intake_ctx = (
+                    intake.get("glucose_context")
+                    or (intake.get("answers", {}) or {}).get("glucose_context")
+                    or (intake.get("slots", {}) or {}).get("glucose_context")
+                )
+                for reading in intake.get("readings", []):
+                    obs_type = reading.get("observation_type")
+                    val = reading.get("value")
+                    ctx = reading.get("glucose_context") or intake_ctx
+                    if obs_type in ("blood_pressure_systolic", "blood_pressure_diastolic", "glucose") and val is not None:
+                        try:
+                            history.append({
+                                "observation_type": obs_type,
+                                "value": float(val),
+                                "timestamp": completed_at,
+                                "source": "checkin",
+                                "checkin_id": checkin_id,
+                                "glucose_context": ctx,
+                            })
+                        except (ValueError, TypeError):
+                            pass
+
+    # In isolated mode, include observations from local_store (excluding checkin copies)
+    try:
+        from data_sources import local_store
+        local_obs = local_store.get_local_observations(f"local-{user_id}")
+        for obs in local_obs:
+            source_rec_id = str(obs.get("id") or obs.get("source_record_id") or "")
+            if source_rec_id.startswith("CHECKIN-"):
+                continue
+            obs_type = obs.get("type") or obs.get("observation_type")
+            val = obs.get("value")
+            measured_at = obs.get("measured_at") or obs.get("timestamp")
+            ctx = obs.get("glucose_context") or obs.get("context")
+            if obs_type in ("blood_pressure_systolic", "blood_pressure_diastolic", "glucose") and val is not None and measured_at:
+                try:
+                    obs_dt = datetime.fromisoformat(measured_at.replace("Z", "+00:00"))
+                    if obs_dt.tzinfo is None:
+                        obs_dt = obs_dt.replace(tzinfo=timezone.utc)
+                    if obs_dt >= window_cutoff:
+                        history.append({
+                            "observation_type": obs_type,
+                            "value": float(val),
+                            "timestamp": measured_at,
+                            "source": "local_store",
+                            "checkin_id": None,
+                            "glucose_context": ctx,
+                        })
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    return history
+
+
+
