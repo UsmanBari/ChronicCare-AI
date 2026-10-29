@@ -437,13 +437,13 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             readings["glucose"] = float(unclarified_val)
             known_slots["glucose_reading"] = float(unclarified_val)
             session_state["possible_severe_low"] = True
-            session_state["possible_severe_low_guidance"] = get_message("glucose_low_safety_guidance", lang)
+            session_state["possible_severe_low_guidance"] = get_message("v3_possible_low_guidance", lang)
         else:
             # Unanswered / unclear unit: Treat as possible severe low per clinical rule
             readings["glucose"] = float(unclarified_val)
             known_slots["glucose_reading"] = float(unclarified_val)
             session_state["possible_severe_low"] = True
-            session_state["possible_severe_low_guidance"] = get_message("glucose_low_safety_guidance", lang)
+            session_state["possible_severe_low_guidance"] = get_message("v3_possible_low_guidance", lang)
             session_state["needs_clinician_flag"] = True
 
     elif "glucose_reading" in current_slot or current_slot == "diabetes_glucose_reading":
