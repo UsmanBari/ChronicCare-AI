@@ -30,6 +30,8 @@ Evaluated on the exact same held-out test cohort records and card audience as th
 | Rule Baseline: Age 35-70 & BMI >= 25 (General Test) | n=9,117 (pos=388) | 4.26% | 63.66% | 58.01% | 6.31% | USPSTF 2021 |
 | Rule Baseline: Age >= 35 (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 96.32% | 8.46% | 7.32% | ADA Standards of Care 2026, Section 2 |
 | Rule Baseline: Age 35-70 & BMI >= 25 (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 60.00% | 46.17% | 7.72% | USPSTF 2021 |
+| Rule Baseline: BMI >= 25 & High BP, any age (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 91.58% | 20.12% | 7.93% | ADA Standards of Care 2026, Section 2, Table 2.5 item 1 — Usman to confirm |
+| Rule Baseline: BMI >= 23 & High BP, any age (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 96.32% | 10.08% | 7.45% | USPSTF 2021 Asian BMI cut-off |
 
 ---
 
@@ -43,12 +45,16 @@ Evaluating the model and guideline rules at matched operating points on the held
 | `diabetes_basic_nhanes` | General Test | Age 35-70 & BMI >= 25 | 63.66% / 58.01% | 70.09% | 75.52% | Model (+12.1 pp spec / +11.9 pp sens) |
 | `diabetes_basic_nhanes` | Card Audience: High BP | Age >= 35 | 96.32% / 8.46% | 9.68% | 97.89% | Model (+1.2 pp spec / +1.6 pp sens) |
 | `diabetes_basic_nhanes` | Card Audience: High BP | Age 35-70 & BMI >= 25 | 60.00% / 46.17% | 65.18% | 77.89% | Model (+19.0 pp spec / +17.9 pp sens) |
+| `diabetes_basic_nhanes` | Card Audience: High BP | BMI >= 25 & High BP, any age | 91.58% / 20.12% | 18.26% | 87.89% | Rule (+1.9 pp spec / +3.7 pp sens) |
+| `diabetes_basic_nhanes` | Card Audience: High BP | BMI >= 23 & High BP, any age | 96.32% / 10.08% | 9.68% | 95.79% | Rule (+0.4 pp spec / +0.5 pp sens) |
 | `diabetes_full_nhanes` | General Test | Age >= 35 | 93.06% / 28.77% | 41.34% | 96.67% | Model (+12.6 pp spec / +3.6 pp sens) |
 | `diabetes_full_nhanes` | General Test | Age 35-70 & BMI >= 25 | 65.00% / 57.83% | 69.96% | 79.44% | Model (+12.1 pp spec / +14.4 pp sens) |
 | `diabetes_full_nhanes` | Card Audience: High BP | Age >= 35 | 97.16% / 8.61% | 10.65% | 98.30% | Model (+2.0 pp spec / +1.1 pp sens) |
 | `diabetes_full_nhanes` | Card Audience: High BP | Age 35-70 & BMI >= 25 | 63.07% / 45.48% | 63.75% | 77.27% | Model (+18.3 pp spec / +14.2 pp sens) |
+| `diabetes_full_nhanes` | Card Audience: High BP | BMI >= 25 & High BP, any age | 92.05% / 19.98% | 18.64% | 90.91% | Rule (+1.3 pp spec / +1.1 pp sens) |
+| `diabetes_full_nhanes` | Card Audience: High BP | BMI >= 23 & High BP, any age | 96.02% / 9.78% | 11.61% | 98.30% | Model (+1.8 pp spec / +2.3 pp sens) |
 
-At matched trade-offs, both the basic and full models achieve higher specificity at the guideline rule's sensitivity and higher sensitivity at the rule's specificity, though in the card population for Age >= 35 both the model and the rule provide negligible specificity (< 11%).
+At matched trade-offs, both the basic and full models achieve higher specificity at the guideline rule's sensitivity and higher sensitivity at the rule's specificity on the general test set. In the card population, for Age >= 35 both the model and the rule provide negligible specificity (< 11%), while Rule c (BMI >= 25 & High BP) achieves 20.12% specificity at 91.58% sensitivity, matching or outperforming the models.
 
 Detailed Decision Curve Analysis (DCA) assessing net benefit across decision threshold probabilities $p_t \in [0.01, 0.20]$ is documented in [docs/ml/DECISION_CURVE.md](file:///c:/Users/usmanbari/Desktop/Chronicare/docs/ml/DECISION_CURVE.md).
 

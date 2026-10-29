@@ -81,6 +81,18 @@ def compute_guideline_rules(project_root: Path) -> list[dict[str, Any]]:
             (card_clean["age"] >= 35) & (card_clean["age"] <= 70) & (card_clean["bmi"] >= 25.0),
             "USPSTF 2021",
         ),
+        (
+            "Rule Baseline: BMI >= 25 & High BP, any age (Card Audience: High BP)",
+            card_clean,
+            (card_clean["bmi"] >= 25.0) & (card_clean["told_high_bp"] == 1),
+            "ADA Standards of Care 2026, Section 2, Table 2.5 item 1 — Usman to confirm",
+        ),
+        (
+            "Rule Baseline: BMI >= 23 & High BP, any age (Card Audience: High BP)",
+            card_clean,
+            (card_clean["bmi"] >= 23.0) & (card_clean["told_high_bp"] == 1),
+            "USPSTF 2021 Asian BMI cut-off",
+        ),
     ]
 
     rule_rows = []
@@ -159,6 +171,11 @@ def compute_matched_operating_points(project_root: Path) -> tuple[str, str]:
                 ("Age >= 35", clean["age"] >= 35),
                 ("Age 35-70 & BMI >= 25", (clean["age"] >= 35) & (clean["age"] <= 70) & (clean["bmi"] >= 25.0)),
             ]
+            if pop_type == "Card Audience: High BP":
+                rules.extend([
+                    ("BMI >= 25 & High BP, any age", (clean["bmi"] >= 25.0) & (clean["told_high_bp"] == 1)),
+                    ("BMI >= 23 & High BP, any age", (clean["bmi"] >= 23.0) & (clean["told_high_bp"] == 1)),
+                ])
 
             for r_name, r_mask in rules:
                 p_mask = r_mask.to_numpy()
@@ -202,8 +219,9 @@ def compute_matched_operating_points(project_root: Path) -> tuple[str, str]:
     table_md = df_to_markdown(df_matched, index=False)
     conclusion_sentence = (
         "At matched trade-offs, both the basic and full models achieve higher specificity at the guideline rule's "
-        "sensitivity and higher sensitivity at the rule's specificity, though in the card population for Age >= 35 "
-        "both the model and the rule provide negligible specificity (< 11%)."
+        "sensitivity and higher sensitivity at the rule's specificity on the general test set. "
+        "In the card population, for Age >= 35 both the model and the rule provide negligible specificity (< 11%), "
+        "while Rule c (BMI >= 25 & High BP) achieves 20.12% specificity at 91.58% sensitivity, matching or outperforming the models."
     )
     return table_md, conclusion_sentence
 
@@ -268,6 +286,15 @@ def compute_and_save_decision_curves(project_root: Path) -> str:
         tp_b = int(np.sum((y == 1) & rule_b))
         fp_b = int(np.sum((y == 0) & rule_b))
 
+        if pop_filter == "card":
+            rule_c = ((clean["bmi"] >= 25.0) & (clean["told_high_bp"] == 1)).to_numpy()
+            tp_c = int(np.sum((y == 1) & rule_c))
+            fp_c = int(np.sum((y == 0) & rule_c))
+
+            rule_d = ((clean["bmi"] >= 23.0) & (clean["told_high_bp"] == 1)).to_numpy()
+            tp_d = int(np.sum((y == 1) & rule_d))
+            fp_d = int(np.sum((y == 0) & rule_d))
+
         dca_rows = []
         for pt in pts:
             w = pt / (1.0 - pt)
@@ -289,7 +316,7 @@ def compute_and_save_decision_curves(project_root: Path) -> str:
             # Rule b
             nb_b = (tp_b / n) - (fp_b / n) * w
 
-            dca_rows.append({
+            row_dict = {
                 "pt": f"{pt:.2f}",
                 "Model Net Benefit": f"{nb_model:.4f}",
                 "Screen All": f"{nb_all:.4f}",
@@ -301,10 +328,21 @@ def compute_and_save_decision_curves(project_root: Path) -> str:
                 "_nb_all": nb_all,
                 "_nb_a": nb_a,
                 "_nb_b": nb_b,
-            })
+            }
+
+            if pop_filter == "card":
+                nb_c = (tp_c / n) - (fp_c / n) * w
+                nb_d = (tp_d / n) - (fp_d / n) * w
+                row_dict["Rule c (BMI >= 25)"] = f"{nb_c:.4f}"
+                row_dict["Rule d (BMI >= 23)"] = f"{nb_d:.4f}"
+                row_dict["_nb_c"] = nb_c
+                row_dict["_nb_d"] = nb_d
+
+            dca_rows.append(row_dict)
 
         df_dca = pd.DataFrame(dca_rows)
-        tbl_md = df_to_markdown(df_dca.drop(columns=["_pt_val", "_nb_model", "_nb_all", "_nb_a", "_nb_b"]), index=False)
+        cols_to_drop = [c for c in df_dca.columns if c.startswith("_")]
+        tbl_md = df_to_markdown(df_dca.drop(columns=cols_to_drop), index=False)
         sections_md.append(f"### `{m_name}` — {pop_label} (n={n:,}, positives={pos_total:,}, prevalence={pos_total / n * 100:.2f}%)\n\n{tbl_md}")
 
         if m_name == "diabetes_full_nhanes":
@@ -322,7 +360,12 @@ def compute_and_save_decision_curves(project_root: Path) -> str:
                 sup_pts_card = []
                 for r in dca_rows:
                     if r["_pt_val"] >= 0.04:
-                        if r["_nb_model"] > max(r["_nb_all"], r["_nb_a"], r["_nb_b"]) and round(r["_nb_model"], 4) > 0:
+                        baselines = [r["_nb_all"], r["_nb_a"], r["_nb_b"]]
+                        if "_nb_c" in r:
+                            baselines.append(r["_nb_c"])
+                        if "_nb_d" in r:
+                            baselines.append(r["_nb_d"])
+                        if r["_nb_model"] > max(baselines) and round(r["_nb_model"], 4) > 0:
                             sup_pts_card.append(r["_pt_val"])
                         else:
                             break
