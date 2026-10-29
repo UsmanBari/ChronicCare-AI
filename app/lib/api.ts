@@ -210,6 +210,11 @@ export interface EHRConnectionResponse {
   ehr_allergies?: EHRAllergyItem[];
 }
 
+export interface OptionItem {
+  value: string;
+  label: string;
+}
+
 export interface CheckinStartResponse {
   checkin_id: string;
   question: string | null;
@@ -218,6 +223,15 @@ export interface CheckinStartResponse {
   step?: string | null;
   version?: number;
   record_source_label?: string | null;
+  why_text?: string | null;
+  options?: string[] | null;
+  option_items?: OptionItem[] | null;
+  system_note?: string | null;
+  progress_hint?: string | null;
+  language?: string | null;
+  can_skip?: boolean | null;
+  can_say_unknown?: boolean | null;
+  engine?: string | null;
 }
 
 export interface CheckinAnswerResponse {
@@ -230,6 +244,15 @@ export interface CheckinAnswerResponse {
   escalation_recorded?: boolean | null;
   phase?: string | null;
   triage?: Record<string, any> | null;
+  why_text?: string | null;
+  options?: string[] | null;
+  option_items?: OptionItem[] | null;
+  system_note?: string | null;
+  progress_hint?: string | null;
+  language?: string | null;
+  can_skip?: boolean | null;
+  can_say_unknown?: boolean | null;
+  engine?: string | null;
 }
 
 export interface CheckinCompleteResponse {

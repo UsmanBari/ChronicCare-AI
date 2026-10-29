@@ -29,6 +29,7 @@ import {
   CheckinStartResponse,
   CheckinAnswerResponse,
   CheckinCompleteResponse,
+  OptionItem,
 } from "../lib/api";
 import { useVoiceRecorder } from "../lib/useVoiceRecorder";
 
@@ -63,6 +64,13 @@ export const AdaptiveInterviewScreen = () => {
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([]);
   const [currentStep, setCurrentStep] = useState<string | null>(activeLiveCheckin?.step || null);
   const [lastFailedAnswer, setLastFailedAnswer] = useState<string | null>(null);
+  const [liveOptions, setLiveOptions] = useState<string[] | null>(activeLiveCheckin?.options || null);
+  const [liveOptionItems, setLiveOptionItems] = useState<OptionItem[] | null>(activeLiveCheckin?.option_items || null);
+  const [liveWhyText, setLiveWhyText] = useState<string | null>(activeLiveCheckin?.why_text || null);
+  const [liveProgressHint, setLiveProgressHint] = useState<string | null>(activeLiveCheckin?.progress_hint || null);
+  const [canSkip, setCanSkip] = useState<boolean>(activeLiveCheckin?.can_skip ?? true);
+  const [canSayUnknown, setCanSayUnknown] = useState<boolean>(activeLiveCheckin?.can_say_unknown ?? true);
+  const [showWhyText, setShowWhyText] = useState<boolean>(false);
 
   // --- VOICE RECORDING STATE (via shared useVoiceRecorder hook) ---
   const [transcribedSafetyNotice, setTranscribedSafetyNotice] = useState<boolean>(false);
@@ -130,6 +138,13 @@ export const AdaptiveInterviewScreen = () => {
         } else {
           setCurrentStep(currentCheckin.step || null);
         }
+
+        if (currentCheckin.options !== undefined) setLiveOptions(currentCheckin.options);
+        if (currentCheckin.option_items !== undefined) setLiveOptionItems(currentCheckin.option_items);
+        if (currentCheckin.why_text !== undefined) setLiveWhyText(currentCheckin.why_text);
+        if (currentCheckin.progress_hint !== undefined) setLiveProgressHint(currentCheckin.progress_hint);
+        if (currentCheckin.can_skip !== undefined) setCanSkip(currentCheckin.can_skip ?? true);
+        if (currentCheckin.can_say_unknown !== undefined) setCanSayUnknown(currentCheckin.can_say_unknown ?? true);
 
         const firstQ =
           currentCheckin.question ||
@@ -223,6 +238,13 @@ export const AdaptiveInterviewScreen = () => {
       if (answerRes.step) {
         setCurrentStep(answerRes.step);
       }
+      if (answerRes.options !== undefined) setLiveOptions(answerRes.options);
+      if (answerRes.option_items !== undefined) setLiveOptionItems(answerRes.option_items);
+      if (answerRes.why_text !== undefined) setLiveWhyText(answerRes.why_text);
+      if (answerRes.progress_hint !== undefined) setLiveProgressHint(answerRes.progress_hint);
+      if (answerRes.can_skip !== undefined) setCanSkip(answerRes.can_skip ?? true);
+      if (answerRes.can_say_unknown !== undefined) setCanSayUnknown(answerRes.can_say_unknown ?? true);
+      setShowWhyText(false);
 
       if (!answerRes.complete && answerRes.question) {
         setLiveQuestion(answerRes.question);
@@ -381,9 +403,14 @@ export const AdaptiveInterviewScreen = () => {
         {/* Header */}
         <div className="bg-gradient-to-br from-navy-800 via-navy-800 to-teal-800 p-6 sm:p-7 text-white text-center relative overflow-hidden">
           <div className="absolute -top-10 -right-10 w-36 h-36 bg-teal-400/15 rounded-full blur-2xl pointer-events-none" />
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/25 text-teal-200 text-xs font-bold uppercase tracking-wider mb-2.5">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/25 text-teal-200 text-xs font-bold uppercase tracking-wider mb-2.5">
             <Sparkles className="w-3.5 h-3.5" />
             <span>AI Adaptive Interview</span>
+            {liveProgressHint && (
+              <span className="bg-teal-400/20 px-2 py-0.5 rounded-full text-[11px] font-mono">
+                <bdi>{liveProgressHint}</bdi>
+              </span>
+            )}
           </div>
           <h1 className="font-heading text-2xl sm:text-[26px] font-bold mb-1.5">
             {t.adaptiveInterviewTitle}
@@ -462,13 +489,15 @@ export const AdaptiveInterviewScreen = () => {
                   </div>
                 )}
                 <div
-                  className={`p-4 rounded-2xl text-sm leading-relaxed max-w-[85%] ${
+                  className={`p-4 rounded-2xl text-sm max-w-[85%] ${
+                    isUrdu ? "leading-[2.2] font-urdu" : "leading-relaxed"
+                  } ${
                     msg.role === "user"
                       ? "bg-teal-700 text-white rounded-br-xs shadow-xs"
                       : "bg-slate-100/90 text-navy-900 border border-slate-200 rounded-bl-xs shadow-xs font-medium"
                   }`}
                 >
-                  {msg.text}
+                  <bdi>{msg.text}</bdi>
                 </div>
               </div>
             ))}
@@ -541,6 +570,58 @@ export const AdaptiveInterviewScreen = () => {
               </div>
             )}
 
+            {/* Why Am I Asked This Clinical Rationale Toggle */}
+            {liveWhyText && (
+              <div className="pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setShowWhyText(!showWhyText)}
+                  className="text-xs text-teal-800 hover:text-teal-950 font-medium inline-flex items-center gap-1.5 transition-colors"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                  <span>{t.whyAmIAskedThisBtn}</span>
+                </button>
+                {showWhyText && (
+                  <div className={`mt-1.5 p-3 rounded-xl bg-teal-50/80 border border-teal-200 text-xs text-slate-800 ${isUrdu ? "leading-[2.0]" : "leading-relaxed"} animate-fadeIn`}>
+                    <bdi>{liveWhyText}</bdi>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Localized Option Items Buttons (v3 option_items with v2 options fallback) */}
+            {liveOptionItems && liveOptionItems.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2 pt-1" dir={isUrdu ? "rtl" : "ltr"}>
+                {liveOptionItems.map((opt, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleLiveSendAnswer(opt.value)}
+                    disabled={isSending}
+                    aria-label={opt.label}
+                    className="min-h-[44px] py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 border-2 border-teal-600 text-teal-950 font-semibold text-xs sm:text-sm transition-all flex items-center justify-center text-center shadow-2xs"
+                  >
+                    <bdi>{opt.label}</bdi>
+                  </button>
+                ))}
+              </div>
+            ) : liveOptions && liveOptions.length > 0 && !currentStep?.startsWith("medication_check") ? (
+              <div className="grid grid-cols-2 gap-2 pt-1" dir={isUrdu ? "rtl" : "ltr"}>
+                {liveOptions.map((opt, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleLiveSendAnswer(opt)}
+                    disabled={isSending}
+                    aria-label={opt}
+                    className="min-h-[44px] py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-300 text-slate-800 font-semibold text-xs sm:text-sm transition-all flex items-center justify-center text-center shadow-2xs"
+                  >
+                    <bdi>{opt}</bdi>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             {/* Recording in Progress UI */}
             {isRecording ? (
               <div className="p-3.5 rounded-2xl bg-red-50 border-2 border-red-500 flex items-center justify-between gap-3 animate-pulse">
@@ -597,6 +678,7 @@ export const AdaptiveInterviewScreen = () => {
                     type="submit"
                     disabled={!liveAnswerInput.trim() || isSending}
                     id="live-send-answer-btn"
+                    aria-label={t.sendBtnLabel}
                     className={`absolute ${
                       isUrdu ? "left-1.5" : "right-1.5"
                     } top-1.5 bottom-1.5 px-3 bg-teal-700 hover:bg-teal-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-all flex items-center justify-center`}
@@ -617,8 +699,13 @@ export const AdaptiveInterviewScreen = () => {
                   id="interview-mic-btn"
                   title={
                     liveProfile?.voice_enabled === false
-                      ? (isUrdu ? "سیٹنگز میں آواز کا فیچر آن کریں" : "Voice disabled - enable in Settings")
-                      : (isUrdu ? "بول کر جواب دیں" : "Speak your answer")
+                      ? t.micDisabledLabel
+                      : t.micSpeakLabel
+                  }
+                  aria-label={
+                    liveProfile?.voice_enabled === false
+                      ? t.micDisabledLabel
+                      : t.micSpeakLabel
                   }
                   className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 transition-all border shadow-xs ${
                     liveProfile?.voice_enabled === false
@@ -657,35 +744,59 @@ export const AdaptiveInterviewScreen = () => {
               </div>
             )}
 
-            {/* "I don't have this information" helper button */}
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <button
-                type="button"
-                onClick={() => handleLiveSendAnswer("I don't have this information")}
-                disabled={isSending}
-                id="dont-have-info-btn"
-                className="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-600 font-semibold text-xs transition-colors"
-              >
-                {t.dontHaveInfoBtn}
-              </button>
+            {/* Conversational Assist Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <div className="flex items-center gap-2">
+                {canSayUnknown && (
+                  <button
+                    type="button"
+                    onClick={() => handleLiveSendAnswer("unknown")}
+                    disabled={isSending}
+                    id="dont-know-btn"
+                    className="min-h-[36px] px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium text-xs transition-colors"
+                  >
+                    {t.dontKnowBtn}
+                  </button>
+                )}
+                {canSkip && (
+                  <button
+                    type="button"
+                    onClick={() => handleLiveSendAnswer("skip")}
+                    disabled={isSending}
+                    id="skip-question-btn"
+                    className="min-h-[36px] px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 font-medium text-xs transition-colors"
+                  >
+                    {t.skipQuestionBtn}
+                  </button>
+                )}
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setScreen("checkin_entry")}
-                disabled={isSending}
-                className="text-xs text-slate-500 hover:text-navy-800 transition-colors"
-              >
-                {t.back}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleLiveSendAnswer("Someone else is answering for me")}
+                  disabled={isSending}
+                  id="caregiver-proxy-btn"
+                  className="text-xs text-slate-500 hover:text-teal-800 transition-colors"
+                >
+                  {t.someoneElseAnsweringBtn}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScreen("checkin_entry")}
+                  disabled={isSending}
+                  className="text-xs text-slate-500 hover:text-navy-800 transition-colors"
+                >
+                  {t.back}
+                </button>
+              </div>
             </div>
           </form>
 
           {/* Permanent Emergency Disclaimer on Interview Screen */}
           <div className="pt-2 text-center border-t border-slate-100">
             <p className="text-[11px] font-medium text-slate-500">
-              {isUrdu
-                ? "ہنگامی صورتحال میں اپنے مقامی ایمرجنسی نمبر پر رابطہ کریں۔"
-                : "In an emergency, call your local emergency number."}
+              {t.interviewEmergencyCall}
             </p>
           </div>
         </div>

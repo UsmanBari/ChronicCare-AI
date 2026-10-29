@@ -307,6 +307,17 @@ export interface Translations {
   lastVerified: string;
   patientIdMasked: string;
   dontHaveInfoBtn: string;
+  dontKnowBtn: string;
+  skipQuestionBtn: string;
+  someoneElseAnsweringBtn: string;
+  whyAmIAskedThisBtn: string;
+  questionProgressText: string;
+  sendBtnLabel: string;
+  micSpeakLabel: string;
+  micDisabledLabel: string;
+  interviewRetryBtn: string;
+  interviewEmergencyCall: string;
+  interviewNetworkError: string;
   checkinSummaryTitle: string;
   checkinSummarySubtitle: string;
   agreementsCountLabel: string;
@@ -685,6 +696,17 @@ export const translations: Record<Language, Translations> = {
     lastVerified: "Last verified",
     patientIdMasked: "Patient ID",
     dontHaveInfoBtn: "I don't have this information",
+    dontKnowBtn: "I don't know",
+    skipQuestionBtn: "Skip",
+    someoneElseAnsweringBtn: "Someone else is answering",
+    whyAmIAskedThisBtn: "Why am I asked this?",
+    questionProgressText: "Progress",
+    sendBtnLabel: "Send",
+    micSpeakLabel: "Speak your answer",
+    micDisabledLabel: "Voice disabled - enable in Settings",
+    interviewRetryBtn: "Retry",
+    interviewEmergencyCall: "In an emergency, call your local emergency number.",
+    interviewNetworkError: "We could not send your answer. If this is an emergency, call your local emergency number now.",
     checkinSummaryTitle: "Check-in recorded and verified",
     checkinSummarySubtitle: "Your daily health parameters have been processed against your clinical profile.",
     agreementsCountLabel: "Verified In-Range Parameters",
@@ -1062,6 +1084,17 @@ export const translations: Record<Language, Translations> = {
     lastVerified: "آخری تصدیق",
     patientIdMasked: "مریض آئی ڈی",
     dontHaveInfoBtn: "میرے پاس یہ معلومات نہیں ہیں",
+    dontKnowBtn: "معلوم نہیں",
+    skipQuestionBtn: "چھوڑ دیں",
+    someoneElseAnsweringBtn: "کوئی اور جواب دے رہا ہے",
+    whyAmIAskedThisBtn: "یہ کیوں پوچھا جا رہا ہے؟",
+    questionProgressText: "پیش رفت",
+    sendBtnLabel: "بھیجیں",
+    micSpeakLabel: "بول کر جواب دیں",
+    micDisabledLabel: "سیٹنگز میں آواز کا فیچر آن کریں",
+    interviewRetryBtn: "دوبارہ کوشش کریں",
+    interviewEmergencyCall: "ہنگامی صورتحال میں اپنے مقامی ایمرجنسی نمبر پر رابطہ کریں۔",
+    interviewNetworkError: "ہم آپ کا جواب نہیں بھیج سکے۔ اگر یہ ہنگامی صورتحال ہے تو فوراً اپنے مقامی ایمرجنسی نمبر پر کال کریں۔",
     checkinSummaryTitle: "چیک ان محفوظ اور تصدیق شدہ",
     checkinSummarySubtitle: "آپ کا روزانہ ڈیٹا آپ کے کلینیکل پروفائل کے مطابق پروسیس کر لیا گیا ہے۔",
     agreementsCountLabel: "تصدیق شدہ درست اشارے",
