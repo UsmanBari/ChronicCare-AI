@@ -367,12 +367,29 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
         }
         print(f"  {m_type:12s}: Best Val AUROC = {best_val_auroc:.4f} (params: {best_params}, Val Cal Slope: {cal_val['slope']:.3f})")
 
-    # Step A2.8: Decision D10 Model Choice
+    # Step A2.8: Decision D10 Model Choice (Amended: lr_balanced must beat plain lr by >= 0.01 val AUROC)
     print("\n--- DECISION D10 MODEL SELECTION ---")
-    lr_candidates = [candidate_results[k] for k in ["lr", "lr_balanced"] if k in candidate_results]
-    tree_candidates = [candidate_results[k] for k in ["rf", "hgb"] if k in candidate_results]
+    lr_plain = candidate_results.get("lr")
+    lr_bal = candidate_results.get("lr_balanced")
+    best_lr = None
+    lr_sub_reason = ""
 
-    best_lr = max(lr_candidates, key=lambda c: c["val_auroc"])
+    if lr_plain and lr_bal:
+        bal_gain = lr_bal["val_auroc"] - lr_plain["val_auroc"]
+        if bal_gain >= 0.01:
+            best_lr = lr_bal
+            lr_sub_reason = f"lr_balanced beat plain lr by >= 0.01 validation AUROC (+{bal_gain:.4f})"
+        else:
+            best_lr = lr_plain
+            lr_sub_reason = f"plain lr chosen: lr_balanced did not beat plain lr by >= 0.01 validation AUROC (gap: {bal_gain:+.4f})"
+    elif lr_plain:
+        best_lr = lr_plain
+        lr_sub_reason = "plain lr chosen (only plain lr trained)"
+    else:
+        best_lr = lr_bal
+        lr_sub_reason = "lr_balanced chosen (only lr_balanced trained)"
+
+    tree_candidates = [candidate_results[k] for k in ["rf", "hgb"] if k in candidate_results]
     best_tree = max(tree_candidates, key=lambda c: c["val_auroc"]) if tree_candidates else None
 
     chosen = None
@@ -380,15 +397,15 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     if best_tree and (best_tree["val_auroc"] - best_lr["val_auroc"] >= 0.02):
         chosen = best_tree
         selection_reason = (
-            f"Tree model ({chosen['model_type']}) beat LR by >= 0.02 validation AUROC "
+            f"Tree model ({chosen['model_type']}) beat best LR ({best_lr['model_type']}) by >= 0.02 validation AUROC "
             f"({chosen['val_auroc']:.4f} vs {best_lr['val_auroc']:.4f}, gap: +{chosen['val_auroc'] - best_lr['val_auroc']:.4f})."
         )
     else:
         chosen = best_lr
         gap = (best_tree["val_auroc"] - best_lr["val_auroc"]) if best_tree else 0.0
         selection_reason = (
-            f"Logistic regression ({chosen['model_type']}) selected under D10 parsimony rule: "
-            f"tree model did not beat LR by >= 0.02 validation AUROC (gap: {gap:+.4f})."
+            f"Logistic regression ({chosen['model_type']}) selected under D10 parsimony rule ({lr_sub_reason}): "
+            f"best tree did not beat LR by >= 0.02 validation AUROC (tree gap: {gap:+.4f})."
         )
 
     print(f"Chosen Model: {chosen['model_type']}")
@@ -576,10 +593,27 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     gate_results["gate_4_subgroup_sens_ge_0_60"] = "PASS" if g4 else "FAIL"
 
     # Gate 5: FULL ships only if it beats BASIC on validation AUROC
-    # (Evaluated across models, but recorded here)
-    gate_results["gate_5_full_beats_basic"] = "EVALUATED_IN_SUMMARY" if tier == "full" else "N/A (BASIC)"
+    gate_5_status = "N/A (BASIC)"
+    if tier == "full":
+        basic_name = name.replace("_full_", "_basic_")
+        basic_metrics_path = project_root / "backend-poc-technical" / "ml" / "outputs" / "reports" / basic_name / "metrics.json"
+        if basic_metrics_path.is_file():
+            try:
+                b_data = json.loads(basic_metrics_path.read_text(encoding="utf-8"))
+                basic_val_auroc = float(b_data["chosen_model"]["val_auroc"])
+                full_val_auroc = float(chosen["val_auroc"])
+                diff = full_val_auroc - basic_val_auroc
+                if diff > 0:
+                    gate_5_status = f"PASS (FULL {full_val_auroc:.4f} vs BASIC {basic_val_auroc:.4f}, diff: +{diff:.4f})"
+                else:
+                    gate_5_status = f"FAIL (FULL {full_val_auroc:.4f} vs BASIC {basic_val_auroc:.4f}, diff: {diff:+.4f})"
+            except Exception as e:
+                gate_5_status = f"UNKNOWN ({e})"
+        else:
+            gate_5_status = "EVALUATED_IN_SUMMARY (BASIC metrics not found)"
+    gate_results["gate_5_full_beats_basic"] = gate_5_status
 
-    failed_gates = [k for k, v in gate_results.items() if v == "FAIL"]
+    failed_gates = [k for k, v in gate_results.items() if v.startswith("FAIL")]
     if not calibration_gate_passed:
         failed_gates.append("val_calibration_slope")
 
@@ -589,6 +623,8 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     print(f"  Gate 2 (Test Sens >= 0.75) : {gate_results['gate_2_test_sens_ge_0_75']} ({m_test['sensitivity']:.2%})")
     print(f"  Gate 3 (Test Cal Slope)    : {gate_results['gate_3_calibration_slope_0_8_to_1_2']} ({slope_str})")
     print(f"  Gate 4 (Subgroup Sens >=60): {gate_results['gate_4_subgroup_sens_ge_0_60']} (Worst: {worst_sens:.2%})")
+    if tier == "full":
+        print(f"  Gate 5 (FULL beats BASIC)  : {gate_results['gate_5_full_beats_basic']}")
     print(f"  Overall Status             : {ship_status}")
 
     # Prepare model card

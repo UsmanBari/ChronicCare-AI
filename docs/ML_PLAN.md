@@ -270,6 +270,8 @@ Because negative predictive value (NPV) exceeds 95% across virtually all thresho
 
 **USMAN DECISION:** Pure-Python export of LR (unless a tree model beats it by >= 0.02 validation AUROC). REMOVE secondary calibration on validation: the validation set picks the threshold, so calibrating on it too is double-dipping. Calibration is only reported (slope/intercept). If the validation slope is outside 0.8-1.2, Day 4 stops and asks Usman.
 
+**D10 AMENDMENT (29 Oct 2026):** Between `lr` and `lr_balanced`, choose plain `lr` unless `lr_balanced` beats it by >= 0.01 validation AUROC, because class-balanced sample re-weighting inflates predicted probabilities and distorts probability calibration. Tree models remain unchanged (+0.02 rule over the chosen LR).
+
 ---
 
 ## Decision D11: Minimum Acceptance Gates for FYP-1
@@ -288,6 +290,15 @@ If a model fails any gate, it is not shipped, remains disabled behind `RISK_ENAB
 
 ---
 
+## Final Clinical Governance Decision (Usman, 29 Oct 2026)
+
+Based on empirical evidence across all 6 temporal benchmark experiments:
+1. **No Patient-Facing Risk Card in FYP-1:** All 6 candidate configurations fail one or more D11 acceptance gates (test AUROC < 0.75, extreme young-adult sensitivity collapse to 38–51% in 18–39s, and low card-population discrimination of 0.54 in diabetics and 0.66 in hypertensives).
+2. **Flag Locked Off:** `RISK_ENABLED` remains locked `off` in production. The underlying Day 5 and Day 7 risk runtime infrastructure will be built and hermetically verified behind this flag.
+3. **Clinical Recommendation for Diabetics:** For patients with diabetes, recommend to clinical stakeholders that the app directly ask for actual blood pressure cuff readings during routine check-ins, rather than attempting to predict undetected hypertension through noisy demographic surrogates.
+
+---
+
 ## Summary Table of Final Decisions
 
 | Decision | Topic | Final Usman Decision |
@@ -302,7 +313,7 @@ If a model fails any gate, it is not shipped, remains disabled behind `RISK_ENAB
 | **D7** | Decision Threshold Policy | Option 1: Highest threshold on validation with sensitivity $\ge 0.80$, locked for test. |
 | **D8** | Risk Bands | Modified three-tier bands: LOW (< locked threshold), MODERATE (locked threshold to 90th percentile), HIGH (top 10%). Text: "below the screening threshold; keep your usual check-ups". |
 | **D9** | Triage Interaction | Option 1: Can only raise routine $\rightarrow$ review (doctor review). Controlled by existing `RISK_ENABLED=off` and `RISK_CAN_RAISE=off`. |
-| **D10** | Production Export Format | Pure-Python export of LR (unless a tree model beats it by $\ge 0.02$ validation AUROC). No secondary calibration on validation. Day 4 stops if validation slope is outside 0.8–1.2. |
-| **D11** | FYP-1 Acceptance Criteria | Modified 5 gates: Test AUROC $\ge 0.75$, Test Sens $\ge 0.75$, Calibration slope 0.8–1.2, Subgroup Sens $\ge 0.60$, FULL beats BASIC. Never move threshold on test. |
+| **D10** | Production Export Format | Pure-Python export of LR (unless a tree model beats it by $\ge 0.02$ validation AUROC; plain LR chosen over balanced unless balanced beats it by $\ge 0.01$). No secondary calibration on validation. Day 4 stops if validation slope is outside 0.8–1.2. |
+| **D11** | FYP-1 Acceptance Criteria | Modified 5 gates: Test AUROC $\ge 0.75$, Test Sens $\ge 0.75$, Calibration slope 0.8–1.2, Subgroup Sens $\ge 0.60$, FULL beats BASIC. All 6 models NOT SHIPPED; risk card disabled behind `RISK_ENABLED=off`. |
 
 ---

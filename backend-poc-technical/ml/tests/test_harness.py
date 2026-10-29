@@ -162,20 +162,28 @@ def test_preprocessing_and_tuning_never_see_test_rows(monkeypatch, base_valid_co
 
 
 def test_d10_rule_tree_winning_by_019_vs_021():
-    """Verify D10 parsimony rule: tree beating LR by 0.019 chooses LR; by 0.021 chooses tree."""
-    # Case 1: Tree beats LR by 0.019 -> LR chosen
+    """Verify D10 parsimony rule: tree beating LR by 0.019 chooses LR; by 0.021 chooses tree.
+    Amended D10: lr_balanced beating plain lr by 0.005 chooses lr; by 0.011 chooses lr_balanced."""
+    # LR vs LR_balanced tests (0.01 threshold)
+    lr_plain = {"model_type": "lr", "val_auroc": 0.750}
+    lr_bal_small = {"model_type": "lr_balanced", "val_auroc": 0.755}  # Gap = +0.005 (< 0.01)
+    lr_bal_large = {"model_type": "lr_balanced", "val_auroc": 0.761}  # Gap = +0.011 (>= 0.01)
+
+    chosen_lr_1 = lr_bal_small if (lr_bal_small["val_auroc"] - lr_plain["val_auroc"] >= 0.01) else lr_plain
+    assert chosen_lr_1["model_type"] == "lr"
+
+    chosen_lr_2 = lr_bal_large if (lr_bal_large["val_auroc"] - lr_plain["val_auroc"] >= 0.01) else lr_plain
+    assert chosen_lr_2["model_type"] == "lr_balanced"
+
+    # Tree vs LR tests (0.02 threshold)
     lr_candidate = {"model_type": "lr", "val_auroc": 0.750}
     tree_candidate_small = {"model_type": "rf", "val_auroc": 0.769}  # Gap = +0.019
+    chosen_tree_1 = tree_candidate_small if (tree_candidate_small["val_auroc"] - lr_candidate["val_auroc"] >= 0.02) else lr_candidate
+    assert chosen_tree_1["model_type"] == "lr"
 
-    gap_small = tree_candidate_small["val_auroc"] - lr_candidate["val_auroc"]
-    chosen_1 = tree_candidate_small if gap_small >= 0.02 else lr_candidate
-    assert chosen_1["model_type"] == "lr"
-
-    # Case 2: Tree beats LR by 0.021 -> Tree chosen
     tree_candidate_large = {"model_type": "rf", "val_auroc": 0.771}  # Gap = +0.021
-    gap_large = tree_candidate_large["val_auroc"] - lr_candidate["val_auroc"]
-    chosen_2 = tree_candidate_large if gap_large >= 0.02 else lr_candidate
-    assert chosen_2["model_type"] == "rf"
+    chosen_tree_2 = tree_candidate_large if (tree_candidate_large["val_auroc"] - lr_candidate["val_auroc"] >= 0.02) else lr_candidate
+    assert chosen_tree_2["model_type"] == "rf"
 
 
 def test_band_boundaries_match_threshold_and_90th_percentile():
