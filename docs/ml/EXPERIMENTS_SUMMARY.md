@@ -26,10 +26,10 @@ Evaluated on the exact same held-out test cohort records and card audience as th
 
 | Guideline Screening Rule | Cohort Evaluated | Prevalence | Sensitivity | Specificity | PPV | Clinical Evidence Source |
 | --- | --- | --- | --- | --- | --- | --- |
-| Rule Baseline: Age >= 35 (General Test) | n=9,117 (pos=388) | 4.26% | 93.04% | 28.71% | 5.48% | as recommended by ADA Standards / USPSTF 2021 — citation to be confirmed by Usman |
-| Rule Baseline: Age 35-70 & BMI >= 25 (General Test) | n=9,117 (pos=388) | 4.26% | 63.66% | 58.01% | 6.31% | as recommended by ADA Standards / USPSTF 2021 — citation to be confirmed by Usman |
-| Rule Baseline: Age >= 35 (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 96.32% | 8.46% | 7.32% | as recommended by ADA Standards / USPSTF 2021 — citation to be confirmed by Usman |
-| Rule Baseline: Age 35-70 & BMI >= 25 (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 60.00% | 46.17% | 7.72% | as recommended by ADA Standards / USPSTF 2021 — citation to be confirmed by Usman |
+| Rule Baseline: Age >= 35 (General Test) | n=9,117 (pos=388) | 4.26% | 93.04% | 28.71% | 5.48% | ADA Standards of Care 2026, Section 2 |
+| Rule Baseline: Age 35-70 & BMI >= 25 (General Test) | n=9,117 (pos=388) | 4.26% | 63.66% | 58.01% | 6.31% | USPSTF 2021 |
+| Rule Baseline: Age >= 35 (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 96.32% | 8.46% | 7.32% | ADA Standards of Care 2026, Section 2 |
+| Rule Baseline: Age 35-70 & BMI >= 25 (Card Audience: High BP) | n=2,720 (pos=190) | 6.99% | 60.00% | 46.17% | 7.72% | USPSTF 2021 |
 
 ---
 

@@ -61,25 +61,25 @@ def compute_guideline_rules(project_root: Path) -> list[dict[str, Any]]:
             "Rule Baseline: Age >= 35 (General Test)",
             clean_test,
             clean_test["age"] >= 35,
-            "as recommended by ADA Standards / USPSTF 2021 — citation to be confirmed by Usman",
+            "ADA Standards of Care 2026, Section 2",
         ),
         (
             "Rule Baseline: Age 35-70 & BMI >= 25 (General Test)",
             clean_test,
             (clean_test["age"] >= 35) & (clean_test["age"] <= 70) & (clean_test["bmi"] >= 25.0),
-            "as recommended by ADA Standards / USPSTF 2021 — citation to be confirmed by Usman",
+            "USPSTF 2021",
         ),
         (
             "Rule Baseline: Age >= 35 (Card Audience: High BP)",
             card_clean,
             card_clean["age"] >= 35,
-            "as recommended by ADA Standards / USPSTF 2021 — citation to be confirmed by Usman",
+            "ADA Standards of Care 2026, Section 2",
         ),
         (
             "Rule Baseline: Age 35-70 & BMI >= 25 (Card Audience: High BP)",
             card_clean,
             (card_clean["age"] >= 35) & (card_clean["age"] <= 70) & (card_clean["bmi"] >= 25.0),
-            "as recommended by ADA Standards / USPSTF 2021 — citation to be confirmed by Usman",
+            "USPSTF 2021",
         ),
     ]
 
