@@ -8,7 +8,10 @@
     "template_ur": "کیا آپ نے آج روزہ رکھا ہوا ہے؟",
     "template_roman_ur": "Kya aap ne aaj roza rakha hua hai?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
     "requires": {},
@@ -17,7 +20,18 @@
     "rule_id": null,
     "source": "idf_dar_2021_ramadan",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "روزے میں کھانے پینے اور ادویات کے اوقات بدل جاتے ہیں، تاکہ ڈاکٹر کے لیے رہنمائی آسان ہو۔",
+    "why_text_roman_ur": "Rozay mein khanay peenay aur dawai ke auqaat badal jatay hain, taakay doctor ke liye rehnumai asaan ho.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "fasting_predawn_meal",
@@ -28,16 +42,32 @@
     "template_ur": "کیا آپ نے آج روزہ شروع کرنے سے پہلے سحری کی تھی؟",
     "template_roman_ur": "Kya aap ne aaj roza shuru karne se pehle Sehri ki thi?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"is_fasting_today": true},
+    "requires": {
+      "is_fasting_today": true
+    },
     "priority_class": "barrier",
     "can_raise_level": false,
     "rule_id": null,
     "source": "idf_dar_2021_ramadan",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "سحری کھانے سے دن کے وقت شوگر خطرناک حد تک کم ہونے سے بچاؤ رہتا ہے۔",
+    "why_text_roman_ur": "Sehri khanay se din ke waqt sugar khatarnaak had tak kam honay se bachaav rehta hai.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "fasting_symptoms",
@@ -48,16 +78,32 @@
     "template_ur": "کیا روزے کے دوران آپ کو شدید چکر، الجھن، شدید پیاس، یا بہت زیادہ پسینہ محسوس ہوا؟",
     "template_roman_ur": "Kya roze ke dauran aap ko shadeed chakkar, uljhan, shadeed pyas, ya bohat ziada paseena mehsoos hua?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"is_fasting_today": true},
+    "requires": {
+      "is_fasting_today": true
+    },
     "priority_class": "safety",
     "can_raise_level": true,
     "rule_id": "fasting_symptoms_triage",
     "source": "idf_dar_2021_ramadan",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "روزے کے دوران شدید چکر یا پسینہ شوگر کی خطرناک کمی کی علامت ہو سکتے ہیں۔",
+    "why_text_roman_ur": "Rozay ke dauran shadeed chakkar ya paseena sugar ki khatarnaak kami ki alamat ho saktay hain.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "fasting_broke_fast",
@@ -71,12 +117,17 @@
     "choices": null,
     "valid_range": null,
     "unit_options": null,
-    "requires": {"is_fasting_today": true},
+    "requires": {
+      "is_fasting_today": true
+    },
     "priority_class": "barrier",
     "can_raise_level": false,
     "rule_id": null,
     "source": "idf_dar_2021_ramadan",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "شوگر کی کمی کی وجہ سے روزہ کھولنا طبی طور پر اہم ہے، یہ ڈاکٹر کے لیے محفوظ کیا جاتا ہے۔",
+    "why_text_roman_ur": "Sugar ki kami ki wajah se roza kholna tibbi tor par zaroori hai, yeh doctor ke liye record kiya jata hai.",
+    "needs_native_review": true
   }
 ]

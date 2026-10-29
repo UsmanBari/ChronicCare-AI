@@ -67,6 +67,10 @@ class BankItem:
     bank_version: str
     also_fills: Optional[List[str]] = None
     shared: bool = False
+    why_text_ur: Optional[str] = None
+    why_text_roman_ur: Optional[str] = None
+    choices_ur: Optional[List[str]] = None
+    choices_roman_ur: Optional[List[str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -142,7 +146,7 @@ def load_question_bank(bank_dir: Optional[str] = None) -> QuestionBank:
     seen_ids: Set[str] = set()
 
     for filename in sorted(os.listdir(bank_dir)):
-        if not filename.endswith(".json") or filename in ("SOURCES.json", "probes.json", "responses.json"):
+        if not filename.endswith(".json") or filename in ("SOURCES.json", "probes.json", "responses.json", "messages.json"):
             continue
 
         file_path = os.path.join(bank_dir, filename)
@@ -216,6 +220,10 @@ def load_question_bank(bank_dir: Optional[str] = None) -> QuestionBank:
                 bank_version=raw_item.get("bank_version", "3.0"),
                 also_fills=raw_item.get("also_fills"),
                 shared=bool(raw_item.get("shared", False)),
+                why_text_ur=raw_item.get("why_text_ur"),
+                why_text_roman_ur=raw_item.get("why_text_roman_ur"),
+                choices_ur=raw_item.get("choices_ur"),
+                choices_roman_ur=raw_item.get("choices_roman_ur"),
             )
             items.append(item)
 
@@ -230,3 +238,42 @@ def get_default_bank() -> QuestionBank:
     if _GLOBAL_BANK is None:
         _GLOBAL_BANK = load_question_bank()
     return _GLOBAL_BANK
+
+
+_GLOBAL_MESSAGES: Optional[Dict[str, Any]] = None
+
+
+def load_messages(bank_dir: Optional[str] = None) -> Dict[str, Any]:
+    global _GLOBAL_MESSAGES
+    if _GLOBAL_MESSAGES is not None:
+        return _GLOBAL_MESSAGES
+    if bank_dir is None:
+        bank_dir = os.path.dirname(os.path.abspath(__file__))
+    msg_path = os.path.join(bank_dir, "messages.json")
+    if os.path.exists(msg_path):
+        with open(msg_path, "r", encoding="utf-8") as f:
+            _GLOBAL_MESSAGES = json.load(f)
+    else:
+        _GLOBAL_MESSAGES = {}
+    return _GLOBAL_MESSAGES
+
+
+def get_message(key: str, lang: str = "en", **fmt: Any) -> Any:
+    """
+    Retrieves a localized string or structure from messages.json.
+    Supports session languages 'en', 'ur', 'roman_ur'.
+    Interpolates keyword format arguments if string.
+    """
+    messages = load_messages()
+    entry = messages.get(key)
+    if not entry or not isinstance(entry, dict):
+        return str(key)
+    raw = entry.get(lang) or entry.get("en")
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str) and fmt:
+        try:
+            return raw.format(**fmt)
+        except Exception:
+            return raw
+    return str(raw) if raw is not None else str(key)

@@ -17,7 +17,10 @@
     "rule_id": "stage1_red_flag_screen",
     "source": "nice_cg138_patient_experience",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "طبی سوالات شروع کرنے سے پہلے یہ جاننے کے لیے کہ عمومی طور پر آج آپ کی طبیعت کیسی ہے۔",
+    "why_text_roman_ur": "Tibbi sawalaat shuru karne se pehle yeh janne ke liye ke aam tor par aaj aap ki tabiyat kaisi hai.",
+    "needs_native_review": true
   },
   {
     "id": "core_missing_data_checkpoint",
@@ -31,13 +34,18 @@
     "choices": null,
     "valid_range": null,
     "unit_options": null,
-    "requires": {"missing_reading": true},
+    "requires": {
+      "missing_reading": true
+    },
     "priority_class": "open",
     "can_raise_level": true,
     "rule_id": "stage1_red_flag_screen",
     "source": "clinical_team_illustrative",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "اگر آج آپ شوگر یا بلڈ پریشر چیک نہیں کر سکے تو یہ جاننے کے لیے کہ آپ کیسا محسوس کر رہے ہیں۔",
+    "why_text_roman_ur": "Agar aaj aap sugar ya BP check nahi kar sakay to yeh janne ke liye ke aap kaisa mehsoos kar rahe hain.",
+    "needs_native_review": true
   },
   {
     "id": "core_patient_free_text",
@@ -57,7 +65,10 @@
     "rule_id": "stage1_red_flag_screen",
     "source": "nice_cg138_patient_experience",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "تاکہ کوئی اور بات جو آپ بتانا چاہیں وہ ڈاکٹر کے لیے نوٹ کی جا سکے۔",
+    "why_text_roman_ur": "Taakay koi aur baat jo aap batana chahein woh doctor ke liye note ki ja sakay.",
+    "needs_native_review": true
   },
   {
     "id": "core_summary_confirm",
@@ -68,7 +79,10 @@
     "template_ur": "ہم نے آج یہ معلومات درج کی ہیں۔ کیا سب کچھ ٹھیک ہے؟",
     "template_roman_ur": "Hum ne aaj yeh maloomat darj ki hain. Kya sab theek hai?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
     "requires": {},
@@ -77,6 +91,17 @@
     "rule_id": null,
     "source": "nice_cg138_patient_experience",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "تاکہ محفوظ کرنے سے پہلے تصدیق ہو سکے کہ تمام معلومات درست لکھی گئی ہیں۔",
+    "why_text_roman_ur": "Taakay save karne se pehle tasdeeq ho sakay ke tamam maloomat theek likhi gayi hain.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   }
 ]
