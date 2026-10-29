@@ -8,16 +8,33 @@
     "template_ur": "کیا آپ کے پاس گھر پر کام کرنے والی شوگر چیک کرنے کی مشین (گلوکو میٹر) اور سٹرپس موجود ہیں؟",
     "template_roman_ur": "Kya aap ke paas ghar par theek chalne wali sugar check karne ki machine (glucometer) aur strips mojood hain?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "diabetes", "missing_reading": true},
+    "requires": {
+      "condition": "diabetes",
+      "missing_reading": true
+    },
     "priority_class": "barrier",
     "can_raise_level": false,
     "rule_id": null,
     "source": "ada_2026_soc_sec5",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "یہ جاننے کے لیے کہ کیا آپ کے پاس گھر پر شوگر چیک کرنے والا میٹر اور سٹرپس موجود ہیں۔",
+    "why_text_roman_ur": "Yeh janne ke liye ke kya aap ke paas ghar par sugar check karne wala meter aur strips mojood hain.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "barrier_has_bp_cuff",
@@ -28,16 +45,33 @@
     "template_ur": "کیا آپ کے پاس گھر پر بلڈ پریشر چیک کرنے والا آلہ موجود ہے؟",
     "template_roman_ur": "Kya aap ke paas ghar par BP check karne wala aala mojood hai?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension", "missing_reading": true},
+    "requires": {
+      "condition": "hypertension",
+      "missing_reading": true
+    },
     "priority_class": "barrier",
     "can_raise_level": false,
     "rule_id": null,
     "source": "aha_acc_2025_hypertension",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "یہ جاننے کے لیے کہ کیا آپ کے پاس گھر پر بلڈ پریشر چیک کرنے والا آلہ موجود ہے۔",
+    "why_text_roman_ur": "Yeh janne ke liye ke kya aap ke paas ghar par BP check karne wala aala mojood hai.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "barrier_affordability_meds",
@@ -48,7 +82,10 @@
     "template_ur": "کیا ادویات یا سٹرپس کی قیمت کی وجہ سے آپ کے لیے انہیں خریدنا مشکل ہوا ہے؟",
     "template_roman_ur": "Kya dawaiyon ya strips ki qeemat ki wajah se aap ke liye inhein khareedna mushkil hua hai?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
     "requires": {},
@@ -57,7 +94,18 @@
     "rule_id": null,
     "source": "ada_2026_soc_sec5",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "ادویات کے اخراجات بعض اوقات مشکل ہو سکتے ہیں، تاکہ آپ کا کلینک امدادی پروگرام سے مدد دلوا سکے۔",
+    "why_text_roman_ur": "Dawaiyon ke akhrajat baaz auqaat mushkil ho sakte hain, taakay aap ka clinic kisi imdadi program se madad karwa sakay.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "barrier_ran_out_meds",
@@ -68,7 +116,10 @@
     "template_ur": "کیا حال ہی میں آپ کی کوئی تجویز کردہ دوا ختم ہو گئی تھی؟",
     "template_roman_ur": "Kya haal hi mein aap ki koi tajweez shuda dawa khatam ho gayi thi?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
     "requires": {},
@@ -77,7 +128,18 @@
     "rule_id": null,
     "source": "ada_2026_soc_sec5",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "دوا ختم ہو جانا عام مسئلہ ہے تاکہ آپ کا معالج نئی دوا کا نسخہ بروقت جاری کر سکے۔",
+    "why_text_roman_ur": "Dawa khatam ho jana aam masla hai taakay aap ka doctor nayi dawai ka nuskha barwaqt de sakay.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "barrier_side_effects",
@@ -88,7 +150,10 @@
     "template_ur": "کیا کسی مضر اثر (سائیڈ ایفیکٹ) یا تکلیف کی وجہ سے آپ نے دوا لینا بند کی؟",
     "template_roman_ur": "Kya kisi side effect ya takleef ki wajah se aap ne dawa lena band ki?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
     "requires": {},
@@ -97,6 +162,17 @@
     "rule_id": null,
     "source": "ada_2026_soc_sec5",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "ادویات کے مضر اثرات کی وجہ سے مریض اکثر دوا چھوڑ دیتے ہیں، تاکہ ڈاکٹر خوراک بدل سکے یا متبادل تجویز کر سکے۔",
+    "why_text_roman_ur": "Dawai ke side effects ki wajah se aksar dawai chhoot jati hai, taakay doctor miqdaar tabdeel kar sakay ya doosri dawai de sakay.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   }
 ]

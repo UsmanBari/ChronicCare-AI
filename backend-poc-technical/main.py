@@ -787,6 +787,7 @@ class CheckinStartResponse(BaseModel):
     can_skip: Optional[bool] = None
     can_say_unknown: Optional[bool] = None
     engine: Optional[str] = None
+    option_items: Optional[List[Dict[str, str]]] = None
 
 
 class CheckinAnswerRequest(BaseModel):
@@ -815,6 +816,7 @@ class CheckinAnswerResponse(BaseModel):
     engine: Optional[str] = None
     last_odd_class: Optional[str] = None
     is_probe: Optional[bool] = None
+    option_items: Optional[List[Dict[str, str]]] = None
 
 
 class CheckinCompleteResponse(BaseModel):
@@ -2567,6 +2569,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
             language=v3_state.get("language"),
             can_skip=v3_state.get("can_skip"),
             can_say_unknown=v3_state.get("can_say_unknown"),
+            option_items=v3_state.get("option_items"),
         )
 
     # 7. Initialize InterviewState and run first node (v2 default)
@@ -3096,6 +3099,7 @@ def answer_checkin_endpoint(
             can_say_unknown=next_state.get("can_say_unknown"),
             last_odd_class=next_state.get("last_odd_class"),
             is_probe=next_state.get("is_probe"),
+            option_items=next_state.get("option_items"),
         )
 
     # v2 Interview node path

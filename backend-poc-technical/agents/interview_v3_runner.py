@@ -16,7 +16,7 @@ import logging
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple
 
-from agents.interview_bank.loader import BankItem, get_default_bank
+from agents.interview_bank.loader import BankItem, get_default_bank, get_message
 from agents.interview_findings import (
     Finding,
     extract_findings_from_answer,
@@ -46,6 +46,9 @@ from agents.input_triage import (
 logger = logging.getLogger(__name__)
 
 
+CANONICAL_STRIKE_OPTIONS = ["Continue check-in", "Need urgent help", "Finish later"]
+CANONICAL_SUMMARY_CORRECTION_OPTIONS = ["Blood Glucose", "Blood Pressure", "Symptoms", "Medication Adherence"]
+
 def is_v3_engine_enabled() -> bool:
     """Checks if Interview Engine v3 is enabled via environment variable."""
     return os.environ.get("INTERVIEW_ENGINE", "v2").strip().lower() == "v3"
@@ -54,6 +57,50 @@ def is_v3_engine_enabled() -> bool:
 # =============================================================================
 # Helper Functions
 # =============================================================================
+def _get_localized_why_text(item: Any, lang: str = "en") -> str:
+    """Retrieves localized why-text/rationale for a bank item or probe."""
+    if isinstance(item, BankItem):
+        if lang == "ur":
+            return item.why_text_ur or item.why_text
+        if lang == "roman_ur":
+            return item.why_text_roman_ur or item.why_text
+        return item.why_text
+    if isinstance(item, dict):
+        if lang == "ur":
+            return item.get("why_text_ur") or item.get("clinical_rationale_ur") or item.get("clinical_rationale") or item.get("why_text") or ""
+        if lang == "roman_ur":
+            return item.get("why_text_roman_ur") or item.get("clinical_rationale_roman_ur") or item.get("clinical_rationale") or item.get("why_text") or ""
+        return item.get("clinical_rationale") or item.get("why_text") or ""
+    return ""
+
+
+def _build_option_items(item: Any, lang: str = "en") -> Optional[List[Dict[str, str]]]:
+    """Constructs additive localized option_items with canonical value and localized label."""
+    if isinstance(item, BankItem):
+        if not item.choices:
+            return None
+        canonical = item.choices
+        if lang == "ur" and item.choices_ur and len(item.choices_ur) == len(canonical):
+            labels = item.choices_ur
+        elif lang == "roman_ur" and item.choices_roman_ur and len(item.choices_roman_ur) == len(canonical):
+            labels = item.choices_roman_ur
+        else:
+            labels = canonical
+        return [{"value": str(c), "label": str(lbl)} for c, lbl in zip(canonical, labels)]
+    if isinstance(item, dict):
+        choices = item.get("choices")
+        if not choices or not isinstance(choices, list):
+            return None
+        if lang == "ur" and item.get("choices_ur") and len(item.get("choices_ur")) == len(choices):
+            labels = item.get("choices_ur")
+        elif lang == "roman_ur" and item.get("choices_roman_ur") and len(item.get("choices_roman_ur")) == len(choices):
+            labels = item.get("choices_roman_ur")
+        else:
+            labels = choices
+        return [{"value": str(c), "label": str(lbl)} for c, lbl in zip(choices, labels)]
+    return None
+
+
 def _get_localized_text(item: Any, lang: str = "en") -> str:
     """Retrieves localized text for a bank item or response dictionary."""
     if isinstance(item, BankItem):
@@ -207,18 +254,21 @@ def start_v3_session(
     can_say_unknown = True
     step_id = "greeting"
 
+    option_items = None
     if decision.item:
         step_id = decision.item.slot
         question_text = _get_localized_text(decision.item, lang)
-        why_text = decision.item.why_text
+        why_text = _get_localized_why_text(decision.item, lang)
         options = decision.item.choices
+        option_items = _build_option_items(decision.item, lang)
         can_skip = (decision.item.priority_class != "safety")
         can_say_unknown = True
     elif decision.probe:
         step_id = decision.probe.get("slot", "probe")
         question_text = _get_localized_text(decision.probe, lang)
-        why_text = decision.probe.get("clinical_rationale", "")
+        why_text = _get_localized_why_text(decision.probe, lang)
         options = decision.probe.get("choices")
+        option_items = _build_option_items(decision.probe, lang)
         can_skip = True
         can_say_unknown = True
 
@@ -232,6 +282,7 @@ def start_v3_session(
         "current_question": question_text,
         "why_text": why_text,
         "options": options,
+        "option_items": option_items,
         "can_skip": can_skip,
         "can_say_unknown": can_say_unknown,
         "system_note": None,
@@ -293,7 +344,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         session_state["completed"] = True
         session_state["step"] = "COMPLETE"
         session_state["current_question"] = None
-        session_state["system_note"] = "Emergency red flag detected. Please seek emergency medical care immediately."
+        session_state["system_note"] = get_message("emergency_red_flag_note", lang)
         return session_state
 
     if triage_res.is_urgent_safety:
@@ -337,16 +388,18 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             session_state["completed"] = True
             session_state["step"] = "COMPLETE"
             session_state["current_question"] = None
-            session_state["system_note"] = (
-                "We understand you may need to step away. We have saved your responses so far for your care team."
-                if lang == "en" else system_note
-            )
+            session_state["system_note"] = get_message("strike_rule_offtopic_done", lang)
             return session_state
 
         # Strike rule: 2 consecutive off-topic answers -> offer choices
         if odd_count >= 2:
             session_state["system_note"] = system_note
-            session_state["options"] = ["Continue check-in", "Need urgent help", "Finish later"]
+            session_state["options"] = list(CANONICAL_STRIKE_OPTIONS)
+            session_state["option_items"] = [
+                {"value": "Continue check-in", "label": get_message("strike_rule_option_continue", lang)},
+                {"value": "Need urgent help", "label": get_message("strike_rule_option_urgent", lang)},
+                {"value": "Finish later", "label": get_message("strike_rule_option_finish_later", lang)},
+            ]
             return session_state
 
         session_state["system_note"] = system_note
@@ -384,19 +437,13 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             readings["glucose"] = float(unclarified_val)
             known_slots["glucose_reading"] = float(unclarified_val)
             session_state["possible_severe_low"] = True
-            session_state["possible_severe_low_guidance"] = (
-                "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, "
-                "consume 15g fast-acting sugar (half cup juice or 3-4 glucose tablets) immediately."
-            )
+            session_state["possible_severe_low_guidance"] = get_message("v3_possible_low_guidance", lang)
         else:
             # Unanswered / unclear unit: Treat as possible severe low per clinical rule
             readings["glucose"] = float(unclarified_val)
             known_slots["glucose_reading"] = float(unclarified_val)
             session_state["possible_severe_low"] = True
-            session_state["possible_severe_low_guidance"] = (
-                "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, "
-                "consume 15g fast-acting sugar (half cup juice or 3-4 glucose tablets) immediately."
-            )
+            session_state["possible_severe_low_guidance"] = get_message("v3_possible_low_guidance", lang)
             session_state["needs_clinician_flag"] = True
 
     elif "glucose_reading" in current_slot or current_slot == "diabetes_glucose_reading":
@@ -413,11 +460,13 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         if val_res.needs_unit_clarification:
             session_state["awaiting_glucose_unit"] = True
             session_state["raw_unclarified_glucose"] = val_res.value
-            session_state["current_question"] = (
-                f"Did you mean {val_res.value:g} mmol/L or {val_res.value:g} mg/dL?"
-            )
-            session_state["why_text"] = "Clarifying unit to ensure patient safety against severe low blood sugar."
+            session_state["current_question"] = get_message("unit_clarification_question", lang, value=f"{val_res.value:g}")
+            session_state["why_text"] = get_message("unit_clarification_why", lang)
             session_state["options"] = ["mmol/L", "mg/dL"]
+            session_state["option_items"] = [
+                {"value": "mmol/L", "label": "mmol/L"},
+                {"value": "mg/dL", "label": "mg/dL"},
+            ]
             return session_state
         elif val_res.valid and val_res.value is not None:
             clean_low = clean_answer.lower()
@@ -425,11 +474,13 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             if not has_unit and 41.0 <= float(val_res.value) <= 54.0:
                 session_state["awaiting_glucose_unit"] = True
                 session_state["raw_unclarified_glucose"] = val_res.value
-                session_state["current_question"] = (
-                    f"Did you mean {val_res.value:g} mmol/L or {val_res.value:g} mg/dL?"
-                )
-                session_state["why_text"] = "Clarifying unit to ensure patient safety against severe low blood sugar."
+                session_state["current_question"] = get_message("unit_clarification_question", lang, value=f"{val_res.value:g}")
+                session_state["why_text"] = get_message("unit_clarification_why", lang)
                 session_state["options"] = ["mmol/L", "mg/dL"]
+                session_state["option_items"] = [
+                    {"value": "mmol/L", "label": "mmol/L"},
+                    {"value": "mg/dL", "label": "mg/dL"},
+                ]
                 return session_state
 
             if val_res.unit == "mmol/L":
@@ -485,8 +536,13 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
                 resp_dict = bank.get_responses().get("safety_unknown_clarify", {})
                 clarify_text = _get_localized_text(resp_dict, lang)
                 session_state["current_question"] = clarify_text
-                session_state["why_text"] = bank_item.why_text
+                session_state["why_text"] = _get_localized_why_text(bank_item, lang)
                 session_state["options"] = ["yes", "no", "unknown"]
+                session_state["option_items"] = _build_option_items(bank_item, lang) or [
+                    {"value": "yes", "label": "ہاں" if lang == "ur" else ("haan" if lang == "roman_ur" else "yes")},
+                    {"value": "no", "label": "نہیں" if lang == "ur" else ("nahi" if lang == "roman_ur" else "no")},
+                    {"value": "unknown", "label": "معلوم نہیں" if lang == "ur" else ("maloom nahi" if lang == "roman_ur" else "unknown")},
+                ]
                 session_state["can_skip"] = False
                 session_state["can_say_unknown"] = True
                 return session_state
@@ -553,14 +609,16 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             if rounds < 2:
                 session_state["summary_correction_rounds"] = rounds + 1
                 session_state["awaiting_correction_slot"] = True
-                prompt_text = {
-                    "en": "Which reading or answer would you like to update?",
-                    "ur": "آپ کون سا اندراج تبدیل کرنا چاہتے ہیں؟",
-                    "roman_ur": "Aap kaun si maloomat tabdeel karna chahte hain?",
-                }.get(lang, "Which reading or answer would you like to update?")
                 session_state["step"] = "summary_correction_select"
-                session_state["current_question"] = prompt_text
-                session_state["options"] = ["Blood Glucose", "Blood Pressure", "Symptoms", "Medication Adherence"]
+                session_state["current_question"] = get_message("summary_correction_prompt", lang)
+                session_state["why_text"] = get_message("summary_confirm_why", lang)
+                session_state["options"] = list(CANONICAL_SUMMARY_CORRECTION_OPTIONS)
+                session_state["option_items"] = [
+                    {"value": "Blood Glucose", "label": get_message("summary_correction_option_glucose", lang)},
+                    {"value": "Blood Pressure", "label": get_message("summary_correction_option_bp", lang)},
+                    {"value": "Symptoms", "label": get_message("summary_correction_option_symptoms", lang)},
+                    {"value": "Medication Adherence", "label": get_message("summary_correction_option_meds", lang)},
+                ]
                 return session_state
             else:
                 session_state["needs_clinician_flag"] = True
@@ -609,8 +667,9 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             session_state["correcting_slot"] = target_slot
             session_state["step"] = target_item.slot
             session_state["current_question"] = _get_localized_text(target_item, lang)
-            session_state["why_text"] = target_item.why_text
+            session_state["why_text"] = _get_localized_why_text(target_item, lang)
             session_state["options"] = target_item.choices
+            session_state["option_items"] = _build_option_items(target_item, lang)
             return session_state
 
     if session_state.get("correcting_slot"):
@@ -619,18 +678,18 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         session_state["is_probe"] = False
         step_id = "summary_confirmation"
         question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots)
-        why_text = "To confirm we noted your answers correctly before saving."
-        if lang == "ur":
-            options = ["تصدیق کریں", "تبدیل کرنا ہے"]
-        elif lang == "roman_ur":
-            options = ["Confirm karein", "Tabdeel karna hai"]
-        else:
-            options = ["Confirm and submit", "Need to change something"]
+        why_text = get_message("summary_confirm_why", lang)
+        options = ["Confirm and submit", "Need to change something"]
+        option_items = [
+            {"value": "Confirm and submit", "label": get_message("summary_confirm_option_submit", lang)},
+            {"value": "Need to change something", "label": get_message("summary_confirm_option_change", lang)},
+        ]
 
         session_state["step"] = step_id
         session_state["current_question"] = question_text
         session_state["why_text"] = why_text
         session_state["options"] = options
+        session_state["option_items"] = option_items
         session_state["can_skip"] = False
         session_state["can_say_unknown"] = False
         return session_state
@@ -669,30 +728,32 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     can_say_unknown = True
     step_id = decision.target_slot or "question"
 
+    option_items = None
     if decision.action == "summary_confirm":
         session_state["is_probe"] = False
         step_id = "summary_confirmation"
         question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots)
-        why_text = "To confirm we noted your answers correctly before saving."
-        if lang == "ur":
-            options = ["تصدیق کریں", "تبدیل کرنا ہے"]
-        elif lang == "roman_ur":
-            options = ["Confirm karein", "Tabdeel karna hai"]
-        else:
-            options = ["Confirm and submit", "Need to change something"]
+        why_text = get_message("summary_confirm_why", lang)
+        options = ["Confirm and submit", "Need to change something"]
+        option_items = [
+            {"value": "Confirm and submit", "label": get_message("summary_confirm_option_submit", lang)},
+            {"value": "Need to change something", "label": get_message("summary_confirm_option_change", lang)},
+        ]
     elif decision.item:
         session_state["is_probe"] = False
         step_id = decision.item.slot
         question_text = _get_localized_text(decision.item, lang)
-        why_text = decision.item.why_text
+        why_text = _get_localized_why_text(decision.item, lang)
         options = decision.item.choices
+        option_items = _build_option_items(decision.item, lang)
         can_skip = (decision.item.priority_class != "safety")
         can_say_unknown = True
     elif decision.probe:
         step_id = decision.probe.get("slot", "probe")
         question_text = _get_localized_text(decision.probe, lang)
-        why_text = decision.probe.get("clinical_rationale", "")
+        why_text = _get_localized_why_text(decision.probe, lang)
         options = decision.probe.get("choices")
+        option_items = _build_option_items(decision.probe, lang)
         can_skip = True
         can_say_unknown = True
         session_state.setdefault("probes_asked", []).append(decision.probe.get("probe_id") or step_id)
@@ -702,6 +763,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     session_state["current_question"] = question_text
     session_state["why_text"] = why_text
     session_state["options"] = options
+    session_state["option_items"] = option_items
     session_state["can_skip"] = can_skip
     session_state["can_say_unknown"] = can_say_unknown
     session_state["progress_hint"] = f"{decision.question_count}/{decision.max_budget}"

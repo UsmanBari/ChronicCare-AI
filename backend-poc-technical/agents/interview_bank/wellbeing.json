@@ -8,7 +8,12 @@
     "template_ur": "گزشتہ 2 ہفتوں میں، کیا آپ نے کام کاج میں دلچسپی یا خوشی کی کمی محسوس کی ہے؟ (اختیاری سوال - آپ چھوڑ سکتے ہیں)",
     "template_roman_ur": "Pichle 2 hafto mein, kya aap ne kaam kaaj mein dilchaspi ya khushi ki kami mehsoos ki hai? (Optional - aap skip kar sakte hain)",
     "answer_type": "choice",
-    "choices": ["not_at_all", "several_days", "more_than_half_days", "nearly_every_day"],
+    "choices": [
+      "not_at_all",
+      "several_days",
+      "more_than_half_days",
+      "nearly_every_day"
+    ],
     "valid_range": null,
     "unit_options": null,
     "requires": {},
@@ -17,7 +22,22 @@
     "rule_id": null,
     "source": "phq2_kroenke_2003",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "دائمی بیماریوں سے ذہنی کیفیت اور کام کی لگن متاثر ہو سکتی ہے، کلینک جسمانی اور ذہنی دونوں طرح کی مدد فراہم کرتا ہے۔",
+    "why_text_roman_ur": "Daaimi beemariyon se zehni kefiyat mutasir ho sakti hai, clinic jismani aur zehni dono tarah ki madad karta hai.",
+    "choices_ur": [
+      "بالکل نہیں",
+      "کچھ دن",
+      "آدھے سے زیادہ دن",
+      "تقریباً ہر روز"
+    ],
+    "choices_roman_ur": [
+      "bilkul nahi",
+      "kuch din",
+      "aadhe se zyada din",
+      "taqreeban har roz"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "wellbeing_depressed_mood",
@@ -28,7 +48,12 @@
     "template_ur": "گزشتہ 2 ہفتوں میں، کیا آپ اداسی، مایوسی یا دل برداشتگی محسوس کر رہے ہیں؟ (اختیاری سوال)",
     "template_roman_ur": "Pichle 2 hafto mein, kya aap udasi, mayoosi ya dil bardashtagi mehsoos kar rahe hain? (Optional)",
     "answer_type": "choice",
-    "choices": ["not_at_all", "several_days", "more_than_half_days", "nearly_every_day"],
+    "choices": [
+      "not_at_all",
+      "several_days",
+      "more_than_half_days",
+      "nearly_every_day"
+    ],
     "valid_range": null,
     "unit_options": null,
     "requires": {},
@@ -37,7 +62,22 @@
     "rule_id": null,
     "source": "phq2_kroenke_2003",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "یہ جاننے کے لیے کہ کیا اداسی یا مایوسی آپ پر اثر انداز ہو رہی ہے تاکہ معالج مدد کر سکے۔",
+    "why_text_roman_ur": "Yeh janne ke liye ke kya udaasi ya mayoosi aap par asar andaaz ho rahi hai taakay doctor madad kar sakay.",
+    "choices_ur": [
+      "بالکل نہیں",
+      "کچھ دن",
+      "آدھے سے زیادہ دن",
+      "تقریباً ہر روز"
+    ],
+    "choices_roman_ur": [
+      "bilkul nahi",
+      "kuch din",
+      "aadhe se zyada din",
+      "taqreeban har roz"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "wellbeing_overwhelmed",
@@ -48,7 +88,10 @@
     "template_ur": "کیا آپ اپنی بیماری کی روزانہ دیکھ بھال اور دوائیوں سے بیزاری یا بوجھ محسوس کر رہے ہیں؟ (اختیاری سوال)",
     "template_roman_ur": "Kya aap apni bimari ki rozana dekh bhaal aur dawaiyon se bojh mehsoos kar rahe hain? (Optional)",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
     "requires": {},
@@ -57,6 +100,17 @@
     "rule_id": null,
     "source": "diabetes_distress_dds2",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "شوگر یا بی پی کا روزانہ خیال رکھنا تھکا سکتا ہے، یہ جان کر آپ کی ٹیم علاج کا طریقہ آسان بنا سکتی ہے۔",
+    "why_text_roman_ur": "Sugar ya BP ka rozana khayal rakhna thaka sakta hai, yeh jaan kar doctor ilaj asaan bana sakta hai.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   }
 ]
