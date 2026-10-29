@@ -275,6 +275,15 @@ MUTATIONS = [
         "replacement": '    "id": "diabetes_hyperglycemia_symptoms",\n    "module": "diabetes",\n    "slot": "hyperglycemia_symptoms",\n    "also_fills": ["associated_symptoms"],\n    "why_text": "High blood sugar can cause thirst, frequent urination, and blurry vision.",',
         "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h3_3_symptoms_not_also_filled",
     },
+    # --- Day 4 Mutation (M-S4-1: Trend Agent Dual Agreement Rule) ---
+    {
+        "id": "M-S4-1",
+        "name": "Trend Agent: Median-and-Slope Agreement Required (Dual Agreement)",
+        "file": BACKEND_DIR / "agents" / "trend_agent.py",
+        "target": "        if change >= threshold and slope_per_week > 0:\n            direction = DIRECTION_RISING\n        elif change <= -threshold and slope_per_week < 0:\n            direction = DIRECTION_FALLING",
+        "replacement": "        if change >= threshold:\n            direction = DIRECTION_RISING\n        elif change <= -threshold:\n            direction = DIRECTION_FALLING",
+        "test_node": "backend-poc-technical/test_trend_agent.py::test_conflict_median_positive_slope_non_positive_yields_stable",
+    },
 ]
 
 
