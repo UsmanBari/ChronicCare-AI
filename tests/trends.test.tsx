@@ -400,4 +400,40 @@ describe("Iteration 2 - Day 5: Longitudinal Trends Live Tests", () => {
       expect(screen.getAllByText(translations.en.trendNotEnoughExplain).length).toBeGreaterThan(0);
     });
   });
+  it("does not render adherence chart or '100% Adherent' badge in LIVE mode, but keeps them in demo mode", async () => {
+    // 1. Live mode: adherence chart and 100% Adherent badge must NOT be present
+    mockAppContext.isLiveMode = true;
+    mockAppContext.profile = { conditions: ["Type 2 Diabetes", "Hypertension"] };
+    mockAppContext.liveProfile = { conditions: ["Type 2 Diabetes", "Hypertension"] };
+
+    vi.spyOn(api, "getMyTrends").mockResolvedValue({
+      generated_at: new Date().toISOString(),
+      advisory: true,
+      window_days: 30,
+      excluded_count: 0,
+      trends: {
+        glucose: {
+          direction: "stable",
+          n: 5,
+          window_days: 30,
+          few_readings: false,
+          values: [{ at: new Date().toISOString(), value: 110 }],
+        },
+      },
+    });
+
+    const { rerender } = render(<TrendScreen />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/100% Adherent/i)).toBeNull();
+      expect(screen.queryByText(translations.en.adherenceChartTitle)).toBeNull();
+    });
+
+    // 2. Demo mode: adherence chart and 100% Adherent badge ARE present
+    mockAppContext.isLiveMode = false;
+    rerender(<TrendScreen />);
+
+    expect(screen.getByText(/100% Adherent/i)).toBeTruthy();
+    expect(screen.getByText(translations.en.adherenceChartTitle)).toBeTruthy();
+  });
 });

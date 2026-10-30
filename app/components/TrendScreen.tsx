@@ -25,7 +25,7 @@ import {
   AlertCircle,
   RefreshCw,
 } from "lucide-react";
-import { api, TrendsResponse, TrendSeries, UserCheckinSummaryResponse } from "../lib/api";
+import { api, TrendsResponse, TrendSeries } from "../lib/api";
 import { getConditionFlags } from "../lib/conditions";
 
 // Fixed seeded sample data points across 8 check-in days for mock / demo mode
@@ -78,25 +78,25 @@ export const TrendDirectionBadge: React.FC<TrendBadgeProps> = ({
 
   const n = series.n;
   const days = series.window_days;
-  const countText = (t.trendsReadingsInDays || "{n} readings in {days} days")
+  const countText = t.trendsReadingsInDays
     .replace("{n}", String(n))
     .replace("{days}", String(days));
 
   let icon = <Minus className="w-3.5 h-3.5 text-slate-700" />;
-  let labelText = t.trendStable || "Stable";
+  let labelText = t.trendStable;
   let badgeStyle = "bg-slate-100 text-slate-800 border-slate-300";
 
   if (series.direction === "rising") {
     icon = <TrendingUp className="w-3.5 h-3.5 text-amber-700" />;
-    labelText = t.trendRising || "Rising";
+    labelText = t.trendRising;
     badgeStyle = "bg-amber-50 text-amber-900 border-amber-300";
   } else if (series.direction === "falling") {
     icon = <TrendingDown className="w-3.5 h-3.5 text-teal-700" />;
-    labelText = t.trendFalling || "Falling";
+    labelText = t.trendFalling;
     badgeStyle = "bg-teal-50 text-teal-900 border-teal-300";
   } else if (series.direction === "not_enough_history") {
     icon = <Clock className="w-3.5 h-3.5 text-slate-500" />;
-    labelText = t.trendNotEnoughHistory || "Not enough history";
+    labelText = t.trendNotEnoughHistory;
     badgeStyle = "bg-slate-100 text-slate-700 border-slate-200";
   }
 
@@ -119,7 +119,6 @@ export const TrendDirectionBadge: React.FC<TrendBadgeProps> = ({
 export const TrendScreen = () => {
   const { returnToHomeAndClearRun, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
   const [liveTrends, setLiveTrends] = useState<TrendsResponse | null>(null);
-  const [liveCheckins, setLiveCheckins] = useState<UserCheckinSummaryResponse[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,23 +129,7 @@ export const TrendScreen = () => {
     setIsLoading(true);
     setError(null);
 
-    // If getUserCheckins is specifically mocked (e.g. in legacy demo-readiness test) and getMyTrends is not
-    const isGetUserCheckinsMocked = Boolean((api.getUserCheckins as any)?._isMockFunction || (api.getUserCheckins as any)?.mock);
-    const isGetMyTrendsMocked = Boolean((api.getMyTrends as any)?._isMockFunction || (api.getMyTrends as any)?.mock);
-
-    if (isGetUserCheckinsMocked && !isGetMyTrendsMocked) {
-      api.getUserCheckins()
-        .then((data) => {
-          setLiveCheckins(data || []);
-          setIsLoading(false);
-        })
-        .catch(() => {
-          setIsLoading(false);
-        });
-      return;
-    }
-
-    // Standard live mode & Day 5 trends:
+    // Live mode always retrieves real trends from backend API
     api
       .getMyTrends(30)
       .then((data) => {
@@ -181,20 +164,16 @@ export const TrendScreen = () => {
 
   // Chart Rendering for Glucose
   const renderGlucoseChart = () => {
-    let chartData: Array<{ day: string; value: number }> = mockGlucoseData;
     const isLive = isLiveMode;
     const hasReadings = isLive && (glucoseSeries?.values?.length ?? 0) > 0;
-
-    if (isLive) {
-      if (hasReadings && glucoseSeries) {
-        chartData = glucoseSeries.values.map((v) => ({
-          day: formatDate(v.at),
-          value: v.value,
-        }));
-      } else {
-        chartData = [];
-      }
-    }
+    const chartData: Array<{ day: string; value: number }> = isLive
+      ? (hasReadings && glucoseSeries
+          ? glucoseSeries.values.map((v) => ({
+              day: formatDate(v.at),
+              value: v.value,
+            }))
+          : [])
+      : mockGlucoseData;
 
     return (
       <div key="glucose-chart" className="surface-card rounded-3xl p-6 shadow-sm space-y-3.5">
@@ -222,16 +201,16 @@ export const TrendScreen = () => {
 
         {isLive && glucoseSeries?.direction === "not_enough_history" && (
           <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
-            {t.trendNotEnoughExplain || "Not enough readings yet. Trends appear after 3 check-ins."}
+            {t.trendNotEnoughExplain}
           </p>
         )}
 
         {isLive && chartData.length === 0 ? (
           <div className="h-44 flex flex-col items-center justify-center text-center p-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-1.5">
             <Clock className="w-6 h-6 text-slate-400" />
-            <p className="text-xs font-bold text-slate-700">{t.trendNotEnoughHistory || "Not enough history"}</p>
+            <p className="text-xs font-bold text-slate-700">{t.trendNotEnoughHistory}</p>
             <p className="text-[11px] text-slate-500 max-w-sm">
-              {t.trendNotEnoughExplain || "Not enough readings yet. Trends appear after 3 check-ins."}
+              {t.trendNotEnoughExplain}
             </p>
           </div>
         ) : (
@@ -276,30 +255,28 @@ export const TrendScreen = () => {
 
   // Chart Rendering for Blood Pressure
   const renderBpChart = () => {
-    let chartData: Array<{ day: string; systolic?: number; diastolic?: number }> = mockBpData;
     const isLive = isLiveMode;
     const hasSys = isLive && (systolicSeries?.values?.length ?? 0) > 0;
     const hasDia = isLive && (diastolicSeries?.values?.length ?? 0) > 0;
+    let chartData: Array<{ day: string; systolic?: number; diastolic?: number }> = [];
 
-    if (isLive) {
-      if (hasSys || hasDia) {
-        const map = new Map<string, { day: string; systolic?: number; diastolic?: number }>();
-        (systolicSeries?.values || []).forEach((v) => {
-          const d = formatDate(v.at);
-          const cur = map.get(d) || { day: d };
-          cur.systolic = v.value;
-          map.set(d, cur);
-        });
-        (diastolicSeries?.values || []).forEach((v) => {
-          const d = formatDate(v.at);
-          const cur = map.get(d) || { day: d };
-          cur.diastolic = v.value;
-          map.set(d, cur);
-        });
-        chartData = Array.from(map.values());
-      } else {
-        chartData = [];
-      }
+    if (!isLive) {
+      chartData = mockBpData;
+    } else if (hasSys || hasDia) {
+      const map = new Map<string, { day: string; systolic?: number; diastolic?: number }>();
+      (systolicSeries?.values || []).forEach((v) => {
+        const d = formatDate(v.at);
+        const cur = map.get(d) || { day: d };
+        cur.systolic = v.value;
+        map.set(d, cur);
+      });
+      (diastolicSeries?.values || []).forEach((v) => {
+        const d = formatDate(v.at);
+        const cur = map.get(d) || { day: d };
+        cur.diastolic = v.value;
+        map.set(d, cur);
+      });
+      chartData = Array.from(map.values());
     }
 
     return (
@@ -314,7 +291,7 @@ export const TrendScreen = () => {
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 {systolicSeries && (
                   <TrendDirectionBadge
-                    metricLabel={t.systolicLabel || "Systolic"}
+                    metricLabel={t.systolicLabel}
                     series={systolicSeries}
                     t={t}
                     isUrdu={isUrdu}
@@ -322,7 +299,7 @@ export const TrendScreen = () => {
                 )}
                 {diastolicSeries && (
                   <TrendDirectionBadge
-                    metricLabel={t.diastolicLabel || "Diastolic"}
+                    metricLabel={t.diastolicLabel}
                     series={diastolicSeries}
                     t={t}
                     isUrdu={isUrdu}
@@ -346,16 +323,16 @@ export const TrendScreen = () => {
 
         {isLive && (systolicSeries?.direction === "not_enough_history" || diastolicSeries?.direction === "not_enough_history") && (
           <p className="text-xs text-slate-600 bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
-            {t.trendNotEnoughExplain || "Not enough readings yet. Trends appear after 3 check-ins."}
+            {t.trendNotEnoughExplain}
           </p>
         )}
 
         {isLive && chartData.length === 0 ? (
           <div className="h-44 flex flex-col items-center justify-center text-center p-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-1.5">
             <Clock className="w-6 h-6 text-slate-400" />
-            <p className="text-xs font-bold text-slate-700">{t.trendNotEnoughHistory || "Not enough history"}</p>
+            <p className="text-xs font-bold text-slate-700">{t.trendNotEnoughHistory}</p>
             <p className="text-[11px] text-slate-500 max-w-sm">
-              {t.trendNotEnoughExplain || "Not enough readings yet. Trends appear after 3 check-ins."}
+              {t.trendNotEnoughExplain}
             </p>
           </div>
         ) : (
@@ -453,7 +430,7 @@ export const TrendScreen = () => {
       <div className="bg-navy-800 rounded-3xl p-6 sm:p-8 text-white text-center shadow-lg relative overflow-hidden border border-teal-500/30">
         <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-teal-500/25 text-teal-200 text-xs font-bold uppercase tracking-wider mb-2.5">
           <TrendingUp className="w-3.5 h-3.5" />
-          <span>{isLiveMode ? "Longitudinal Trajectory (30-Day Window)" : "8-Day Clinical Observation Window"}</span>
+          <span>{isLiveMode ? t.trendLongitudinalTrajectory : t.clinicalObservationWindow8Day}</span>
         </div>
         <h1 className="font-heading text-2xl sm:text-3xl font-bold text-white mb-1.5">
           {t.trendsTitle}
@@ -463,28 +440,7 @@ export const TrendScreen = () => {
         </p>
       </div>
 
-      {/* Live Mode: Handle Fewer Than 3 Check-ins (When no trends loaded and checkins < 3) */}
-      {isLiveMode && !isLoading && !liveTrends && !error && liveCheckins.length < 3 ? (
-        <div className="surface-card rounded-3xl p-8 sm:p-10 text-center space-y-4 border border-slate-200 shadow-sm">
-          <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto shadow-inner">
-            <Clock className="w-8 h-8" />
-          </div>
-          <div className="space-y-1.5 max-w-md mx-auto">
-            <h2 className="font-heading text-xl font-bold text-navy-800">
-              {isUrdu ? "ناکافی تاریخی ڈیٹا" : "Not Enough History Yet"}
-            </h2>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              {t.notEnoughHistory}
-            </p>
-          </div>
-
-          <div className="pt-3">
-            <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
-              <span>Recorded Check-ins: {liveCheckins.length} / 3 required</span>
-            </span>
-          </div>
-        </div>
-      ) : isLiveMode && isLoading ? (
+      {isLiveMode && isLoading ? (
         /* Loading Skeleton */
         <div className="space-y-6 animate-pulse" aria-busy="true" aria-label="Loading trends">
           <div className="surface-card rounded-3xl p-8 h-60 bg-slate-100 flex flex-col items-center justify-center space-y-3">
@@ -503,7 +459,7 @@ export const TrendScreen = () => {
           </div>
           <div className="space-y-1.5 max-w-md mx-auto">
             <h2 className="font-heading text-xl font-bold text-navy-800">
-              {t.trendsErrorTitle || "Unable to Load Trends"}
+              {t.trendsErrorTitle}
             </h2>
             <p className="text-sm text-slate-600 leading-relaxed">
               {error}
@@ -517,7 +473,7 @@ export const TrendScreen = () => {
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-navy-800 hover:bg-navy-900 active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-md transition-all"
             >
               <RefreshCw className="w-4 h-4" />
-              <span>{t.trendsErrorRetry || "Try Again"}</span>
+              <span>{t.trendsErrorRetry}</span>
             </button>
           </div>
         </div>
@@ -527,13 +483,13 @@ export const TrendScreen = () => {
             <>
               {renderBpChart()}
               {conditionFlags.hasDiabetes && renderGlucoseChart()}
-              {renderAdherenceChart()}
+              {!isLiveMode && renderAdherenceChart()}
             </>
           ) : (
             <>
               {renderGlucoseChart()}
               {renderBpChart()}
-              {renderAdherenceChart()}
+              {!isLiveMode && renderAdherenceChart()}
             </>
           )}
         </>

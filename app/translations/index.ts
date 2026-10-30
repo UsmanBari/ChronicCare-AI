@@ -213,6 +213,9 @@ export interface Translations {
   trendsErrorRetry: string;
   trendsReadingsInDays: string;
   providerTrendsTitle: string;
+  providerLongitudinalWindow: string;
+  trendLongitudinalTrajectory: string;
+  clinicalObservationWindow8Day: string;
   noTrendsAvailable: string;
   systolicLabel: string;
   diastolicLabel: string;
@@ -611,6 +614,9 @@ export const translations: Record<Language, Translations> = {
     trendsErrorRetry: "Try Again",
     trendsReadingsInDays: "{n} readings in {days} days",
     providerTrendsTitle: "Trends (30 days)",
+    providerLongitudinalWindow: "Longitudinal window: {days} days",
+    trendLongitudinalTrajectory: "Longitudinal Trajectory (30-Day Window)",
+    clinicalObservationWindow8Day: "8-Day Clinical Observation Window",
     noTrendsAvailable: "No trend data available.",
     systolicLabel: "Systolic",
     diastolicLabel: "Diastolic",
@@ -1008,6 +1014,9 @@ export const translations: Record<Language, Translations> = {
     trendsErrorRetry: "دوبارہ کوشش کریں",
     trendsReadingsInDays: "{days} دن میں {n} ریڈنگ",
     providerTrendsTitle: "رجحانات (30 دن)",
+    providerLongitudinalWindow: "طویل مدتی دورانیہ: {days} دن",
+    trendLongitudinalTrajectory: "طویل مدتی رجحان (30 دن کا دورانیہ)",
+    clinicalObservationWindow8Day: "8 دن کا کلینیکل مشاہداتی دورانیہ",
     noTrendsAvailable: "کوئی رجحان کا ڈیٹا دستیاب نہیں ہے۔",
     systolicLabel: "سسٹولک",
     diastolicLabel: "ڈائسٹولک",

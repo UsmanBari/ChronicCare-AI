@@ -318,18 +318,18 @@ export const ReconciliationAlertDetail = () => {
           <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
             <span className="text-xs font-bold uppercase tracking-wider text-navy-800 flex items-center gap-1.5">
               <TrendingUp className="w-4 h-4 text-teal-700" />
-              <span>{t.providerTrendsTitle || "Trends (30 days)"}</span>
+              <span>{t.providerTrendsTitle}</span>
             </span>
             <span className="text-[10px] text-slate-500 font-medium italic">
-              Longitudinal window: {liveDetail.trends.window_days} days
+              {t.providerLongitudinalWindow.replace("{days}", String(liveDetail.trends.window_days))}
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {[
-              { key: "blood_pressure_systolic", label: t.systolicLabel || "Systolic BP", unit: "mmHg" },
-              { key: "blood_pressure_diastolic", label: t.diastolicLabel || "Diastolic BP", unit: "mmHg" },
-              { key: "glucose", label: t.glucoseChartTitle || "Glucose", unit: "mg/dL" },
+              { key: "blood_pressure_systolic", label: t.systolicLabel, unit: "mmHg" },
+              { key: "blood_pressure_diastolic", label: t.diastolicLabel, unit: "mmHg" },
+              { key: "glucose", label: t.glucoseChartTitle, unit: "mg/dL" },
             ].map(({ key, label, unit }) => {
               const series = liveDetail.trends?.trends?.[key];
               if (!series) return null;
@@ -338,20 +338,20 @@ export const ReconciliationAlertDetail = () => {
               const lastThree = (series.values || []).slice(-3).reverse();
 
               let badgeColor = "bg-slate-100 text-slate-800 border-slate-300";
-              let badgeText = t.trendStable || "Stable";
+              let badgeText = t.trendStable;
               let badgeIcon = <Minus className="w-3 h-3 text-slate-600" />;
 
               if (series.direction === "rising") {
                 badgeColor = "bg-amber-50 text-amber-900 border-amber-300";
-                badgeText = t.trendRising || "Rising";
+                badgeText = t.trendRising;
                 badgeIcon = <TrendingUp className="w-3 h-3 text-amber-700" />;
               } else if (series.direction === "falling") {
                 badgeColor = "bg-teal-50 text-teal-900 border-teal-300";
-                badgeText = t.trendFalling || "Falling";
+                badgeText = t.trendFalling;
                 badgeIcon = <TrendingDown className="w-3 h-3 text-teal-700" />;
               } else if (isNotEnough) {
                 badgeColor = "bg-slate-100 text-slate-600 border-slate-200";
-                badgeText = t.trendNotEnoughHistory || "Not enough history";
+                badgeText = t.trendNotEnoughHistory;
                 badgeIcon = <Clock className="w-3 h-3 text-slate-500" />;
               }
 
@@ -367,7 +367,7 @@ export const ReconciliationAlertDetail = () => {
 
                   {isNotEnough ? (
                     <p className="text-[11px] text-slate-500 italic">
-                      {t.trendNotEnoughExplain || "Not enough readings yet. Trends appear after 3 check-ins."}
+                      {t.trendNotEnoughExplain}
                     </p>
                   ) : lastThree.length > 0 ? (
                     <div className="space-y-1 pt-1">

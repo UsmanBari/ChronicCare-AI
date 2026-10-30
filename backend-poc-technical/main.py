@@ -3762,7 +3762,7 @@ def _compute_patient_trends_safe(user_id: str, days: int = 30) -> Optional[Trend
         computed = compute_trends(raw_history, window_days=days)
         return TrendsResponse(**computed)
     except Exception as e:
-        logger.warning(f"Trend computation failed for patient {user_id}: {type(e).__name__}")
+        logger.warning(f"Trend computation failed: {type(e).__name__}")
         return None
 
 
