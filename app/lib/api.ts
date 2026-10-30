@@ -315,6 +315,35 @@ export interface ReviewActionResponse {
   ts: string;
 }
 
+export interface TrendValue {
+  value: number;
+  at: string;
+}
+
+export interface TrendSeries {
+  direction: "rising" | "falling" | "stable" | "not_enough_history";
+  n: number;
+  window_days: number;
+  few_readings: boolean;
+  first_at?: string | null;
+  last_at?: string | null;
+  median_earlier?: number | null;
+  median_recent?: number | null;
+  change?: number | null;
+  slope_per_week?: number | null;
+  values: TrendValue[];
+  contexts_seen?: string[];
+  mixed_contexts?: boolean;
+}
+
+export interface TrendsResponse {
+  generated_at: string;
+  advisory: boolean;
+  window_days: number;
+  excluded_count: number;
+  trends: Record<string, TrendSeries>;
+}
+
 export interface ReviewDetailResponse {
   checkin_id: string;
   patient_id: string;
@@ -334,6 +363,7 @@ export interface ReviewDetailResponse {
   trigger_reading?: Record<string, any> | string | null;
   escalated_at?: string | null;
   patient_background?: PatientBackgroundResponse | null;
+  trends?: TrendsResponse | null;
 }
 
 export interface AuditLogRow {
@@ -810,6 +840,12 @@ export const api = {
     checkin_id: string
   ): Promise<UserCheckinDetailResponse> => {
     return request<UserCheckinDetailResponse>(`/api/checkins/${encodeURIComponent(checkin_id)}`, {
+      method: "GET",
+    });
+  },
+
+  getMyTrends: async (days = 30): Promise<TrendsResponse> => {
+    return request<TrendsResponse>(`/api/me/trends?days=${encodeURIComponent(days)}`, {
       method: "GET",
     });
   },

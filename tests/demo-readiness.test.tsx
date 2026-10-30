@@ -255,7 +255,23 @@ describe("STAGE 10E: Demo Readiness Tests", () => {
     });
 
     it("renders empty state without crashing when live mode has fewer than 3 check-ins", async () => {
-      vi.spyOn(api, "getUserCheckins").mockResolvedValue([]);
+      vi.spyOn(api, "getMyTrends").mockResolvedValue({
+        generated_at: new Date().toISOString(),
+        advisory: true,
+        window_days: 30,
+        excluded_count: 0,
+        trends: {
+          glucose: {
+            metric: "glucose",
+            direction: "not_enough_history",
+            n: 1,
+            values: [{ at: new Date().toISOString(), value: 120 }],
+            change: 0,
+            slope_per_week: 0,
+            window_days: 30,
+          },
+        },
+      });
 
       Object.assign(mockContext, {
         profile: { conditions: ["Type 2 Diabetes"] },
@@ -269,8 +285,8 @@ describe("STAGE 10E: Demo Readiness Tests", () => {
       render(<TrendScreen />);
 
       await waitFor(() => {
-        expect(screen.getByText("Not Enough History Yet")).toBeTruthy();
-        expect(screen.getByText(/Recorded Check-ins: 0 \/ 3 required/)).toBeTruthy();
+        expect(screen.getAllByText("Not enough history").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("Not enough readings yet. Trends appear after 3 check-ins.").length).toBeGreaterThan(0);
       });
     });
   });

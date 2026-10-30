@@ -87,6 +87,7 @@ from agents.triage_protocol import (
     SYSTOLIC,
     DIASTOLIC,
 )
+from agents.trend_agent import compute_trends
 from data_sources.data_source import get_patient_bundle
 from data_sources.local_store import (
     init_db as local_store_init_db,
@@ -152,6 +153,7 @@ from data_sources.app_store import (
     get_checkin_result,
     get_user_checkins,
     get_user_baseline_history,
+    get_user_reading_history,
     get_provider_review_queue,
     append_review_action,
     get_review_actions,
@@ -883,6 +885,35 @@ class ReviewActionResponse(BaseModel):
     ts: str
 
 
+class TrendValue(BaseModel):
+    value: float
+    at: str
+
+
+class TrendSeries(BaseModel):
+    direction: str
+    n: int
+    window_days: int
+    few_readings: bool
+    first_at: Optional[str] = None
+    last_at: Optional[str] = None
+    median_earlier: Optional[float] = None
+    median_recent: Optional[float] = None
+    change: Optional[float] = None
+    slope_per_week: Optional[float] = None
+    values: List[TrendValue]
+    contexts_seen: Optional[List[str]] = None
+    mixed_contexts: Optional[bool] = None
+
+
+class TrendsResponse(BaseModel):
+    generated_at: str
+    advisory: bool = True
+    window_days: int
+    excluded_count: int
+    trends: Dict[str, TrendSeries]
+
+
 class ReviewDetailResponse(BaseModel):
     checkin_id: str
     patient_id: str
@@ -905,6 +936,7 @@ class ReviewDetailResponse(BaseModel):
     record_source_label: Optional[str] = None
     patient_background: Optional[Dict[str, Any]] = None
     answered_by: Optional[str] = None
+    trends: Optional[TrendsResponse] = None
 
 
 class VoiceTranscribeResponse(BaseModel):
@@ -3723,6 +3755,28 @@ def get_user_checkin_detail_endpoint(
 
 
 # =============================================================================
+def _compute_patient_trends_safe(user_id: str, days: int = 30) -> Optional[TrendsResponse]:
+    """Safely compute patient trends for clinical review; fails gracefully to None."""
+    try:
+        raw_history = get_user_reading_history(user_id, days=days)
+        computed = compute_trends(raw_history, window_days=days)
+        return TrendsResponse(**computed)
+    except Exception as e:
+        logger.warning(f"Trend computation failed: {type(e).__name__}")
+        return None
+
+
+@app.get("/api/me/trends", response_model=TrendsResponse, tags=["Trends"])
+def get_my_trends_endpoint(
+    days: int = Query(30, ge=7, le=90, description="Observation window in days (7-90)"),
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Retrieves longitudinal health trends for authenticated patient."""
+    history = get_user_reading_history(current_user["user_id"], days=days)
+    result = compute_trends(history, window_days=days)
+    return TrendsResponse(**result)
+
+
 # PROVIDER REVIEW QUEUE & ACTION ENDPOINTS
 # =============================================================================
 
@@ -3823,6 +3877,7 @@ def get_provider_review_detail_endpoint(
         record_source_label=record_label,
         patient_background=patient_bg,
         answered_by=answered_by_val,
+        trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
     )
 
 
@@ -3895,6 +3950,7 @@ def post_provider_review_action_endpoint(
         actions=[ReviewActionResponse(**a) for a in actions],
         record_source_label=record_label,
         patient_background=patient_bg,
+        trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
     )
 
 
