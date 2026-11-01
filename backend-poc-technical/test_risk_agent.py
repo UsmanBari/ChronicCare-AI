@@ -227,6 +227,38 @@ def test_bmi_and_smoking_status_mappings():
     assert res_never["probability"] < res_current["probability"]
 
 
+def test_smoking_status_prefer_not_to_say_is_missing():
+    """Smoking status 'prefer_not_to_say', empty, or unknown counts as MISSING, never as non-smoker."""
+    base_profile = {
+        "date_of_birth": "1985-06-15",
+        "sex_at_birth": "male",
+        "height_cm": 175.0,
+        "weight_kg": 75.0,
+        "waist_cm": 85.0,
+    }
+    readings = {"systolic": 120.0, "diastolic": 80.0}
+
+    # 1. prefer_not_to_say
+    p_prefer = dict(base_profile, smoking_status="prefer_not_to_say")
+    res_prefer = risk_agent.assess(p_prefer, readings, ["hypertension"], now="2026-10-30", models_dir=MODELS_DIR)
+    assert res_prefer is not None
+    assert res_prefer["status"] == "not_enough_information"
+    assert "smoking_status" in res_prefer["missing"]
+    assert "probability" not in res_prefer
+
+    # 2. None
+    p_none = dict(base_profile, smoking_status=None)
+    res_none = risk_agent.assess(p_none, readings, ["hypertension"], now="2026-10-30", models_dir=MODELS_DIR)
+    assert res_none["status"] == "not_enough_information"
+    assert "smoking_status" in res_none["missing"]
+
+    # 3. Empty string
+    p_empty = dict(base_profile, smoking_status="")
+    res_empty = risk_agent.assess(p_empty, readings, ["hypertension"], now="2026-10-30", models_dir=MODELS_DIR)
+    assert res_empty["status"] == "not_enough_information"
+    assert "smoking_status" in res_empty["missing"]
+
+
 def test_error_resilience_and_no_phi_in_logs(caplog):
     """Corrupted inputs never crash the agent, and logs never contain patient values."""
     caplog.set_level(logging.WARNING)

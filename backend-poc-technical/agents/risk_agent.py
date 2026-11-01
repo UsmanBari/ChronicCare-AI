@@ -274,7 +274,7 @@ def assess(
         elif smoke_raw == "never":
             raw_features["ever_smoked_100"] = 0.0
         else:
-            missing.append("ever_smoked_100")
+            missing.append("smoking_status")
 
         # Feature: told_high_bp (1.0 by applicability check)
         raw_features["told_high_bp"] = 1.0
