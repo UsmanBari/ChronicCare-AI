@@ -433,6 +433,39 @@ export interface Translations {
   riskMissingWaist: string;
   riskMissingSmoking: string;
   riskMissingHeightWeight: string;
+
+  // Record History, Export & Import (Day 6)
+  recordHistoryTitle: string;
+  recordHistoryBtn: string;
+  viewFullHistory: string;
+  noHistoryRecorded: string;
+  historyField: string;
+  historyOldValue: string;
+  historyNewValue: string;
+  historyChangedAt: string;
+  originSelfReported: string;
+  originOcr: string;
+  originClinician: string;
+  originImport: string;
+  originEhr: string;
+  exportRecordBtn: string;
+  exportJson: string;
+  exportFhir: string;
+  exporting: string;
+  importRecordBtn: string;
+  importTitle: string;
+  importSubtitle: string;
+  importPreviewTitle: string;
+  importToAdd: string;
+  importDuplicates: string;
+  importInvalid: string;
+  confirmImport: string;
+  cancelImport: string;
+  importSuccess: string;
+  importFailed: string;
+  importBaselineNote: string;
+  recentRecordChangesTitle: string;
+  recentRecordChangesSubtitle: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -860,6 +893,39 @@ export const translations: Record<Language, Translations> = {
     riskMissingWaist: "Waist circumference in patient profile",
     riskMissingSmoking: "Smoking status in patient profile",
     riskMissingHeightWeight: "Height and weight in patient profile",
+
+    // Record History, Export & Import (Day 6)
+    recordHistoryTitle: "Record History",
+    recordHistoryBtn: "History",
+    viewFullHistory: "View full record history",
+    noHistoryRecorded: "No changes recorded yet.",
+    historyField: "Field",
+    historyOldValue: "Before",
+    historyNewValue: "After",
+    historyChangedAt: "Date & Time",
+    originSelfReported: "You",
+    originOcr: "OCR Scan",
+    originClinician: "Clinician",
+    originImport: "Imported",
+    originEhr: "Hospital EHR",
+    exportRecordBtn: "Download my record",
+    exportJson: "Download JSON",
+    exportFhir: "Download FHIR",
+    exporting: "Downloading...",
+    importRecordBtn: "Import a record file",
+    importTitle: "Import Health Record",
+    importSubtitle: "Upload a previously exported ChronicCare JSON or standard FHIR Bundle file.",
+    importPreviewTitle: "Import Preview",
+    importToAdd: "Items to add",
+    importDuplicates: "Duplicates (will skip)",
+    importInvalid: "Invalid (cannot import)",
+    confirmImport: "Confirm import",
+    cancelImport: "Cancel",
+    importSuccess: "Record imported successfully",
+    importFailed: "Import failed",
+    importBaselineNote: "Readings older than 14 days will be imported to your history, but will not be used in the 14-day check-in baseline.",
+    recentRecordChangesTitle: "Recent record changes",
+    recentRecordChangesSubtitle: "Recent updates made to patient's clinical baseline record",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1287,5 +1353,38 @@ export const translations: Record<Language, Translations> = {
     riskMissingWaist: "مریض کے پروفائل میں کمر کی پیمائش",
     riskMissingSmoking: "مریض کے پروفائل میں تمباکو نوشی کی تفصیل",
     riskMissingHeightWeight: "مریض کے پروفائل میں قد اور وزن",
+
+    // Record History, Export & Import (Day 6)
+    recordHistoryTitle: "ریکارڈ کی تاریخ",
+    recordHistoryBtn: "تاریخ",
+    viewFullHistory: "پورے ریکارڈ کی تاریخ دیکھیں",
+    noHistoryRecorded: "ابھی تک کوئی تبدیلی درج نہیں کی گئی۔",
+    historyField: "شعبہ",
+    historyOldValue: "پہلے",
+    historyNewValue: "بعد میں",
+    historyChangedAt: "تاریخ اور وقت",
+    originSelfReported: "آپ خود",
+    originOcr: "او سی آر اسکین",
+    originClinician: "طبی ماہر",
+    originImport: "درآمد شدہ",
+    originEhr: "ہسپتال ریکارڈ",
+    exportRecordBtn: "اپنا ریکارڈ ڈاؤن لوڈ کریں",
+    exportJson: "جے سن (JSON) ڈاؤن لوڈ کریں",
+    exportFhir: "فائر (FHIR) ڈاؤن لوڈ کریں",
+    exporting: "ڈاؤن لوڈ ہو رہا ہے...",
+    importRecordBtn: "ریکارڈ فائل درآمد کریں",
+    importTitle: "صحت کا ریکارڈ درآمد کریں",
+    importSubtitle: "پہلے سے برآمد شدہ کرونک کیئر JSON یا معیاری FHIR بنڈل فائل اپ لوڈ کریں۔",
+    importPreviewTitle: "درآمد کا پیش نظارہ",
+    importToAdd: "شامل ہونے والی چیزیں",
+    importDuplicates: "پہلے سے موجود (چھوڑ دی جائیں گی)",
+    importInvalid: "ناقابل قبول (درآمد نہیں ہو سکتیں)",
+    confirmImport: "درآمد کی تصدیق کریں",
+    cancelImport: "منسوخ کریں",
+    importSuccess: "ریکارڈ کامیابی سے درآمد ہو گیا",
+    importFailed: "درآمد ناکام ہو گئی",
+    importBaselineNote: "۱۴ دن سے پرانی ریڈنگز آپ کی تاریخ میں شامل ہوں گی، لیکن روزانہ کے چیک ان موازنے میں استعمال نہیں ہوں گی۔",
+    recentRecordChangesTitle: "ریکارڈ میں حالیہ تبدیلیاں",
+    recentRecordChangesSubtitle: "مریض کے کلینیکل ریکارڈ میں کی گئی تازہ ترین تبدیلیاں",
   }
 };

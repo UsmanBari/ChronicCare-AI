@@ -220,6 +220,18 @@ def test_sqlite_schema_v12_to_v13_migration(test_db_path):
     # Verify schema_version table records version 13
     cur.execute("SELECT version FROM schema_version WHERE version = 13")
     assert cur.fetchone() is not None
+
+    # Verify record_edits table exists and has expected columns
+    cur.execute("PRAGMA table_info(record_edits)")
+    re_cols = [r[1] for r in cur.fetchall()]
+    for expected_col in ["edit_id", "user_id", "record_type", "record_id", "field", "old_value", "new_value", "origin", "changed_by_user_id", "changed_at", "reason"]:
+        assert expected_col in re_cols, f"Missing column {expected_col} in record_edits"
+
+    # Verify composite indexes exist
+    cur.execute("PRAGMA index_list(record_edits)")
+    indexes = [r[1] for r in cur.fetchall()]
+    assert "idx_record_edits_lookup" in indexes
+    assert "idx_record_edits_timeline" in indexes
     conn.close()
 
     # Existing values are completely untouched
@@ -292,3 +304,29 @@ def test_sqlite_v13_non_duplicate_error_is_raised():
         mock_get_cursor.return_value.__enter__.return_value = (fake_cursor, "sqlite", "?")
         with pytest.raises(sqlite3.OperationalError, match="disk I/O error"):
             migrate(backend="sqlite", db_path=":memory:")
+
+
+def test_mysql_record_edits_ddl_syntax_and_columns():
+    """
+    Asserts that MYSQL_RECORD_EDITS_DDL defines all required columns, data types,
+    and composite indexes for MySQL production path.
+    """
+    from data_sources.app_store import MYSQL_RECORD_EDITS_DDL
+    ddl_lower = MYSQL_RECORD_EDITS_DDL.lower()
+    assert "create table if not exists record_edits" in ddl_lower
+    for col in [
+        "edit_id varchar(64) primary key",
+        "user_id varchar(64) not null",
+        "record_type varchar(32) not null",
+        "record_id varchar(64) not null",
+        "field varchar(64) not null",
+        "old_value text",
+        "new_value text",
+        "origin varchar(32) not null",
+        "changed_by_user_id varchar(64) not null",
+        "changed_at varchar(64) not null",
+        "reason text",
+        "index idx_record_edits_lookup (user_id, record_type, record_id)",
+        "index idx_record_edits_timeline (user_id, changed_at desc)",
+    ]:
+        assert col in ddl_lower, f"MySQL DDL missing definition: {col}"

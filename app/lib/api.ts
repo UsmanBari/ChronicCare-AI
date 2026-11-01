@@ -393,7 +393,64 @@ export interface ReviewDetailResponse {
   patient_background?: PatientBackgroundResponse | null;
   trends?: TrendsResponse | null;
   risk?: RiskAssessmentResponse | null;
+  recent_record_edits?: RecordEditItem[] | null;
 }
+export interface RecordEditItem {
+  edit_id: string;
+  id?: string;
+  user_id?: string;
+  record_type: string;
+  record_id: string;
+  field: string;
+  old_value: any;
+  new_value: any;
+  origin: string;
+  changed_by_user_id: string;
+  changed_by_role?: string | null;
+  changed_at: string;
+  reason?: string | null;
+}
+
+export interface RecordHistoryResponse {
+  edits: RecordEditItem[];
+  count: number;
+}
+
+export interface ImportPreviewItem {
+  name?: string;
+  dosage?: string;
+  status?: string;
+  type?: string;
+  observation_type?: string;
+  value?: number;
+  unit?: string;
+  measured_at?: string;
+  substance?: string;
+  reaction?: string | null;
+  confirmed?: boolean;
+  condition?: string;
+  basis?: string;
+  will_import: boolean;
+  reason?: string | null;
+}
+
+export interface RecordImportResponse {
+  status?: string;
+  dry_run: boolean;
+  imported?: number;
+  duplicates?: number;
+  invalid?: number;
+  counts?: { to_add: number; duplicates: number; invalid: number };
+  imported_counts?: { medications: number; observations: number; allergies: number };
+  duplicate_counts?: { medications: number; observations: number; allergies: number };
+  preview?: {
+    medications: ImportPreviewItem[];
+    observations: ImportPreviewItem[];
+    allergies: ImportPreviewItem[];
+    conditions_basis: ImportPreviewItem[];
+  };
+}
+
 
 export interface AuditLogRow {
   id: number;
@@ -940,6 +997,37 @@ export const api = {
         "Content-Type": contentType,
       },
       body: file,
+    });
+  },
+
+  // 8. Record Edit History, Export, and Import
+  getRecordHistory: async (recordType?: string, recordId?: string, limit: number = 50): Promise<RecordHistoryResponse> => {
+    const params = new URLSearchParams();
+    if (recordType) params.set("record_type", recordType);
+    if (recordId) params.set("record_id", recordId);
+    params.set("limit", limit.toString());
+    return request<RecordHistoryResponse>(`/api/me/record/history?${params.toString()}`);
+  },
+
+  exportRecord: async (format: "json" | "fhir" = "json"): Promise<Blob> => {
+    const baseUrl = getBaseUrl();
+    const headers = await getAuthHeaders();
+    delete headers["Content-Type"];
+    const res = await fetch(`${baseUrl}/api/me/record/export?format=${format}`, {
+      headers,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Export failed" }));
+      throw new ApiError(res.status, err.detail || "Export failed");
+    }
+    return res.blob();
+  },
+
+  importRecord: async (payload: any, isFhir: boolean = false, dryRun: boolean = true): Promise<RecordImportResponse> => {
+    return request<RecordImportResponse>(`/api/me/record/import?dry_run=${dryRun}`, {
+      method: "POST",
+      headers: isFhir ? { "Content-Type": "application/fhir+json" } : { "Content-Type": "application/json" },
+      body: typeof payload === "string" ? payload : JSON.stringify(payload),
     });
   },
 };

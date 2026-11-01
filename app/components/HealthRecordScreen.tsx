@@ -17,6 +17,10 @@ import {
   ChevronDown,
   RotateCcw,
   Sparkles,
+  Clock,
+  Download,
+  Upload,
+  X,
 } from "lucide-react";
 import {
   api,
@@ -26,6 +30,8 @@ import {
   RecordAllergyItem,
   RecordObservationItem,
   RecordConditionItem,
+  RecordEditItem,
+  RecordImportResponse,
 } from "../lib/api";
 import { mapApiError } from "../lib/presentation";
 import { getConditionFlags } from "../lib/conditions";
@@ -55,6 +61,22 @@ export const HealthRecordScreen = () => {
   const [allergyReaction, setAllergyReaction] = useState("");
   const [allergyConfirmed, setAllergyConfirmed] = useState(false);
   const [isAddingAllergy, setIsAddingAllergy] = useState(false);
+
+  // History state
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState<{ type?: string; id?: string; label?: string } | null>(null);
+  const [historyEdits, setHistoryEdits] = useState<RecordEditItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  // Export & Import state
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importPayload, setImportPayload] = useState<any>(null);
+  const [isFhirImport, setIsFhirImport] = useState(false);
+  const [importPreview, setImportPreview] = useState<RecordImportResponse | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const conditionFlags = getConditionFlags(
     isLiveMode
@@ -127,6 +149,100 @@ export const HealthRecordScreen = () => {
   const showToast = (msg: string) => {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(null), 3000);
+  };
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsHistoryOpen(false);
+        setIsImportModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const openHistory = async (type?: string, id?: string, label?: string) => {
+    setHistoryFilter({ type, id, label });
+    setIsHistoryOpen(true);
+    setIsLoadingHistory(true);
+    setHistoryError(null);
+    try {
+      const res = await api.getRecordHistory(type, id, 50);
+      setHistoryEdits(res.edits || []);
+    } catch (err: any) {
+      setHistoryError(err?.message || "Failed to load history");
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const handleExport = async (format: "json" | "fhir") => {
+    setIsExporting(true);
+    try {
+      const blob = await api.exportRecord(format);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const today = new Date().toISOString().slice(0, 10);
+      a.download = `chroniccare-record-${today}.${format === "fhir" ? "fhir.json" : "json"}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showToast(isUrdu ? "ریکارڈ کامیابی سے ڈاؤن لوڈ ہو گیا ہے" : "Record downloaded successfully");
+    } catch (err: any) {
+      setError(err?.message || "Failed to export record");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setIsImporting(true);
+    try {
+      const text = await file.text();
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        setError(isUrdu ? "فائل کا فارمیٹ درست نہیں ہے (JSON درکار ہے)" : "Invalid file format. Valid JSON required.");
+        setIsImporting(false);
+        return;
+      }
+      const isFhir = Boolean(parsed && parsed.resourceType === "Bundle");
+      setIsFhirImport(isFhir);
+      setImportPayload(parsed);
+
+      const preview = await api.importRecord(parsed, isFhir, true);
+      setImportPreview(preview);
+      setIsImportModalOpen(true);
+    } catch (err: any) {
+      setError(err?.message || "Failed to preview import");
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!importPayload) return;
+    setIsImporting(true);
+    try {
+      await api.importRecord(importPayload, isFhirImport, false);
+      showToast(isUrdu ? "ریکارڈ کامیابی سے درآمد ہو گیا ہے" : "Record imported successfully");
+      setIsImportModalOpen(false);
+      setImportPayload(null);
+      setImportPreview(null);
+      await loadRecord();
+    } catch (err: any) {
+      setError(err?.message || "Failed to commit import");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   // 1. Conditions Basis Update
@@ -402,11 +518,66 @@ export const HealthRecordScreen = () => {
         <h1 className="font-heading text-2xl sm:text-3xl font-bold mb-1.5">
           {isUrdu ? "آپ کا ذاتی ہیلتھ ریکارڈ" : "Your Health Record"}
         </h1>
-        <p className="text-slate-200 text-xs sm:text-sm leading-relaxed max-w-xl">
+        <p className="text-slate-200 text-xs sm:text-sm leading-relaxed max-w-xl mb-4">
           {isUrdu
             ? "اپنے حالات، ادویات، الرجی اور بنیادی پیمائشیں درج کریں تاکہ خودکار چیک ان کا صحیح موازنہ ہو سکے۔"
             : "Enter your conditions, medications, allergies, and baseline vitals. This establishes your private health baseline for accurate check-in comparisons."}
         </p>
+
+        {/* Toolbar: Full History, Export, and Import */}
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-teal-500/30">
+          <button
+            type="button"
+            data-testid="view-full-history-btn"
+            onClick={() => openHistory(undefined, undefined, isUrdu ? "مکمل ریکارڈ" : "Full Record")}
+            className="px-3 py-1.5 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 border border-teal-300/30 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>{t.viewFullHistory}</span>
+          </button>
+
+          <div className="inline-flex rounded-xl bg-white/10 p-0.5 border border-white/20">
+            <button
+              type="button"
+              data-testid="export-json-btn"
+              disabled={isExporting}
+              onClick={() => handleExport("json")}
+              className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-100 hover:text-white hover:bg-white/10 transition-all flex items-center gap-1"
+            >
+              <Download className="w-3 h-3" />
+              <span>{t.exportJson}</span>
+            </button>
+            <button
+              type="button"
+              data-testid="export-fhir-btn"
+              disabled={isExporting}
+              onClick={() => handleExport("fhir")}
+              className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-100 hover:text-white hover:bg-white/10 transition-all flex items-center gap-1 border-l border-white/20"
+            >
+              <Download className="w-3 h-3" />
+              <span>{t.exportFhir}</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            data-testid="import-record-btn"
+            disabled={isImporting}
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+          >
+            {isImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+            <span>{t.importRecordBtn}</span>
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept=".json,application/json,application/fhir+json"
+            className="hidden"
+            data-testid="record-file-input"
+          />
+        </div>
       </div>
 
       {/* Notifications */}
@@ -428,7 +599,7 @@ export const HealthRecordScreen = () => {
       <div className="surface-card rounded-3xl p-6 space-y-4">
         <div className="flex items-center gap-2.5 border-b border-slate-200 pb-3">
           <Activity className="w-5 h-5 text-teal-700 shrink-0" />
-          <div>
+          <div className="flex-1">
             <h2 className="font-heading text-lg font-bold text-navy-800">
               {isUrdu ? "۱. طبی حالات اور تشخیصی بنیاد" : "1. Conditions & Diagnostic Basis"}
             </h2>
@@ -438,6 +609,15 @@ export const HealthRecordScreen = () => {
                 : "For each condition in your profile, select how it was established."}
             </p>
           </div>
+          <button
+            type="button"
+            data-testid="conditions-history-btn"
+            onClick={() => openHistory("condition", undefined, isUrdu ? "طبی حالات" : "Conditions")}
+            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-teal-800 hover:bg-teal-50 border border-slate-200 transition-all flex items-center gap-1"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>{t.recordHistoryBtn}</span>
+          </button>
         </div>
 
         {conditions.length === 0 ? (
@@ -534,6 +714,16 @@ export const HealthRecordScreen = () => {
                   </div>
 
                   <div className="flex items-center gap-2 self-end sm:self-center">
+                    <button
+                      type="button"
+                      data-testid={`med-history-btn-${med.id}`}
+                      onClick={() => openHistory("medication", med.id, med.name)}
+                      className="p-1.5 text-slate-500 hover:text-teal-800 rounded-lg hover:bg-teal-50 border border-slate-200 transition-colors flex items-center gap-1 text-[11px] font-semibold"
+                      title="View medication history"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">{t.recordHistoryBtn}</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleToggleMedStatus(med)}
@@ -658,14 +848,26 @@ export const HealthRecordScreen = () => {
                     <p className="text-slate-500 text-[11px] mt-0.5">Reaction: {alg.reaction}</p>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteAllergy(alg.id)}
-                  className="p-1.5 text-slate-400 hover:text-red-700 rounded-lg hover:bg-red-50 transition-colors"
-                  title="Delete allergy"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    data-testid={`allergy-history-btn-${alg.id}`}
+                    onClick={() => openHistory("allergy", alg.id, alg.substance)}
+                    className="p-1.5 text-slate-500 hover:text-teal-800 rounded-lg hover:bg-teal-50 border border-slate-200 transition-colors flex items-center gap-1 text-[11px] font-semibold"
+                    title="View allergy history"
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{t.recordHistoryBtn}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteAllergy(alg.id)}
+                    className="p-1.5 text-slate-400 hover:text-red-700 rounded-lg hover:bg-red-50 transition-colors"
+                    title="Delete allergy"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -758,14 +960,26 @@ export const HealthRecordScreen = () => {
                     Measured: {new Date(obs.measured_at).toLocaleString()}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteObservation(obs.id)}
-                  className="p-1.5 text-slate-400 hover:text-red-700 rounded-lg hover:bg-red-50 transition-colors"
-                  title="Delete observation"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    data-testid={`obs-history-btn-${obs.id}`}
+                    onClick={() => openHistory("observation", obs.id, obs.observation_type.replace(/_/g, " "))}
+                    className="p-1.5 text-slate-500 hover:text-teal-800 rounded-lg hover:bg-teal-50 border border-slate-200 transition-colors flex items-center gap-1 text-[11px] font-semibold"
+                    title="View observation history"
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{t.recordHistoryBtn}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteObservation(obs.id)}
+                    className="p-1.5 text-slate-400 hover:text-red-700 rounded-lg hover:bg-red-50 transition-colors"
+                    title="Delete observation"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -848,6 +1062,260 @@ export const HealthRecordScreen = () => {
           </div>
         </form>
       </div>
+
+      {/* History Slide-over / Modal */}
+      {isHistoryOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-testid="record-history-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/60 backdrop-blur-xs animate-fadeIn"
+        >
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2.5">
+                <Clock className="w-5 h-5 text-teal-700" />
+                <h3 className="font-heading font-bold text-lg text-navy-900">
+                  {historyFilter?.label ? `${historyFilter.label} - ${t.recordHistoryTitle}` : t.recordHistoryTitle}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsHistoryOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-5 overflow-y-auto space-y-3 flex-1">
+              {isLoadingHistory ? (
+                <div className="py-12 text-center space-y-3">
+                  <Loader2 className="w-7 h-7 animate-spin text-teal-700 mx-auto" />
+                  <p className="text-xs font-semibold text-slate-500">{t.loading}</p>
+                </div>
+              ) : historyError ? (
+                <div className="p-4 rounded-2xl bg-amber-50 text-amber-900 text-xs font-semibold border border-amber-200 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>{historyError}</span>
+                </div>
+              ) : historyEdits.length === 0 ? (
+                <div className="py-12 text-center space-y-2">
+                  <Clock className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="text-sm font-semibold text-slate-500">{t.noHistoryRecorded}</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {historyEdits.map((edit) => {
+                    const originBadge = (() => {
+                      if (edit.origin === "ocr") {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 text-[10px] font-bold">
+                            <Sparkles className="w-3 h-3 text-purple-700" /> {t.originOcr}
+                          </span>
+                        );
+                      }
+                      if (edit.origin === "import") {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300 text-[10px] font-bold">
+                            <Upload className="w-3 h-3 text-blue-700" /> {t.originImport}
+                          </span>
+                        );
+                      }
+                      if (edit.origin === "clinician") {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-300 text-[10px] font-bold">
+                            <ShieldCheck className="w-3 h-3 text-teal-700" /> {t.originClinician}
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300 text-[10px] font-bold">
+                          {t.originSelfReported}
+                        </span>
+                      );
+                    })();
+
+                    return (
+                      <div
+                        key={edit.edit_id || edit.id}
+                        data-testid="history-edit-row"
+                        className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs"
+                      >
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="font-bold text-navy-900 capitalize">
+                            {edit.record_type} ({edit.field})
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {originBadge}
+                            <span className="text-[11px] text-slate-500 font-mono">
+                              <bdi>{new Date(edit.changed_at).toLocaleString()}</bdi>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Values */}
+                        <div className="p-2.5 rounded-xl bg-white border border-slate-200/80 font-mono text-[11px] space-y-1">
+                          {edit.field === "created" ? (
+                            <div>
+                              <span className="font-semibold text-slate-500">{t.historyNewValue}: </span>
+                              <bdi className="text-teal-900 font-bold">{JSON.stringify(edit.new_value)}</bdi>
+                            </div>
+                          ) : edit.field === "deleted" ? (
+                            <div>
+                              <span className="font-semibold text-slate-500">{t.historyOldValue}: </span>
+                              <bdi className="text-red-900 line-through">{JSON.stringify(edit.old_value)}</bdi>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-slate-500">{t.historyOldValue}:</span>
+                              <bdi className="text-slate-700 line-through">{JSON.stringify(edit.old_value)}</bdi>
+                              <ArrowRight className="w-3 h-3 text-slate-400" />
+                              <span className="font-semibold text-slate-500">{t.historyNewValue}:</span>
+                              <bdi className="text-teal-900 font-bold">{JSON.stringify(edit.new_value)}</bdi>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsHistoryOpen(false)}
+                className="px-5 py-2 rounded-xl bg-navy-800 hover:bg-navy-900 text-white text-xs font-bold transition-all shadow-xs"
+              >
+                {t.close}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Preview Modal */}
+      {isImportModalOpen && importPreview && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-testid="record-import-modal"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/60 backdrop-blur-xs animate-fadeIn"
+        >
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2.5">
+                <Upload className="w-5 h-5 text-teal-700" />
+                <h3 className="font-heading font-bold text-lg text-navy-900">
+                  {t.importPreviewTitle}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportPreview(null);
+                  setImportPayload(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Summary Counts */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 rounded-2xl bg-teal-50 border border-teal-200 text-center">
+                  <span className="text-[11px] text-teal-800 font-bold block">{t.importToAdd}</span>
+                  <bdi className="text-xl font-heading font-bold text-teal-900">{importPreview.counts?.to_add ?? 0}</bdi>
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-100 border border-slate-200 text-center">
+                  <span className="text-[11px] text-slate-700 font-bold block">{t.importDuplicates}</span>
+                  <bdi className="text-xl font-heading font-bold text-slate-800">{importPreview.counts?.duplicates ?? 0}</bdi>
+                </div>
+                <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-center">
+                  <span className="text-[11px] text-amber-800 font-bold block">{t.importInvalid}</span>
+                  <bdi className="text-xl font-heading font-bold text-amber-900">{importPreview.counts?.invalid ?? 0}</bdi>
+                </div>
+              </div>
+
+              {/* Baseline note */}
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-[11px] flex items-center gap-2">
+                <Info className="w-4 h-4 text-blue-700 shrink-0" />
+                <span>{t.importBaselineNote}</span>
+              </div>
+
+              {/* Preview Lists */}
+              {importPreview.preview?.medications && importPreview.preview.medications.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="font-bold text-navy-900 block">{t.hospitalRecordMedsTitle}</span>
+                  <div className="space-y-1">
+                    {importPreview.preview.medications.map((m, i) => (
+                      <div key={i} className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                        <span>{m.name} ({m.dosage})</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${m.will_import ? "bg-teal-100 text-teal-900" : "bg-slate-200 text-slate-700"}`}>
+                          {m.will_import ? "Add" : m.reason || "Skip"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {importPreview.preview?.observations && importPreview.preview.observations.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="font-bold text-navy-900 block">Observations</span>
+                  <div className="space-y-1">
+                    {importPreview.preview.observations.map((o, i) => (
+                      <div key={i} className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                        <span>{o.type || o.observation_type}: <bdi>{o.value} {o.unit}</bdi></span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${o.will_import ? "bg-teal-100 text-teal-900" : "bg-slate-200 text-slate-700"}`}>
+                          {o.will_import ? "Add" : o.reason || "Skip"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportPreview(null);
+                  setImportPayload(null);
+                }}
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold"
+              >
+                {t.cancelImport}
+              </button>
+              <button
+                type="button"
+                data-testid="confirm-import-btn"
+                disabled={isImporting || (importPreview.counts?.to_add ?? 0) === 0}
+                onClick={handleConfirmImport}
+                className="px-5 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+              >
+                {isImporting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{t.confirmImport}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Navigation Buttons: Skip for now and Done */}
       <div className="flex items-center justify-between gap-4 pt-2">

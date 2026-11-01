@@ -17,6 +17,7 @@ from the validated technical proof-of-concept.
 
 import os
 import re
+import json
 import uuid
 import time
 import copy
@@ -122,6 +123,10 @@ from data_sources.validation import (
     detect_pregnancy_statement,
 )
 from data_sources.app_store import (
+    get_db_cursor,
+    get_record_edits,
+    get_recent_edits_for_patient,
+    record_edit,
     migrate,
     get_user_by_id,
     get_user_by_email,
@@ -933,6 +938,31 @@ class TrendsResponse(BaseModel):
     trends: Dict[str, TrendSeries]
 
 
+
+class RecordEditItem(BaseModel):
+    edit_id: str
+    id: Optional[str] = None
+    user_id: Optional[str] = None
+    record_type: str
+    record_id: str
+    field: str
+    old_value: Optional[Any] = None
+    new_value: Optional[Any] = None
+    origin: str
+    changed_by_user_id: str
+    changed_at: str
+    reason: Optional[str] = None
+
+    def __init__(self, **data: Any):
+        if 'edit_id' in data and 'id' not in data:
+            data['id'] = data['edit_id']
+        super().__init__(**data)
+
+
+class RecordHistoryResponse(BaseModel):
+    edits: List[RecordEditItem]
+    count: int
+
 class ReviewDetailResponse(BaseModel):
     checkin_id: str
     patient_id: str
@@ -957,6 +987,7 @@ class ReviewDetailResponse(BaseModel):
     answered_by: Optional[str] = None
     trends: Optional[TrendsResponse] = None
     risk: Optional[Dict[str, Any]] = None
+    recent_record_edits: Optional[List[RecordEditItem]] = None
 
 
 class VoiceTranscribeResponse(BaseModel):
@@ -1995,6 +2026,571 @@ def delete_record_observation_endpoint(
         detail={"type": "observation", "count": 1},
     )
     return {"status": "ok"}
+
+@app.get("/api/me/record/history", response_model=RecordHistoryResponse, tags=["Patient Record"])
+def get_record_history_endpoint(
+    record_type: Optional[str] = None,
+    record_id: Optional[str] = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Retrieves patient's own record edit history (patient only, own data only, newest first)."""
+    user_id = current_user["user_id"]
+    if record_id:
+        with get_db_cursor() as (cursor, be, ph):
+            cursor.execute(f"SELECT user_id FROM record_edits WHERE record_id = {ph} LIMIT 1", (record_id,))
+            row = cursor.fetchone()
+            if row:
+                other_uid = row.get("user_id") if isinstance(row, dict) else row[0]
+                if other_uid != user_id:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot access another patient's record history")
+    edits = get_record_edits(
+        user_id=user_id,
+        record_type=record_type,
+        record_id=record_id,
+        limit=limit,
+    )
+    return RecordHistoryResponse(
+        edits=[RecordEditItem(**e) for e in edits],
+        count=len(edits),
+    )
+
+
+@app.get("/api/me/record/export", tags=["Patient Record"])
+def export_patient_record_endpoint(
+    format: str = Query(default="json", pattern="^(json|fhir)$"),
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Exports patient's own record as ChronicCare JSON or standard FHIR R4 Bundle. Works in both isolated and connected modes."""
+    user_id = current_user["user_id"]
+    now_str = _utc_now_iso()
+    today_str = now_str[:10]
+
+    # Zero PHI audit logging: format only
+    append_audit(
+        actor_user_id=user_id,
+        action="record_exported",
+        target="patient_record",
+        outcome="ok",
+        detail={"format": format},
+    )
+
+    profile = get_patient_profile(user_id) or {}
+    active_conn = get_active_ehr_connection(user_id)
+    is_connected = bool(active_conn)
+
+    if is_connected:
+        mode = "connected"
+        ehr_system = get_ehr_system_by_id(active_conn["ehr_system_id"])
+        base_url = ehr_system.get("fhir_base_url") if ehr_system else None
+        ext_pid = active_conn["external_patient_id"]
+        from data_sources import fhir_adapter
+        ehr_meds = fhir_adapter.get_normalized_medications(ext_pid, base_url=base_url)
+        ehr_obs = fhir_adapter.get_normalized_observations(ext_pid, base_url=base_url)
+        medications_list = [
+            RecordMedicationItem(id=m.source_record_id, name=m.medication_name, dosage=m.dosage, status=m.status)
+            for m in ehr_meds
+        ]
+        observations_list = [
+            RecordObservationItem(id=o.source_record_id, observation_type=o.observation_type, value=o.value, unit=o.unit, measured_at=o.timestamp)
+            for o in ehr_obs
+        ]
+    else:
+        mode = "isolated"
+        patient_id = f"local-{user_id}"
+        local_meds = get_local_medications(patient_id)
+        medications_list = [
+            RecordMedicationItem(id=m["id"], name=m["medication_name"], dosage=m["dosage"], status=m["status"])
+            for m in local_meds
+        ]
+        local_obs = get_local_observations(patient_id)
+        observations_list = [
+            RecordObservationItem(id=o["id"], observation_type=o["type"], value=float(o["value"]), unit=o["unit"], measured_at=o["timestamp"])
+            for o in local_obs
+        ]
+
+    conds = profile.get("conditions", [])
+    cond_basis = profile.get("conditions_basis", {})
+    conditions_list = [RecordConditionItem(name=c, basis=cond_basis.get(c)) for c in conds]
+
+    user_allergies = get_allergies(user_id)
+    allergies_list = [
+        RecordAllergyItem(id=a["allergy_id"], substance=a["substance"], reaction=a.get("reaction"), confirmed=bool(a["confirmed"]))
+        for a in user_allergies
+    ]
+
+    record_resp = PatientRecordResponse(
+        mode=mode,
+        conditions=conditions_list,
+        medications=medications_list,
+        allergies=allergies_list,
+        baseline_observations=observations_list,
+    )
+
+    if format == "json":
+        edits = get_record_edits(user_id=user_id, limit=200)
+        payload = {
+            "format": "chroniccare-record",
+            "version": 1,
+            "exported_at": now_str,
+            "record": record_resp.model_dump(),
+            "record_edits_count": len(edits),
+        }
+        filename = f"chroniccare-record-{today_str}.json"
+        return JSONResponse(
+            content=payload,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    # format == "fhir"
+    bundle_entries = []
+
+    # 1. Patient resource (no name or contact details)
+    pat_res = {
+        "resourceType": "Patient",
+        "id": user_id,
+        "gender": profile.get("sex_at_birth") or "unknown",
+    }
+    if profile.get("date_of_birth"):
+        pat_res["birthDate"] = profile["date_of_birth"].split("-")[0]
+    bundle_entries.append({"resource": pat_res})
+
+    # 2. MedicationRequest resources
+    for m in medications_list:
+        bundle_entries.append({
+            "resource": {
+                "resourceType": "MedicationRequest",
+                "id": m.id,
+                "status": "active" if m.status == "active" else "stopped",
+                "medicationCodeableConcept": {"text": m.name},
+                "dosageInstruction": [{"text": m.dosage}],
+                "authoredOn": now_str,
+                "subject": {"reference": f"Patient/{user_id}"},
+                "meta": {"tag": [{"system": "https://chroniccare.ai/origin", "code": "self_reported"}]},
+            }
+        })
+
+    # 3. AllergyIntolerance resources
+    for a in allergies_list:
+        bundle_entries.append({
+            "resource": {
+                "resourceType": "AllergyIntolerance",
+                "id": a.id,
+                "code": {"text": a.substance},
+                "reaction": [{"description": a.reaction}] if a.reaction else [],
+                "verificationStatus": {"coding": [{"code": "confirmed" if a.confirmed else "unconfirmed"}]},
+                "meta": {"tag": [{"system": "https://chroniccare.ai/origin", "code": "self_reported"}]},
+            }
+        })
+
+    # 4. Observation resources
+    loinc_map = {
+        "glucose": ("2339-0", "Glucose"),
+        "hba1c": ("4548-4", "HbA1c"),
+        "weight": ("29463-7", "Weight"),
+        "blood_pressure_systolic": ("8480-6", "Systolic Blood Pressure"),
+        "blood_pressure_diastolic": ("8462-4", "Diastolic Blood Pressure"),
+    }
+    for o in observations_list:
+        loinc_code, display_name = loinc_map.get(o.observation_type, ("unknown", o.observation_type))
+        bundle_entries.append({
+            "resource": {
+                "resourceType": "Observation",
+                "id": o.id,
+                "status": "final",
+                "code": {
+                    "coding": [{"system": "http://loinc.org", "code": loinc_code, "display": display_name}],
+                    "text": display_name,
+                },
+                "valueQuantity": {
+                    "value": float(o.value),
+                    "unit": o.unit,
+                    "system": "http://unitsofmeasure.org",
+                    "code": o.unit,
+                },
+                "effectiveDateTime": o.measured_at,
+                "subject": {"reference": f"Patient/{user_id}"},
+                "meta": {"tag": [{"system": "https://chroniccare.ai/origin", "code": "self_reported"}]},
+            }
+        })
+
+    fhir_bundle = {
+        "resourceType": "Bundle",
+        "type": "collection",
+        "entry": bundle_entries,
+    }
+    filename = f"chroniccare-record-{today_str}.fhir.json"
+    return JSONResponse(
+        content=fhir_bundle,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/api/me/record/import", tags=["Patient Record"])
+async def import_patient_record_endpoint(
+    request: Request,
+    dry_run: bool = Query(default=True),
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Imports clinical record in ChronicCare JSON or FHIR Bundle format through validation preview (patient only, isolated mode)."""
+    patient_id = _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+
+    # 1. Content-Type check -> 415
+    ct = (request.headers.get("content-type") or "").lower().split(";")[0].strip()
+    if ct not in ("application/json", "application/fhir+json"):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Unsupported media type. Expected application/json",
+        )
+
+    # 2. Raw body read & size limit 2MB -> 413
+    body_bytes = await request.body()
+    if len(body_bytes) > 2 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Payload exceeds 2MB limit",
+        )
+
+    try:
+        payload = json.loads(body_bytes.decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON payload")
+
+    raw_meds: List[Dict[str, Any]] = []
+    raw_obs: List[Dict[str, Any]] = []
+    raw_allergies: List[Dict[str, Any]] = []
+    raw_cond_basis: Dict[str, Any] = {}
+
+    if isinstance(payload, dict) and (
+        payload.get("format") in ("chroniccare-record", "chroniccare_record_v1")
+        or "record" in payload
+        or "medications" in payload
+        or "observations" in payload
+        or "baseline_observations" in payload
+        or "allergies" in payload
+        or "conditions_basis" in payload
+    ):
+        rec = payload.get("record") if "record" in payload and isinstance(payload.get("record"), dict) else payload
+        raw_meds = rec.get("medications", [])
+        raw_obs = rec.get("baseline_observations") or rec.get("observations", [])
+        raw_allergies = rec.get("allergies", [])
+        raw_cond_basis = rec.get("conditions_basis", {})
+    elif isinstance(payload, dict) and payload.get("resourceType") == "Bundle":
+        from data_sources import fhir_adapter
+        norm_obs = fhir_adapter.fhir_to_normalized_observations(payload, patient_id=user_id)
+        for no in norm_obs:
+            raw_obs.append({
+                "id": no.source_record_id,
+                "observation_type": no.observation_type,
+                "value": no.value,
+                "unit": no.unit,
+                "measured_at": no.timestamp,
+            })
+        norm_meds = fhir_adapter.fhir_to_normalized_medications(payload, patient_id=user_id)
+        for nm in norm_meds:
+            raw_meds.append({
+                "id": nm.source_record_id,
+                "name": nm.medication_name,
+                "dosage": nm.dosage,
+                "status": nm.status,
+            })
+        for entry in payload.get("entry", []):
+            res = entry.get("resource", {})
+            if res.get("resourceType") == "AllergyIntolerance":
+                sub = (res.get("code", {}).get("text") or "Allergy").strip()
+                rx = None
+                if res.get("reaction") and isinstance(res["reaction"], list) and len(res["reaction"]) > 0:
+                    rx = res["reaction"][0].get("description")
+                raw_allergies.append({
+                    "id": res.get("id"),
+                    "substance": sub,
+                    "reaction": rx,
+                    "confirmed": True,
+                })
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unrecognized record format. Expected 'chroniccare-record' JSON or FHIR 'Bundle'",
+        )
+
+    total_count = len(raw_meds) + len(raw_obs) + len(raw_allergies)
+    if total_count > 500:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Payload exceeds maximum 500 items limit",
+        )
+
+    to_add: List[Dict[str, Any]] = []
+    duplicates: List[Dict[str, Any]] = []
+    invalid: List[Dict[str, Any]] = []
+
+    # Fetch existing patient items
+    existing_meds = get_local_medications(patient_id)
+    existing_med_keys = {(m["medication_name"].strip().lower(), m["dosage"].strip().lower()) for m in existing_meds}
+    existing_med_ids = {m["id"] for m in existing_meds}
+
+    existing_obs = get_local_observations(patient_id)
+    existing_obs_keys = {(o["type"], round(float(o["value"]), 1), o["timestamp"]) for o in existing_obs}
+    existing_obs_ids = {o["id"] for o in existing_obs}
+
+    existing_allergies = get_allergies(user_id)
+    existing_allergy_substances = {a["substance"].strip().lower() for a in existing_allergies}
+    existing_allergy_ids = {a["allergy_id"] for a in existing_allergies}
+
+    # Validate medications
+    for m in raw_meds:
+        name = str(m.get("name") or "").strip()
+        dosage = str(m.get("dosage") or "").strip()
+        status_val = str(m.get("status") or "active").strip().lower()
+        med_id = m.get("id")
+
+        if not name or len(name) > 120:
+            invalid.append({"type": "medication", "item": m, "reason": "Invalid or missing medication name"})
+            continue
+        if not dosage or len(dosage) > 120:
+            invalid.append({"type": "medication", "item": m, "reason": "Invalid or missing medication dosage"})
+            continue
+        if status_val not in ("active", "stopped"):
+            invalid.append({"type": "medication", "item": m, "reason": "Medication status must be 'active' or 'stopped'"})
+            continue
+
+        is_dup = (med_id and med_id in existing_med_ids) or ((name.lower(), dosage.lower()) in existing_med_keys)
+        if is_dup:
+            duplicates.append({"type": "medication", "name": name, "dosage": dosage, "status": status_val})
+        else:
+            to_add.append({
+                "type": "medication",
+                "id": f"local-med-{uuid.uuid4()}",
+                "name": name,
+                "dosage": dosage,
+                "status": status_val,
+            })
+            existing_med_keys.add((name.lower(), dosage.lower()))
+
+    # Validate observations using shared validation helpers
+    for o in raw_obs:
+        obs_type = str(o.get("observation_type") or o.get("type") or "").strip().lower()
+        val_raw = o.get("value")
+        measured_at_raw = o.get("measured_at") or o.get("timestamp")
+        obs_id = o.get("id")
+
+        if val_raw is None:
+            invalid.append({"type": "observation", "item": o, "reason": "Missing observation value"})
+            continue
+
+        try:
+            val_float = float(val_raw)
+            clean_unit = _validate_observation_value_and_unit(obs_type, val_float)
+            clean_ts = _parse_and_validate_measured_at(measured_at_raw)
+        except HTTPException as he:
+            invalid.append({"type": "observation", "item": o, "reason": he.detail})
+            continue
+        except Exception as e:
+            invalid.append({"type": "observation", "item": o, "reason": str(e)})
+            continue
+
+        is_dup = (obs_id and obs_id in existing_obs_ids) or ((obs_type, round(val_float, 1), clean_ts) in existing_obs_keys)
+        if is_dup:
+            duplicates.append({"type": "observation", "observation_type": obs_type, "value": val_float, "unit": clean_unit, "measured_at": clean_ts})
+        else:
+            to_add.append({
+                "type": "observation",
+                "id": f"local-obs-{uuid.uuid4()}",
+                "observation_type": obs_type,
+                "value": val_float,
+                "unit": clean_unit,
+                "measured_at": clean_ts,
+            })
+            existing_obs_keys.add((obs_type, round(val_float, 1), clean_ts))
+
+    # Validate allergies
+    for a in raw_allergies:
+        sub = str(a.get("substance") or "").strip()
+        rx = str(a.get("reaction") or "").strip() if a.get("reaction") else None
+        conf = bool(a.get("confirmed", True))
+        a_id = a.get("id")
+
+        if not sub or len(sub) > 120:
+            invalid.append({"type": "allergy", "item": a, "reason": "Invalid or missing allergy substance"})
+            continue
+        if rx and len(rx) > 200:
+            invalid.append({"type": "allergy", "item": a, "reason": "Allergy reaction exceeds 200 characters"})
+            continue
+
+        is_dup = (a_id and a_id in existing_allergy_ids) or (sub.lower() in existing_allergy_substances)
+        if is_dup:
+            duplicates.append({"type": "allergy", "substance": sub, "reaction": rx, "confirmed": conf})
+        else:
+            to_add.append({
+                "type": "allergy",
+                "id": str(uuid.uuid4()),
+                "substance": sub,
+                "reaction": rx,
+                "confirmed": conf,
+            })
+            existing_allergy_substances.add(sub.lower())
+
+    # Build preview structure
+    preview_meds = [
+        {"name": item["name"], "dosage": item["dosage"], "status": item["status"], "will_import": True, "reason": None}
+        for item in to_add if item["type"] == "medication"
+    ] + [
+        {"name": item["name"], "dosage": item["dosage"], "status": item.get("status", "active"), "will_import": False, "reason": "duplicate"}
+        for item in duplicates if item["type"] == "medication"
+    ] + [
+        {"name": item.get("item", {}).get("name", "Unknown"), "dosage": item.get("item", {}).get("dosage", ""), "status": item.get("item", {}).get("status", "active"), "will_import": False, "reason": item.get("reason")}
+        for item in invalid if item.get("type") == "medication"
+    ]
+
+    preview_obs = [
+        {"type": item["observation_type"], "value": item["value"], "unit": item["unit"], "measured_at": item["measured_at"], "will_import": True, "reason": None}
+        for item in to_add if item["type"] == "observation"
+    ] + [
+        {"type": item["observation_type"], "value": item["value"], "unit": item["unit"], "measured_at": item["measured_at"], "will_import": False, "reason": "duplicate"}
+        for item in duplicates if item["type"] == "observation"
+    ] + [
+        {"type": item.get("item", {}).get("type") or item.get("item", {}).get("observation_type", "unknown"), "value": item.get("item", {}).get("value"), "will_import": False, "reason": item.get("reason")}
+        for item in invalid if item.get("type") == "observation"
+    ]
+
+    preview_allergies = [
+        {"substance": item["substance"], "reaction": item["reaction"], "confirmed": item["confirmed"], "will_import": True, "reason": None}
+        for item in to_add if item["type"] == "allergy"
+    ] + [
+        {"substance": item["substance"], "reaction": item["reaction"], "confirmed": item["confirmed"], "will_import": False, "reason": "duplicate"}
+        for item in duplicates if item["type"] == "allergy"
+    ] + [
+        {"substance": item.get("item", {}).get("substance", "Unknown"), "will_import": False, "reason": item.get("reason")}
+        for item in invalid if item.get("type") == "allergy"
+    ]
+
+    preview_conds = [
+        {"condition": k, "basis": v, "will_import": True, "reason": None}
+        for k, v in raw_cond_basis.items()
+    ]
+
+    preview = {
+        "medications": preview_meds,
+        "observations": preview_obs,
+        "allergies": preview_allergies,
+        "conditions_basis": preview_conds,
+    }
+
+    counts = {
+        "to_add": len(to_add),
+        "duplicates": len(duplicates),
+        "invalid": len(invalid),
+    }
+
+    imported_counts = {
+        "medications": len([x for x in to_add if x["type"] == "medication"]),
+        "observations": len([x for x in to_add if x["type"] == "observation"]),
+        "allergies": len([x for x in to_add if x["type"] == "allergy"]),
+    }
+    dup_counts = {
+        "medications": len([x for x in duplicates if x["type"] == "medication"]),
+        "observations": len([x for x in duplicates if x["type"] == "observation"]),
+        "allergies": len([x for x in duplicates if x["type"] == "allergy"]),
+    }
+
+    if dry_run:
+        # Zero PHI audit logging: preview counts only
+        append_audit(
+            actor_user_id=user_id,
+            action="record_import_preview",
+            target="patient_record",
+            outcome="ok",
+            detail={"counts": counts},
+        )
+        return {
+            "dry_run": True,
+            "preview": preview,
+            "counts": counts,
+            "imported_counts": imported_counts,
+            "duplicate_counts": dup_counts,
+            "to_add": to_add,
+            "duplicates": duplicates,
+            "invalid": invalid,
+        }
+
+    # Execute commit in one atomic transaction
+    now_ts = _utc_now_iso()
+    add_local_patient_if_missing(patient_id, name=current_user.get("display_name") or "Patient")
+
+    try:
+        for item in to_add:
+            itype = item["type"]
+            if itype == "medication":
+                add_local_medication(
+                    id=item["id"],
+                    patient_id=patient_id,
+                    medication_name=item["name"],
+                    status=item["status"],
+                    dosage=item["dosage"],
+                    timestamp=now_ts,
+                    source="local",
+                    origin="import",
+                    changed_by_user_id=user_id,
+                    reason="record_import",
+                )
+            elif itype == "observation":
+                add_local_observation(
+                    id=item["id"],
+                    patient_id=patient_id,
+                    observation_type=item["observation_type"],
+                    value=item["value"],
+                    unit=item["unit"],
+                    timestamp=item["measured_at"],
+                    source="local",
+                    origin="import",
+                    changed_by_user_id=user_id,
+                    reason="record_import",
+                )
+            elif itype == "allergy":
+                create_allergy(
+                    allergy_id=item["id"],
+                    user_id=user_id,
+                    substance=item["substance"],
+                    reaction=item["reaction"],
+                    confirmed=item["confirmed"],
+                    created_at=now_ts,
+                    changed_by_user_id=user_id,
+                    origin="import",
+                )
+
+        if raw_cond_basis and isinstance(raw_cond_basis, dict):
+            profile = get_patient_profile(user_id) or {}
+            conds = set(profile.get("conditions", []))
+            valid_basis = {k: v for k, v in raw_cond_basis.items() if k in conds and v in ALLOWED_CONDITIONS_BASIS}
+            if valid_basis:
+                current_basis = dict(profile.get("conditions_basis", {}))
+                current_basis.update(valid_basis)
+                update_patient_conditions_basis(user_id, current_basis, changed_by_user_id=user_id, origin="import")
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Import transaction failed and was rolled back: {str(e)}",
+        )
+
+    # Zero PHI audit logging: counts only
+    append_audit(
+        actor_user_id=user_id,
+        action="record_imported",
+        target="patient_record",
+        outcome="ok",
+        detail={"counts": counts},
+    )
+
+    return {
+        "status": "ok",
+        "dry_run": False,
+        "imported": counts["to_add"],
+        "duplicates": counts["duplicates"],
+        "invalid": counts["invalid"],
+        "imported_counts": imported_counts,
+        "duplicate_counts": dup_counts,
+    }
 
 
 def _compute_record_source_label(mode: str, ehr_system_id: Optional[str] = None) -> str:
@@ -3930,6 +4526,10 @@ def get_provider_review_detail_endpoint(
         answered_by=answered_by_val,
         trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
         risk=_compute_patient_risk_safe(checkin["user_id"]),
+        recent_record_edits=[
+            RecordEditItem(**e)
+            for e in get_recent_edits_for_patient(checkin["user_id"], limit=20)
+        ],
     )
 
 
@@ -4004,6 +4604,10 @@ def post_provider_review_action_endpoint(
         patient_background=patient_bg,
         trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
         risk=_compute_patient_risk_safe(checkin["user_id"]),
+        recent_record_edits=[
+            RecordEditItem(**e)
+            for e in get_recent_edits_for_patient(checkin["user_id"], limit=20)
+        ],
     )
 
 
