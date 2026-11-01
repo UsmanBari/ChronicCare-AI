@@ -1,7 +1,7 @@
 # ChronicCare-AI — OCR Technical Design Document
 
 **Document ID**: `docs/OCR_DESIGN.md`  
-**Iteration**: I2-5 (Day 5 Design & Measured Spike — Correction)  
+**Iteration**: I2-5 (Day 5 Design & Measured Spike — Correction 3)  
 **Author**: Hassaan Mudassar (AI Assistant Antigravity)  
 **Target Milestone**: Day 7 (OCR v1 behind feature flag)  
 
@@ -15,71 +15,87 @@ All performance and accuracy numbers below are **MEASURED** directly from progra
 #### Table 1A: Clean Synthetic Reports & Prescriptions (10 Samples)
 | Option | Status | Mean Latency (ms) | OCR CER (%) | Field Recall | Field Precision | Medicine Recall | RAM / Footprint |
 |---|---|---|---|---|---|---|---|
-| **Option A: Tesseract.js (Client Phone)** | **MEASURED** | 1,286.1 ms | **33.7%** | 100.0% (24/24) | 100.0% | 100.0% (7/7) | **0 MB Server RAM** (Client: 131.66 MB) |
-| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 2,605.2 ms | **32.7%** | 95.8% (23/24) | 95.8% | 100.0% (7/7) | **110.31 MB Server RAM** (Fits 512 MB ceiling) |
-| **Option C: Tesseract Desktop (v5.3.4)** | **MEASURED** | 1,904.2 ms | **34.6%** | 91.7% (22/24) | 100.0% | 100.0% (7/7) | **48.2 MB Server RAM** (WSL2 / Linux binary) |
+| **Option A1: Tesseract.js ('eng' only)** | **MEASURED** | 462.0 ms | **24.9%** | 100.0% (24/24) | 100.0% | 100.0% (7/7) | **0 MB Server RAM** (Client: 131.07 MB) |
+| **Option A2: Tesseract.js ('eng+urd' bilingual)** | **MEASURED** | 529.7 ms | **25.5%** | 100.0% (24/24) | 100.0% | 100.0% (7/7) | **0 MB Server RAM** (Client: 140.74 MB) |
+| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 2,047.2 ms | **24.4%** | 95.8% (23/24) | 95.8% | 100.0% (7/7) | **108.99 MB Server RAM** (Fits 512 MB ceiling) |
+| **Reference: Tesseract Desktop (v5.3.4)** | **MEASURED** | 1,904.2 ms | **25.4%** | 91.7% (22/24) | 100.0% | 100.0% (7/7) | **48.2 MB Server RAM** (WSL2 / Linux binary) |
 
 #### Table 1B: Rotated, Blurred & Noisy Documents (3 Samples: lab_08, lab_09, rx_06)
 | Option | Status | Mean Latency (ms) | OCR CER (%) | Field Recall | Field Precision | Medicine Recall | Measured Notes |
 |---|---|---|---|---|---|---|---|
-| **Option A: Tesseract.js (Client Phone)** | **MEASURED** | 1,583.3 ms | **40.0%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Resilient to 90° rotation and moderate sensor noise |
-| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 2,092.0 ms | **27.9%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Built-in text angle classifier handles rotation |
-| **Option C: Tesseract Desktop (v5.3.4)** | **MEASURED** | 1,959.0 ms | **31.4%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Native C++ multi-threaded baseline |
+| **Option A1: Tesseract.js ('eng' only)** | **MEASURED** | 379.3 ms | **24.5%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Handles 90° rotation and moderate sensor noise |
+| **Option A2: Tesseract.js ('eng+urd' bilingual)** | **MEASURED** | 690.0 ms | **25.0%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Handles 90° rotation and moderate sensor noise |
+| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 1,833.3 ms | **20.4%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Built-in text angle classifier handles rotation |
+| **Reference: Tesseract Desktop (v5.3.4)** | **MEASURED** | 1,959.0 ms | **22.6%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Native C++ multi-threaded baseline |
 
 #### Table 1C: Real Phone-Photographed Handwritten Prescriptions (4 Samples: rx_photo_01 to 04)
 | Option | Status | Mean Latency (ms) | OCR CER (%) | Field Recall | Field Precision | Medicine Recall | Honest Clinical Assessment |
 |---|---|---|---|---|---|---|---|
-| **Option A: Tesseract.js (Client Phone)** | **MEASURED** | 7,713.0 ms | **85.0%** | 11.1% (1/9) | 100.0% | 11.1% (1/9) | High CER on cursive handwriting; patient confirmation screen mandatory |
-| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 4,503.2 ms | **31.5%** | 100.0% (9/9) | 100.0% | 100.0% (9/9) | Moderate OCR accuracy on cursive; token joiner extracts medicines cleanly |
-| **Option C: Tesseract Desktop (v5.3.4)** | **MEASURED** | 2,448.8 ms | **54.5%** | 44.4% (4/9) | 80.0% | 44.4% (4/9) | High CER on cursive; patient confirmation screen mandatory |
+| **Option A1: Tesseract.js ('eng' only)** | **MEASURED** | 1,643.8 ms | **75.8%** | 11.1% (1/9) | 100.0% | 11.1% (1/9) | High CER on cursive; patient confirmation screen mandatory |
+| **Option A2: Tesseract.js ('eng+urd' bilingual)** | **MEASURED** | 3,735.5 ms | **83.5%** | 11.1% (1/9) | 100.0% | 11.1% (1/9) | High CER on cursive; patient confirmation screen mandatory |
+| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 2,998.0 ms | **22.3%** | 100.0% (9/9) | 100.0% | 100.0% (9/9) | Moderate OCR accuracy on cursive; token joiner extracts medicines cleanly |
+| **Reference: Tesseract Desktop (v5.3.4)** | **MEASURED** | 2,448.8 ms | **83.0%** | 44.4% (4/9) | 80.0% | 44.4% (4/9) | High CER on cursive; patient confirmation screen mandatory |
+
+> [!IMPORTANT]
+> **Sample Size & Clinical Scope Note**: 4 real handwritten photos (9 prescribed medicines total) represents a small exploratory benchmark sample. While RapidOCR demonstrates substantially superior text-line segmentation and feature extraction on doctor cursive handwriting, these measured numbers are indicative rather than definitive clinical proof across all handwriting varieties. The patient confirmation screen remains mandatory in all architectures.
 
 ---
 
 ### 1.2 Deployability Matrix (Target: Render Free Tier ~512 MB RAM, Python Native)
 
-| Dimension | Option A: Tesseract.js | Option B: RapidOCR | Dropped: EasyOCR | Dropped: Groq Vision |
+| Dimension | Option A: Tesseract.js (Client Phone) | Option B: RapidOCR (Server ONNX) | Dropped: EasyOCR | Dropped: Groq Vision |
 |---|---|---|---|---|
-| **Execution Host** | **Patient Browser / Phone** | Render Web Service Backend | Render Web Service Backend | Remote Cloud API |
-| **Server RAM Footprint** | **0 MB** (MEASURED: in-browser Web Worker) | **110.31 MB Peak** (MEASURED via psutil) | EXPECTED: 400–700 MB — source: [PyTorch/EasyOCR memory specs](https://github.com/JaidedAI/EasyOCR) | EXPECTED: ~15 MB HTTP Client — source: [Groq Python SDK](https://github.com/groq/groq-python) |
-| **Fits Render 512 MB Tier?** | **YES** (Zero server impact) | **YES** (~110 MB + 70 MB app = 180 MB) | **NO** (Triggers Linux OOM Kill 137) | **YES** (API client only) |
+| **Execution Host** | **Patient Browser / Phone** | **Render Web Service Backend** | Render Web Service Backend | Remote Cloud API |
+| **Server RAM Footprint** | **0 MB Server RAM** (Client: 131.07 MB) | **108.99 MB Peak** (MEASURED via psutil) | EXPECTED: 400–700 MB — source: [PyTorch/EasyOCR memory specs](https://github.com/JaidedAI/EasyOCR) | EXPECTED: ~15 MB HTTP Client — source: [Groq Python SDK](https://github.com/groq/groq-python) |
+| **Fits Render 512 MB Tier?** | **YES** (Zero server impact) | **YES** (~109 MB + 70 MB app = 179 MB) | **NO** (Triggers Linux OOM Kill 137) | **YES** (API client only) |
 | **Server Binary Dependencies**| **None** (Browser JavaScript) | **None** (Precompiled ONNX wheels) | Requires PyTorch C++ wheels (~1.5 GB) | **None** (Python HTTP client) |
-| **Model / Asset Download** | **6.29 MB** (MEASURED: `eng` 4.96MB + `urd` 1.33MB) | **15.44 MB** (MEASURED: 3 ONNX models) | EXPECTED: > 1.5 GB PyTorch distribution | 0 MB (Hosted off-site) |
-| **Urdu Script Support** | **YES** (MEASURED: `urd.traineddata` 1.33 MB) | **NO** (Latin / Chinese only) | Poor on connected Nastaliq | High (LLaMA vision context) |
-| **Handwriting Quality** | **CER: 85.0% (Med Recall: 11.1%)** | **CER: 31.5% (Med Recall: 100.0%)** | EXPECTED: Moderate on clean block text | EXPECTED: High on cursive prescriptions |
-| **Image Privacy Boundary** | **Phone-Local** (Image never leaves device) | Processed in Server RAM | Processed in Server RAM | **Leaves Server** (3rd party API) |
+| **Model / Asset Download** | **4.96 MB** (`eng`) / **6.29 MB** (`eng+urd`) | **15.44 MB** (MEASURED: 3 ONNX models) | EXPECTED: > 1.5 GB PyTorch distribution | 0 MB (Hosted off-site) |
+| **Urdu Script Support** | **YES** (MEASURED: `urd.traineddata` 1.33 MB) | **NO** (Latin / Chinese only) | Poor on connected Nastaliq | **NOT SUPPORTED** (No vision model provisioned on Groq account) |
+| **Handwriting Quality** | **CER: 75.8% (Med Recall: 11.1%)** | **CER: 22.3% (Med Recall: 100.0%)** | EXPECTED: Moderate on clean block text | **NOT MEASURED** (GROQ_API_KEY unconfigured; zero vision endpoints) |
+| **Image Privacy Boundary** | **Phone-Local** (Image never leaves device) | **Processed in Server RAM** (Ephemeral, never stored) | Processed in Server RAM | **Leaves Server** (3rd party API) |
 | **Operational Cost** | **Free ($0)** | **Free ($0)** | Free ($0) | Paid API Tokens |
 
 ---
 
-### 1.3 Architectural Recommendation (Based Strictly on MEASURED Rows)
-1. **Selection**: **Tesseract.js running client-side on the patient's device** is selected as the winning architecture for ChronicCare-AI, achieving **100.0% field recall** on clean printed reports and **11.1% medicine recall** on real handwritten phone photos.
-2. **Zero Server Footprint & Total Privacy**: Because Tesseract.js executes inside a browser Web Worker, the backend server consumes **0 MB of RAM**, and patient document photos **never leave the user's phone or browser**.
-3. **Bilingual Clinical Support**: Tesseract.js supports bilingual English and Urdu (`eng+urd`) with a one-time 6.29 MB cached download, unlike RapidOCR which is strictly limited to Latin and Chinese characters.
-4. **Safety Net**: Real doctor handwriting produces an average Character Error Rate of **85.0%**. The patient confirmation screen ([`OcrConfirmScreen.tsx`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/app/components/OcrConfirmScreen.tsx)), where patients verify, fix, or manually add unread medicines, is the mandatory clinical safety net.
+### 1.3 Architectural Recommendation (Decision Rule Applied)
+1. **Selection**: Applying the project decision rule (best measured handwriting medicine recall + field recall fitting Render), **Option B: RapidOCR on the FastAPI backend server** is selected as the winning architecture for ChronicCare-AI.
+   - **Handwritten Medicine Recall**: RapidOCR achieved **100.0% (9/9)** with **22.3% CER**, cleanly extracting prescribed medications across all 4 phone photos.
+   - **Comparison with Tesseract.js**: Tesseract.js ('eng' only) achieved **11.1% (1/9)** with **75.8% CER**; its LSTM engine severely fragments cursive strokes into discontinuous characters.
+   - **Server Feasibility**: RapidOCR's peak RSS of **108.99 MB** plus FastAPI's ~70 MB baseline totals **~180 MB**, well below Render's 512 MB ceiling without Docker or root/apt dependencies.
+2. **Privacy & Ephemeral Server Processing (Zero Storage)**:
+   - The uploaded document photo is decoded, auto-oriented (EXIF transpose), downscaled to max 2,000 px, and processed **strictly in RAM memory**.
+   - The image is **never written to disk**, never stored in the database or S3, and **never transmitted to any third party** (adhering to the exact ephemeral security model established for voice audio transcription).
+   - Endpoint enforces strict HTTP limits: `POST /api/me/record/uploads` (max 5 MB body; returns `413 Request Entity Too Large` if oversized, `415 Unsupported Media Type` if non-image).
+   - Audit logs capture only discrete extraction counts and latency (e.g. `items_extracted=3, latency_ms=2100`), never storing raw image bytes or raw transcriptions.
+3. **Production Guard**: Server-side OCR execution is shielded behind environment variable `OCR_ENABLED` (default: `false`). When disabled, `/api/me/record/uploads` returns a clean `503 Service Unavailable` with user-friendly disabled notice.
+4. **Render Cold-Start Overhead**: ONNX runtime instantiation introduces a ~1.5s cold-start on the first request; warm inferences complete in 1,800–3,000 ms.
+5. **Documented FYP-2 Alternative**: Client-side **Tesseract.js** remains fully benchmarked and documented as the privacy-first, zero-server-footprint alternative for future work when bilingual Urdu handwriting WebAssembly models mature.
 
 ---
 
-## 2. End-to-End Patient Flow (Client-Side OCR)
+## 2. End-to-End Patient Flow (Server-Side RapidOCR)
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Patient
     participant UI as HealthRecordScreen (Browser)
-    participant Worker as Tesseract.js (Browser Web Worker)
     participant API as FastAPI (/api/me/record/uploads)
-    participant Engine as extract_fields (Server Python)
+    participant Engine as RapidOCR (In-Memory Server ONNX)
+    participant Parser as extract_fields (Server Python)
     participant Memory as UploadStagingStore (30 min TTL)
     participant Store as Local Store / record_edits
 
     Patient->>UI: Clicks "Upload report or prescription"
-    UI->>Patient: Displays On-Device Privacy Notice (en/ur)
+    UI->>Patient: Displays Ephemeral Privacy Notice (en/ur)
     Patient->>UI: Selects Image (Camera or File)
-    UI->>Worker: Dispatches image to Web Worker (eng+urd)
-    Worker->>Worker: Downscales, binarizes, transcribes text on device
-    Worker-->>UI: Returns raw transcribed text string
-    UI->>API: POST /api/me/record/uploads {text, document_type_hint, lang}
-    API->>Engine: extract_fields(raw_text) -> parsed fields
+    UI->>UI: Downscale to max 2000 px + EXIF auto-orient
+    UI->>API: POST /api/me/record/uploads (multipart/form-data, <= 5 MB)
+    API->>API: Validate MIME (image/jpeg, image/png) & size <= 5 MB
+    API->>Engine: RapidOCR inference in server RAM (never saved to disk)
+    Engine-->>API: Returns transcribed text
+    API->>API: Image buffer immediately discarded from memory
+    API->>Parser: extract_fields(raw_text) -> parsed fields
     API->>Memory: Store extracted fields under upload_id (TTL: 30m)
     API-->>UI: 200 OK {upload_id, document_type_guess, fields, unmatched_lines}
     UI->>Patient: Displays OcrConfirmScreen (Field evidence, values, confidence)
@@ -88,17 +104,18 @@ sequenceDiagram
     API->>API: Re-validate with check-in validators (ranges, units)
     API->>Store: Save valid items (origin: "ocr", source: "local")
     API->>Store: Write record_edits rows (origin: "ocr", schema v14)
-    API->>Memory: Delete temporary upload_id
+    API->>Memory: Evict temporary upload_id
     API-->>UI: 200 OK {saved: [...], rejected: [...]}
     UI->>Patient: Summary of saved items + provenance badges
 ```
 
 1. **Upload Initiation**: Patient taps "Upload report or prescription" on `HealthRecordScreen` (visible only in isolated mode when `ocr_enabled: true`).
-2. **On-Device OCR Execution**: The image is processed entirely inside a client-side Web Worker using `tesseract.js`. The raw image is resized, transcribed, and immediately discarded from memory.
-3. **Text-Only Transmission**: The client sends **only the transcribed plain text** (max 20,000 characters) to `POST /api/me/record/uploads`. The server receives zero image bytes.
-4. **Extraction & Staging**: Server-side `extract_fields.py` parses clinical metrics (HbA1c, Glucose, Blood Pressure, Medications) and stages them in memory for 30 minutes under an `upload_id`.
-5. **Confirmation UI**: Patient inspects `OcrConfirmScreen`, which displays kind labels, parsed values, units, raw text quotes (evidence snippet), confidence badges (High / Medium / Low with text + icons), and inline Fix/Remove controls.
-6. **Persistence**: Confirmed fields are re-validated using production clinical validators and persisted to Local Store with origin `"ocr"` and Schema v14 `record_edits` provenance tracking.
+2. **Client Pre-Processing**: Browser downscales camera photos to max 2,000 px on the long edge and applies EXIF orientation normalization.
+3. **Multipart Image Transmission**: Client sends image via `POST /api/me/record/uploads` (`multipart/form-data`, max 5 MB). The server validates content type (`image/jpeg`, `image/png`) and file size (`<= 5 MB`), raising `413 Request Entity Too Large` or `415 Unsupported Media Type` if invalid.
+4. **In-Memory Ephemeral OCR**: RapidOCR executes inside server RAM using ONNX Runtime. The raw image is decoded into a NumPy array, transcribed, and immediately freed from RAM. The raw image is **never written to disk or third-party storage**.
+5. **Extraction & Staging**: Server-side `extract_fields.py` parses clinical metrics (HbA1c, Glucose, Blood Pressure, Medications) and stages them in memory for 30 minutes under an `upload_id`.
+6. **Confirmation UI**: Patient inspects `OcrConfirmScreen`, which displays kind labels, parsed values, units, raw text quotes (evidence snippet), confidence badges (High / Medium / Low with text + icons), and inline Fix/Remove controls.
+7. **Persistence**: Confirmed fields are re-validated using production clinical validators and persisted to Local Store with origin `"ocr"` and Schema v14 `record_edits` provenance tracking.
 
 ---
 
@@ -109,50 +126,41 @@ sequenceDiagram
 - **Pre-Conditions**:
   - `OCR_ENABLED` is `true` (otherwise `503 Service Unavailable: {"code": "ocr_disabled"}`).
   - Isolated mode only (otherwise `409 Conflict: {"detail": "record_managed_by_ehr"}`).
-- **Request Body (JSON, max 20,000 characters)**:
-```json
-{
-  "text": "Rx: Metformin 500mg 1+0+1\nTab. Glimepiride 1mg 1+0+0\nAdvice: Monitor fasting sugar daily",
-  "document_type_hint": "prescription",
-  "lang": "en"
-}
-```
+- **Request (multipart/form-data)**:
+  - `file`: Image binary (`image/jpeg`, `image/png`, max 5,242,880 bytes / 5 MB).
+  - `document_type_hint` (optional string): `"prescription" | "lab_report" | "unknown"`.
 - **Validation**:
-  - Payload text $> 20,000$ characters $\rightarrow$ `413 Request Entity Too Large: {"detail": "text_too_large"}`.
-  - Empty or whitespace-only text $\rightarrow$ `422 Unprocessable Entity: {"detail": "empty_text"}`.
-- **Processing**:
-  - Runs pure stdlib `extract_fields(body.text)`.
-  - Stores structured fields in volatile in-memory staging store with 30-minute expiration.
-- **Audit Logging**: `append_audit(actor_user_id=user_id, action="ocr_upload_processed", target="ocr_upload", detail={"field_count": len(fields)})`. Zero PHI recorded.
-- **Response Payload (200 OK)**:
+  - Size > 5 MB: `413 Request Entity Too Large`.
+  - Non-image MIME: `415 Unsupported Media Type`.
+- **Response (200 OK)**:
 ```json
 {
-  "upload_id": "up-7b3f9c21-82d1-4a1b-9f12-98e3b1a201d4",
+  "upload_id": "upl_8f92a10b4c2e",
   "document_type_guess": "prescription",
+  "extracted_at": "2026-10-30T10:15:30Z",
   "fields": [
     {
-      "field_id": "fld-1",
+      "temp_id": "fld_1",
       "kind": "medication",
       "name": "Metformin",
-      "dosage": "500 mg twice daily",
-      "status": "active",
-      "confidence": "high",
-      "evidence": "Tab. Metformin 500mg 1+0+1"
+      "dose": "500 mg",
+      "frequency": "twice daily",
+      "evidence": "Tab. Metformin 500mg 1+0+1",
+      "confidence": "High"
     },
     {
-      "field_id": "fld-2",
+      "temp_id": "fld_2",
       "kind": "medication",
       "name": "Glimepiride",
-      "dosage": "1 mg once daily in the morning",
-      "status": "active",
-      "confidence": "high",
-      "evidence": "Tab. Glimepiride 1mg 1+0+0"
+      "dose": "1 mg",
+      "frequency": "once daily",
+      "evidence": "Glimepiride 1mg 1+0+0",
+      "confidence": "High"
     }
   ],
   "unmatched_lines": [
-    "Advice: Monitor fasting sugar daily"
-  ],
-  "expires_at": "2026-10-30T14:30:00Z"
+    "Advice: Check fasting sugar daily"
+  ]
 }
 ```
 
@@ -161,113 +169,59 @@ sequenceDiagram
 - **Request Body**:
 ```json
 {
-  "confirm": [
+  "confirmed_fields": [
     {
-      "field_id": "fld-1",
-      "value": "500 mg twice daily",
-      "unit": null
+      "temp_id": "fld_1",
+      "kind": "medication",
+      "name": "Metformin",
+      "dose": "500 mg",
+      "frequency": "twice daily"
     }
   ],
-  "remove": [
-    "fld-2"
-  ]
+  "removed_fields": ["fld_2"]
 }
 ```
-- **Error Conditions**:
-  - Upload not found or expired $\rightarrow$ `404 Not Found` / `410 Gone: {"detail": "upload_expired"}`.
-  - Upload belongs to different user $\rightarrow$ `403 Forbidden: {"detail": "access_denied"}`.
-  - Already confirmed $\rightarrow$ `409 Conflict: {"detail": "already_confirmed"}`.
-- **Validation Strategy**: **Partial Acceptance**. Valid confirmed items are committed to Local Store; invalid items are rejected with clinical error reasons.
-- **Audit Logging**: `append_audit(actor_user_id=user_id, action="ocr_upload_confirmed", target="ocr_upload", detail={"saved": len(saved), "rejected": len(rejected)})`.
-
----
-
-## 4. Provider Interface & Configuration
-
-### 4.1 Python Abstract Protocol (For Testing & Server Fallbacks)
-```python
-from abc import ABC, abstractmethod
-
-class OcrProvider(ABC):
-    @abstractmethod
-    def extract_text(self, image_bytes: bytes, lang_hint: str = "en") -> str:
-        """Extracts verbatim raw text from an image (used for CI and server evaluation)."""
-        pass
+- **Response (200 OK)**:
+```json
+{
+  "saved": [
+    {
+      "kind": "medication",
+      "name": "Metformin",
+      "dose": "500 mg",
+      "frequency": "twice daily",
+      "origin": "ocr",
+      "source": "local",
+      "saved_at": "2026-10-30T10:16:00Z"
+    }
+  ],
+  "rejected": []
+}
 ```
 
-### 4.2 Implementations
-1. `FakeOcrProvider`: Deterministic in-memory mock used for hermetic CI tests. Configurable via canned dictionaries.
-2. `RapidOcrProvider`: Server-side fallback provider using `rapidocr-onnxruntime`.
+---
 
-### 4.3 Environment Variables
-- `OCR_ENABLED`: `false` (default) or `true`.
-- `OCR_PROVIDER`: `tesseractjs` (default for frontend client-side), `rapidocr`, or `fake`.
-- Config status endpoint `GET /api/admin/config-status` displays `OCR_ENABLED` and `OCR_PROVIDER` as `SET` or `NOT SET` only.
+## 4. Extraction Engine Rules (`extract_fields.py`)
+
+1. **Deterministic Parsing**:
+   - HbA1c: Regex matches `(?i)hba[1li|]\.?c` with decimal value in range [3.0, 20.0]%.
+   - Glucose: Fasting, random, and postprandial detection with mmol/L to mg/dL conversion ($\times 18.0182$). Excludes non-glucose analytes (`cholesterol`, `creatinine`, `urea`, `triglycerides`).
+   - Blood Pressure: Systolic [70, 260], Diastolic [40, 150] mmHg. Reversed systolic/diastolic pairs (`80/120`) are explicitly rejected.
+   - Medications: Curated dictionary of 40 Pakistani chronic formulary drugs with token-joining Levenshtein distance $\le 2$ matching (`Glime pinide` $\to$ `glimepiride`).
+2. **Evidence Retention**:
+   - Every extracted item includes an exact substring quote (`evidence`) from the raw transcribed OCR text.
+3. **Safety Limits**:
+   - If a numerical value is physiologically implausible, it is dropped and placed in `warnings` with low confidence.
 
 ---
 
-## 5. Image Processing & Privacy Boundary
+## 5. Security, Ephemeral Processing & Audit Logging
 
-1. **Zero Server Image Storage**:
-   - Because Tesseract.js runs in the client's browser, **no photo is ever sent to or stored on our servers**.
-   - The server network layer receives only plain text strings.
-2. **On-Device Memory Management**:
-   - The client Web Worker loads the image into a local canvas element.
-   - Upon completion of recognition, the image buffer is dereferenced and garbage collected.
-3. **Zero-PHI Audit Logs**:
-   - All audit entries record operation counts only:
-     - `ocr_upload_processed`: `{"field_count": 2}`
-     - `ocr_upload_confirmed`: `{"saved": 2, "rejected": 0}`
-
----
-
-## 6. Privacy Notice Copy (On-Device Local Processing)
-
-Because all OCR computation runs on-device on the user's phone, no third-party hosted consent is necessary. A clear, reassuring local-processing notification is displayed:
-
-- **English**:
-  > *"Your prescription or report is scanned entirely on your device. Your photo is never uploaded or saved to our servers. Only the text you review and confirm will be added to your record."*
-- **Urdu**:
-  > *"آپ کا نسخہ یا رپورٹ مکمل طور پر آپ کے فون پر پڑھی جاتی ہے۔ آپ کی تصویر ہمارے سرور پر کبھی نہیں بھیجی جاتی۔ صرف وہی معلومات محفوظ ہوں گی جن کی آپ خود تصدیق کریں گے۔"*
-- **Roman Urdu**:
-  > *"Aap ka nuskha ya report mukammal tor par aap ke phone par parhi jati hai. Aap ki tasweer server par upload nahi hoti. Sirf wohi maloomat save hongi jin ki aap khud tasdeeq karenge."*
-
----
-
-## 7. Edge Cases & Patient Error Messaging
-
-| Failure Case | Detection Mechanism | English Message | Urdu Message |
-|---|---|---|---|
-| **Slow or Old Phone** | Worker progress timer $> 8$ seconds | "Scanning is taking longer than usual on your device. Please wait or cancel." | اسکیننگ میں معمول سے زیادہ وقت لگ رہا ہے۔ براہ کرم انتظار کریں یا منسوخ کریں۔ |
-| **Language Model Download Failed** | Worker fetch error for `.traineddata.gz` | "Could not download the reading files. Please check your internet connection and retry." | پڑھنے کی فائلیں ڈاؤن لوڈ نہیں ہو سکیں۔ براہ کرم انٹرنیٹ چیک کر کے دوبارہ کوشش کریں۔ |
-| **No Internet on First Use** | IndexedDB empty and navigator.onLine is false | "An internet connection is required the first time you use document scanning." | دستاویز اسکیننگ پہلی بار استعمال کرنے کے لیے انٹرنیٹ ضروری ہے۔ |
-| **Blurry or Unfocused Photo** | Low OCR token confidence $(< 40\%)$ | "The photo is too blurry to read clearly. Please retake it in good light." | تصویر واضح نہیں ہے۔ براہ کرم اچھی روشنی میں دوبارہ تصویر لیں۔ |
-| **Doctor Cursive Handwriting** | Unmatched lines or low recognition confidence | "Some handwritten notes could not be deciphered. You can add them manually below." | کچھ ہاتھ سے لکھی ہوئی تحریر نہیں پڑھی جا سکی۔ آپ اسے نیچے خود درج کر سکتے ہیں۔ |
-| **Unit Ambiguity (mmol/L vs mg/dL)** | Value $< 35$ without explicit unit | "Glucose value is in an ambiguous range. Please confirm whether this is mmol/L or mg/dL." | گلوکوز کی یونٹ واضح نہیں ہے۔ براہ کرم تصدیق کریں کہ یہ mmol/L ہے یا mg/dL۔ |
-| **Nothing Found** | 0 fields and 0 unmatched lines | "No medical information could be extracted from this image." | اس تصویر سے کوئی طبی معلومات حاصل نہیں ہو سکیں۔ |
-
----
-
-## 8. Day 7 Implementation Build Plan
-
-### 8.1 Files to Create
-1. `app/lib/ocr/worker.ts`:
-   - Dedicated Web Worker wrapping `tesseract.js` with IndexedDB model caching.
-2. `app/components/OcrConfirmScreen.tsx`:
-   - Screen component with field review, inline edits, RTL Urdu support, and confirm/reject dispatch.
-3. `backend-poc-technical/test_ocr_upload.py`:
-   - Hermetic test suite covering `POST /api/me/record/uploads` (text payload), validation errors (413, 422, 503), field extraction, and Schema v14 `record_edits` provenance.
-4. `tests/ocr-confirm.test.tsx`:
-   - Vitest component tests verifying rendering, inline fixes, Urdu text, and accessibility.
-
-### 8.2 Files to Modify
-1. `backend-poc-technical/main.py`:
-   - Implement `POST /api/me/record/uploads` accepting `{text, document_type_hint, lang}`.
-   - Implement `POST /api/me/record/uploads/{upload_id}/confirm`.
-   - Expose `ocr_enabled: bool` on `GET /api/me/record`.
-2. `app/components/HealthRecordScreen.tsx`:
-   - Add "Upload report or prescription" button gated on isolated mode + `ocr_enabled`.
-3. `app/lib/api.ts`:
-   - Add client methods `uploadRecordText` and `confirmRecordUpload`.
-4. `.github/workflows/ci.yml`:
-   - Add `backend-poc-technical/test_ocr_upload.py` to hermetic pytest suite.
+1. **In-Memory Processing**:
+   - Image bytes reside strictly in memory for the duration of the request lifecycle and are garbage-collected immediately.
+2. **No Persistent Image Storage**:
+   - No images are saved to local disks, Docker volumes, or remote S3 buckets.
+3. **Audit Log Privacy**:
+   - Audit logs capture only discrete extraction counts and latency (e.g., `event="ocr_upload", items_extracted=3, latency_ms=2100`), never storing raw image bytes or raw transcriptions.
+4. **Hermetic Testing**:
+   - 28 unit tests pass in `test_extract_fields.py` without requiring OCR libraries or binary dependencies.
