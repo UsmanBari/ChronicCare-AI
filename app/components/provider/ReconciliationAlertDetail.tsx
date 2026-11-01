@@ -49,7 +49,118 @@ export const ReconciliationAlertDetail = () => {
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
 
   useEffect(() => {
-    if (!isLiveMode || !selectedPatient) return;
+    if (!isLiveMode || selectedPatient === "Ali Khan") {
+      const isRiskEnabled =
+        process.env.NEXT_PUBLIC_RISK_ENABLED === "true" ||
+        (typeof window !== "undefined" &&
+          (new URLSearchParams(window.location.search).get("risk") === "true" ||
+            new URLSearchParams(window.location.search).get("risk") === "1"));
+
+      setLiveDetail({
+        checkin_id: "demo-chk-ali",
+        patient_id: "PT-04821",
+        patient_display: "Ali Khan (PT-04821)",
+        mode: "isolated",
+        emergency: demoScenario === "emergency",
+        intakes: [],
+        reconciliation: null,
+        verification: null,
+        requires_review: true,
+        max_severity: "moderate",
+        review_status: "open",
+        actions: [],
+        created_at: new Date().toISOString(),
+        patient_background: {
+          height_cm: 172,
+          weight_kg: 82,
+          bmi: 27.7,
+          waist_cm: 98,
+          diagnosis_year_hypertension: 2019,
+          smoking_status: "former",
+          comorbidities: {},
+          disclaimer:
+            "Self-reported background details provided by patient during enrolment. Not clinically verified.",
+        },
+        trends: {
+          generated_at: new Date().toISOString(),
+          advisory: true,
+          window_days: 30,
+          excluded_count: 0,
+          trends: {
+            blood_pressure_systolic: {
+              direction: "rising",
+              n: 4,
+              window_days: 30,
+              few_readings: true,
+              values: [
+                { value: 135, at: new Date().toISOString() },
+                { value: 142, at: new Date().toISOString() },
+                { value: 148, at: new Date().toISOString() },
+              ],
+            },
+            blood_pressure_diastolic: {
+              direction: "stable",
+              n: 4,
+              window_days: 30,
+              few_readings: true,
+              values: [
+                { value: 88, at: new Date().toISOString() },
+                { value: 90, at: new Date().toISOString() },
+                { value: 92, at: new Date().toISOString() },
+              ],
+            },
+          },
+        },
+        risk: isRiskEnabled
+          ? {
+              disease: "diabetes",
+              model_name: "diabetes_full_nhanes",
+              model_version: "1.0.0",
+              status: "ok",
+              band: "moderate",
+              probability: 0.145,
+              label_text: {
+                en: "Estimated 10-year risk of developing type 2 diabetes based on age, sex, BMI, waist, BP, and smoking.",
+                ur: "ذیابیطس کا ۱۰ سالہ تخمینہ شدہ خطرہ۔",
+              },
+              reasons: [
+                {
+                  feature: "waist",
+                  contribution: 0.45,
+                  label: {
+                    en: "Waist circumference",
+                    ur: "کمر کی پیمائش",
+                    roman_ur: "Kamar",
+                  },
+                },
+                {
+                  feature: "systolic",
+                  contribution: 0.38,
+                  label: {
+                    en: "Systolic blood pressure",
+                    ur: "سسٹولک بلڈ پریشر",
+                    roman_ur: "BP",
+                  },
+                },
+                {
+                  feature: "bmi",
+                  contribution: 0.28,
+                  label: {
+                    en: "Body Mass Index (BMI)",
+                    ur: "باڈی ماس انڈیکس (BMI)",
+                    roman_ur: "BMI",
+                  },
+                },
+              ],
+              caveats: ["home_bp_not_exam_bp", "not_validated_pakistan"],
+            }
+          : null,
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (!selectedPatient) return;
     let isMounted = true;
     api
       .getProviderReviewDetail(selectedPatient)
@@ -59,16 +170,15 @@ export const ReconciliationAlertDetail = () => {
           setIsLoading(false);
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (isMounted) {
           setIsLoading(false);
-          // If checkin ID not found directly, keep default display
         }
       });
     return () => {
       isMounted = false;
     };
-  }, [isLiveMode, selectedPatient]);
+  }, [isLiveMode, selectedPatient, demoScenario]);
 
   const isResolved =
     resolvedCases.includes(selectedPatient || "Ali Khan") ||
@@ -390,6 +500,144 @@ export const ReconciliationAlertDetail = () => {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Provider Risk Assessment (Experimental) — Hidden if liveDetail?.risk is null */}
+      {liveDetail?.risk && (
+        <div
+          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4"
+          data-testid="provider-risk-panel"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-teal-700" />
+              <span className="text-xs font-bold uppercase tracking-wider text-navy-800">
+                {t.providerRiskTitle}
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-500 font-medium italic">
+              {t.providerRiskNotice}
+            </span>
+          </div>
+
+          {liveDetail.risk.status === "ok" ? (
+            <div className="space-y-4">
+              {/* Risk Band Badge + Model notice */}
+              <div className="flex flex-wrap items-center gap-3">
+                {(() => {
+                  const b = (liveDetail.risk.band || "").toLowerCase();
+                  if (b === "high") {
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-rose-50 text-rose-900 border-rose-300"
+                        data-testid="risk-band-badge"
+                      >
+                        <AlertOctagon className="w-4 h-4 text-rose-700" />
+                        <span>{t.riskBandHigh}</span>
+                      </span>
+                    );
+                  }
+                  if (b === "moderate" || b === "medium") {
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-amber-50 text-amber-900 border-amber-300"
+                        data-testid="risk-band-badge"
+                      >
+                        <AlertTriangle className="w-4 h-4 text-amber-700" />
+                        <span>{t.riskBandMedium}</span>
+                      </span>
+                    );
+                  }
+                  return (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-emerald-50 text-emerald-900 border-emerald-300"
+                      data-testid="risk-band-badge"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                      <span>{t.riskBandLow}</span>
+                    </span>
+                  );
+                })()}
+
+                {liveDetail.risk.label_text && (
+                  <span className="text-xs text-slate-600 font-medium">
+                    {liveDetail.risk.label_text[isUrdu ? "ur" : "en"] || liveDetail.risk.label_text["en"]}
+                  </span>
+                )}
+              </div>
+
+              {/* Top Contributing Factors */}
+              {(liveDetail.risk.reasons || liveDetail.risk.top_reasons) && (liveDetail.risk.reasons || liveDetail.risk.top_reasons)!.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                    {t.riskReasonsTitle}
+                  </span>
+                  <ul className="list-disc list-inside space-y-1 text-xs text-slate-700">
+                    {(liveDetail.risk.reasons || liveDetail.risk.top_reasons)!.map((r, idx) => {
+                      let labelStr = r.feature;
+                      if (typeof r.label === "object" && r.label !== null) {
+                        labelStr = r.label[isUrdu ? "ur" : "en"] || r.label["en"] || r.feature;
+                      } else if (typeof r.label === "string") {
+                        labelStr = r.label;
+                      }
+                      return (
+                        <li key={idx} data-testid="risk-reason-item">
+                          <span className="font-semibold text-navy-800">{labelStr}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              {/* Clinical Caveats */}
+              {liveDetail.risk.caveats && liveDetail.risk.caveats.length > 0 && (
+                <div className="space-y-1.5 p-3 rounded-xl bg-amber-50/60 border border-amber-200">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1">
+                    <Info className="w-3.5 h-3.5 text-amber-700" />
+                    <span>{t.riskCaveatsTitle}</span>
+                  </span>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
+                    {liveDetail.risk.caveats.map((c, idx) => {
+                      let text = c;
+                      if (c === "home_bp_not_exam_bp") text = t.riskCaveatHomeBp;
+                      else if (c === "not_validated_pakistan") text = t.riskCaveatNotValidatedPakistan;
+                      return (
+                        <li key={idx} data-testid="risk-caveat-item">
+                          {text}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : liveDetail.risk.status === "not_enough_information" ? (
+            <div className="space-y-2.5" data-testid="risk-missing-section">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border bg-slate-100 text-slate-700 border-slate-300 text-xs font-semibold" data-testid="risk-missing-badge">
+                <Info className="w-3.5 h-3.5 text-slate-500" />
+                <span>{t.riskMissingDataTitle}</span>
+              </div>
+              <p className="text-xs text-slate-600">
+                {t.riskMissingDataDescription}
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-xs text-slate-600">
+                {(liveDetail.risk.missing || []).map((m, idx) => {
+                  let missingText = m;
+                  if (m === "latest_readings" || m === "bp" || m === "blood_pressure" || m === "sbp" || m === "dbp") missingText = t.riskMissingBp;
+                  else if (m === "waist" || m === "waist_cm") missingText = t.riskMissingWaist;
+                  else if (m === "smoking_status" || m === "ever_smoked_100") missingText = t.riskMissingSmoking;
+                  else if (m === "bmi" || m === "height" || m === "weight" || m === "age" || m === "sex_male") missingText = t.riskMissingHeightWeight;
+                  return (
+                    <li key={idx} data-testid="risk-missing-item">
+                      {missingText}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
         </div>
       )}
 

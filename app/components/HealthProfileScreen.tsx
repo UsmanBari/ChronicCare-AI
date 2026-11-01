@@ -30,6 +30,14 @@ export function lbToKg(lbVal: number): number {
   return Math.round((lbVal / 2.2046226218) * 10) / 10;
 }
 
+export function cmToIn(cmVal: number): number {
+  return Math.round((cmVal / 2.54) * 10) / 10;
+}
+
+export function inToCm(inVal: number): number {
+  return Math.round((inVal * 2.54) * 10) / 10;
+}
+
 export const HealthProfileScreen = () => {
   const {
     setScreen,
@@ -90,6 +98,14 @@ export const HealthProfileScreen = () => {
     return "";
   });
   const [weightKg, setWeightKg] = useState<string>("");
+  const [waistUnit, setWaistUnit] = useState<'in' | 'cm'>('in');
+  const [waistIn, setWaistIn] = useState<string>(() => {
+    if (liveProfile?.waist_cm !== undefined && liveProfile?.waist_cm !== null) {
+      return String(cmToIn(liveProfile.waist_cm));
+    }
+    return "";
+  });
+  const [waistCm, setWaistCm] = useState<string>("");
   const [diagYearDiabetes, setDiagYearDiabetes] = useState<string>(
     liveProfile?.diagnosis_year_diabetes !== undefined && liveProfile?.diagnosis_year_diabetes !== null ? String(liveProfile.diagnosis_year_diabetes) : ""
   );
@@ -148,6 +164,15 @@ export const HealthProfileScreen = () => {
         } else {
           setWeightKg(String(liveProfile.weight_kg));
           setWeightLb("");
+        }
+      }
+      if (liveProfile.waist_cm !== undefined && liveProfile.waist_cm !== null) {
+        if (waistUnit === 'in') {
+          setWaistIn(String(cmToIn(liveProfile.waist_cm)));
+          setWaistCm("");
+        } else {
+          setWaistCm(String(liveProfile.waist_cm));
+          setWaistIn("");
         }
       }
       if (liveProfile.diagnosis_year_diabetes !== undefined && liveProfile.diagnosis_year_diabetes !== null) {
@@ -261,6 +286,38 @@ export const HealthProfileScreen = () => {
     setWeightUnit(newUnit);
   };
 
+  const handleWaistUnitChange = (newUnit: 'in' | 'cm') => {
+    if (newUnit === waistUnit) return;
+    if (newUnit === 'cm') {
+      if (waistIn.trim().length > 0) {
+        const parsed = parseFloat(waistIn.trim());
+        if (!isNaN(parsed) && parsed > 0) {
+          const convertedCm = inToCm(parsed);
+          setWaistCm(String(convertedCm));
+        } else {
+          setWaistCm("");
+        }
+      } else {
+        setWaistCm("");
+      }
+      setWaistIn("");
+    } else {
+      if (waistCm.trim().length > 0) {
+        const parsed = parseFloat(waistCm.trim());
+        if (!isNaN(parsed) && parsed > 0) {
+          const convertedIn = cmToIn(parsed);
+          setWaistIn(String(convertedIn));
+        } else {
+          setWaistIn("");
+        }
+      } else {
+        setWaistIn("");
+      }
+      setWaistCm("");
+    }
+    setWaistUnit(newUnit);
+  };
+
   const dob = liveProfile?.date_of_birth || profile.date_of_birth || null;
   const computedAge = calculateAgeFromDob(dob);
   const birthYear = dob ? parseInt(dob.split("-")[0], 10) : null;
@@ -347,6 +404,33 @@ export const HealthProfileScreen = () => {
       }
     }
 
+    // Validate Waist if provided
+    let parsedWaist: number | null = null;
+    if (waistUnit === 'in') {
+      if (waistIn.trim()) {
+        const wIn = parseFloat(waistIn.trim());
+        if (isNaN(wIn)) {
+          setError(t.waistErrorIn);
+          return;
+        }
+        const wCm = inToCm(wIn);
+        if (wCm < 40 || wCm > 200) {
+          setError(t.waistErrorIn);
+          return;
+        }
+        parsedWaist = wCm;
+      }
+    } else {
+      if (waistCm.trim()) {
+        const w = parseFloat(waistCm.trim());
+        if (isNaN(w) || w < 40 || w > 200) {
+          setError(t.waistErrorCm);
+          return;
+        }
+        parsedWaist = Math.round(w * 10) / 10;
+      }
+    }
+
     // Validate Diagnosis Years
     let parsedDiagYearT2D: number | null = null;
     if (hasT2D && diagYearDiabetes.trim()) {
@@ -393,6 +477,7 @@ export const HealthProfileScreen = () => {
           language: selectedLang,
           height_cm: parsedHeight,
           weight_kg: parsedWeight,
+          waist_cm: parsedWaist,
           diagnosis_year_diabetes: parsedDiagYearT2D,
           diagnosis_year_hypertension: parsedDiagYearHtn,
           smoking_status: smokingStatus || "prefer_not_to_say",
@@ -722,6 +807,85 @@ export const HealthProfileScreen = () => {
                   value={weightKg}
                   onChange={(e) => setWeightKg(e.target.value)}
                   placeholder="e.g. 70"
+                  className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                />
+              )}
+            </div>
+
+            {/* Waist section */}
+            <div className="sm:col-span-2 pt-3 border-t border-slate-200">
+              <div className="flex items-center justify-between mb-1.5">
+                <div>
+                  <label
+                    htmlFor={waistUnit === 'in' ? "waist-in-input" : "waist-cm-input"}
+                    className="text-[11px] font-semibold text-slate-700 block"
+                  >
+                    <bdi>{waistUnit === 'in' ? t.waistLabelIn : t.waistLabelCm}</bdi>
+                  </label>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    <bdi>{t.waistHelperText}</bdi>
+                  </p>
+                </div>
+                <div
+                  role="radiogroup"
+                  aria-label={t.waistToggleLabel}
+                  className="inline-flex rounded-lg bg-slate-200 p-0.5 shrink-0"
+                >
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-label={t.waistUnitInAria}
+                    aria-checked={waistUnit === 'in'}
+                    onClick={() => handleWaistUnitChange('in')}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
+                      waistUnit === 'in'
+                        ? "bg-white text-navy-800 shadow-sm"
+                        : "text-slate-600 hover:text-navy-800"
+                    }`}
+                  >
+                    <bdi>{t.waistUnitIn}</bdi>
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-label={t.waistUnitCmAria}
+                    aria-checked={waistUnit === 'cm'}
+                    onClick={() => handleWaistUnitChange('cm')}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${
+                      waistUnit === 'cm'
+                        ? "bg-white text-navy-800 shadow-sm"
+                        : "text-slate-600 hover:text-navy-800"
+                    }`}
+                  >
+                    <bdi>{t.waistUnitCm}</bdi>
+                  </button>
+                </div>
+              </div>
+
+              {waistUnit === 'in' ? (
+                <input
+                  type="number"
+                  min="15.7"
+                  max="78.7"
+                  step="0.1"
+                  inputMode="decimal"
+                  id="waist-in-input"
+                  value={waistIn}
+                  onChange={(e) => setWaistIn(e.target.value)}
+                  placeholder="e.g. 34.5"
+                  className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                />
+              ) : (
+                <input
+                  type="number"
+                  min="40"
+                  max="200"
+                  step="0.1"
+                  inputMode="decimal"
+                  id="waist-cm-input"
+                  value={waistCm}
+                  onChange={(e) => setWaistCm(e.target.value)}
+                  placeholder="e.g. 88"
                   className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
                 />
               )}

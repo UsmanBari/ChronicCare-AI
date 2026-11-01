@@ -271,9 +271,9 @@ def test_mysql_v12_ddl_and_duplicate_guard():
     assert v12_call, "Migration 12 not executed for MySQL"
 
 
-def test_latest_schema_version_is_12():
-    """Confirms LATEST_SCHEMA_VERSION constant is updated to 12."""
-    assert LATEST_SCHEMA_VERSION == 12
+def test_latest_schema_version_is_at_least_12():
+    """Confirms LATEST_SCHEMA_VERSION constant is updated to at least 12."""
+    assert LATEST_SCHEMA_VERSION >= 12
 
 
 def test_sqlite_v12_non_duplicate_error_is_raised():

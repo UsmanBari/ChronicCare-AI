@@ -1,0 +1,73 @@
+{
+  "audience": "provider_only",
+  "bands": {
+    "high_min": 0.08709553587470452,
+    "low_max": 0.027566883878872094
+  },
+  "coef": [
+    0.5946617619236584,
+    0.0859985865734003,
+    0.16273043189475622,
+    0.09686429841817035,
+    0.09783171040643994,
+    0.15733415611691628,
+    0.008575505947103983,
+    0.5073138033655146
+  ],
+  "created_at": "2026-10-29T15:00:48.702494+00:00",
+  "feature_order": [
+    "age",
+    "sex_male",
+    "bmi",
+    "ever_smoked_100",
+    "told_high_bp",
+    "sbp",
+    "dbp",
+    "waist_cm"
+  ],
+  "feature_units": {
+    "age": "years",
+    "bmi": "kg/m2",
+    "dbp": "mmHg",
+    "ever_smoked_100": "binary (1=yes, 0=no)",
+    "sbp": "mmHg",
+    "sex_male": "binary (1=male, 0=female)",
+    "told_high_bp": "binary (1=yes, 0=no)",
+    "waist_cm": "cm"
+  },
+  "intercept": -3.7557686004432704,
+  "label": "diabetes_undiagnosed",
+  "label_text": {
+    "en": "Experimental: trained on US NHANES data, not validated for Pakistani patients",
+    "needs_native_review": true,
+    "roman_ur": "Tajurbati: US NHANES data par train kiya gaya, Pakistani mareezon ke liye tasdeeq shuda nahi",
+    "ur": "\u062a\u062c\u0631\u0628\u0627\u062a\u06cc: \u0627\u0645\u0631\u06cc\u06a9\u06cc NHANES \u0688\u06cc\u0679\u0627 \u067e\u0631 \u062a\u0631\u0628\u06cc\u062a \u06cc\u0627\u0641\u062a\u06c1\u060c \u067e\u0627\u06a9\u0633\u062a\u0627\u0646\u06cc \u0645\u0631\u06cc\u0636\u0648\u06ba \u06a9\u06d2 \u0644\u06cc\u06d2 \u063a\u06cc\u0631 \u062a\u0635\u062f\u06cc\u0642 \u0634\u062f\u06c1"
+  },
+  "model_name": "diabetes_full_nhanes",
+  "model_version": "1.0.0",
+  "population": "adults_without_diabetes",
+  "scaler_mean": [
+    47.44389390848149,
+    0.4816744389390848,
+    28.196786651122117,
+    0.46455115126785196,
+    0.2823885164675022,
+    123.31092732925288,
+    70.34759059555037,
+    96.82497814048382
+  ],
+  "scaler_scale": [
+    18.11043794528217,
+    0.4996640609567619,
+    6.199176691813071,
+    0.4987417960463763,
+    0.4501613513339249,
+    19.189735058916202,
+    13.172290491900613,
+    15.167055749704652
+  ],
+  "sklearn_version": "1.9.1",
+  "threshold": 0.027566883878872094,
+  "tier": "full",
+  "training_commit": "58112f7503ed801338d845782b169baa428a2910"
+}
