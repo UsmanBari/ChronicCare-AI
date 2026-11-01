@@ -1,4 +1,4 @@
-﻿# dependencies
+# dependencies
 /node_modules
 /.pnp
 .pnp.js
@@ -64,3 +64,12 @@ backend-poc-technical/ml/outputs/
 # Python bytecode
 __pycache__/
 *.py[cod]
+
+# OCR Spike isolated venv and model caches
+backend-poc-technical/ocr_spike/.venv/
+.EasyOCR/
+backend-poc-technical/ocr_spike/.EasyOCR/
+backend-poc-technical/ocr_spike/tesseractjs_bench/node_modules/
+backend-poc-technical/ocr_spike/tesseractjs_bench/.cache/
+*.traineddata
+*.traineddata.gz
