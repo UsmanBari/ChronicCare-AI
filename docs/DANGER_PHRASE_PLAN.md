@@ -137,3 +137,4 @@ We request clinician feedback on the following specific design choices:
 - [ ] **D-P1 (Vomiting Split)**: Concur with Dr. Anam (emergency) vs Dr. Shaiza/Capt. Talha (urgent) regarding whether all non-bloody persistent vomiting escalates to emergency or review.
 - [ ] **D-P2 (Chest Discomfort vs Sharp Pain)**: Should non-crushing chest pain in adults < 40 trigger emergency or provider review?
 - [ ] **D-P3 (Dialectal Urdu Boundaries)**: Review specific Punjabi/Urdu idioms (e.g. `dum ghutna`, `seena phatna`) for inclusion in the core emergency red flag screen.
+
