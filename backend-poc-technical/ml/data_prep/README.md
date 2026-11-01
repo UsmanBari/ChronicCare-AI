@@ -78,3 +78,26 @@ hanes/nhanes_full.parquet: unpruned merged frame.
   - rfss/brfss_core.parquet: cleaned multi-year analytical dataset.
   - rfss/brfss_core_sample.csv: 1,000-row preview sample.
 - **Expected Total Rows:** 2,181,756 adults across the 5 odd-year surveys.
+
+
+## 4. External Validation Datasets
+
+External validation datasets used for domain shift and out-of-distribution evaluation must be placed in their respective subdirectories under `$env:CHRONICCARE_DATA_DIR`:
+
+- **Kaggle BRFSS 2015 Indicators:**
+  - Path: `$env:CHRONICCARE_DATA_DIR/brfss2015_kaggle/`
+  - Expected Files: `diabetes_binary_health_indicators_BRFSS2015.csv` (253,680 rows), along with `diabetes_012_health_indicators_BRFSS2015.csv` and `diabetes_binary_5050split_health_indicators_BRFSS2015.csv`.
+  - Source: Kaggle Diabetes Health Indicators Dataset (Alex Teboul).
+- **Cardio70k Cardiovascular Examination:**
+  - Path: `$env:CHRONICCARE_DATA_DIR/cardio70k/cardio_train.csv`
+  - Format: Semicolon-delimited CSV with 70,000 examination records.
+- **Framingham Heart Study:**
+  - Path: `$env:CHRONICCARE_DATA_DIR/framingham/framingham.csv`
+  - Format: Comma-delimited CSV with 4,238 participant records.
+- **Pima Indians Diabetes:**
+  - Path: `$env:CHRONICCARE_DATA_DIR/pima/pima-indians-diabetes.data.csv`
+  - Format: Headerless CSV with 768 adult female records.
+- **Demographic and Health Surveys (DHS):**
+  - Path: `$env:CHRONICCARE_DATA_DIR/dhs/<country>/<country>.dta`
+  - Subdirectories: `india_nfhs5`, `bangladesh_2017`, `nepal_2022`.
+  - Note: DHS microdata files are restricted and require data authorization from the DHS Program (https://dhsprogram.com).
