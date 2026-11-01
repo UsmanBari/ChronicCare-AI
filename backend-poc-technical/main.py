@@ -208,6 +208,13 @@ async def lifespan(app: FastAPI):
         logger.info("local store ready")
     except Exception as e:
         logger.warning("Local store initialization skipped on startup: %s", str(e))
+    if os.environ.get("EXPLAIN_ENABLED", "").strip().lower() == "true":
+        try:
+            from rag.store import get_db_chunk_store
+            store = get_db_chunk_store()
+            logger.info("DbChunkStore loaded at startup: %d chunks", store.total_chunks())
+        except Exception as e:
+            logger.warning("DbChunkStore startup load skipped: %s", str(e))
     yield
 
 
