@@ -641,6 +641,96 @@ export const ReconciliationAlertDetail = () => {
         </div>
       )}
 
+      {/* Provider: Recent Patient Record Changes (Edit History) */}
+      {liveDetail?.recent_record_edits && liveDetail.recent_record_edits.length > 0 && (
+        <div className="surface-card rounded-3xl p-5 sm:p-6 space-y-3.5 border border-slate-200" data-testid="provider-recent-edits-block">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-teal-700" />
+              <div>
+                <h3 className="font-heading font-bold text-base text-navy-900">
+                  {t.recentRecordChangesTitle}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {t.recentRecordChangesSubtitle}
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-mono font-bold text-slate-400">
+              {liveDetail.recent_record_edits.length}
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            {liveDetail.recent_record_edits.map((edit) => {
+              const isOcr = edit.origin === "ocr";
+              return (
+                <div
+                  key={edit.edit_id || edit.id}
+                  data-testid="provider-edit-row"
+                  className={`p-3 rounded-2xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-all ${
+                    isOcr ? "bg-purple-50/50 border-purple-200 shadow-2xs" : "bg-slate-50 border-slate-200"
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-navy-900 capitalize">
+                        {edit.record_type} ({edit.field})
+                      </span>
+                      {isOcr ? (
+                        <span
+                          data-testid="edit-badge-ocr"
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 text-[10px] font-bold uppercase tracking-wider"
+                        >
+                          <Sparkles className="w-3 h-3 text-purple-700" /> OCR
+                        </span>
+                      ) : edit.origin === "import" ? (
+                        <span
+                          data-testid="edit-badge-import"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200 text-[10px] font-bold"
+                        >
+                          Import
+                        </span>
+                      ) : edit.origin === "clinician" ? (
+                        <span
+                          data-testid="edit-badge-clinician"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-200 text-[10px] font-bold"
+                        >
+                          Clinician
+                        </span>
+                      ) : (
+                        <span
+                          data-testid="edit-badge-patient"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-semibold"
+                        >
+                          Patient
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="font-mono text-[11px] text-slate-600">
+                      {edit.field === "created" ? (
+                        <span>Added: <bdi className="font-bold text-teal-900">{JSON.stringify(edit.new_value)}</bdi></span>
+                      ) : edit.field === "deleted" ? (
+                        <span>Removed: <bdi className="text-red-900 line-through">{JSON.stringify(edit.old_value)}</bdi></span>
+                      ) : (
+                        <span>
+                          <bdi className="line-through text-slate-500">{JSON.stringify(edit.old_value)}</bdi> &rarr; <bdi className="font-bold text-teal-900">{JSON.stringify(edit.new_value)}</bdi>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <span className="text-[11px] text-slate-500 font-mono self-end sm:self-center shrink-0">
+                    <bdi>{new Date(edit.changed_at).toLocaleString()}</bdi>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Emergency Detail View or Reconciliation Comparison Card */}
       {isEmergencyItem ? (
         /* Dedicated Emergency Review Card (No reconciliation cards rendered) */

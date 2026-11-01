@@ -309,6 +309,31 @@ MUTATIONS = [
         "replacement": "        # 4. Check Missing Features (No Basic Fallback per D8/D12)\n        if missing and missing != [\"waist_cm\"]:\n            return {\n                \"status\": \"not_enough_information\",\n                \"missing\": sorted(list(set(missing))),\n                \"audience\": \"provider_only\",\n            }\n        if missing == [\"waist_cm\"]:\n            raw_features[\"waist_cm\"] = 85.0",
         "test_node": "backend-poc-technical/test_risk_agent.py::test_missing_waist_yields_not_enough_info",
     },
+    # --- Day 6 Mutations (M-H6-1 to M-H6-2: Edit History & Import Validation) ---
+    {
+        "id": "M-H6-1",
+        "name": "Record edit call removed from update_local_medication",
+        "file": BACKEND_DIR / "data_sources" / "local_store.py",
+        "target": "                if dosage_changed:\n                    record_edit(\n                        cursor,\n                        \"?\",",
+        "replacement": "                if False and dosage_changed:\n                    record_edit(\n                        cursor,\n                        \"?\",",
+        "test_node": "backend-poc-technical/test_record_edits.py::test_medication_edit_history",
+    },
+    {
+        "id": "M-H6-2",
+        "name": "Validation skipped on record import",
+        "file": BACKEND_DIR / "main.py",
+        "target": "            clean_unit = _validate_observation_value_and_unit(obs_type, val_float)",
+        "replacement": "            clean_unit = \"mg/dL\"",
+        "test_node": "backend-poc-technical/test_record_export_import.py::test_import_validation_rejects_out_of_range_and_invalid_type",
+    },
+    {
+        "id": "M-H6-3",
+        "name": "Compensating rollback removed from import endpoint",
+        "file": BACKEND_DIR / "main.py",
+        "target": "            if not is_mysql:\n                _rollback_sqlite_import(user_id, patient_id, written_items)",
+        "replacement": "            if False and not is_mysql:\n                _rollback_sqlite_import(user_id, patient_id, written_items)",
+        "test_node": "backend-poc-technical/test_record_export_import.py::test_import_all_or_nothing_rollback_on_failure",
+    },
 ]
 
 

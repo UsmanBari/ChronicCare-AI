@@ -395,6 +395,42 @@ In connected mode, FHIR `AllergyIntolerance` entries are returned in `EHRConnect
 
 ---
 
+## Record Edits
+
+Table: `record_edits`
+
+Added in schema v14.
+
+> [!IMPORTANT]
+> **PRODUCTION DB MIGRATION**: Run `python scripts/mysql_preflight.py` before and after deploying; expected schema 14.
+
+Stores the granular timeline and audit trail of user-driven and import modifications to clinical health records (medications, observations, allergies, conditions basis).
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `edit_id` | TEXT | Unique identifier for the edit record (UUID). Primary key. | `edit_98f12a` | No |
+| `user_id` | TEXT | Identifier of the patient whose record was edited. | `usr_001` | Yes |
+| `record_type` | TEXT | Type of clinical entity (`medication`, `observation`, `allergy`, `conditions_basis`). | `medication` | No |
+| `record_id` | TEXT | Identifier of the specific record modified. | `med_001` | Yes |
+| `field` | TEXT | Specific field modified (`created`, `deleted`, `dosage`, `status`, `value`, `basis`). | `dosage` | No |
+| `old_value_json` | TEXT | JSON-serialized previous state or value (NULL on creation). | `"500mg daily"` | Yes |
+| `new_value_json` | TEXT | JSON-serialized new state or value (NULL on deletion). | `"1000mg daily"` | Yes |
+| `origin` | TEXT | Source or mode of the modification (`patient`, `clinician`, `import`, `ocr`, `ehr`). | `patient` | No |
+| `changed_by_user_id` | TEXT | User identifier of the actor who enacted the change. | `usr_001` | Yes |
+| `changed_by_role` | TEXT | Role of the actor at the time of modification (`patient`, `provider`, `admin`). | `patient` | No |
+| `changed_at` | TEXT | Subsecond UTC ISO-8601 timestamp of modification. | `2026-10-31T12:00:00.123Z` | No |
+| `reason` | TEXT | Optional user- or system-supplied rationale for the edit. | `Prescription update` | Yes |
+
+### Constraints and notes
+
+- `edit_id` is the primary key.
+- `user_id`, `record_type`, `record_id`, `field`, `origin`, `changed_by_user_id`, and `changed_at` cannot be null.
+- `origin` must be one of `patient`, `clinician`, `import`, `ocr`, or `ehr`.
+- Composite indexes: `idx_record_edits_lookup` on `(user_id, record_type, record_id)` and `idx_record_edits_timeline` on `(user_id, changed_at DESC)`.
+- Enforces atomic writes on the same transaction cursor as the record change.
+
+---
+
 ## Personal Data Summary
 
 Personal data is stored across several parts of the ChronicCare AI data model. Account identity and access information is stored in `users`; demographic, condition, consent, and other patient-specific information is stored in `patient_profiles`; check-in responses and clinical processing information are stored in `checkins` and `checkin_results`; provider review activity is stored in `review_actions`; allergy information is stored in `allergies`; and external patient identifiers and EHR linkage information are stored in `ehr_connections`. The separate local clinical data store contains patient identity information in `patients`, clinical measurements in `observations`, and medication information in `medications`. `audit_log` may also contain personal data when an event identifies a user or contains user-related details. By contrast, `schema_version` contains database migration metadata and `ehr_systems` primarily contains system configuration rather than patient information.
