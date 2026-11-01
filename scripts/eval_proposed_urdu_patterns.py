@@ -38,7 +38,8 @@ from agents.adaptive_interview_agent import (
 from agents.input_triage import classify_input
 
 PRIMARY_PHRASES_PATH = REPO_ROOT / "tests" / "sim" / "danger_phrases_independent_hassaan_ur.json"
-HELDOUT_PHRASES_PATH = REPO_ROOT / "tests" / "sim" / "heldout_urdu_saad.json"
+TUNING_SET_PATH = REPO_ROOT / "tests" / "sim" / "tuning_set_urdu.json"
+BLIND_SAAD_PATH = REPO_ROOT / "tests" / "sim" / "blind_urdu_saad.json"
 BENIGN_SENTENCES_PATH = REPO_ROOT / "tests" / "sim" / "benign_urdu_sentences_hassaan.json"
 
 
@@ -251,7 +252,8 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8")
 
     primary_res = evaluate_dataset(PRIMARY_PHRASES_PATH)
-    heldout_res = evaluate_dataset(HELDOUT_PHRASES_PATH)
+    tuning_res = evaluate_dataset(TUNING_SET_PATH)
+    blind_res = evaluate_dataset(BLIND_SAAD_PATH) if BLIND_SAAD_PATH.exists() else None
 
     with open(BENIGN_SENTENCES_PATH, "r", encoding="utf-8") as f:
         benign_sentences = json.load(f)
@@ -266,7 +268,7 @@ def main():
             benign_counts["prop_fp"] += 1
 
     print("=" * 80)
-    print("CHRONICCARE-AI: MEASURED URDU DANGER PHRASE EVALUATION (CORRECTION 3)")
+    print("CHRONICCARE-AI: MEASURED URDU DANGER PHRASE EVALUATION (CORRECTION 4)")
     print("=" * 80)
 
     print("\n### 1. Primary Set (Hassaan: 20 Danger + 10 Safe Look-alikes)")
@@ -281,13 +283,13 @@ def main():
         spec = (r["tn"] / 10) * 100
         print(f"| {name} | {sens:.1f}% ({r['tp']}/20) | {spec:.1f}% ({r['tn']}/10) | {r['fp']} |")
 
-    print("\n### 2. Held-out Set (Saad: 20 New Danger + 20 New Safe Sentences)")
+    print("\n### 2. Tuning Set (patterns adjusted once on it: 20 Danger + 20 Safe)")
     print("| Engine | Sensitivity (TP/20) | Safe Specificity (TN/20) | False Alarms |")
     print("|---|---|---|---|")
     for name, r in [
-        ("Legacy v2 (`run_stage1_red_flag_screen`)", heldout_res["v2"]),
-        ("Current v3 (`classify_input`)", heldout_res["v3"]),
-        ("Proposed v3+ (Broadened Round 1)", heldout_res["proposed"]),
+        ("Legacy v2 (`run_stage1_red_flag_screen`)", tuning_res["v2"]),
+        ("Current v3 (`classify_input`)", tuning_res["v3"]),
+        ("Proposed v3+ (Broadened Round 1)", tuning_res["proposed"]),
     ]:
         sens = (r["tp"] / 20) * 100
         spec = (r["tn"] / 20) * 100
@@ -296,14 +298,30 @@ def main():
     total_safe = 10 + 20 + 40  # 70 total safe sentences
     print("\n### 3. Combined Safe Specificity across All 70 Safe Sentences (10 Hassaan + 20 Saad + 40 Benign)")
     for name, r_prim, r_held, b_fp in [
-        ("Legacy v2", primary_res["v2"], heldout_res["v2"], benign_counts["v2_fp"]),
-        ("Current v3", primary_res["v3"], heldout_res["v3"], benign_counts["v3_fp"]),
-        ("Proposed v3+", primary_res["proposed"], heldout_res["proposed"], benign_counts["prop_fp"]),
+        ("Legacy v2", primary_res["v2"], tuning_res["v2"], benign_counts["v2_fp"]),
+        ("Current v3", primary_res["v3"], tuning_res["v3"], benign_counts["v3_fp"]),
+        ("Proposed v3+", primary_res["proposed"], tuning_res["proposed"], benign_counts["prop_fp"]),
     ]:
         total_tn = r_prim["tn"] + r_held["tn"] + (40 - b_fp)
         total_fp = r_prim["fp"] + r_held["fp"] + b_fp
         spec = (total_tn / total_safe) * 100
         print(f"  {name:15}: Specificity = {spec:.1f}% ({total_tn}/{total_safe}) [Total False Positives: {total_fp}]")
+
+    
+    if blind_res:
+        print("\n### 4. Blind Saad Set (Round 0 Un-tuned: 20 Danger + 20 Safe Look-alikes)")
+        print("| Engine | Sensitivity (TP/20) | Safe Specificity (TN/20) | False Alarms |")
+        print("|---|---|---|---|")
+        for name, r in [
+            ("Legacy v2 (`run_stage1_red_flag_screen`)", blind_res["v2"]),
+            ("Current v3 (`classify_input`)", blind_res["v3"]),
+            ("Proposed v3+ (Round 0 Un-tuned)", blind_res["proposed"]),
+        ]:
+            sens = (r["tp"] / 20) * 100
+            spec = (r["tn"] / 20) * 100
+            print(f"| {name} | {sens:.1f}% ({r['tp']}/20) | {spec:.1f}% ({r['tn']}/20) | {r['fp']} |")
+    else:
+        print("\n### 4. Blind Saad Set (Table 6E): AWAITING tests/sim/blind_urdu_saad.json from Saad")
 
     print("\n" + "=" * 80)
     print("CRITICAL USMAN VALIDATION CHECKS:")

@@ -112,18 +112,16 @@ These regex patterns are proposed for clinical sign-off by Usman, then the revie
 
 ---
 
-## 6. Measured Engine Comparison: Primary Set, Held-Out Set & Benign Specificity
+## 6. Measured Engine Comparison: Primary Set, Tuning Set & Benign Specificity
 
 All performance figures below are **MEASURED** directly from programmatic execution using [`scripts/eval_proposed_urdu_patterns.py`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/scripts/eval_proposed_urdu_patterns.py) across:
 - **Primary Set (Hassaan)**: 20 Independent Urdu Danger Phrases + 10 Safe Look-alikes ([`tests/sim/danger_phrases_independent_hassaan_ur.json`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/tests/sim/danger_phrases_independent_hassaan_ur.json))
-- **Held-out Set (Saad)**: 20 New Blind Danger Phrases + 20 New Safe Sentences ([`tests/sim/heldout_urdu_saad.json`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/tests/sim/heldout_urdu_saad.json))
+- **Tuning Set**: 20 Danger Phrases + 20 Safe Sentences ([`tests/sim/tuning_set_urdu.json`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/tests/sim/tuning_set_urdu.json))
+- **Usman Private Probe**: 10 New Danger Phrases + 10 Tricky Safe Sentences
 - **Benign Conversational Set**: 40 Handwritten Benign Patient Sentences ([`tests/sim/benign_urdu_sentences_hassaan.json`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/tests/sim/benign_urdu_sentences_hassaan.json))
 
 > [!NOTE]
-> **Tuning Protocol & Generalization Discipline**:
-> - **Round 0 (Zero-Shot Held-Out)**: Evaluated Saad's held-out set against initial proposed patterns: **85.0% (17/20)** sensitivity, 0 false alarms. Misses occurred on alternative phrasing for stroke (FAST facial droop) and thunderclap headache.
-> - **Round 1 (Clinically Broadened)**: Broadened patterns once to capture clinical synonyms (e.g., stroke FAST droop, thunderclap electric shock headache, and neuroglycopenic low-sugar symptoms) while preserving whole-number boundaries and negation guards.
-> - **Final Held-Out Result**: **100.0% (20/20)** sensitivity with **0 false alarms** across all 70 safe sentences. Exactly **1 tuning round** was conducted.
+> **Tuning Protocol**: Exactly 1 tuning round was conducted on the tuning set (`tests/sim/tuning_set_urdu.json`), adjusting regexes once for stroke facial droop and severe hypoglycemia whole-number boundaries. Round 0 (17/20) was not committed. Generalization must be evaluated on an independent blind test set.
 
 ### Table 6A: Primary Independent Set (Hassaan: 20 Danger + 10 Safe Look-alikes)
 | Engine | Danger Sensitivity | Safe Specificity | False Alarms | False Negatives (Misses) |
@@ -132,12 +130,20 @@ All performance figures below are **MEASURED** directly from programmatic execut
 | **Current v3 Engine (`classify_input`)** | **30.0%** (6 / 20) | **100.0%** (10 / 10) | 0 | 14 |
 | **Proposed v3+ Engine (Broadened Round 1)** | **100.0%** (20 / 20) | **100.0%** (10 / 10) | 0 | 0 |
 
-### Table 6B: Held-Out Test Set (Saad: 20 New Danger + 20 New Safe Sentences) — *For Doctor Review Pack*
+### Table 6B: Tuning Set (patterns adjusted once on it)
 | Engine | Danger Sensitivity | Safe Specificity | False Alarms | False Negatives (Misses) |
 |---|---|---|---|---|
 | **Legacy v2 Engine (`run_stage1_red_flag_screen`)** | **5.0%** (1 / 20) | **100.0%** (20 / 20) | 0 | 19 |
 | **Current v3 Engine (`classify_input`)** | **5.0%** (1 / 20) | **100.0%** (20 / 20) | 0 | 19 |
 | **Proposed v3+ Engine (Broadened Round 1)** | **100.0%** (20 / 20) | **100.0%** (20 / 20) | 0 | 0 |
+
+> [!IMPORTANT]
+> **Tuning Set Caveat**: The 100.0% sensitivity on Table 6B is **after** a round of pattern adjustments on this specific dataset. Round 0 (17/20) was an exploratory baseline that was not committed to version control and cannot be independently reproduced. A 100% score on a tuning set does not demonstrate generalization to unseen phrases.
+>
+> **Usman's private probe of 10 new danger phrases**: **1/10 caught** by the proposed patterns, **0/10 false alarms** on 10 tricky safe sentences.
+
+### Limits
+Matching phrase by phrase using static regular expressions inherently fails to generalize across the vast lexical and dialectal diversity of Urdu conversational expressions. When patients describe acute emergencies using alternative colloquial phrasing, word orders, or synonyms not explicitly anticipated in the pattern list, regex recall drops dramatically (as demonstrated by Usman's private 10-phrase probe catching only 1/10). Usman will propose a broader architectural approach for formal clinician review; the proposed tables here serve as a transparent baseline and regression guard for that work.
 
 ### Table 6C: Overall Specificity Across All 70 Safe Sentences (10 Hassaan + 20 Saad + 40 Benign)
 | Evaluation Set | Safe Sentence Count | Legacy v2 TN (Spec) | Current v3 TN (Spec) | Proposed v3+ TN (Spec) |
@@ -161,3 +167,18 @@ All performance figures below are **MEASURED** directly from programmatic execut
    - Patient Input: `"شوگر 135 ہے اور ہاتھ کانپ رہے ہیں"`
    - Result: **NOT TRIGGERED** (`is_danger: False`, `category: None`).
    - Reason: Standalone integer boundary extraction and numerical check (`135 >= 54`) ensures non-hypoglycemic readings never trigger false emergency.
+
+### Table 6E: Blind Saad Set (Round 0 Un-tuned: 20 Danger + 20 Tricky Safe Look-alikes)
+| Engine | Danger Sensitivity (TP / 20) | Safe Specificity (TN / 20) | False Alarms (FP) | False Negatives (FN) |
+|---|---|---|---|---|
+| **Legacy v2 Engine (`run_stage1_red_flag_screen`)** | **10.0%** (2 / 20) | **85.0%** (17 / 20) | 3 | 18 |
+| **Current v3 Engine (`classify_input`)** | **15.0%** (3 / 20) | **90.0%** (18 / 20) | 2 | 17 |
+| **Proposed v3+ Engine (Round 0 Un-tuned)** | **35.0%** (7 / 20) | **90.0%** (18 / 20) | 2 | 13 |
+
+> [!NOTE]
+> **Round-0 Blind Evaluation Findings**:
+> - The 40 phrases in [`tests/sim/blind_urdu_saad.json`](file:///c:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/tests/sim/blind_urdu_saad.json) were authored independently by Saad without seeing the proposed regex patterns.
+> - **Zero pattern adjustments** were made after evaluation to preserve a strictly blind baseline for clinician review.
+> - **Misses (13/20)**: Colloquial family/caregiver reports (e.g., *"امی کی دائیں سائیڈ بالکل کمزور ہو گئی ہے"*, *"سانس بالکل نہیں لیا جا رہا"*, *"سر پھٹ جائے گا"*, *"شوگر ابھی چیک کی تو ۴۲ نکلی ہے اور امی کو کچھ سمجھ نہیں آ رہا"*).
+> - **False Alarms (2/20)**: Tricky temporal look-alikes recounting resolved historical episodes (*"ابو کو پچھلے سال سینے میں درد ہوا تھا اب الحمدللہ ٹھیک ہیں"*, *"پچھلے مہینے ابو بے ہوش ہوئے تھے لیکن اب مکمل ٹھیک ہیں"*). Static keyword matching lacks temporal boundary context.
+
