@@ -1,0 +1,282 @@
+[
+  {
+    "id": 1,
+    "text": "امی کے سینے میں بہت درد ہو رہا ہے اور بائیں بازو میں بھی جا رہا ہے",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "author": "saad"
+  },
+  {
+    "id": 2,
+    "text": "ابو کہہ رہے ہیں سینے پر بہت بوجھ رکھا ہوا ہے سانس بھی ٹھیک نہیں آ رہا",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "author": "saad"
+  },
+  {
+    "id": 3,
+    "text": "سینے میں اچانک سخت جکڑن اور درد شروع ہو گیا ہے پسینہ بھی آ رہا ہے",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "author": "saad"
+  },
+  {
+    "id": 4,
+    "text": "والد کا منہ ایک طرف ٹیڑھا ہو گیا ہے اور ہاتھ بھی نہیں اٹھ رہا",
+    "expected_danger": true,
+    "category": "stroke",
+    "author": "saad"
+  },
+  {
+    "id": 5,
+    "text": "امی کی دائیں سائیڈ بالکل کمزور ہو گئی ہے بول بھی صحیح نہیں پا رہیں",
+    "expected_danger": true,
+    "category": "stroke",
+    "author": "saad"
+  },
+  {
+    "id": 6,
+    "text": "ابو کی زبان لڑکھڑا رہی ہے اور چہرہ بھی ایک طرف لٹک گیا ہے اچانک",
+    "expected_danger": true,
+    "category": "stroke",
+    "author": "saad"
+  },
+  {
+    "id": 7,
+    "text": "شوگر ابھی چیک کی تو ۴۲ نکلی ہے اور امی کو کچھ سمجھ نہیں آ رہا",
+    "expected_danger": true,
+    "category": "low_sugar",
+    "author": "saad"
+  },
+  {
+    "id": 8,
+    "text": "ابو کی شوگر 38 ہے ہاتھ پاؤں کانپ رہے ہیں اور بے ہوش ہونے لگے ہیں",
+    "expected_danger": true,
+    "category": "low_sugar",
+    "author": "saad"
+  },
+  {
+    "id": 9,
+    "text": "شوگر ۴۹ آ رہی ہے مریض کو چکر پڑ رہے ہیں اور بات کا جواب نہیں دے رہے",
+    "expected_danger": true,
+    "category": "low_sugar",
+    "author": "saad"
+  },
+  {
+    "id": 10,
+    "text": "سانس بالکل نہیں لیا جا رہا سینے سے ہوا ہی نہیں گزر رہی",
+    "expected_danger": true,
+    "category": "breathlessness",
+    "author": "saad"
+  },
+  {
+    "id": 11,
+    "text": "امی ہانپ رہی ہیں سانس کے لیے بہت زور لگا رہی ہیں کیا کریں",
+    "expected_danger": true,
+    "category": "breathlessness",
+    "author": "saad"
+  },
+  {
+    "id": 12,
+    "text": "ابو کو اچانک سانس لینے میں اتنی مشکل ہو رہی ہے کہ پورا جملہ بھی نہیں بول پا رہے",
+    "expected_danger": true,
+    "category": "breathlessness",
+    "author": "saad"
+  },
+  {
+    "id": 13,
+    "text": "امی اچانک گر گئی ہیں آواز دینے پر بھی آنکھیں نہیں کھول رہیں",
+    "expected_danger": true,
+    "category": "fainting",
+    "author": "saad"
+  },
+  {
+    "id": 14,
+    "text": "ابو بے ہوش پڑے ہیں نہ بات کر رہے ہیں نہ کوئی حرکت ہو رہی ہے",
+    "expected_danger": true,
+    "category": "fainting",
+    "author": "saad"
+  },
+  {
+    "id": 15,
+    "text": "زندگی میں کبھی اتنا شدید سر درد نہیں ہوا اچانک ایسا لگا سر پھٹ جائے گا",
+    "expected_danger": true,
+    "category": "severe_headache",
+    "author": "saad"
+  },
+  {
+    "id": 16,
+    "text": "امی کا سر اچانک بہت زور سے درد کرنے لگا ہے کہہ رہی ہیں برداشت نہیں ہو رہا",
+    "expected_danger": true,
+    "category": "severe_headache",
+    "author": "saad"
+  },
+  {
+    "id": 17,
+    "text": "ابو کی ایک آنکھ سے اچانک بالکل نظر آنا بند ہو گیا ہے",
+    "expected_danger": true,
+    "category": "vision_loss",
+    "author": "saad"
+  },
+  {
+    "id": 18,
+    "text": "امی کہہ رہی ہیں سامنے سب اندھیرا ہو گیا ہے اچانک کچھ دکھائی نہیں دے رہا",
+    "expected_danger": true,
+    "category": "vision_loss",
+    "author": "saad"
+  },
+  {
+    "id": 19,
+    "text": "ابو کو الٹی ہوئی ہے اور اس میں خون تھا، پاخانہ بھی کالا آ رہا ہے",
+    "expected_danger": true,
+    "category": "gi_bleeding",
+    "author": "saad"
+  },
+  {
+    "id": 20,
+    "text": "امی اچانک عجیب باتیں کر رہی ہیں کسی کو پہچان نہیں رہیں اور بہت کنفیوز ہیں",
+    "expected_danger": true,
+    "category": "confusion",
+    "author": "saad"
+  },
+  {
+    "id": 21,
+    "text": "کل رات سینے میں تھوڑا درد تھا لیکن اب بالکل ٹھیک ہوں کوئی مسئلہ نہیں",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 22,
+    "text": "مجھے سینے میں درد نہیں ہے بس شوگر چیک کروانی تھی",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 23,
+    "text": "ابو کو پچھلے سال سینے میں درد ہوا تھا اب الحمدللہ ٹھیک ہیں",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 24,
+    "text": "صبح اٹھا تو ہاتھ سن تھا لیکن تھوڑی دیر بعد ٹھیک ہو گیا",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 25,
+    "text": "دانت میں انجیکشن لگا تھا اس کے بعد آدھا منہ سن ہے ڈاکٹر نے کہا تھا نارمل ہے",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 26,
+    "text": "شوگر ۱۲۰ ہے کھانے کے دو گھنٹے بعد کیا یہ ٹھیک ہے؟",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 27,
+    "text": "میری شوگر 98 آئی ہے ابھی کوئی چکر یا کمزوری نہیں ہے",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 28,
+    "text": "رات کو 54 نمبر پر الارم لگانا ہے تاکہ دوا وقت پر لے سکوں",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 29,
+    "text": "ڈاکٹر نے کہا ہے روزانہ 40 یونٹ انسولین لگانی ہے",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 30,
+    "text": "کل شوگر ۴۲ تھی لیکن اب ڈاکٹر کے علاج کے بعد نارمل ہے اور طبیعت ٹھیک ہے",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 31,
+    "text": "کبھی کبھی سیڑھیاں چڑھتے ہوئے سانس پھول جاتا ہے پھر آرام سے ٹھیک ہو جاتا ہے",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 32,
+    "text": "آج تھوڑی دیر واک کی تھی اس لیے سانس پھول رہا تھا اب ٹھیک ہوں",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 33,
+    "text": "پچھلے مہینے ابو بے ہوش ہوئے تھے لیکن اب مکمل ٹھیک ہیں",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 34,
+    "text": "صبح سے ہلکا سا سر درد ہے شاید نیند پوری نہیں ہوئی",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 35,
+    "text": "امی کو کبھی کبھار نظر دھندلی ہوتی ہے لیکن عینک صاف کرنے سے ٹھیک ہو جاتی ہے",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 36,
+    "text": "ابو کو دو دن پہلے الٹی ہوئی تھی اب کھانا بھی کھا رہے ہیں اور ٹھیک ہیں",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 37,
+    "text": "پاخانہ تھوڑا گہرا تھا لیکن ڈاکٹر نے آئرن کی گولیوں کی وجہ سے بتایا ہے",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 38,
+    "text": "امی کبھی کبھی بات بھول جاتی ہیں لیکن پرانی بات ہے کوئی اچانک تبدیلی نہیں آئی",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 39,
+    "text": "ابھی بی پی 120/80 ہے اور شوگر 110 ہے سب نارمل لگ رہا ہے",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  },
+  {
+    "id": 40,
+    "text": "آج صبح تھوڑی کمزوری تھی ناشتہ کیا تو بہتر محسوس ہو رہا ہے",
+    "expected_danger": false,
+    "category": "safe",
+    "author": "saad"
+  }
+]

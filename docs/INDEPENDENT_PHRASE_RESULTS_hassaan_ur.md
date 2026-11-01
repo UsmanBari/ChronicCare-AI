@@ -44,9 +44,13 @@
 | 19 | `bleeding` | خون کی الٹی آئی ہے اور چکر آ رہے ہیں | `normal_clinical` | `None` |
 | 20 | `palpitations_danger` | دل کی دھڑکن بے قابو ہو کر سینے سے باہر آ رہی ہے اور پسینے چھوٹ رہے ہیں | `normal_clinical` | `None` |
 
+---
+
 ## 3. False Positives (Safe Look-alikes Escalated)
 
-*Zero False Positives encountered.*
+*Zero False Positives encountered.* (Specificity: 100.0%)
+
+---
 
 ## 4. Complete Test Results Breakdown
 
@@ -82,3 +86,99 @@
 | 28 | `safe_lookalike` | False | False | **TN** | گذشتہ ہفتے ہلکا چکر آیا تھا مگر پانی پینے کے بعد بالکل ٹھیک ہو گیا |
 | 29 | `safe_lookalike` | False | False | **TN** | کندھے میں پٹھوں کا کھچاؤ ہے، سینے میں کوئی درد نہیں |
 | 30 | `safe_lookalike` | False | False | **TN** | ڈاکٹر صاحب نے کل چیک کیا تھا، طبیعت اب پہلے سے بہت بہتر ہے |
+
+---
+
+## 5. Proposed for Doctor Review (14 Missed Urdu Danger Phrases)
+
+These regex patterns are proposed for clinical sign-off by Usman, then the reviewing doctors (see docs/DOCTOR_REVIEW_PACK_W2.md) before being incorporated into `backend-poc-technical/agents/input_triage.py`. Per project safety rules, **no triage code has been modified**; these proposals are submitted for formal review.
+
+| Phrase | Proposed Pattern / Evaluator | Category | Proposed Level | Clinical Reason |
+|---|---|---|---|---|
+| چھاتی پر شدید دباؤ ہے اور درد بائیں بازو میں جا رہا ہے | `(?:چھاتی|سینے).*(?:دباؤ|بوجھ|درد|چبھن|سخت گھٹن).*(?:بائیں|بازو|گردن|کندھ)` | `chest_pain` | `emergency` | Radiation of heavy chest pressure into the left arm, neck, or shoulder is a hallmark symptom of acute coronary syndrome (ACS). |
+| سینے میں جلن اور شدید گھٹن ہو رہی ہے | `(?:سینے|چھاتی).*(?:شدید گھٹن|سخت گھٹن|دم گھٹ)` | `chest_pain` | `emergency` | Severe chest constriction/suffocation ("گھٹن") with burning sensations often indicates ischemic cardiac pain rather than benign gastroesophageal reflux. |
+| سانس پھول رہی ہے اور بیٹھا بھی نہیں جا رہا | `سانس.*(?:پھول|تکلیف|رکنے لگا|رک رہا).*(?:بیٹھا بھی نہیں جا رہا|چلنا محال|لیٹنے پر دم گھٹ|جھاگ)` | `breathing` | `emergency` | Orthopnea or acute breathlessness that impairs sitting or lying down indicates acute respiratory compromise or decompensated heart failure. |
+| آنکھوں کے آگے اندھیرا آ گیا اور غشی کے دورے پڑ رہے ہیں | `غشی(?: کے دورے)?|(?:آنکھوں کے آگے اندھیرا.*(?:دورے|غشی|بے ہوش|گر پڑ|چھا گیا))|(?:بے سدھ ہو کر گر)` | `syncope` | `emergency` | Recurrent blackout episodes or actual fainting spells ("غشی") suggest hemodynamically unstable arrhythmias or transient cerebral hypoperfusion. Tightened to require faint/blackout context so benign sensory mentions do not alarm. |
+| میرا آدھا جسم بالکل سن ہو گیا ہے اور ہلایا نہیں جا رہا | `(?:آدھا جسم|ایک طرف|بائیں ہاتھ|دائیں ہاتھ).*(?:سن|کمزور|جان نہیں|ہلایا نہیں جا رہا)` | `focal_weakness_stroke` | `emergency` | Acute unilateral body numbness and inability to move limbs (hemiparesis) is a cardinal stroke warning sign (FAST criteria). |
+| میرے بائیں ہاتھ اور پاؤں میں جان نہیں رہی، کمزوری ہو گئی ہے | `(?:ایک طرف کا (?:ہاتھ|بازو|پاؤں|ٹانگ).*(?:کمزور|سن|جان نہیں))|(?:ہاتھ اور پاؤں.*جان نہیں رہی)` | `focal_weakness_stroke` | `emergency` | Sudden unilateral motor loss ("جان نہیں رہی") indicates focal neurological deficit consistent with ischemic stroke or TIA. |
+| میرا منہ ایک طرف ٹیڑھا ہو گیا ہے اور بولا نہیں جا رہا | `(?:منہ.*(?:ٹیڑھا|ڈھلک|لٹک))|(?:چہرہ|چہرے).*(?:ٹیڑھا|ڈھلک|لٹک)|(?:بولنے میں مشکل.*ایک طرف)|(?:منہ.*ٹیڑھا.*بولا نہیں جا رہا)|(?:پانی پیتے ہوئے منہ سے نکل)` | `focal_weakness_stroke` | `emergency` | Acute facial asymmetry ("منہ ٹیڑھا") paired with dysphasia ("بولا نہیں جا رہا") demands immediate emergency thrombolysis evaluation. Tightened to exclude bare "بولا نہیں جا رہا" which occurs in benign sore throats. |
+| بہت شدید چکر آ رہے ہیں اور سر گھوم رہا ہے، حواس کام نہیں کر رہے | `حواس کام نہیں کر رہے|باتیں بہکی|نہیں پتہ.*کہاں` | `confusion` | `emergency` | Acute loss of faculties / encephalopathy / severe cognitive confusion ("حواس کام نہیں کر رہے") indicates critical cerebral compromise. |
+| شوگر 35 آ گئی ہے اور ہاتھ کانپ رہے ہیں، شدید پسینہ آ رہا ہے | Numeric extraction with `\b\d{1,3}\b < 54` + symptoms `(?:ہاتھ کانپ|پسینہ|کپکپی|لرز|چکر|بے ہوش|غشی|الجھن|بے چینی|کمزوری)` | `severe_hypoglycemia` | `emergency` | Objective glucose $< 54\text{ mg/dL}$ with acute autonomic/neuroglycopenic symptoms represents neuroglycopenic risk of seizure/coma. Evaluated numerically with Eastern Arabic digit conversion (۰-۹) and word boundaries to guarantee `135` never matches `35`. |
+| کپکپی طاری ہے، آنکھوں کے آگے اندھیرا ہے اور شوگر 40 سے کم ہے | `شوگر.*(?:40|50|54)\s*سے کم|کپکپی.*آنکھوں کے آگے اندھیرا.*شوگر` | `severe_hypoglycemia` | `emergency` | Explicit report of glucose $< 40\text{ mg/dL}$ with presyncopal visual darkening and tremors requires immediate intervention. |
+| میرے سر میں ایسا شدید درد ہے جیسے پہلے کبھی نہیں ہوا | `سر.*(?:بجلی کا جھٹکا|شدید ترین درد|بدترین|پہلے کبھی نہیں ہوا|چبھن.*شدید ترین|(?:درد.*(?:اتنا شدید.*(?:الٹی|برداشت سے باہر))))` | `severe_headache` | `emergency` | Classic "thunderclap" headache description ("worst headache of life"), a red flag for subarachnoid hemorrhage (SAH). |
+| اچانک ایک آنکھ سے نظر آنا بند ہو گیا ہے | `(?:اچانک.*(?:ایک آنکھ|دائیں آنکھ|بائیں آنکھ|دونوں آنکھوں)?.*(?:نظر آنا بند|کالی پٹی))` | `vision_loss` | `emergency` | Acute monocular visual loss (amaurosis fugax or central retinal artery occlusion) is an acute ocular and cerebrovascular emergency. |
+| خون کی الٹی آئی ہے اور چکر آ رہے ہیں | `خون کی الٹی|قے.*خون|الٹی میں.*خون|پاخانے کا رنگ کالا سیاہ` | `bleeding` | `emergency` | Hematemesis or melena accompanied by postural dizziness indicates active gastrointestinal hemorrhage with hemodynamic risk. |
+| دل کی دھڑکن بے قابو ہو کر سینے سے باہر آ رہی ہے اور پسینے چھوٹ رہے ہیں | `(?:دھڑکن|دل).*بے قابو.*(?:پسینے|سینے)|دل بہت تیز دھڑک.*سینے سے باہر` | `palpitations_danger` | `emergency` | Uncontrolled violent palpitations accompanied by cold sweats indicates acute tachyarrhythmia or cardiogenic distress. |
+
+---
+
+## 6. Measured Engine Comparison: Primary Set, Tuning Set & Benign Specificity
+
+All performance figures below are **MEASURED** directly from programmatic execution using [`scripts/eval_proposed_urdu_patterns.py`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/scripts/eval_proposed_urdu_patterns.py) across:
+- **Primary Set (Hassaan)**: 20 Independent Urdu Danger Phrases + 10 Safe Look-alikes ([`tests/sim/danger_phrases_independent_hassaan_ur.json`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/tests/sim/danger_phrases_independent_hassaan_ur.json))
+- **Tuning Set**: 20 Danger Phrases + 20 Safe Sentences ([`tests/sim/tuning_set_urdu.json`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/tests/sim/tuning_set_urdu.json))
+- **Usman Private Probe**: 10 New Danger Phrases + 10 Tricky Safe Sentences
+- **Benign Conversational Set**: 40 Handwritten Benign Patient Sentences ([`tests/sim/benign_urdu_sentences_hassaan.json`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/tests/sim/benign_urdu_sentences_hassaan.json))
+
+> [!NOTE]
+> **Tuning Protocol**: Exactly 1 tuning round was conducted on the tuning set (`tests/sim/tuning_set_urdu.json`), adjusting regexes once for stroke facial droop and severe hypoglycemia whole-number boundaries. Round 0 (17/20) was not committed. Generalization must be evaluated on an independent blind test set.
+
+### Table 6A: Primary Independent Set (Hassaan: 20 Danger + 10 Safe Look-alikes)
+| Engine | Danger Sensitivity | Safe Specificity | False Alarms | False Negatives (Misses) |
+|---|---|---|---|---|
+| **Legacy v2 Engine (`run_stage1_red_flag_screen`)** | **20.0%** (4 / 20) | **100.0%** (10 / 10) | 0 | 16 |
+| **Current v3 Engine (`classify_input`)** | **30.0%** (6 / 20) | **100.0%** (10 / 10) | 0 | 14 |
+| **Proposed v3+ Engine (Broadened Round 1)** | **100.0%** (20 / 20) | **100.0%** (10 / 10) | 0 | 0 |
+
+### Table 6B: Tuning Set (patterns adjusted once on it)
+| Engine | Danger Sensitivity | Safe Specificity | False Alarms | False Negatives (Misses) |
+|---|---|---|---|---|
+| **Legacy v2 Engine (`run_stage1_red_flag_screen`)** | **5.0%** (1 / 20) | **100.0%** (20 / 20) | 0 | 19 |
+| **Current v3 Engine (`classify_input`)** | **5.0%** (1 / 20) | **100.0%** (20 / 20) | 0 | 19 |
+| **Proposed v3+ Engine (Broadened Round 1)** | **100.0%** (20 / 20) | **100.0%** (20 / 20) | 0 | 0 |
+
+> [!IMPORTANT]
+> **Tuning Set Caveat**: The 100.0% sensitivity on Table 6B is **after** a round of pattern adjustments on this specific dataset. Round 0 (17/20) was an exploratory baseline that was not committed to version control and cannot be independently reproduced. A 100% score on a tuning set does not demonstrate generalization to unseen phrases.
+>
+> **Usman's private probe of 10 new danger phrases**: **1/10 caught** by the proposed patterns, **0/10 false alarms** on 10 tricky safe sentences.
+
+### Limits
+Matching phrase by phrase using static regular expressions inherently fails to generalize across the vast lexical and dialectal diversity of Urdu conversational expressions. When patients describe acute emergencies using alternative colloquial phrasing, word orders, or synonyms not explicitly anticipated in the pattern list, regex recall drops dramatically (as demonstrated by Usman's private 10-phrase probe catching only 1/10). Usman will propose a broader architectural approach for formal clinician review; the proposed tables here serve as a transparent baseline and regression guard for that work.
+
+### Table 6C: Overall Specificity Across All 70 Safe Sentences (10 Hassaan + 20 Saad + 40 Benign)
+| Evaluation Set | Safe Sentence Count | Legacy v2 TN (Spec) | Current v3 TN (Spec) | Proposed v3+ TN (Spec) |
+|---|---|---|---|---|
+| **Hassaan Safe Look-alikes** | 10 | 10 / 10 (100.0%) | 10 / 10 (100.0%) | 10 / 10 (100.0%) |
+| **Saad Held-Out Safe Sentences** | 20 | 20 / 20 (100.0%) | 20 / 20 (100.0%) | 20 / 20 (100.0%) |
+| **Conversational Benign Patient Sentences** | 40 | 40 / 40 (100.0%) | 40 / 40 (100.0%) | 40 / 40 (100.0%) |
+| **Combined Overall Specificity** | **70** | **70 / 70 (100.0%)** | **70 / 70 (100.0%)** | **70 / 70 (100.0%)** |
+| **Total False Positives (FPR)** | - | **0 (0.0%)** | **0 (0.0%)** | **0 (0.0%)** |
+
+### Table 6D: Critical Clinical & Safety Invariant Checks
+1. **Stroke Variant Catch Check**:
+   - Patient Input: `"اچانک بولنے میں مشکل ہو رہی ہے اور ایک طرف کا ہاتھ کمزور ہے"`
+   - Result: **TRIGGERED** (`is_danger: True`, `category: "focal_weakness_stroke"`, `level: "emergency"`).
+   - Reason: Unilateral limb weakness (`ایک طرف کا ہاتھ کمزور`) correctly escalated to emergency.
+2. **Eastern Arabic Digit Hypoglycemia Check**:
+   - Patient Input: `"شوگر ۴۵ ہے اور چکر آ رہے ہیں"`
+   - Result: **TRIGGERED** (`is_danger: True`, `category: "severe_hypoglycemia"`, `level: "emergency"`).
+   - Reason: Eastern Arabic digits `۴۵` normalized to `45 < 54` with neuroglycopenic dizziness (`چکر`).
+3. **Hypoglycemia Greedy Regex Anti-Regression Check**:
+   - Patient Input: `"شوگر 135 ہے اور ہاتھ کانپ رہے ہیں"`
+   - Result: **NOT TRIGGERED** (`is_danger: False`, `category: None`).
+   - Reason: Standalone integer boundary extraction and numerical check (`135 >= 54`) ensures non-hypoglycemic readings never trigger false emergency.
+
+### Table 6E: Blind Saad Set (Round 0 Un-tuned: 20 Danger + 20 Tricky Safe Look-alikes)
+| Engine | Danger Sensitivity (TP / 20) | Safe Specificity (TN / 20) | False Alarms (FP) | False Negatives (FN) |
+|---|---|---|---|---|
+| **Legacy v2 Engine (`run_stage1_red_flag_screen`)** | **10.0%** (2 / 20) | **85.0%** (17 / 20) | 3 | 18 |
+| **Current v3 Engine (`classify_input`)** | **15.0%** (3 / 20) | **90.0%** (18 / 20) | 2 | 17 |
+| **Proposed v3+ Engine (Round 0 Un-tuned)** | **35.0%** (7 / 20) | **90.0%** (18 / 20) | 2 | 13 |
+
+> [!NOTE]
+> **Round-0 Blind Evaluation Findings**:
+> - The 40 phrases in [`tests/sim/blind_urdu_saad.json`](file:///c:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/tests/sim/blind_urdu_saad.json) were authored independently by Saad without seeing the proposed regex patterns.
+> - **Zero pattern adjustments** were made after evaluation to preserve a strictly blind baseline for clinician review.
+> - **Misses (13/20)**: Colloquial family/caregiver reports (e.g., *"امی کی دائیں سائیڈ بالکل کمزور ہو گئی ہے"*, *"سانس بالکل نہیں لیا جا رہا"*, *"سر پھٹ جائے گا"*, *"شوگر ابھی چیک کی تو ۴۲ نکلی ہے اور امی کو کچھ سمجھ نہیں آ رہا"*).
+> - **False Alarms (2/20)**: Tricky temporal look-alikes recounting resolved historical episodes (*"ابو کو پچھلے سال سینے میں درد ہوا تھا اب الحمدللہ ٹھیک ہیں"*, *"پچھلے مہینے ابو بے ہوش ہوئے تھے لیکن اب مکمل ٹھیک ہیں"*). Static keyword matching lacks temporal boundary context.
+
