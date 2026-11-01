@@ -273,3 +273,17 @@ def test_representative_scenarios_equivalence(setup_test_db, monkeypatch, scenar
     lvl_dir = "emergency" if comp_dir.get("emergency") else (triage_dir.get("level") or db_dir.get("triage_level"))
     lvl_grp = "emergency" if comp_grp.get("emergency") else (triage_grp.get("level") or db_grp.get("triage_level"))
     assert lvl_dir == lvl_grp, f"Triage level mismatch for {scenario_type}: direct={lvl_dir}, graph={lvl_grp}"
+
+
+def test_direct_mode_lazy_loads_langgraph():
+    """Verify that importing main with ORCHESTRATOR=direct does not import langgraph."""
+    import subprocess
+    cmd = [
+        sys.executable,
+        "-c",
+        "import os, sys; os.environ['ORCHESTRATOR'] = 'direct'; import main; assert 'langgraph' not in sys.modules, f'langgraph in sys.modules'; print('LANGGRAPH_NOT_LOADED_OK')",
+    ]
+    res = subprocess.run(cmd, cwd=str(BACKEND_DIR), capture_output=True, text=True)
+    assert res.returncode == 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}"
+    assert "LANGGRAPH_NOT_LOADED_OK" in res.stdout
+

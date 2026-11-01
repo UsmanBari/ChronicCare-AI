@@ -852,8 +852,6 @@ from orchestrator.steps import (
     step_decide_triage,
     step_persist_and_respond,
 )
-from orchestrator.graph import run_checkin_graph
-
 ORCHESTRATOR = os.environ.get("ORCHESTRATOR", "direct").lower()
 
 
@@ -3327,6 +3325,7 @@ def complete_checkin_endpoint(
     # Dynamic orchestrator path selection
     orchestrator_mode = os.environ.get("ORCHESTRATOR", ORCHESTRATOR).lower()
     if orchestrator_mode == "graph":
+        from orchestrator.graph import run_checkin_graph
         return run_checkin_graph(checkin, current_user, record_label)
 
     # 2. Intake Validation & Emergency Early Return
