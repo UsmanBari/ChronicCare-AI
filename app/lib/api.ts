@@ -347,6 +347,31 @@ export interface TrendsResponse {
   trends: Record<string, TrendSeries>;
 }
 
+export interface RiskReason {
+  feature: string;
+  weight?: number;
+  contribution?: number;
+  label: string | Record<string, string>;
+}
+
+export interface RiskAssessmentResponse {
+  model_name?: string;
+  model_version?: string;
+  model?: string;
+  version?: string;
+  disease?: string;
+  status: "ok" | "not_enough_information" | "error";
+  band?: "low" | "moderate" | "medium" | "high" | null;
+  probability?: number | null;
+  label_text?: Record<string, string> | null;
+  reasons?: RiskReason[] | null;
+  top_reasons?: RiskReason[] | null;
+  caveats?: string[] | null;
+  missing?: string[] | null;
+  error?: string | null;
+  audience?: string;
+}
+
 export interface ReviewDetailResponse {
   checkin_id: string;
   patient_id: string;
@@ -367,6 +392,7 @@ export interface ReviewDetailResponse {
   escalated_at?: string | null;
   patient_background?: PatientBackgroundResponse | null;
   trends?: TrendsResponse | null;
+  risk?: RiskAssessmentResponse | null;
 }
 
 export interface AuditLogRow {

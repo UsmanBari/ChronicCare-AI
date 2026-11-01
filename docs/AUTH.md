@@ -96,9 +96,21 @@ All authentication events, role escalations, and permission denials are appended
 
 ---
 
+---
+
+## Clinical Decision Support & Leak Defense (Risk Assessment)
+
+As defined in decisions D12–D15:
+- **Provider Only**: Diabetes risk assessment is computed exclusively on provider review endpoints (`/api/provider/review/{checkin_id}`) and only when the runtime flag `RISK_ENABLED="true"` is set.
+- **Strict Patient Leak Defense**: Patient-facing endpoints (`/api/me`, `/api/me/profile`, `/api/checkins/{id}`, `/api/me/trends`) NEVER compute or return risk scores, bands, or probabilities. Patients never see a risk score or band anywhere in the client UI.
+- **Fail Closed / Safe Fallback**: If `RISK_ENABLED` is false/unset, if the patient is not eligible (diagnosed with diabetes or lacks hypertension), or if an error occurs during evaluation, the backend returns `risk: null` without interrupting clinical workflow.
+
+---
+
 ## Known Limitations
 
 1. **Email Verification**: Token claims include `email_verified`, but email verification is not strictly enforced at the gate.
 2. **Multi-Factor Authentication (MFA)**: MFA enforcement is delegated to Firebase client policy and is not evaluated independently by backend claims.
 3. **Rate Limiting**: Rate limiting for authentication and token validation requests is currently managed at the reverse proxy / gateway level.
 4. **Provider / Admin Creation**: Providers and admins are created exclusively through predefined configuration (`DEMO_ROLE_MAP`) or explicit elevation by an existing administrator.
+

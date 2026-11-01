@@ -956,6 +956,7 @@ class ReviewDetailResponse(BaseModel):
     patient_background: Optional[Dict[str, Any]] = None
     answered_by: Optional[str] = None
     trends: Optional[TrendsResponse] = None
+    risk: Optional[Dict[str, Any]] = None
 
 
 class VoiceTranscribeResponse(BaseModel):
@@ -3793,6 +3794,28 @@ def _compute_patient_trends_safe(user_id: str, days: int = 30) -> Optional[Trend
         return None
 
 
+def _compute_patient_risk_safe(user_id: str) -> Optional[Dict[str, Any]]:
+    """Safely compute patient diabetes risk assessment for provider review; fails gracefully to None."""
+    if os.environ.get("RISK_ENABLED", "").strip().lower() != "true":
+        return None
+    try:
+        profile = get_patient_profile(user_id)
+        if not profile:
+            return None
+        conditions = profile.get("conditions", [])
+        conds_lower = [str(c).lower() for c in conditions]
+        has_htn = any("hyper" in c for c in conds_lower)
+        has_diabetes = any("diabet" in c for c in conds_lower)
+        if not has_htn or has_diabetes:
+            return None
+        history = get_user_reading_history(user_id, days=30)
+        from agents.risk_agent import assess as assess_risk
+        return assess_risk(profile=profile, latest_readings=history, conditions=conditions)
+    except Exception as e:
+        logger.warning(f"Risk computation failed: {type(e).__name__}")
+        return None
+
+
 @app.get("/api/me/trends", response_model=TrendsResponse, tags=["Trends"])
 def get_my_trends_endpoint(
     days: int = Query(30, ge=7, le=90, description="Observation window in days (7-90)"),
@@ -3906,6 +3929,7 @@ def get_provider_review_detail_endpoint(
         patient_background=patient_bg,
         answered_by=answered_by_val,
         trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
+        risk=_compute_patient_risk_safe(checkin["user_id"]),
     )
 
 
@@ -3979,6 +4003,7 @@ def post_provider_review_action_endpoint(
         record_source_label=record_label,
         patient_background=patient_bg,
         trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
+        risk=_compute_patient_risk_safe(checkin["user_id"]),
     )
 
 

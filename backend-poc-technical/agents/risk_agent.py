@@ -134,6 +134,23 @@ def _extract_blood_pressure(latest_readings: Any, ref_date: date) -> Tuple[Optio
     elif isinstance(latest_readings, list):
         readings_list = latest_readings
 
+    # If readings contain flat observation dicts (e.g. from get_user_reading_history), group them
+    flat_obs = [r for r in readings_list if isinstance(r, dict) and "observation_type" in r]
+    if flat_obs:
+        grouped: Dict[str, Dict[str, Any]] = {}
+        for r in flat_obs:
+            obs_type = r.get("observation_type")
+            val = r.get("value")
+            ts = r.get("timestamp") or r.get("at")
+            key = str(r.get("checkin_id") or ts or "single")
+            if key not in grouped:
+                grouped[key] = {"at": ts}
+            if obs_type in ("blood_pressure_systolic", "systolic", "sbp"):
+                grouped[key]["systolic"] = val
+            elif obs_type in ("blood_pressure_diastolic", "diastolic", "dbp"):
+                grouped[key]["diastolic"] = val
+        readings_list = list(grouped.values())
+
     # Find the most recent reading with systolic and diastolic
     best_sbp = None
     best_dbp = None
