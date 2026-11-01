@@ -133,13 +133,10 @@ EQUIVALENCE_TABLE: dict[tuple[str, str], dict[str, Any]] = {
 
 def get_model_disease_category(label_name: str, population: str = "") -> str | None:
     """
-    Determine disease category strictly from EQUIVALENCE_TABLE without substring matching.
+    Determine disease category strictly from EQUIVALENCE_TABLE matching both (label, population).
     """
     if (label_name, population) in EQUIVALENCE_TABLE:
         return EQUIVALENCE_TABLE[(label_name, population)]["section"]
-    for (lbl, _), val in EQUIVALENCE_TABLE.items():
-        if lbl == label_name:
-            return val["section"]
     return None
 
 
@@ -153,12 +150,6 @@ def get_candidate_datasets_for_model(card: dict[str, Any]) -> list[tuple[str, st
     key = (label, pop)
 
     entry = EQUIVALENCE_TABLE.get(key)
-    if entry is None and not pop:
-        for (k_lbl, _), val in EQUIVALENCE_TABLE.items():
-            if k_lbl == label:
-                entry = val
-                break
-
     if entry is None:
         return []
 
@@ -494,7 +485,7 @@ def run_all_external_validations(
     print("Loading external datasets...")
     df_fram_raw, _ = load_framingham()
     df_pima, _ = load_pima()
-    df_cardio, _cardio_report = load_cardio70k()
+    df_cardio, cardio_report = load_cardio70k()
     df_brfss_k, _ = load_brfss2015_kaggle()
     df_brfss_c = load_brfss_core(columns=["diabetes", "high_bp", "sex_male", "age", "bmi", "ever_smoker"])
     if "ever_smoker" in df_brfss_c.columns and "ever_smoked_100" not in df_brfss_c.columns:
@@ -643,38 +634,49 @@ def run_all_external_validations(
     exp_summary_path = Path("docs/ml/EXPERIMENTS_SUMMARY.md")
     nhanes_test_aurocs = parse_nhanes_test_aurocs(exp_summary_path)
 
-    # Dynamic metrics from results
-    f126_res = next((r for r in results_table1 if r["target_col"] == "glucose_ge_126"), {})
-    pima_res = next((r for r in results_table1 if r["dataset"] == "pima"), {})
-    cardio_htn_res = next((r for r in results_table3 if r["dataset"] == "cardio70k"), {})
+    # Dynamic metrics from results (strictly required; fail fast if missing rather than silently using old typed-in defaults)
+    f126_res = next((r for r in results_table1 if r["target_col"] == "glucose_ge_126"), None)
+    if f126_res is None or np.isnan(f126_res["auroc"]):
+        raise RuntimeError("Missing or failed external validation result for Framingham glucose_ge_126")
+
+    pima_res = next((r for r in results_table1 if r["dataset"] == "pima"), None)
+    if pima_res is None or np.isnan(pima_res["auroc"]):
+        raise RuntimeError("Missing or failed external validation result for Pima diabetes")
+
+    cardio_htn_res = next((r for r in results_table3 if r["dataset"] == "cardio70k"), None)
+    if cardio_htn_res is None or np.isnan(cardio_htn_res["auroc"]):
+        raise RuntimeError("Missing or failed external validation result for Cardio70k hypertension")
+
     brfss_aurocs = [r["auroc"] for r in results_table2 if not np.isnan(r["auroc"])]
+    if not brfss_aurocs:
+        raise RuntimeError("Missing or failed external validation results for BRFSS")
 
     dynamic_context = {
         "framingham_total_undiag": len(df_fram_undiag),
         "framingham_measured_glucose": int(df_fram_undiag["glucose"].notna().sum()),
         "framingham_max_glucose": float(df_fram_undiag["glucose"].max()),
-        "framingham_ge_126_positives": f126_res.get("n_pos", 22),
-        "framingham_ge_126_prev": f126_res.get("prevalence", 0.0054) * 100.0,
-        "framingham_ge_126_auroc": f126_res.get("auroc", 0.596),
-        "framingham_ge_126_ci_low": f126_res.get("ci_low", 0.487),
-        "framingham_ge_126_ci_high": f126_res.get("ci_high", 0.715),
-        "pima_prev": pima_res.get("prevalence", 0.351) * 100.0,
-        "pima_auroc": pima_res.get("auroc", 0.735),
-        "pima_ci_low": pima_res.get("ci_low", 0.706),
-        "pima_ci_high": pima_res.get("ci_high", 0.769),
-        "brfss_min_auroc": min(brfss_aurocs) if brfss_aurocs else 0.741,
-        "brfss_max_auroc": max(brfss_aurocs) if brfss_aurocs else 0.770,
-        "cardio_clean_bp": cardio_htn_res.get("n", 68737),
-        "cardio_prev_pct": cardio_htn_res.get("prevalence", 0.8156) * 100.0,
-        "cardio_htn_pos": cardio_htn_res.get("n_pos", 56094),
-        "cardio_raw_inverted": 1234,
-        "cardio_rule1_neg": 7,
-        "cardio_rule2_handled": 1227,
-        "cardio_swapped": 100,
-        "cardio_unswappable": 1127,
-        "nhanes_full_test_auroc": nhanes_test_aurocs.get("diabetes_full_nhanes", "0.7527 [0.7293–0.7748]"),
-        "nhanes_basic_test_auroc": nhanes_test_aurocs.get("diabetes_basic_nhanes", "0.7403 [0.7182–0.7616]"),
-        "nhanes_ref_test_auroc": nhanes_test_aurocs.get("diabetes_ref_age_sex_bmi", "0.7421 [0.7203–0.7640]"),
+        "framingham_ge_126_positives": f126_res["n_pos"],
+        "framingham_ge_126_prev": f126_res["prevalence"] * 100.0,
+        "framingham_ge_126_auroc": f126_res["auroc"],
+        "framingham_ge_126_ci_low": f126_res["ci_low"],
+        "framingham_ge_126_ci_high": f126_res["ci_high"],
+        "pima_prev": pima_res["prevalence"] * 100.0,
+        "pima_auroc": pima_res["auroc"],
+        "pima_ci_low": pima_res["ci_low"],
+        "pima_ci_high": pima_res["ci_high"],
+        "brfss_min_auroc": min(brfss_aurocs),
+        "brfss_max_auroc": max(brfss_aurocs),
+        "cardio_clean_bp": cardio_htn_res["n"],
+        "cardio_prev_pct": cardio_htn_res["prevalence"] * 100.0,
+        "cardio_htn_pos": cardio_htn_res["n_pos"],
+        "cardio_swapped": cardio_report["rule2_swapped_inverted"],
+        "cardio_unswappable": cardio_report["rule2_unswappable_inverted"],
+        "cardio_rule2_handled": cardio_report["rule2_swapped_inverted"] + cardio_report["rule2_unswappable_inverted"],
+        "cardio_rule1_neg": cardio_report["rule1_negative_rows"],
+        "cardio_raw_inverted": cardio_report["rule2_swapped_inverted"] + cardio_report["rule2_unswappable_inverted"] + cardio_report["rule1_negative_rows"],
+        "nhanes_full_test_auroc": nhanes_test_aurocs["diabetes_full_nhanes"],
+        "nhanes_basic_test_auroc": nhanes_test_aurocs["diabetes_basic_nhanes"],
+        "nhanes_ref_test_auroc": nhanes_test_aurocs["diabetes_ref_age_sex_bmi"],
     }
 
     all_categorized = {
@@ -785,7 +787,7 @@ For cohorts missing model features, an overlap refit is trained on NHANES `train
 ## 1. Undiagnosed Diabetes Target Equivalents
 
 Evaluates diabetes models against external cohorts with biochemical or laboratory proxies for undiagnosed diabetes:
-- **Framingham (`diabetes == 0` cohort):** Evaluates two proxies: (1) `glucose >= 200 mg/dL` (ADA random glucose cutoff; 0 positive cases as max glucose is {c.get('framingham_max_glucose', 163.0):.1f} mg/dL in undiagnosed cohort); (2) `glucose >= 126 mg/dL` (fasting cutoff proxy; {c.get('framingham_ge_126_positives', 22)} positive cases, {c.get('framingham_ge_126_prev', 0.54):.2f}% prevalence).
+- **Framingham (`diabetes == 0` cohort):** Evaluates two proxies: (1) `glucose >= 200 mg/dL` (ADA random glucose cutoff; 0 positive cases as max glucose is {c['framingham_max_glucose']:.1f} mg/dL in undiagnosed cohort); (2) `glucose >= 126 mg/dL` (fasting cutoff proxy; {c['framingham_ge_126_positives']} positive cases, {c['framingham_ge_126_prev']:.2f}% prevalence).
 - **Pima Indians:** Evaluates 2-hour post-load oral glucose tolerance testing (`Outcome` >= 200 mg/dL; caveat: adult females only, indigenous heritage, not restricted to undiagnosed individuals).
 - **Cardio70k:** Skipped for diabetes because blood glucose is recorded only as a 3-level categorical index (`1 = normal`, `2 = above normal`, `3 = well above normal`), which does not constitute a clinical diabetes diagnostic equivalent.
 
@@ -820,17 +822,17 @@ Evaluates diabetes models against external cohorts with biochemical or laborator
 
 ### 1. Model Target vs External Label Distinctions
 - **Undiagnosed Diabetes (`diabetes_undiagnosed`) vs Diagnosed Diabetes (`told_diabetes`):**
-  ChronicCare-AI models were developed to detect undiagnosed elevated blood sugar among adults unaware of their diabetic status. When applied to BRFSS cohorts, the target is doctor-diagnosed diabetes. Because individuals with established clinical diagnoses frequently have long-standing disease, elevated BMI, older age, and prescribed comorbidities, discriminative ranking appears higher (AUROC {c.get('brfss_min_auroc', 0.741):.3f}–{c.get('brfss_max_auroc', 0.770):.3f}). However, calibration and diagnostic sensitivity/specificity from these cohorts do not apply to our screening task.
+  ChronicCare-AI models were developed to detect undiagnosed elevated blood sugar among adults unaware of their diabetic status. When applied to BRFSS cohorts, the target is doctor-diagnosed diabetes. Because individuals with established clinical diagnoses frequently have long-standing disease, elevated BMI, older age, and prescribed comorbidities, discriminative ranking appears higher (AUROC {c['brfss_min_auroc']:.3f}–{c['brfss_max_auroc']:.3f}). However, calibration and diagnostic sensitivity/specificity from these cohorts do not apply to our screening task.
 - **Framingham Blood Glucose Distribution:**
-  In the Framingham Heart Study baseline examination, after excluding subjects with known diabetes (`diabetes == 0`, N = {c.get('framingham_total_undiag', 4129):,}; {c.get('framingham_measured_glucose', 3745):,} with measured glucose), the maximum observed blood glucose is {c.get('framingham_max_glucose', 163.0):.1f} mg/dL. Every subject in the original cohort with glucose >= 200 mg/dL had already been clinically diagnosed and coded as `diabetes == 1`. Consequently, applying the ADA random glucose threshold (`>= 200 mg/dL`) yields exactly 0 positive cases in the undiagnosed cohort, precluding AUROC computation. Applying the fasting threshold (`>= 126 mg/dL`) yields {c.get('framingham_ge_126_positives', 22)} positive cases ({c.get('framingham_ge_126_prev', 0.54):.2f}% prevalence), producing an overlap refit AUROC of {c.get('framingham_ge_126_auroc', 0.596):.3f} [{c.get('framingham_ge_126_ci_low', 0.487):.3f}, {c.get('framingham_ge_126_ci_high', 0.715):.3f}]. Because the confidence interval includes 0.5, with only {c.get('framingham_ge_126_positives', 22)} cases, this can't be told apart from chance.
+  In the Framingham Heart Study baseline examination, after excluding subjects with known diabetes (`diabetes == 0`, N = {c['framingham_total_undiag']:,}; {c['framingham_measured_glucose']:,} with measured glucose), the maximum observed blood glucose is {c['framingham_max_glucose']:.1f} mg/dL. Every subject in the original cohort with glucose >= 200 mg/dL had already been clinically diagnosed and coded as `diabetes == 1`. Consequently, applying the ADA random glucose threshold (`>= 200 mg/dL`) yields exactly 0 positive cases in the undiagnosed cohort, precluding AUROC computation. Applying the fasting threshold (`>= 126 mg/dL`) yields {c['framingham_ge_126_positives']} positive cases ({c['framingham_ge_126_prev']:.2f}% prevalence), producing an overlap refit AUROC of {c['framingham_ge_126_auroc']:.3f} [{c['framingham_ge_126_ci_low']:.3f}, {c['framingham_ge_126_ci_high']:.3f}]. Because the confidence interval includes 0.5, with only {c['framingham_ge_126_positives']} cases, this can't be told apart from chance.
 - **Pima Indians Biochemical OGTT:**
-  Pima diabetes status is determined by formal 2-hour post-load oral glucose tolerance test (OGTT >= 200 mg/dL), identifying elevated blood glucose in a cohort with {c.get('pima_prev', 35.1):.1f}% prevalence among adult females. The models achieve an AUROC of {c.get('pima_auroc', 0.735):.3f} [{c.get('pima_ci_low', 0.706):.3f}, {c.get('pima_ci_high', 0.769):.3f}], with negative calibration-in-the-large reflecting the substantially higher prevalence compared to general screening populations. Because Pima lacks waist circumference, smoking, and blood pressure history, all three diabetes models reduce to the same overlap refit on age and BMI (yielding identical discrimination); consequently, Pima evaluation says nothing about diabetes_full's additional features.
+  Pima diabetes status is determined by formal 2-hour post-load oral glucose tolerance test (OGTT >= 200 mg/dL), identifying elevated blood glucose in a cohort with {c['pima_prev']:.1f}% prevalence among adult females. The models achieve an AUROC of {c['pima_auroc']:.3f} [{c['pima_ci_low']:.3f}, {c['pima_ci_high']:.3f}], with negative calibration-in-the-large reflecting the substantially higher prevalence compared to general screening populations. Because Pima lacks waist circumference, smoking, and blood pressure history, all three diabetes models reduce to the same overlap refit on age and BMI (yielding identical discrimination); consequently, Pima evaluation says nothing about diabetes_full's additional features.
 
 ### 2. Reference Development Discrimination
 For context, the locked internal test AUROCs achieved on the held-out NHANES temporal test set (`test` 2017–2023, 2 survey cycles) are documented in [`docs/ml/EXPERIMENTS_SUMMARY.md:14-18`](file:///C:/Users/Saad/Documents/ChronicCare-AI/docs/ml/EXPERIMENTS_SUMMARY.md#L14-L18):
-- `diabetes_full_nhanes`: AUROC = **{c.get('nhanes_full_test_auroc', '0.7527 [0.7293–0.7748]')}**
-- `diabetes_basic_nhanes`: AUROC = **{c.get('nhanes_basic_test_auroc', '0.7403 [0.7182–0.7616]')}**
-- `diabetes_ref_age_sex_bmi`: AUROC = **{c.get('nhanes_ref_test_auroc', '0.7421 [0.7203–0.7640]')}**
+- `diabetes_full_nhanes`: AUROC = **{c['nhanes_full_test_auroc']}**
+- `diabetes_basic_nhanes`: AUROC = **{c['nhanes_basic_test_auroc']}**
+- `diabetes_ref_age_sex_bmi`: AUROC = **{c['nhanes_ref_test_auroc']}**
 
 ### 3. Feature Mapping Approximations
 Differences in survey and clinical capture between cohorts introduce mapping approximations:
@@ -843,7 +845,7 @@ Differences in survey and clinical capture between cohorts introduce mapping app
   - Sex Coding: Kaggle dataset description specifies 0 = female, 1 = male (https://www.kaggle.com/datasets/alexteboul/diabetes-health-indicators-dataset), coding taken from the Kaggle description, TO CONFIRM.
 - **Cardio70k Examination Records:**
   - Glucose: Recorded only as 3-level ordinal category (`gluc`: 1, 2, 3), precluding diabetes evaluation.
-  - Blood Pressure: Raw examination measurements required systematic rule-based cleaning ({c.get('cardio_raw_inverted', 1234):,} raw inverted rows, with {c.get('cardio_rule1_neg', 7)} negative values caught in Rule 1, leaving {c.get('cardio_rule2_handled', 1227):,} non-negative inverted rows handled in Rule 2: {c.get('cardio_swapped', 100)} swapped and {c.get('cardio_unswappable', 1127):,} set to NaN). Clean measured hypertension prevalence is {c.get('cardio_prev_pct', 81.56):.2f}% ({c.get('cardio_htn_pos', 56094):,} / {c.get('cardio_clean_bp', 68737):,}).
+  - Blood Pressure: Raw examination measurements required systematic rule-based cleaning ({c['cardio_raw_inverted']:,} raw inverted rows, with {c['cardio_rule1_neg']} negative values caught in Rule 1, leaving {c['cardio_rule2_handled']:,} non-negative inverted rows handled in Rule 2: {c['cardio_swapped']} swapped and {c['cardio_unswappable']:,} set to NaN). Clean measured hypertension prevalence is {c['cardio_prev_pct']:.2f}% ({c['cardio_htn_pos']:,} / {c['cardio_clean_bp']:,}).
 - **Pima Indians Diabetes:**
   - All participants are adult females of Pima Indian heritage. Features lack waist circumference and smoking history, necessitating overlap refit.
 

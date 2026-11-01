@@ -1,0 +1,212 @@
+[
+  {
+    "text": "Severe crushing pressure in the middle of my chest",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "I cannot catch my breath even while sitting still",
+    "expected_danger": true,
+    "category": "breathing",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Sudden numbness in right side of face and arm",
+    "expected_danger": true,
+    "category": "confusion_and_stroke",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "I blacked out on the floor for a few seconds",
+    "expected_danger": true,
+    "category": "fainting",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "My vision suddenly went completely black in left eye",
+    "expected_danger": true,
+    "category": "vision_loss",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Seene mein achanak shadeed chubhan aur dard ho raha hai",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "Sans bilkul ruk raha hai ghutan mehsoos ho rahi hai",
+    "expected_danger": true,
+    "category": "breathing",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "Achanak ultay bazu me shadeed dard aur khichao agya",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "Achanak behosh ho kar gir paray thay",
+    "expected_danger": true,
+    "category": "fainting",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "Mera chehra achanak aik taraf terha ho gaya hai",
+    "expected_danger": true,
+    "category": "confusion_and_stroke",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "سینے میں بہت شدید گھٹن اور درد ہو رہا ہے",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "language": "urdu",
+    "author": "saad"
+  },
+  {
+    "text": "سانس لینا ناممکن لگ رہا ہے دم گھٹ رہا ہے",
+    "expected_danger": true,
+    "category": "breathing",
+    "language": "urdu",
+    "author": "saad"
+  },
+  {
+    "text": "اچانک بائیں بازو اور آدھے چہرے پر سن پن آ گیا ہے",
+    "expected_danger": true,
+    "category": "confusion_and_stroke",
+    "language": "urdu",
+    "author": "saad"
+  },
+  {
+    "text": "چکر آ کر بیہوش ہو گئی تھیں چند منٹ کے لیے",
+    "expected_danger": true,
+    "category": "fainting",
+    "language": "urdu",
+    "author": "saad"
+  },
+  {
+    "text": "اچانک دائیں آنکھ سے بالکل اندھیرا چھا گیا ہے",
+    "expected_danger": true,
+    "category": "vision_loss",
+    "language": "urdu",
+    "author": "saad"
+  },
+  {
+    "text": "I do not have any chest pain or tightness",
+    "expected_danger": false,
+    "category": "chest_pain",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Breathing is completely normal right now",
+    "expected_danger": false,
+    "category": "breathing",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "I had a minor cough three days ago which is resolved",
+    "expected_danger": false,
+    "category": "breathing",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "No dizziness or fainting spells at all",
+    "expected_danger": false,
+    "category": "fainting",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "My vision is clear with my reading glasses",
+    "expected_danger": false,
+    "category": "vision_loss",
+    "language": "english",
+    "author": "saad"
+  },
+  {
+    "text": "Mujhe koi seene ka dard ya khichao nahi hai",
+    "expected_danger": false,
+    "category": "chest_pain",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "Sans bilkul theek chal raha hai koi masla nahi",
+    "expected_danger": false,
+    "category": "breathing",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "Kal thori thakan thi lakin ab bilkul behtar hu",
+    "expected_danger": false,
+    "category": "general",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "Pehle chakar aye thay ab bilkul theek hu behosh nahi hua",
+    "expected_danger": false,
+    "category": "fainting",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "Nazar bilkul theek hai koi dhundlapan nahi",
+    "expected_danger": false,
+    "category": "vision_loss",
+    "language": "roman_urdu",
+    "author": "saad"
+  },
+  {
+    "text": "سینے میں کسی قسم کا کوئی درد یا دباؤ نہیں ہے",
+    "expected_danger": false,
+    "category": "chest_pain",
+    "language": "urdu",
+    "author": "saad"
+  },
+  {
+    "text": "سانس بالکل ٹھیک اور پرسکون آ رہا ہے",
+    "expected_danger": false,
+    "category": "breathing",
+    "language": "urdu",
+    "author": "saad"
+  },
+  {
+    "text": "کوئی چکر یا بے ہوشی محسوس نہیں ہو رہی",
+    "expected_danger": false,
+    "category": "fainting",
+    "language": "urdu",
+    "author": "saad"
+  },
+  {
+    "text": "آنکھوں کے آگے کوئی اندھیرا یا دھندلا پن نہیں ہے",
+    "expected_danger": false,
+    "category": "vision_loss",
+    "language": "urdu",
+    "author": "saad"
+  },
+  {
+    "text": "گزشتہ ہفتے سر میں ہلکا درد ہوا تھا جو اب بالکل ٹھیک ہے",
+    "expected_danger": false,
+    "category": "severe_headache",
+    "language": "urdu",
+    "author": "saad"
+  }
+]
