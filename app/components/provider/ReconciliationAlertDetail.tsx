@@ -49,7 +49,116 @@ export const ReconciliationAlertDetail = () => {
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
 
   useEffect(() => {
-    if (!isLiveMode || !selectedPatient) return;
+    if (!isLiveMode || selectedPatient === "Ali Khan") {
+      const isRiskEnabled =
+        process.env.NEXT_PUBLIC_RISK_ENABLED === "true" ||
+        (typeof window !== "undefined" &&
+          (new URLSearchParams(window.location.search).get("risk") === "true" ||
+            new URLSearchParams(window.location.search).get("risk") === "1"));
+
+      setLiveDetail({
+        checkin_id: "demo-chk-ali",
+        patient_id: "PT-04821",
+        patient_display: "Ali Khan (PT-04821)",
+        mode: "isolated",
+        emergency: demoScenario === "emergency",
+        intakes: [],
+        reconciliation: null,
+        verification: null,
+        requires_review: true,
+        review_status: "open",
+        created_at: new Date().toISOString(),
+        patient_background: {
+          height_cm: 172,
+          weight_kg: 82,
+          bmi: 27.7,
+          waist_cm: 98,
+          diagnosis_year_hypertension: 2019,
+          smoking_status: "former",
+          comorbidities: {},
+          disclaimer:
+            "Self-reported background details provided by patient during enrolment. Not clinically verified.",
+        },
+        trends: {
+          generated_at: new Date().toISOString(),
+          advisory: true,
+          window_days: 30,
+          excluded_count: 0,
+          trends: {
+            blood_pressure_systolic: {
+              direction: "rising",
+              n: 4,
+              window_days: 30,
+              few_readings: true,
+              values: [
+                { value: 135, at: new Date().toISOString() },
+                { value: 142, at: new Date().toISOString() },
+                { value: 148, at: new Date().toISOString() },
+              ],
+            },
+            blood_pressure_diastolic: {
+              direction: "stable",
+              n: 4,
+              window_days: 30,
+              few_readings: true,
+              values: [
+                { value: 88, at: new Date().toISOString() },
+                { value: 90, at: new Date().toISOString() },
+                { value: 92, at: new Date().toISOString() },
+              ],
+            },
+          },
+        },
+        risk: isRiskEnabled
+          ? {
+              disease: "diabetes",
+              model_name: "diabetes_full_nhanes",
+              model_version: "1.0.0",
+              status: "ok",
+              band: "moderate",
+              probability: 0.145,
+              label_text: {
+                en: "Estimated 10-year risk of developing type 2 diabetes based on age, sex, BMI, waist, BP, and smoking.",
+                ur: "ذیابیطس کا ۱۰ سالہ تخمینہ شدہ خطرہ۔",
+              },
+              reasons: [
+                {
+                  feature: "waist",
+                  contribution: 0.45,
+                  label: {
+                    en: "Waist circumference",
+                    ur: "کمر کی پیمائش",
+                    roman_ur: "Kamar",
+                  },
+                },
+                {
+                  feature: "systolic",
+                  contribution: 0.38,
+                  label: {
+                    en: "Systolic blood pressure",
+                    ur: "سسٹولک بلڈ پریشر",
+                    roman_ur: "BP",
+                  },
+                },
+                {
+                  feature: "bmi",
+                  contribution: 0.28,
+                  label: {
+                    en: "Body Mass Index (BMI)",
+                    ur: "باڈی ماس انڈیکس (BMI)",
+                    roman_ur: "BMI",
+                  },
+                },
+              ],
+              caveats: ["home_bp_not_exam_bp", "not_validated_pakistan"],
+            }
+          : null,
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (!selectedPatient) return;
     let isMounted = true;
     api
       .getProviderReviewDetail(selectedPatient)
@@ -59,16 +168,15 @@ export const ReconciliationAlertDetail = () => {
           setIsLoading(false);
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (isMounted) {
           setIsLoading(false);
-          // If checkin ID not found directly, keep default display
         }
       });
     return () => {
       isMounted = false;
     };
-  }, [isLiveMode, selectedPatient]);
+  }, [isLiveMode, selectedPatient, demoScenario]);
 
   const isResolved =
     resolvedCases.includes(selectedPatient || "Ali Khan") ||
