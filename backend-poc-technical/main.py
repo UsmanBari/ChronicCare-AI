@@ -852,6 +852,9 @@ from orchestrator.steps import (
     step_decide_triage,
     step_persist_and_respond,
 )
+from orchestrator.graph import run_checkin_graph
+
+ORCHESTRATOR = os.environ.get("ORCHESTRATOR", "direct").lower()
 
 
 class UserCheckinSummaryResponse(BaseModel):
@@ -3320,6 +3323,11 @@ def complete_checkin_endpoint(
     stored = step_check_idempotency(checkin_id, record_label)
     if stored:
         return stored
+
+    # Dynamic orchestrator path selection
+    orchestrator_mode = os.environ.get("ORCHESTRATOR", ORCHESTRATOR).lower()
+    if orchestrator_mode == "graph":
+        return run_checkin_graph(checkin, current_user, record_label)
 
     # 2. Intake Validation & Emergency Early Return
     parsed_context, early_resp = step_parse_and_validate_intake(checkin, current_user, record_label)
