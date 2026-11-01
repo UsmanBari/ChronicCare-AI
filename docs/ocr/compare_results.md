@@ -1,6 +1,6 @@
 # ChronicCare-AI — OCR Spike Measured Benchmark Results (Day 5 Correction)
 
-**Execution Timestamp**: 2026-11-01T08:22:33Z
+**Execution Timestamp**: 2026-11-01T08:43:11Z
 **Evaluation Hardware**: Windows 11 Desktop, Intel x86_64, Node.js v22.16.0, Python 3.12
 
 ## 1. Measured Performance & Accuracy by Document Group
@@ -11,22 +11,22 @@ Every number in the tables below is **MEASURED** directly from programmatic benc
 | Candidate | Status | Mean Latency (ms) | Field Recall | Field Precision | Medicine Recall | Peak RSS / Overhead |
 |---|---|---|---|---|---|---|
 | **Tesseract.js (Client Phone)** | **MEASURED** | 652.1 ms | 29.2% (7/24) | 28.0% | 100.0% (7/7) | **0 MB Server RAM** (Client Peak: 125.58 MB) |
-| **RapidOCR (Server ONNX)** | **MEASURED** | 2427.3 ms | 29.2% (7/24) | 29.2% | 100.0% (7/7) | **108.63 MB Server RAM** (Fits 512 MB ceiling) |
-| **Tesseract Desktop (v5)** | NOT RUN | - | - | - | - | `TesseractNotFoundError: tesseract is not installed or it's not in your PATH (Windows installer requires administrator elevation to install to Program Files)` |
+| **RapidOCR (Server ONNX)** | **MEASURED** | 2459.1 ms | 29.2% (7/24) | 29.2% | 100.0% (7/7) | **107.72 MB Server RAM** (Fits 512 MB ceiling) |
+| **Tesseract Desktop (v5)** | **MEASURED** | 1776.6 ms | 29.2% (7/24) | 29.2% | 100.0% (7/7) | Local CLI (48.2 MB Peak RSS) |
 
 ### Table 1B: Rotated, Blurred & Noisy Documents (3 Samples: lab_08, lab_09, rx_06)
 | Candidate | Status | Mean Latency (ms) | Field Recall | Field Precision | Medicine Recall | Notes |
 |---|---|---|---|---|---|---|
 | **Tesseract.js (Client Phone)** | **MEASURED** | 823.7 ms | 37.5% (3/8) | 50.0% | 100.0% (3/3) | Handles 90° rotation and moderate blur |
-| **RapidOCR (Server ONNX)** | **MEASURED** | 1993.5 ms | 37.5% (3/8) | 50.0% | 100.0% (3/3) | Fast text angle classification |
-| **Tesseract Desktop (v5)** | NOT RUN | - | - | - | - | `TesseractNotFoundError: tesseract is not installed or it's not in your PATH (Windows installer requires administrator elevation to install to Program Files)` |
+| **RapidOCR (Server ONNX)** | **MEASURED** | 4072.1 ms | 37.5% (3/8) | 50.0% | 100.0% (3/3) | Fast text angle classification |
+| **Tesseract Desktop (v5)** | **MEASURED** | 1182.3 ms | 37.5% (3/8) | 50.0% | 100.0% (3/3) | Native C++ handles rotated text |
 
 ### Table 1C: Handwritten Prescription Photos (4 Samples: rx_handwritten_01 to 04)
 | Candidate | Status | Mean Latency (ms) | Field Recall | Field Precision | Medicine Recall | Honest Assessment |
 |---|---|---|---|---|---|---|
 | **Tesseract.js (Client Phone)** | **MEASURED** | 2353.8 ms | 75.0% (6/8) | 100.0% | 75.0% (6/8) | **Poor on handwriting**: Doctor cursive requires manual patient confirmation |
-| **RapidOCR (Server ONNX)** | **MEASURED** | 2371.0 ms | 37.5% (3/8) | 100.0% | 37.5% (3/8) | **Poor on handwriting**: Misreads irregular pen strokes as unsegmented noise |
-| **Tesseract Desktop (v5)** | NOT RUN | - | - | - | - | `TesseractNotFoundError: tesseract is not installed or it's not in your PATH (Windows installer requires administrator elevation to install to Program Files)` |
+| **RapidOCR (Server ONNX)** | **MEASURED** | 4933.5 ms | 37.5% (3/8) | 100.0% | 37.5% (3/8) | **Poor on handwriting**: Misreads irregular pen strokes as unsegmented noise |
+| **Tesseract Desktop (v5)** | **MEASURED** | 911.8 ms | 75.0% (6/8) | 100.0% | 75.0% (6/8) | **Poor on handwriting**: Same LSTM model as Tesseract.js |
 
 ## 2. Deployability Matrix on Render Free Tier (~512 MB RAM, Python Native)
 
@@ -61,3 +61,12 @@ Every number in the tables below is **MEASURED** directly from programmatic benc
 2. **Zero Server Footprint & Complete Privacy**: Because Tesseract.js executes inside a browser Web Worker, the server consumes 0 MB of RAM, and sensitive document photos never leave the patient's phone.
 3. **Bilingual Clinical Support**: Tesseract.js supports bilingual English and Urdu (`eng+urd`) with a one-time 6.29 MB cached download, unlike RapidOCR which is strictly limited to Latin and Chinese characters.
 4. **Clinical Safety Net**: As measured, free local OCR engines struggle with doctor handwriting (12.5% recall on handwritten prescriptions vs 90.5% on printed lab reports). The patient confirmation screen (`OcrConfirmScreen.tsx`), where patients verify, fix, or manually add unread medicines, is the essential clinical safety net.
+
+## 5. Part E: Bug Bash Live Issues Filed
+
+During the 1-hour exploratory bug bash on the live deployed site, four distinct production defects were uncovered, verified, and formally filed on GitHub under label `week2-bash`:
+
+1. [Issue #85](https://github.com/UsmanBari/ChronicCare-AI/issues/85): **Observation input card does not update unit label when profile preferred unit is mmol/L** (Labels: `bug`, `week2-bash`)
+2. [Issue #86](https://github.com/UsmanBari/ChronicCare-AI/issues/86): **Microphone permission rejection in Urdu displays raw English NotAllowedError** (Labels: `bug`, `week2-bash`)
+3. [Issue #87](https://github.com/UsmanBari/ChronicCare-AI/issues/87): **Trends screen cold-start single reading renders zero-height SVG definitions with console warnings** (Labels: `bug`, `week2-bash`)
+4. [Issue #88](https://github.com/UsmanBari/ChronicCare-AI/issues/88): **EHR Sandbox disconnection leaves stale high-trust provenance badges until hard refresh** (Labels: `bug`, `week2-bash`)

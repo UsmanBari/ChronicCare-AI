@@ -1,0 +1,112 @@
+{
+  "engine": "Tesseract Desktop (v5.3.4)",
+  "runtime": "Ubuntu x86_64 Native C++ Binary (WSL2)",
+  "total_samples": 17,
+  "total_time_seconds": 25.1,
+  "mean_latency_ms": 1468,
+  "peak_memory_mb": 48.2,
+  "results": {
+    "lab_01.png": {
+      "category": "synthetic",
+      "latency_ms": 4403,
+      "text": "SAMPLE — NOT A REAL REPORT\n\nSAMPLE LAB - DIAGNOSTIC REPORT\nPatient: Test Patient01 Age:58 Gender: M\n\nDate: 2026-10-15\n\nTEST NAME RESULT REFERENCE\nHbAtc: 7.8% <5.7%\n\nFasting Blood Glucose: 126mg/dL 70-99 mg/dL\nTotal Cholesterol: 195 mg/dL < 200 mg/dL\n",
+      "exit_code": 0
+    },
+    "lab_02.png": {
+      "category": "synthetic",
+      "latency_ms": 3538,
+      "text": "SAMPLE — NOT A REAL REPORT\n\nSAMPLE LAB SERVICES\nPatient: Test Patient 02 DOB: 1968-05-12\n\nInvestigation Observation\nGlycated haemoglobin 8.1%\nBlood Glucose (Fasting) 7.2 mmol/L\nBP: 148/92 mmHg\n",
+      "exit_code": 0
+    },
+    "lab_03.png": {
+      "category": "synthetic",
+      "latency_ms": 968,
+      "text": "SAMPLE — NOT A REAL REPORT\n\nSAMPLE CLINICAL LABORATORIES\nName: Test Patient 03\n\nHbAIc: 6.9 %\n\nRandom Glucose: 160 mg/dL\n\nBlood Pressure: 130/85 mmHg\n\nTotal Cholesterol: 212 mg/dL\n",
+      "exit_code": 0
+    },
+    "lab_04.png": {
+      "category": "synthetic",
+      "latency_ms": 1044,
+      "text": "SAMPLE — NOT A REAL REPORT\n\nSAMPLE LAB - ENDOCRINE PANEL\nPatient: Test Patient 04\n\nHbA‘c: 7.4 %\n\nFasting Glucose: 6.8 mmol/L\n\nTotal Cholesterol: 180 mg/dL\n",
+      "exit_code": 0
+    },
+    "lab_05.png": {
+      "category": "synthetic",
+      "latency_ms": 2294,
+      "text": "SAMPLE — NOT A REAL REPORT\n\nSAMPLE LAB PATHOLOGY\nPatient: Test Patient 05\n\nTest Result\nGlycated haemoglobin 9.0%\nGlucose (RBS) 210 mg/dL\nBP 155/95 mmHg\n",
+      "exit_code": 0
+    },
+    "lab_06.png": {
+      "category": "synthetic",
+      "latency_ms": 1185,
+      "text": "SAMPLE — NOT A REAL REPORT\n\nSAMPLE LAB - GENERAL PROFILE\nPatient: Test Patient 06\n\nFasting Blood Sugar: 115 mg/dL\n\nBP: 120/80 mmHg\n\nTotal Cholesterol: 175 mg/dL\n",
+      "exit_code": 0
+    },
+    "lab_07.png": {
+      "category": "synthetic",
+      "latency_ms": 953,
+      "text": "SAMPLE — NOT A REAL REPORT\n\nSAMPLE LAB BIOCHEMISTRY\nPatient: Test Patient 07\n\n۲۸۹ 7.1 %\n\nGlucose (Post-prandial): 165 mg/dL.\n",
+      "exit_code": 0
+    },
+    "lab_08.png": {
+      "category": "synthetic",
+      "latency_ms": 1444,
+      "text": "SAMPLE — NOTA REAL REPORT\n\nSAMPLE-LAB - METABOLIC CHECK\nPatient: Test Patient.08\n\n18۸36 8.5%\n\nFasting Glucose: 8.4 mmol/L\n\nBP: 142/88 mmHg\n",
+      "exit_code": 0
+    },
+    "lab_09.png": {
+      "category": "synthetic",
+      "latency_ms": 1141,
+      "text": "SAMPLE — NOT A REAL REPORT\n\nSAMPLE LAB - ROUTINE REPORT\nPatient: Test Patient 09\n\nHbAIc: 6.5 %\n\nRandom Glucose: 140 mg/dL\n",
+      "exit_code": 0
+    },
+    "rx_01.png": {
+      "category": "synthetic",
+      "latency_ms": 943,
+      "text": "SAMPLE — NOT A REAL REPORT\n\nSAMPLE CLINIC PRESCRIPTION\nDr. Sample Physician, MBBS, FCPS\nPatient: Test Patient 11\n\nRx:\n\n1. Tab. Metformin 500 mg BD\n\n2. Tab. Amlodipine 5mg OD\n",
+      "exit_code": 0
+    },
+    "rx_02.png": {
+      "category": "synthetic",
+      "latency_ms": 880,
+      "text": "SAMPLE — NOT A REAL REPORT\n\nSAMPLE MEDICAL CLINIC\n\nPatient: Test Patient 12\n\nRx:\n\n1. Tab. Gliclazide 80mg 1+0+1\n\n2. Tab. Losartan 50 mg — once daily\n",
+      "exit_code": 0
+    },
+    "rx_03.png": {
+      "category": "synthetic",
+      "latency_ms": 1558,
+      "text": "SAMPLE — NOT A REAL REPORT\n\nSAMPLE FAMILY HEALTH CLINIC\nPatient: Test Patient 13\n\nRx:\n\n1. Tab. Sitagliptin 100 mg OD\n\n2. Tab. Lisinopril 10 mg OD\n\n3. Tab. Empagliflozin 10 mg OD\n",
+      "exit_code": 0
+    },
+    "rx_06.png": {
+      "category": "synthetic",
+      "latency_ms": 962,
+      "text": "SAMPLE — NOT A REAL:-REPORT\n\nSAMPLE SPECIALIST CLINIC\nPatient: Test Patient 46\n\nRx:\n\n1. Fab. Metformin 850 mg BD.\n\n2. Tab. Telmisartan 40 mg.OD\n\n3. Insulin glargine: 10 units af night\n",
+      "exit_code": 0
+    },
+    "rx_handwritten_01.png": {
+      "category": "photos",
+      "latency_ms": 747,
+      "text": "CLINICAL PRESCRIPTION NOTE\n\nPt: Test Patient Age: 52y Date: 28/10/2026\n\nRx\n\n\\. Tab. Metformin 500mg\n\n140 4 1 Calter meats)\n\n2. Tab. Glimepiride img\n\n140 + 0 (before breakfast)\n\nAdvice; Monttor fasting sugat daily\n\nDr. A. Khan. MBBS, FOPS\n",
+      "exit_code": 0
+    },
+    "rx_handwritten_02.png": {
+      "category": "photos",
+      "latency_ms": 648,
+      "text": "MEDICAL PRESCRIPTION\n\nName: Test Patient Age\nRx\n\nTab. Amlodipine Smo\n\n0 + 0 + 1 oD at night\n\n2. Tab Losartan 80mg\nV+ 0 + 0 OD morning\nCheck BP weekly & record\nDr\n\nBBy\n\nin diary\n\nMo Taria,\n\nDate\n\n29/10/2026\n\nConsultant Physician\n",
+      "exit_code": 0
+    },
+    "rx_handwritten_03.png": {
+      "category": "photos",
+      "latency_ms": 809,
+      "text": "OUTPATIENT DEPARTMENT\n\nPatient: Test Patient\nRx\nY. Tab. sitagtiptin 100mg\n\n1 oD with breaxtast\n\n2. Tab. Metformin 1000mg\n1 BD after dinner\nFollow up after WbATC test\n\nDr\n\nDate\n\ns\n\n12 wks\n\nAkhtar,\n\n30/10/2028\n\nDiabetotogiet\n",
+      "exit_code": 0
+    },
+    "rx_handwritten_04.png": {
+      "category": "photos",
+      "latency_ms": 1443,
+      "text": "SPECIALISTCARDIOLOGY CLINIC\n\nPatient: Test patient Age: 47y\nRx\nV. Tab. Bleoptolol 2. 5mg\n10D morning\n2. Tab. Empaglitiozin toma\n10D aatiy\nDiet: Low salt, low catbohydrate\nDr. oH\n\nBilal,\n\nDate: 30/10/2026\n\ncardiologist\n",
+      "exit_code": 0
+    }
+  }
+}
