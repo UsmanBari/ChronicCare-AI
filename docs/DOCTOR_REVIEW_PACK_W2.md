@@ -33,12 +33,13 @@ Every item below describes an active clinical safety decision, triage behavior, 
 
 ## Decision 2: Blood Glucose Meter "LO" and "HI" Text Readings
 
-- **What the app does today**: When a patient enters glucometer screen text such as "LO" or "HI" instead of a number, `answer_validation.py:validate_glucose_input` (lines 150–156) parses no numeric float token and returns `valid=False, is_unclear=True, needs_review=True`. Because no numeric value exists in `readings_map`, `triage_protocol.py:evaluate_triggers` (lines 189–200) receives no glucose reading and fires no protocol trigger (`protocol_state` evaluates to `None`). Consequently, the check-in enters the `protocol_state is None` else-branch in `backend-poc-technical/main.py:3662-3675` (`final_triage_level = "review" if final_requires_review else "routine"`). In actual end-to-end execution, verification flags a gap/reconciliation review (`verif_requires_review = True`), so the check-in completes with `triage_level: "review"` and `triage: null` (no acute protocol triage is triggered, and no immediate emergency/urgent escalation occurs).
+- **What the app does today**: When a patient enters glucometer screen text such as "LO" or "HI" instead of a number, `answer_validation.py:validate_glucose_input` (lines 150–156) parses no numeric float token and returns `valid=False, is_unclear=True, needs_review=True`. Because no numeric value exists in `readings_map`, `triage_protocol.py:evaluate_triggers` (lines 189–200) receives no glucose reading and fires no protocol trigger (`protocol_state` evaluates to `None`). In end-to-end TestClient verification across both the default v2 engine (`INTERVIEW_ENGINE="v2"`, `backend-poc-technical/main.py:2593`) and v3 engine (`INTERVIEW_ENGINE="v3"`), entering "LO" or "HI" enters the `protocol_state is None` else-branch in `backend-poc-technical/main.py:3662-3675`. Both engines finish with HTTP 200, returning `triage: null`, `requires_review: false`, `emergency: false`, and persisting `triage_level: "routine"` in the database (`checkin_results`). Thus, neither engine escalates a life-threatening "LO" or "HI" to urgent or emergency.
+  - Note: v3 already recognises LO/HI as a meter out-of-range reading (`backend-poc-technical/agents/answer_understanding.py:589-600`), but no triage rule uses it yet.
 - **Proposed option**:
   - Map "LO" immediately to `emergency` (or `urgent` if clinician prefers).
   - Map "HI" immediately to `urgent` or `emergency` for hyperglycemic crisis evaluation.
-- **Why**: Handheld glucometers display "LO" when blood glucose is below detectable limits and "HI" when above detectable limits. These detection boundaries vary by meter model (to confirm). Both indicate severe metabolic abnormalities that should not rely on generic reconciliation review.
-- **File citation**: `backend-poc-technical/agents/answer_validation.py:150-156`, `backend-poc-technical/agents/triage_protocol.py:189-200`, `backend-poc-technical/main.py:3662-3675`
+- **Why**: Handheld glucometers display "LO" when blood glucose is below detectable limits and "HI" when above detectable limits. These detection boundaries vary by meter model (to confirm). Both indicate severe metabolic abnormalities that should not finish as routine.
+- **File citation**: `backend-poc-technical/agents/answer_validation.py:150-156`, `backend-poc-technical/agents/triage_protocol.py:189-200`, `backend-poc-technical/agents/answer_understanding.py:589-600`, `backend-poc-technical/main.py:2593, 3662-3675`
 - **Doctor decision**:
   - "LO" mapping: [ ] `emergency`  [ ] `urgent`
   - "HI" mapping: [ ] `emergency`  [ ] `urgent`
@@ -54,7 +55,7 @@ Every item below describes an active clinical safety decision, triage behavior, 
   - Roman Urdu: `"Kam sugar ki itla: Agar aap kapkapahat, paseena, uljhan ya chakkar mehsoos karein, to foran 15g jaldi asar karne wali sugar (adha cup juice ya 3-4 glucose tablets) lein."`
 - **Proposed option**:
   - Option A: Keep verbatim (standard hypoglycemia "Rule of 15" guidance).
-  - Option B: Rephrase to neutral non-prescriptive first-aid referral: *"Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."*
+  - Option B: Rephrase to neutral non-prescriptive first-aid referral (proposed new wording, not in the app; Urdu and Roman Urdu to be written after approval): *"Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."*
   - Option C: Remove specific gram dosage and advise immediate clinical contact.
 - **Why**: The app gives no dosing advice without doctor approval (project rule).
 - **File citation**: `backend-poc-technical/agents/interview_bank/messages.json:58-60`
@@ -70,7 +71,7 @@ Every item below describes an active clinical safety decision, triage behavior, 
   - Stage 2 Hypertension: `BP_STAGE2_SYSTOLIC_MMHG = 140` and `BP_STAGE2_DIASTOLIC_MMHG = 90` (`backend-poc-technical/agents/triage_protocol.py:72-73`).
   - Hypertensive Crisis / Dangerous BP: `DANGEROUS_BP_SYSTOLIC_MMHG = 180` and `DANGEROUS_BP_DIASTOLIC_MMHG = 120` (`backend-poc-technical/agents/adaptive_interview_agent.py:85-86`).
 - **Proposed option**: Update documentation and references to cite the 2025 AHA/ACC hypertension guideline. Doctor to confirm whether the 2025 guideline changes any of these thresholds.
-- **Why**: Clinical documentation should reflect current peer-reviewed guideline consensus while preserving proven deterministic crisis limits.
+- **Why**: Keep the current limits unless a doctor changes them; the citation should match the guideline edition the doctors use.
 - **File citation**: `docs/CLINICAL_RULES.md:21, 189-208`, `backend-poc-technical/agents/triage_protocol.py:72-73`, `backend-poc-technical/agents/adaptive_interview_agent.py:85-86`
 - **Doctor decision**: 
   - [ ] Formally approve 2025 citation update
@@ -149,14 +150,14 @@ Every item below describes an active clinical safety decision, triage behavior, 
 ## Decision 8: Waist Circumference Landmark and Valid Physiological Range
 
 - **What the app does today**: The profile waist field accepts values between **40.0 cm and 200.0 cm** (`WAIST_MIN_CM = 40.0`, `WAIST_MAX_CM = 200.0` at `backend-poc-technical/main.py:369-370`, checked at lines 472–473). Values outside this range raise a `ValueError` requiring doctor review.
-  - Implemented helper text in `app/translations/index.ts:1269`:
-    - Urdu: `"سانس باہر نکالنے کے بعد کولہے کی ہڈی کے اوپری حصے پر کمر کی پیمائش کریں۔"`
-    - English (`app/translations/index.ts:843`): `"Measure around your waist at the top of your hip bones, after breathing out."`
+  - Implemented helper text in `app/translations/index.ts:842, 1269`:
+    - English (`app/translations/index.ts:842`): `"Measure around your waist at the top of your hip bones, after breathing out."`
+    - Urdu (`app/translations/index.ts:1269`): `"سانس باہر نکالنے کے بعد کولہے کی ہڈی کے اوپری حصے پر کمر کی پیمائش کریں۔"`
 - **Proposed option**:
   - Option (a): Top of the hip bone (iliac crest), which is how NHANES measured waist, what the model was trained on, and the current helper text.
   - Option (b): WHO midpoint protocol (midpoint between lowest palpable rib and top of iliac crest). Note: the model was trained on protocol (a).
 - **Why**: Standardizing the measurement protocol ensures self-reported measurements align with the epidemiological training data.
-- **File citation**: `app/translations/index.ts:843, 1269`, `backend-poc-technical/main.py:369-370, 472-473`
+- **File citation**: `app/translations/index.ts:842, 1269`, `backend-poc-technical/main.py:369-370, 472-473`
 - **Doctor decision**: 
   - Protocol: [ ] Option (a) Iliac crest (model-aligned)  [ ] Option (b) WHO midpoint
   - Range 40–200 cm: [ ] Approved  [ ] Modified: ____________________________
@@ -170,13 +171,13 @@ Every item below describes an active clinical safety decision, triage behavior, 
   - Systolic BP Delta Threshold: **10.0 mmHg** (`TYPE_SYSTOLIC: 10.0`)
   - Diastolic BP Delta Threshold: **5.0 mmHg** (`TYPE_DIASTOLIC: 5.0`)
   - Glucose Delta Threshold: **20.0 mg/dL** (`TYPE_GLUCOSE: 20.0`)
-  - Current operational requirement: `BASELINE_MIN_READINGS = 3` (`backend-poc-technical/agents/triage_protocol.py:76`). When fewer than 3 readings are available, the direction evaluates to `"not_enough_history"` (`backend-poc-technical/agents/trend_agent.py:321`).
+  - Current operational requirement: `BASELINE_MIN_READINGS = 3` (`backend-poc-technical/agents/triage_protocol.py:78`). When fewer than 3 readings are available, the direction evaluates to `"not_enough_history"` (`backend-poc-technical/agents/trend_agent.py:319-321`).
   - Proposed operational constant: `PROPOSED_MIN_READINGS_FOR_DIRECTION = 5` (`backend-poc-technical/agents/trend_agent.py:63`) required before asserting a trajectory direction arrow (`rising` or `falling`).
 - **Proposed option**:
   - Adopt 10 mmHg systolic, 5 mmHg diastolic, and 20 mg/dL glucose delta thresholds.
   - Require at least 5 readings over the 30-day window before asserting `rising` or `falling` direction; with fewer readings, report `"not_enough_history"`.
 - **Why**: Home readings have substantial daily fluctuations. Requiring 5 readings and dual-agreement between median half-delta and Theil-Sen slope prevents false trend alerts.
-- **File citation**: `backend-poc-technical/agents/trend_agent.py:55-63, 321`, `backend-poc-technical/agents/triage_protocol.py:76`, `docs/TREND_AGENT.md:110-120, 215-222`
+- **File citation**: `backend-poc-technical/agents/trend_agent.py:55-63, 319-321`, `backend-poc-technical/agents/triage_protocol.py:78`, `docs/TREND_AGENT.md:110-120, 215-222`
 - **Doctor decision**: 
   - [ ] Approve 10/5/20 thresholds and 5-reading minimum requirement
   - [ ] Adjust thresholds: __________________________________________________
@@ -189,14 +190,14 @@ Every item below describes an active clinical safety decision, triage behavior, 
 | Item | Topic | Current State | Proposed Action | Clinician Sign-Off |
 | :--- | :--- | :--- | :--- | :--- |
 | **D1** | Urdu Red-Flag Phrases | 14/20 missed (70% FNR); Blind: 3/20 detected (15%) | Pattern expansion / LLM hybrid (Table 6E) | __________________ |
-| **D2** | Meter LO / HI Text | Unreadable text ends as review (`triage: null`) | Map LO -> `emergency`/`urgent`; HI -> `urgent`/`emergency` | __________________ |
+| **D2** | Meter LO / HI Text | Both v2 and v3 finish routine (`triage: null`) | Map LO -> emergency/urgent; HI -> urgent/emergency | __________________ |
 | **D3** | 15 g Fast Sugar Guidance | 15g rule in prompt | Review against project non-prescriptive rule | __________________ |
 | **D4** | Blood Pressure Guidelines | ACC/AHA 2017 citation (140/90, 180/120) | Confirm whether 2025 guideline changes thresholds | __________________ |
 | **D5** | Non-Stop Vomiting | `urgent` (Talha, Shaiza) / `emergency` (Anam) | (a) urgent, (b) emergency, or (c) urgent unless danger signs | __________________ |
 | **D6** | D15 HbA1c Reminder | Dormant in codebase (`interval_days=None`) | Doctor decides whether and how often (12/24/36 mo) | __________________ |
 | **D7** | D12 Risk Panel | Provider-only behind flag, `RISK_CAN_RAISE=false` | Retain provider-only advisory view | __________________ |
-| **D8** | Waist Range & Landmark | 40–200 cm; iliac crest helper text | Confirm Option (a) iliac crest vs (b) WHO midpoint | __________________ |
-| **D9** | Longitudinal Trends | 10 / 5 / 20 mmHg & mg/dL; <3 gives `not_enough_history` | 5-reading minimum for trajectory arrow | __________________ |
+| **D8** | Waist Range & Landmark | 40–200 cm; iliac crest helper text (index.ts:842, 1269) | Confirm Option (a) iliac crest vs (b) WHO midpoint | __________________ |
+| **D9** | Longitudinal Trends | 10 / 5 / 20 mmHg & mg/dL; <3 gives `not_enough_history` (triage_protocol.py:78, trend_agent.py:319-321) | 5-reading minimum for trajectory arrow | __________________ |
 
 **Reviewing Doctors**:
 1. Dr Shaiza Jabbar, Medical Officer, Hearts International Hospital (to confirm permission to be named)
