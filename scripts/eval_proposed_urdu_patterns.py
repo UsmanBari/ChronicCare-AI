@@ -2,16 +2,16 @@
 """
 scripts/eval_proposed_urdu_patterns.py
 
-Standalone evaluation harness for proposed Urdu danger patterns (PR #89 / Day 4 Part C).
+Standalone evaluation harness for proposed Urdu danger patterns (PR #89 / Correction 3).
 Evaluates:
   1. Legacy v2 Engine (run_stage1_red_flag_screen)
   2. Current v3 Engine (classify_input)
-  3. Proposed v3+ Patterns (tightened patterns + numeric hypoglycemia evaluator)
+  3. Proposed v3+ Engine (clinically broadened patterns, 1 tuning round)
 
 Against:
-  - 20 Independent Urdu Danger Phrases (Sensitivity)
-  - 10 Safe Look-alikes (Specificity)
-  - 40 Handwritten Benign Patient Sentences (Zero False Alarm Verification)
+  - Primary Independent Set (Hassaan): 20 Danger Phrases + 10 Safe Look-alikes
+  - Held-out Set (Saad): 20 New Danger Phrases + 20 New Safe Sentences
+  - Benign Conversational Set (Hassaan): 40 Everyday Urdu Patient Sentences
 
 DOES NOT MODIFY input_triage.py or any protected engine files.
 """
@@ -37,81 +37,122 @@ from agents.adaptive_interview_agent import (
 )
 from agents.input_triage import classify_input
 
-DANGER_PHRASES_PATH = REPO_ROOT / "tests" / "sim" / "danger_phrases_independent_hassaan_ur.json"
+PRIMARY_PHRASES_PATH = REPO_ROOT / "tests" / "sim" / "danger_phrases_independent_hassaan_ur.json"
+HELDOUT_PHRASES_PATH = REPO_ROOT / "tests" / "sim" / "heldout_urdu_saad.json"
 BENIGN_SENTENCES_PATH = REPO_ROOT / "tests" / "sim" / "benign_urdu_sentences_hassaan.json"
 
 
 # =============================================================================
-# Proposed Clinical Patterns & Tightened Evaluator
+# Proposed Clinical Patterns (Round 1: Broader but Safe)
 # =============================================================================
 
 PROPOSED_REGEX_PATTERNS = [
-    # 1. Chest pain radiating to left arm
-    (re.compile(r"(?:چھاتی|سینے).*(?:دباؤ|بوجھ|درد).*بائیں بازو"), "chest_pain", "emergency"),
-    # 2. Severe chest constriction / suffocation
-    (re.compile(r"(?:سینے|چھاتی).*(?:شدید گھٹن|دم گھٹ)"), "chest_pain", "emergency"),
-    # 3. Severe respiratory distress / orthopnea
-    (re.compile(r"سانس پھول.*(?:بیٹھا بھی نہیں جا رہا|چلنا محال)"), "breathing", "emergency"),
-    # 4. Syncope: recurrent blackouts / fainting episodes (tightened from bare 'آنکھوں کے آگے اندھیرا')
-    (re.compile(r"غشی(?: کے دورے)?|(?:آنکھوں کے آگے اندھیرا.*(?:دورے|غشی|بے ہوش|گر پڑا))"), "syncope", "emergency"),
-    # 5. Stroke / Hemiparesis: body numbness & motor loss
-    (re.compile(r"آدھا جسم.*(?:سن|ہلایا نہیں جا رہا)"), "focal_weakness_stroke", "emergency"),
-    # 6. Stroke / Focal weakness: unilateral limb loss of strength
-    (re.compile(r"(?:بائیں ہاتھ اور پاؤں|ایک طرف).*جان نہیں رہی"), "focal_weakness_stroke", "emergency"),
-    # 7. Stroke / Facial asymmetry with dysphasia (tightened: bare 'بولا نہیں جا رہا' excluded)
-    (re.compile(r"(?:منہ.*ٹیڑھا.*بولا نہیں جا رہا)|(?:منہ ایک طرف ٹیڑھا)"), "focal_weakness_stroke", "emergency"),
-    # 8. Acute confusion / encephalopathy
-    (re.compile(r"حواس کام نہیں کر رہے"), "confusion", "emergency"),
-    # 9. Severe headache (thunderclap / worst of life)
-    (re.compile(r"شدید درد.*پہلے کبھی نہیں ہوا|بدترین سر درد"), "severe_headache", "emergency"),
-    # 10. Sudden monocular / acute vision loss
-    (re.compile(r"اچانک.*(?:ایک آنکھ سے)?.*نظر آنا بند"), "vision_loss", "emergency"),
-    # 11. Active gastrointestinal hemorrhage (hematemesis)
-    (re.compile(r"خون کی الٹی|قے.*خون"), "bleeding", "emergency"),
-    # 12. Uncontrolled tachycardia / violent palpitations with autonomic shock
-    (re.compile(r"(?:دھڑکن|دل).*بے قابو.*(?:پسینے|سینے)"), "palpitations_danger", "emergency"),
+    # 1. Chest pain radiating to arm / neck / shoulder or severe constriction
+    (
+        re.compile(r"(?:چھاتی|سینے).*(?:دباؤ|بوجھ|درد|چبھن|سخت گھٹن).*(?:بائیں|بازو|گردن|کندھ)"),
+        "chest_pain",
+        "emergency",
+    ),
+    (re.compile(r"(?:سینے|چھاتی).*(?:شدید گھٹن|سخت گھٹن|دم گھٹ)"), "chest_pain", "emergency"),
+    # 2. Severe respiratory compromise / orthopnea / pulmonary foam
+    (
+        re.compile(
+            r"سانس.*(?:پھول|تکلیف|رکنے لگا|رک رہا).*(?:بیٹھا بھی نہیں جا رہا|چلنا محال|لیٹنے پر دم گھٹ|جھاگ)"
+        ),
+        "breathing",
+        "emergency",
+    ),
+    # 3. Syncope: recurrent blackouts / fainting / collapsing (tightened from bare 'اندھیرا')
+    (
+        re.compile(
+            r"غشی(?: کے دورے)?|(?:آنکھوں کے آگے اندھیرا.*(?:دورے|غشی|بے ہوش|گر پڑ|چھا گیا))|(?:بے سدھ ہو کر گر)"
+        ),
+        "syncope",
+        "emergency",
+    ),
+    # 4. Stroke / Focal weakness / Facial droop / Dysphasia
+    (
+        re.compile(r"(?:آدھا جسم|ایک طرف|بائیں ہاتھ|دائیں ہاتھ).*(?:سن|کمزور|جان نہیں|ہلایا نہیں جا رہا)"),
+        "focal_weakness_stroke",
+        "emergency",
+    ),
+    (
+        re.compile(r"(?:ایک طرف کا (?:ہاتھ|بازو|پاؤں|ٹانگ).*(?:کمزور|سن|جان نہیں))|(?:ہاتھ اور پاؤں.*جان نہیں رہی)"),
+        "focal_weakness_stroke",
+        "emergency",
+    ),
+    (
+        re.compile(
+            r"(?:منہ.*(?:ٹیڑھا|ڈھلک|لٹک))|(?:چہرہ|چہرے).*(?:ٹیڑھا|ڈھلک|لٹک)|(?:بولنے میں مشکل.*ایک طرف)|(?:منہ.*ٹیڑھا.*بولا نہیں جا رہا)|(?:پانی پیتے ہوئے منہ سے نکل)"
+        ),
+        "focal_weakness_stroke",
+        "emergency",
+    ),
+    # 5. Acute confusion / encephalopathy / disorientation
+    (
+        re.compile(r"حواس کام نہیں کر رہے|باتیں بہکی|نہیں پتہ.*کہاں"),
+        "confusion",
+        "emergency",
+    ),
+    # 6. Severe headache (thunderclap / worst of life / uncontrollable pain)
+    (
+        re.compile(
+            r"سر.*(?:بجلی کا جھٹکا|شدید ترین درد|بدترین|پہلے کبھی نہیں ہوا|چبھن.*شدید ترین|(?:درد.*(?:اتنا شدید.*(?:الٹی|برداشت سے باہر))))"
+        ),
+        "severe_headache",
+        "emergency",
+    ),
+    # 7. Sudden monocular or severe acute vision loss
+    (
+        re.compile(r"(?:اچانک.*(?:ایک آنکھ|دائیں آنکھ|بائیں آنکھ|دونوں آنکھوں)?.*(?:نظر آنا بند|کالی پٹی))"),
+        "vision_loss",
+        "emergency",
+    ),
+    # 8. Active gastrointestinal hemorrhage (hematemesis / melena)
+    (re.compile(r"خون کی الٹی|قے.*خون|الٹی میں.*خون|پاخانے کا رنگ کالا سیاہ"), "bleeding", "emergency"),
+    # 9. Violent tachyarrhythmia / palpitations with autonomic distress
+    (
+        re.compile(r"(?:دھڑکن|دل).*بے قابو.*(?:پسینے|سینے)|دل بہت تیز دھڑک.*سینے سے باہر"),
+        "palpitations_danger",
+        "emergency",
+    ),
 ]
 
 
 def eval_numeric_hypoglycemia(text: str) -> tuple[str, str] | None:
     """
-    Evaluates objective numeric hypoglycemia with autonomic symptoms.
+    Evaluates objective numeric hypoglycemia with autonomic/neuroglycopenic symptoms.
     Normalizes Eastern Arabic digits (۰-۹ -> 0-9).
     Requires integer extraction with whole-number word boundaries.
-    Only triggers if glucose value < 54 mg/dL (severe hypoglycemia threshold).
+    Only triggers if standalone glucose value < 54 mg/dL.
     Protects against numbers like 135 matching 35.
     """
     normalized = text.translate(_EASTERN_DIGITS_TABLE)
-    
+
     # Check explicit '< 40' or '< 50' or '< 54' phrasing
     if re.search(r"شوگر.*(?:40|50|54)\s*سے کم", normalized):
         return ("severe_hypoglycemia", "emergency")
-    
-    # Check presence of autonomic symptoms
-    has_autonomic = bool(re.search(r"(?:ہاتھ کانپ|پسینہ|کپکپی|لرز)", normalized))
-    if not has_autonomic:
+
+    # Autonomic / neuroglycopenic symptoms: tremors, sweats, presyncope, dizziness, confusion
+    has_hypo_symptom = bool(
+        re.search(r"(?:ہاتھ کانپ|پسینہ|کپکپی|لرز|چکر|بے ہوش|غشی|الجھن|بے چینی|کمزوری)", normalized)
+    )
+    if not has_hypo_symptom:
         return None
-        
-    # Extract standalone numeric tokens near 'شوگر'
-    sugar_match = re.search(r"شوگر\s*[:=]?\s*(\d{1,3})\b", normalized)
-    if sugar_match:
-        val = int(sugar_match.group(1))
-        if val < 54:
-            return ("severe_hypoglycemia", "emergency")
-            
-    # Also find all standalone integers in text if 'شوگر' is present anywhere
-    if "شوگر" in normalized:
+
+    # Check standalone integer tokens if 'شوگر' or 'گلوکومیٹر' is present
+    if "شوگر" in normalized or "گلوکومیٹر" in normalized:
         numbers = [int(n) for n in re.findall(r"\b\d{1,3}\b", normalized)]
         for n in numbers:
             if n < 54:
                 return ("severe_hypoglycemia", "emergency")
-                
+
     return None
 
 
 def screen_proposed_v3_plus(text: str) -> tuple[bool, str | None, str | None]:
     """
-    Evaluates current v3 classify_input plus the 14 proposed patterns.
+    Evaluates current v3 classify_input plus the broadened proposed patterns.
     Returns (is_danger, category, triage_level).
     """
     # 1. First run current v3 triage
@@ -134,149 +175,151 @@ def screen_proposed_v3_plus(text: str) -> tuple[bool, str | None, str | None]:
 
 
 # =============================================================================
-# Benchmark Runner
+# Benchmark Evaluation Logic
 # =============================================================================
 
-def run_evaluation() -> dict[str, Any]:
-    with open(DANGER_PHRASES_PATH, "r", encoding="utf-8") as f:
-        danger_data = json.load(f)
+def evaluate_dataset(dataset_path: Path) -> dict[str, Any]:
+    with open(dataset_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-    with open(BENIGN_SENTENCES_PATH, "r", encoding="utf-8") as f:
-        benign_data = json.load(f)
+    dangers = [d for d in data if d.get("expected_danger")]
+    safes = [d for d in data if not d.get("expected_danger")]
 
-    danger_phrases = [d for d in danger_data if d.get("expected_danger")]
-    safe_lookalikes = [d for d in danger_data if not d.get("expected_danger")]
-
-    results = {
-        "v2": {"tp": 0, "fn": 0, "tn": 0, "fp": 0, "benign_fp": 0, "misses": [], "alarms": []},
-        "v3": {"tp": 0, "fn": 0, "tn": 0, "fp": 0, "benign_fp": 0, "misses": [], "alarms": []},
-        "proposed": {"tp": 0, "fn": 0, "tn": 0, "fp": 0, "benign_fp": 0, "misses": [], "alarms": []},
+    res = {
+        "v2": {"tp": 0, "fn": 0, "tn": 0, "fp": 0, "misses": [], "alarms": []},
+        "v3": {"tp": 0, "fn": 0, "tn": 0, "fp": 0, "misses": [], "alarms": []},
+        "proposed": {"tp": 0, "fn": 0, "tn": 0, "fp": 0, "misses": [], "alarms": []},
     }
 
-    # Evaluate 20 Danger Phrases
-    for item in danger_phrases:
+    for item in dangers:
         phrase = item["text"]
-
         # v2
-        is_rf_v2, _ = run_stage1_red_flag_screen(phrase)
-        if is_rf_v2:
-            results["v2"]["tp"] += 1
+        rf_v2, _ = run_stage1_red_flag_screen(phrase)
+        if rf_v2:
+            res["v2"]["tp"] += 1
         else:
-            results["v2"]["fn"] += 1
-            results["v2"]["misses"].append(phrase)
+            res["v2"]["fn"] += 1
+            res["v2"]["misses"].append(phrase)
 
         # v3
         triage_v3 = classify_input(phrase)
         if triage_v3.category == "danger_phrase":
-            results["v3"]["tp"] += 1
+            res["v3"]["tp"] += 1
         else:
-            results["v3"]["fn"] += 1
-            results["v3"]["misses"].append(phrase)
+            res["v3"]["fn"] += 1
+            res["v3"]["misses"].append(phrase)
 
         # Proposed
-        is_prop, _prop_cat, _ = screen_proposed_v3_plus(phrase)
-        if is_prop:
-            results["proposed"]["tp"] += 1
+        prop_is, _, _ = screen_proposed_v3_plus(phrase)
+        if prop_is:
+            res["proposed"]["tp"] += 1
         else:
-            results["proposed"]["fn"] += 1
-            results["proposed"]["misses"].append(phrase)
+            res["proposed"]["fn"] += 1
+            res["proposed"]["misses"].append(phrase)
 
-    # Evaluate 10 Safe Look-alikes
-    for item in safe_lookalikes:
+    for item in safes:
         phrase = item["text"]
-
         # v2
-        is_rf_v2, _ = run_stage1_red_flag_screen(phrase)
-        if is_rf_v2:
-            results["v2"]["fp"] += 1
-            results["v2"]["alarms"].append(phrase)
+        rf_v2, _ = run_stage1_red_flag_screen(phrase)
+        if rf_v2:
+            res["v2"]["fp"] += 1
+            res["v2"]["alarms"].append(phrase)
         else:
-            results["v2"]["tn"] += 1
+            res["v2"]["tn"] += 1
 
         # v3
         triage_v3 = classify_input(phrase)
         if triage_v3.category == "danger_phrase":
-            results["v3"]["fp"] += 1
-            results["v3"]["alarms"].append(phrase)
+            res["v3"]["fp"] += 1
+            res["v3"]["alarms"].append(phrase)
         else:
-            results["v3"]["tn"] += 1
+            res["v3"]["tn"] += 1
 
         # Proposed
-        is_prop, _, _ = screen_proposed_v3_plus(phrase)
-        if is_prop:
-            results["proposed"]["fp"] += 1
-            results["proposed"]["alarms"].append(phrase)
+        prop_is, _, _ = screen_proposed_v3_plus(phrase)
+        if prop_is:
+            res["proposed"]["fp"] += 1
+            res["proposed"]["alarms"].append(phrase)
         else:
-            results["proposed"]["tn"] += 1
+            res["proposed"]["tn"] += 1
 
-    # Evaluate 40 Benign Patient Sentences
-    for phrase in benign_data:
-        # v2
-        is_rf_v2, _ = run_stage1_red_flag_screen(phrase)
-        if is_rf_v2:
-            results["v2"]["benign_fp"] += 1
-            results["v2"]["alarms"].append(phrase)
-
-        # v3
-        triage_v3 = classify_input(phrase)
-        if triage_v3.category == "danger_phrase":
-            results["v3"]["benign_fp"] += 1
-            results["v3"]["alarms"].append(phrase)
-
-        # Proposed
-        is_prop, _, _ = screen_proposed_v3_plus(phrase)
-        if is_prop:
-            results["proposed"]["benign_fp"] += 1
-            results["proposed"]["alarms"].append(phrase)
-
-    return results
+    return res
 
 
-def print_report(res: dict[str, Any]):
+def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
+    primary_res = evaluate_dataset(PRIMARY_PHRASES_PATH)
+    heldout_res = evaluate_dataset(HELDOUT_PHRASES_PATH)
+
+    with open(BENIGN_SENTENCES_PATH, "r", encoding="utf-8") as f:
+        benign_sentences = json.load(f)
+
+    benign_counts = {"v2_fp": 0, "v3_fp": 0, "prop_fp": 0}
+    for b in benign_sentences:
+        if run_stage1_red_flag_screen(b)[0]:
+            benign_counts["v2_fp"] += 1
+        if classify_input(b).category == "danger_phrase":
+            benign_counts["v3_fp"] += 1
+        if screen_proposed_v3_plus(b)[0]:
+            benign_counts["prop_fp"] += 1
+
     print("=" * 80)
-    print("MEASURED EVALUATION OF URDU DANGER PATTERNS (CORRECTION 2)")
+    print("CHRONICCARE-AI: MEASURED URDU DANGER PHRASE EVALUATION (CORRECTION 3)")
     print("=" * 80)
 
-    for eng_name, r in [
-        ("Legacy v2 Engine (run_stage1_red_flag_screen)", res["v2"]),
-        ("Current v3 Engine (classify_input)", res["v3"]),
-        ("Proposed v3+ Engine (with 14 Proposed Patterns)", res["proposed"]),
+    print("\n### 1. Primary Set (Hassaan: 20 Danger + 10 Safe Look-alikes)")
+    print("| Engine | Sensitivity (TP/20) | Safe Specificity (TN/10) | False Alarms |")
+    print("|---|---|---|---|")
+    for name, r in [
+        ("Legacy v2 (`run_stage1_red_flag_screen`)", primary_res["v2"]),
+        ("Current v3 (`classify_input`)", primary_res["v3"]),
+        ("Proposed v3+ (Broadened Round 1)", primary_res["proposed"]),
     ]:
-        tp, fn = r["tp"], r["fn"]
-        tn, fp = r["tn"], r["fp"]
-        benign_fp = r["benign_fp"]
-        total_safe = 10 + 40
-        total_fp = fp + benign_fp
-        total_tn = tn + (40 - benign_fp)
+        sens = (r["tp"] / 20) * 100
+        spec = (r["tn"] / 10) * 100
+        print(f"| {name} | {sens:.1f}% ({r['tp']}/20) | {spec:.1f}% ({r['tn']}/10) | {r['fp']} |")
 
-        sens = (tp / (tp + fn) * 100) if (tp + fn) else 0.0
-        spec = (total_tn / (total_tn + total_fp) * 100) if (total_tn + total_fp) else 0.0
+    print("\n### 2. Held-out Set (Saad: 20 New Danger + 20 New Safe Sentences)")
+    print("| Engine | Sensitivity (TP/20) | Safe Specificity (TN/20) | False Alarms |")
+    print("|---|---|---|---|")
+    for name, r in [
+        ("Legacy v2 (`run_stage1_red_flag_screen`)", heldout_res["v2"]),
+        ("Current v3 (`classify_input`)", heldout_res["v3"]),
+        ("Proposed v3+ (Broadened Round 1)", heldout_res["proposed"]),
+    ]:
+        sens = (r["tp"] / 20) * 100
+        spec = (r["tn"] / 20) * 100
+        print(f"| {name} | {sens:.1f}% ({r['tp']}/20) | {spec:.1f}% ({r['tn']}/20) | {r['fp']} |")
 
-        print(f"\n--- {eng_name} ---")
-        print(f"  Danger Sensitivity:      {tp}/20 ({sens:.1f}%) [FN Misses: {fn}]")
-        print(f"  Safe Lookalike TN:       {tn}/10 [FP Alarms: {fp}]")
-        print(f"  Benign 40 Sentences TN:  {40 - benign_fp}/40 [FP Alarms: {benign_fp}]")
-        print(f"  Overall Specificity:     {total_tn}/{total_safe} ({spec:.1f}%) [Total FP: {total_fp}]")
-
-        if r["alarms"]:
-            print("  False Positive Trigger Phrases:")
-            for a in r["alarms"]:
-                print(f"    - {a}")
+    total_safe = 10 + 20 + 40  # 70 total safe sentences
+    print("\n### 3. Combined Safe Specificity across All 70 Safe Sentences (10 Hassaan + 20 Saad + 40 Benign)")
+    for name, r_prim, r_held, b_fp in [
+        ("Legacy v2", primary_res["v2"], heldout_res["v2"], benign_counts["v2_fp"]),
+        ("Current v3", primary_res["v3"], heldout_res["v3"], benign_counts["v3_fp"]),
+        ("Proposed v3+", primary_res["proposed"], heldout_res["proposed"], benign_counts["prop_fp"]),
+    ]:
+        total_tn = r_prim["tn"] + r_held["tn"] + (40 - b_fp)
+        total_fp = r_prim["fp"] + r_held["fp"] + b_fp
+        spec = (total_tn / total_safe) * 100
+        print(f"  {name:15}: Specificity = {spec:.1f}% ({total_tn}/{total_safe}) [Total False Positives: {total_fp}]")
 
     print("\n" + "=" * 80)
-    print("CRITICAL SAFETY CHECK: 'شوگر 135 ہے اور ہاتھ کانپ رہے ہیں'")
-    test_phrase = "شوگر 135 ہے اور ہاتھ کانپ رہے ہیں"
-    is_prop, cat, lvl = screen_proposed_v3_plus(test_phrase)
-    print(f"  Input:  '{test_phrase}'")
-    print(f"  Result: Triggered = {is_prop} (Category: {cat}, Level: {lvl})")
-    assert not is_prop, "CRITICAL ERROR: 'شوگر 135 ہے اور ہاتھ کانپ رہے ہیں' falsely triggered hypoglycemia!"
-    print("  [PASS] Verified: Standalone whole-number boundary and numeric check prevented false alarm!")
+    print("CRITICAL USMAN VALIDATION CHECKS:")
+    test_cases = [
+        ("اچانک بولنے میں مشکل ہو رہی ہے اور ایک طرف کا ہاتھ کمزور ہے", True, "Stroke / hemiparesis"),
+        ("شوگر ۴۵ ہے اور چکر آ رہے ہیں", True, "Severe hypoglycemia with Eastern Arabic digits"),
+        ("شوگر 135 ہے اور ہاتھ کانپ رہے ہیں", False, "Safe benign normal reading with cold shiver"),
+    ]
+    for phrase, exp_danger, desc in test_cases:
+        trig, _cat, _lvl = screen_proposed_v3_plus(phrase)
+        status = "PASS" if trig == exp_danger else "FAIL"
+        print(f"  [{status}] '{phrase}' -> Triggered: {trig} (Expected: {exp_danger}) — {desc}")
+        assert trig == exp_danger, f"Assertion failed for phrase: {phrase}"
+
     print("=" * 80)
 
 
 if __name__ == "__main__":
-    results = run_evaluation()
-    print_report(results)
+    main()
