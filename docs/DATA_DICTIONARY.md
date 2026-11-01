@@ -54,6 +54,7 @@ Stores patient-specific clinical, consent, demographic, and preference informati
 | `voice_enabled` | INTEGER | Boolean-like setting indicating whether the voice feature is enabled. Defaults to `0`. | `0` | Yes |
 | `height_cm` | REAL | Patient's height in centimetres. The API currently validates values from 50 to 250 cm. | `170.5` | Yes |
 | `weight_kg` | REAL | Patient's weight in kilograms. The API currently validates values from 20 to 400 kg. | `72.0` | Yes |
+| `waist_cm` | REAL | Patient's waist circumference in centimetres. The API validates values from 40 to 200 cm (needs doctor review). Added in schema v13. | `85.0` | Yes |
 | `diagnosis_year_diabetes` | INTEGER | Year in which the patient was diagnosed with diabetes, when provided. | `2020` | Yes |
 | `diagnosis_year_hypertension` | INTEGER | Year in which the patient was diagnosed with hypertension, when provided. | `2022` | Yes |
 

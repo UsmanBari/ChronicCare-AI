@@ -405,9 +405,34 @@ export interface Translations {
   weightErrorKg: string;
   weightErrorLb: string;
   bodyMeasurementsOptional: string;
+  waistLabelIn: string;
+  waistLabelCm: string;
+  waistToggleLabel: string;
+  waistUnitIn: string;
+  waistUnitCm: string;
+  waistUnitInAria: string;
+  waistUnitCmAria: string;
+  waistHelperText: string;
+  waistErrorCm: string;
+  waistErrorIn: string;
   doctorOnRecordLabel: string;
   ehrAllergiesTitle: string;
   noEhrAllergiesRecorded: string;
+  providerRiskTitle: string;
+  providerRiskNotice: string;
+  riskBandLow: string;
+  riskBandMedium: string;
+  riskBandHigh: string;
+  riskReasonsTitle: string;
+  riskCaveatsTitle: string;
+  riskCaveatHomeBp: string;
+  riskCaveatNotValidatedPakistan: string;
+  riskMissingDataTitle: string;
+  riskMissingDataDescription: string;
+  riskMissingBp: string;
+  riskMissingWaist: string;
+  riskMissingSmoking: string;
+  riskMissingHeightWeight: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -807,9 +832,34 @@ export const translations: Record<Language, Translations> = {
     weightErrorKg: "Weight must be between 20 and 400 kg.",
     weightErrorLb: "Weight must be between 44 and 882 lb.",
     bodyMeasurementsOptional: "Body Measurements (Optional)",
+    waistLabelIn: "Waist (in)",
+    waistLabelCm: "Waist (cm)",
+    waistToggleLabel: "Waist measurement unit",
+    waistUnitIn: "in",
+    waistUnitCm: "cm",
+    waistUnitInAria: "Waist unit: in",
+    waistUnitCmAria: "Waist unit: cm",
+    waistHelperText: "Measure around your waist at the top of your hip bones, after breathing out.",
+    waistErrorCm: "Waist circumference must be between 40 and 200 cm (needs doctor review).",
+    waistErrorIn: "Waist circumference must be between 15.7 and 78.7 inches (needs doctor review).",
     doctorOnRecordLabel: "Doctor on record: {name} (from your hospital record)",
     ehrAllergiesTitle: "Allergies in your hospital record",
     noEhrAllergiesRecorded: "None recorded",
+    providerRiskTitle: "Diabetes risk (experimental)",
+    providerRiskNotice: "Internal research feature — not for clinical diagnosis without physician evaluation.",
+    riskBandLow: "Low",
+    riskBandMedium: "Moderate",
+    riskBandHigh: "High",
+    riskReasonsTitle: "Top Contributing Factors",
+    riskCaveatsTitle: "Clinical Caveats",
+    riskCaveatHomeBp: "Home blood pressure readings are self-reported and have not been validated against clinic measurements.",
+    riskCaveatNotValidatedPakistan: "This model was developed on US NHANES data and has not been validated on a Pakistani population.",
+    riskMissingDataTitle: "Not Enough Information",
+    riskMissingDataDescription: "Risk assessment requires complete baseline measurements:",
+    riskMissingBp: "Blood pressure reading in the last 30 days",
+    riskMissingWaist: "Waist circumference in patient profile",
+    riskMissingSmoking: "Smoking status in patient profile",
+    riskMissingHeightWeight: "Height and weight in patient profile",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1209,8 +1259,33 @@ export const translations: Record<Language, Translations> = {
     weightErrorKg: "وزن ۲۰ سے ۴۰۰ کلوگرام کے درمیان ہونا چاہیے۔",
     weightErrorLb: "وزن ۴۴ سے ۸۸۲ پاؤنڈ کے درمیان ہونا چاہیے۔",
     bodyMeasurementsOptional: "جسمانی پیمائش (اختیاری)",
+    waistLabelIn: "کمر کی پیمائش (انچ)",
+    waistLabelCm: "کمر کی پیمائش (سینٹی میٹر)",
+    waistToggleLabel: "کمر کی پیمائش کی اکائی",
+    waistUnitIn: "انچ",
+    waistUnitCm: "سینٹی میٹر",
+    waistUnitInAria: "کمر کی اکائی: انچ",
+    waistUnitCmAria: "کمر کی اکائی: سینٹی میٹر",
+    waistHelperText: "سانس باہر نکالنے کے بعد کولہے کی ہڈی کے اوپری حصے پر کمر کی پیمائش کریں۔",
+    waistErrorCm: "کمر کی پیمائش ۴۰ سے ۲۰۰ سینٹی میٹر کے درمیان ہونی چاہیے (ڈاکٹر کے جائزے کی ضرورت ہے)۔",
+    waistErrorIn: "کمر کی پیمائش ۱۵.۷ سے ۷۸.۷ انچ کے درمیان ہونی چاہیے (ڈاکٹر کے جائزے کی ضرورت ہے)۔",
     doctorOnRecordLabel: "ریکارڈ پر ڈاکٹر: {name} (آپ کے ہسپتال کے ریکارڈ سے)",
     ehrAllergiesTitle: "آپ کے ہسپتال کے ریکارڈ میں الرجیاں",
     noEhrAllergiesRecorded: "کوئی درج نہیں",
+    providerRiskTitle: "ذیابیطس کا خطرہ (تجرباتی)",
+    providerRiskNotice: "اندرونی تحقیقی فیچر — معالج کے جائزے کے بغیر تشخیصی فیصلے کے لیے نہیں۔",
+    riskBandLow: "کم",
+    riskBandMedium: "درمیانہ",
+    riskBandHigh: "زیادہ",
+    riskReasonsTitle: "بنیادی وجوہات",
+    riskCaveatsTitle: "طبی تنبیہات",
+    riskCaveatHomeBp: "گھر پر لیے گئے بلڈ پریشر کے نتائج مریض کے خود درج کردہ ہیں اور کلینک کے امتحانی بلڈ پریشر سے تصدیق شدہ نہیں ہیں۔",
+    riskCaveatNotValidatedPakistan: "یہ ماڈل امریکی این ایچ اے این ای ایس (NHANES) ڈیٹا پر بنایا گیا ہے اور اس کی پاکستانی آبادی پر توثیق نہیں کی گئی ہے۔",
+    riskMissingDataTitle: "معلومات ناکافی ہیں",
+    riskMissingDataDescription: "خطرے کے جائزے کے لیے درج ذیل مکمل پیمائشیں درکار ہیں:",
+    riskMissingBp: "پچھلے ۳۰ دنوں کے اندر بلڈ پریشر کی ریڈنگ",
+    riskMissingWaist: "مریض کے پروفائل میں کمر کی پیمائش",
+    riskMissingSmoking: "مریض کے پروفائل میں تمباکو نوشی کی تفصیل",
+    riskMissingHeightWeight: "مریض کے پروفائل میں قد اور وزن",
   }
 };

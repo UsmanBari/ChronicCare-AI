@@ -47,7 +47,7 @@ APP_STORE_TABLES = {
     "schema_version",
 }
 
-LATEST_SCHEMA_VERSION = 12
+LATEST_SCHEMA_VERSION = 13
 
 
 def _utc_now_iso() -> str:
@@ -396,6 +396,15 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN comorbidities_json TEXT DEFAULT NULL")
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (12, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 13")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(patient_profiles)")
+                pp_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "waist_cm" not in pp_cols:
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN waist_cm REAL DEFAULT NULL")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (13, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -746,6 +755,17 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (12, %s)", (now,))
 
+            cursor.execute("SELECT version FROM schema_version WHERE version = 13")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patient_profiles' AND COLUMN_NAME = 'waist_cm'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN waist_cm FLOAT NULL")
+
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (13, %s)", (now,))
+
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
                    mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -905,7 +925,7 @@ def get_patient_profile(user_id: str, backend: Optional[str] = None, db_path: Op
             SELECT user_id, conditions_json, on_insulin_or_sulfonylurea, language,
                    date_of_birth, inclusion_confirmed_at,
                    sex_at_birth, pregnancy_status,
-                   voice_enabled, height_cm, weight_kg,
+                   voice_enabled, height_cm, weight_kg, waist_cm,
                    diagnosis_year_diabetes, diagnosis_year_hypertension,
                    smoking_status, comorbidities_json,
                    consent_granted_at, consent_revoked_at,
@@ -937,6 +957,7 @@ def get_patient_profile(user_id: str, backend: Optional[str] = None, db_path: Op
         d["voice_enabled"] = bool(d.get("voice_enabled", 0))
         d["height_cm"] = float(d["height_cm"]) if d.get("height_cm") is not None else None
         d["weight_kg"] = float(d["weight_kg"]) if d.get("weight_kg") is not None else None
+        d["waist_cm"] = float(d["waist_cm"]) if d.get("waist_cm") is not None else None
         d["diagnosis_year_diabetes"] = d.get("diagnosis_year_diabetes")
         d["diagnosis_year_hypertension"] = d.get("diagnosis_year_hypertension")
         d["smoking_status"] = d.get("smoking_status")
@@ -952,6 +973,7 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                            voice_enabled: Optional[bool] = None,
                            height_cm: Optional[float] = None,
                            weight_kg: Optional[float] = None,
+                           waist_cm: Optional[float] = None,
                            diagnosis_year_diabetes: Optional[int] = None,
                            diagnosis_year_hypertension: Optional[int] = None,
                            smoking_status: Optional[str] = None,
@@ -992,6 +1014,7 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
     final_voice = (1 if voice_enabled else 0) if voice_enabled is not None else (1 if (existing and existing.get("voice_enabled")) else 0)
     final_height = height_cm if height_cm is not None else (existing.get("height_cm") if existing else None)
     final_weight = weight_kg if weight_kg is not None else (existing.get("weight_kg") if existing else None)
+    final_waist = waist_cm if waist_cm is not None else (existing.get("waist_cm") if existing else None)
     final_diag_dia = diagnosis_year_diabetes if diagnosis_year_diabetes is not None else (existing.get("diagnosis_year_diabetes") if existing else None)
     final_diag_hyp = diagnosis_year_hypertension if diagnosis_year_hypertension is not None else (existing.get("diagnosis_year_hypertension") if existing else None)
     final_smoking = smoking_status if smoking_status is not None else (existing.get("smoking_status") if existing else None)
@@ -1008,9 +1031,9 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                 f"""
                 INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language,
                                               date_of_birth, inclusion_confirmed_at, sex_at_birth, pregnancy_status,
-                                              voice_enabled, height_cm, weight_kg, diagnosis_year_diabetes, diagnosis_year_hypertension,
+                                              voice_enabled, height_cm, weight_kg, waist_cm, diagnosis_year_diabetes, diagnosis_year_hypertension,
                                               smoking_status, comorbidities_json, updated_at)
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON CONFLICT(user_id) DO UPDATE SET
                     conditions_json = excluded.conditions_json,
                     on_insulin_or_sulfonylurea = excluded.on_insulin_or_sulfonylurea,
@@ -1022,6 +1045,7 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                     voice_enabled = excluded.voice_enabled,
                     height_cm = excluded.height_cm,
                     weight_kg = excluded.weight_kg,
+                    waist_cm = excluded.waist_cm,
                     diagnosis_year_diabetes = excluded.diagnosis_year_diabetes,
                     diagnosis_year_hypertension = excluded.diagnosis_year_hypertension,
                     smoking_status = excluded.smoking_status,
@@ -1029,16 +1053,16 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                     updated_at = excluded.updated_at
                 """,
                 (user_id, cond_json, insulin_val, clean_lang, final_dob, final_inc_at, final_sex, final_preg,
-                 final_voice, final_height, final_weight, final_diag_dia, final_diag_hyp, final_smoking, final_comorb, now)
+                 final_voice, final_height, final_weight, final_waist, final_diag_dia, final_diag_hyp, final_smoking, final_comorb, now)
             )
         else:
             cursor.execute(
                 f"""
                 INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language,
                                               date_of_birth, inclusion_confirmed_at, sex_at_birth, pregnancy_status,
-                                              voice_enabled, height_cm, weight_kg, diagnosis_year_diabetes, diagnosis_year_hypertension,
+                                              voice_enabled, height_cm, weight_kg, waist_cm, diagnosis_year_diabetes, diagnosis_year_hypertension,
                                               smoking_status, comorbidities_json, updated_at)
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON DUPLICATE KEY UPDATE
                     conditions_json = VALUES(conditions_json),
                     on_insulin_or_sulfonylurea = VALUES(on_insulin_or_sulfonylurea),
@@ -1050,6 +1074,7 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                     voice_enabled = VALUES(voice_enabled),
                     height_cm = VALUES(height_cm),
                     weight_kg = VALUES(weight_kg),
+                    waist_cm = VALUES(waist_cm),
                     diagnosis_year_diabetes = VALUES(diagnosis_year_diabetes),
                     diagnosis_year_hypertension = VALUES(diagnosis_year_hypertension),
                     smoking_status = VALUES(smoking_status),
@@ -1057,7 +1082,7 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                     updated_at = VALUES(updated_at)
                 """,
                 (user_id, cond_json, insulin_val, clean_lang, final_dob, final_inc_at, final_sex, final_preg,
-                 final_voice, final_height, final_weight, final_diag_dia, final_diag_hyp, final_smoking, final_comorb, now)
+                 final_voice, final_height, final_weight, final_waist, final_diag_dia, final_diag_hyp, final_smoking, final_comorb, now)
             )
     return get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 

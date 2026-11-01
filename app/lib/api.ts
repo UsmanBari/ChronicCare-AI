@@ -38,6 +38,7 @@ export interface ProfileUpdateRequest {
   voice_enabled?: boolean | null;
   height_cm?: number | null;
   weight_kg?: number | null;
+  waist_cm?: number | null;
   diagnosis_year_diabetes?: number | null;
   diagnosis_year_hypertension?: number | null;
   smoking_status?: "never" | "former" | "current" | "prefer_not_to_say" | string | null;
@@ -59,6 +60,7 @@ export interface ProfileResponse {
   voice_enabled?: boolean | null;
   height_cm?: number | null;
   weight_kg?: number | null;
+  waist_cm?: number | null;
   diagnosis_year_diabetes?: number | null;
   diagnosis_year_hypertension?: number | null;
   smoking_status?: string | null;
@@ -73,6 +75,7 @@ export interface ProfileResponse {
 export interface PatientBackgroundResponse {
   height_cm?: number | null;
   weight_kg?: number | null;
+  waist_cm?: number | null;
   bmi?: number | null;
   smoking_status?: string | null;
   diagnosis_year_diabetes?: number | null;
