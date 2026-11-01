@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> **PRODUCTION DB MIGRATION**: Run `python scripts/mysql_preflight.py` before and after deploying; expected schema 14.
+
 # ChronicCare-AI — Record Edit History Technical Design Document
 
 **Document ID**: `docs/EDIT_HISTORY_DESIGN.md`  
@@ -79,6 +82,16 @@ In the local development environment and hermetic CI test suite:
 | **Conditions Basis** (`PUT`) | **YES** | **YES** | Written on caller's `app_store` transaction cursor. |
 
 ---
+
+### 3.4 All-or-Nothing Import Transaction Architecture & SQLite Fallback
+In production with MySQL (`CHRONICCARE_MYSQL_URL`), `app_store` and `local_store` share a single unified relational database. All entity inserts (medications, observations, allergies) and their associated `record_edits` rows are executed across cursor-accepting helpers on ONE shared database transaction, committing once at the very end or rolling back completely on any error.
+
+**SQLite Dev/CI Fallback (Compensating Rollback)**:
+In isolated SQLite mode, `local_store.db` and `app.db` can exist as two separate SQLite files, meaning a single SQLite connection cannot span both stores. To guarantee strict all-or-nothing atomicity:
+1. **Upfront Hermetic Validation**: All imported records are validated first (types, ranges, duplicate checking) before any write begins.
+2. **Tracked Operations**: During insertion, a list of newly created IDs `(table, id, edit_id)` is maintained in memory.
+3. **Compensating Rollback on Error**: If any insert fails midway, the catch handler immediately issues compensating deletes for all created records and their matching `record_edits` rows across both databases, leaving zero orphan rows.
+4. **Leak-Free 500 Response**: The API logs only the exception type `type(e).__name__` and returns a sanitized fixed error message without leaking internal values or strings.
 
 ## 4. DDL & Migration Plan (Schema v14)
 

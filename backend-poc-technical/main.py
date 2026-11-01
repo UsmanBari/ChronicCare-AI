@@ -22,8 +22,9 @@ import uuid
 import time
 import copy
 import logging
+import sqlite3
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional, Literal
+from typing import Dict, Any, List, Optional, Literal, Tuple
 from contextlib import asynccontextmanager
 
 import requests
@@ -2226,6 +2227,36 @@ def export_patient_record_endpoint(
     )
 
 
+def _rollback_sqlite_import(user_id: str, patient_id: str, written_items: List[Tuple[str, str]]) -> None:
+    """Compensating rollback for SQLite dev/CI import transactions."""
+    from data_sources.local_store import _get_db_path as get_local_db_path
+    local_path = get_local_db_path(None)
+    app_path = os.environ.get("LOCAL_DB_PATH", "local_store.db")
+
+    for itype, item_id in written_items:
+        try:
+            if itype == "medication":
+                with sqlite3.connect(local_path) as conn:
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM medications WHERE id = ? AND patient_id = ?", (item_id, patient_id))
+                    cur.execute("DELETE FROM record_edits WHERE record_type = 'medication' AND record_id = ?", (item_id,))
+                    conn.commit()
+            elif itype == "observation":
+                with sqlite3.connect(local_path) as conn:
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM observations WHERE id = ? AND patient_id = ?", (item_id, patient_id))
+                    cur.execute("DELETE FROM record_edits WHERE record_type = 'observation' AND record_id = ?", (item_id,))
+                    conn.commit()
+            elif itype == "allergy":
+                with sqlite3.connect(app_path) as conn:
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM allergies WHERE allergy_id = ? AND user_id = ?", (item_id, user_id))
+                    cur.execute("DELETE FROM record_edits WHERE record_type = 'allergy' AND record_id = ?", (item_id,))
+                    conn.commit()
+        except Exception as cleanup_err:
+            logger.error("Compensating rollback error for %s %s: %s", itype, item_id, type(cleanup_err).__name__)
+
+
 @app.post("/api/me/record/import", tags=["Patient Record"])
 async def import_patient_record_endpoint(
     request: Request,
@@ -2346,13 +2377,13 @@ async def import_patient_record_endpoint(
         med_id = m.get("id")
 
         if not name or len(name) > 120:
-            invalid.append({"type": "medication", "item": m, "reason": "Invalid or missing medication name"})
+            invalid.append({"type": "medication", "item": m, "reason": "invalid_medication_name"})
             continue
         if not dosage or len(dosage) > 120:
-            invalid.append({"type": "medication", "item": m, "reason": "Invalid or missing medication dosage"})
+            invalid.append({"type": "medication", "item": m, "reason": "invalid_medication_dosage"})
             continue
         if status_val not in ("active", "stopped"):
-            invalid.append({"type": "medication", "item": m, "reason": "Medication status must be 'active' or 'stopped'"})
+            invalid.append({"type": "medication", "item": m, "reason": "invalid_medication_status"})
             continue
 
         is_dup = (med_id and med_id in existing_med_ids) or ((name.lower(), dosage.lower()) in existing_med_keys)
@@ -2376,7 +2407,7 @@ async def import_patient_record_endpoint(
         obs_id = o.get("id")
 
         if val_raw is None:
-            invalid.append({"type": "observation", "item": o, "reason": "Missing observation value"})
+            invalid.append({"type": "observation", "item": o, "reason": "missing_observation_value"})
             continue
 
         try:
@@ -2384,10 +2415,19 @@ async def import_patient_record_endpoint(
             clean_unit = _validate_observation_value_and_unit(obs_type, val_float)
             clean_ts = _parse_and_validate_measured_at(measured_at_raw)
         except HTTPException as he:
-            invalid.append({"type": "observation", "item": o, "reason": he.detail})
+            det = str(he.detail).lower()
+            if "unsupported" in det or "observation type" in det:
+                rc = "invalid_observation_type"
+            elif "invalid unit" in det or "unit" in det:
+                rc = "invalid_unit"
+            elif "measured_at" in det or "date" in det:
+                rc = "invalid_date"
+            else:
+                rc = "out_of_range"
+            invalid.append({"type": "observation", "item": o, "reason": rc})
             continue
-        except Exception as e:
-            invalid.append({"type": "observation", "item": o, "reason": str(e)})
+        except Exception:
+            invalid.append({"type": "observation", "item": o, "reason": "invalid_value"})
             continue
 
         is_dup = (obs_id and obs_id in existing_obs_ids) or ((obs_type, round(val_float, 1), clean_ts) in existing_obs_keys)
@@ -2412,10 +2452,10 @@ async def import_patient_record_endpoint(
         a_id = a.get("id")
 
         if not sub or len(sub) > 120:
-            invalid.append({"type": "allergy", "item": a, "reason": "Invalid or missing allergy substance"})
+            invalid.append({"type": "allergy", "item": a, "reason": "invalid_allergy_substance"})
             continue
         if rx and len(rx) > 200:
-            invalid.append({"type": "allergy", "item": a, "reason": "Allergy reaction exceeds 200 characters"})
+            invalid.append({"type": "allergy", "item": a, "reason": "allergy_reaction_too_long"})
             continue
 
         is_dup = (a_id and a_id in existing_allergy_ids) or (sub.lower() in existing_allergy_substances)
@@ -2518,60 +2558,135 @@ async def import_patient_record_endpoint(
     now_ts = _utc_now_iso()
     add_local_patient_if_missing(patient_id, name=current_user.get("display_name") or "Patient")
 
-    try:
-        for item in to_add:
-            itype = item["type"]
-            if itype == "medication":
-                add_local_medication(
-                    id=item["id"],
-                    patient_id=patient_id,
-                    medication_name=item["name"],
-                    status=item["status"],
-                    dosage=item["dosage"],
-                    timestamp=now_ts,
-                    source="local",
-                    origin="import",
-                    changed_by_user_id=user_id,
-                    reason="record_import",
-                )
-            elif itype == "observation":
-                add_local_observation(
-                    id=item["id"],
-                    patient_id=patient_id,
-                    observation_type=item["observation_type"],
-                    value=item["value"],
-                    unit=item["unit"],
-                    timestamp=item["measured_at"],
-                    source="local",
-                    origin="import",
-                    changed_by_user_id=user_id,
-                    reason="record_import",
-                )
-            elif itype == "allergy":
-                create_allergy(
-                    allergy_id=item["id"],
-                    user_id=user_id,
-                    substance=item["substance"],
-                    reaction=item["reaction"],
-                    confirmed=item["confirmed"],
-                    created_at=now_ts,
-                    changed_by_user_id=user_id,
-                    origin="import",
-                )
+    is_mysql = os.environ.get("DB_BACKEND", "").strip().lower() == "mysql" or bool(os.environ.get("CHRONICCARE_MYSQL_URL"))
+    written_items: List[Tuple[str, str]] = []
 
-        if raw_cond_basis and isinstance(raw_cond_basis, dict):
-            profile = get_patient_profile(user_id) or {}
-            conds = set(profile.get("conditions", []))
-            valid_basis = {k: v for k, v in raw_cond_basis.items() if k in conds and v in ALLOWED_CONDITIONS_BASIS}
-            if valid_basis:
-                current_basis = dict(profile.get("conditions_basis", {}))
-                current_basis.update(valid_basis)
-                update_patient_conditions_basis(user_id, current_basis, changed_by_user_id=user_id, origin="import")
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Import transaction failed and was rolled back: {str(e)}",
-        )
+    if is_mysql:
+        from data_sources.db_config import get_mysql_connection
+        conn = get_mysql_connection()
+        try:
+            with conn.cursor() as cursor:
+                for item in to_add:
+                    itype = item["type"]
+                    if itype == "medication":
+                        add_local_medication(
+                            id=item["id"],
+                            patient_id=patient_id,
+                            medication_name=item["name"],
+                            status=item["status"],
+                            dosage=item["dosage"],
+                            timestamp=now_ts,
+                            source="local",
+                            origin="import",
+                            changed_by_user_id=user_id,
+                            reason="record_import",
+                            cursor=cursor,
+                        )
+                    elif itype == "observation":
+                        add_local_observation(
+                            id=item["id"],
+                            patient_id=patient_id,
+                            observation_type=item["observation_type"],
+                            value=item["value"],
+                            unit=item["unit"],
+                            timestamp=item["measured_at"],
+                            source="local",
+                            origin="import",
+                            changed_by_user_id=user_id,
+                            reason="record_import",
+                            cursor=cursor,
+                        )
+                    elif itype == "allergy":
+                        create_allergy(
+                            allergy_id=item["id"],
+                            user_id=user_id,
+                            substance=item["substance"],
+                            reaction=item["reaction"],
+                            confirmed=item["confirmed"],
+                            created_at=now_ts,
+                            changed_by_user_id=user_id,
+                            origin="import",
+                            cursor=cursor,
+                        )
+                if raw_cond_basis and isinstance(raw_cond_basis, dict):
+                    profile = get_patient_profile(user_id) or {}
+                    conds = set(profile.get("conditions", []))
+                    valid_basis = {k: v for k, v in raw_cond_basis.items() if k in conds and v in ALLOWED_CONDITIONS_BASIS}
+                    if valid_basis:
+                        current_basis = dict(profile.get("conditions_basis", {}))
+                        current_basis.update(valid_basis)
+                        update_patient_conditions_basis(user_id, current_basis, changed_by_user_id=user_id, origin="import")
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error("Import transaction failed (MySQL): %s", type(e).__name__)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Import transaction failed and was rolled back (error_code: IMPORT_TRANSACTION_FAILED)",
+            )
+        finally:
+            conn.close()
+    else:
+        try:
+            for item in to_add:
+                itype = item["type"]
+                if itype == "medication":
+                    add_local_medication(
+                        id=item["id"],
+                        patient_id=patient_id,
+                        medication_name=item["name"],
+                        status=item["status"],
+                        dosage=item["dosage"],
+                        timestamp=now_ts,
+                        source="local",
+                        origin="import",
+                        changed_by_user_id=user_id,
+                        reason="record_import",
+                    )
+                    written_items.append(("medication", item["id"]))
+                elif itype == "observation":
+                    add_local_observation(
+                        id=item["id"],
+                        patient_id=patient_id,
+                        observation_type=item["observation_type"],
+                        value=item["value"],
+                        unit=item["unit"],
+                        timestamp=item["measured_at"],
+                        source="local",
+                        origin="import",
+                        changed_by_user_id=user_id,
+                        reason="record_import",
+                    )
+                    written_items.append(("observation", item["id"]))
+                elif itype == "allergy":
+                    create_allergy(
+                        allergy_id=item["id"],
+                        user_id=user_id,
+                        substance=item["substance"],
+                        reaction=item["reaction"],
+                        confirmed=item["confirmed"],
+                        created_at=now_ts,
+                        changed_by_user_id=user_id,
+                        origin="import",
+                    )
+                    written_items.append(("allergy", item["id"]))
+
+            if raw_cond_basis and isinstance(raw_cond_basis, dict):
+                profile = get_patient_profile(user_id) or {}
+                conds = set(profile.get("conditions", []))
+                valid_basis = {k: v for k, v in raw_cond_basis.items() if k in conds and v in ALLOWED_CONDITIONS_BASIS}
+                if valid_basis:
+                    current_basis = dict(profile.get("conditions_basis", {}))
+                    current_basis.update(valid_basis)
+                    update_patient_conditions_basis(user_id, current_basis, changed_by_user_id=user_id, origin="import")
+        except Exception as e:
+            logger.error("Import transaction failed (SQLite): %s", type(e).__name__)
+            if not is_mysql:
+                _rollback_sqlite_import(user_id, patient_id, written_items)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Import transaction failed and was rolled back (error_code: IMPORT_TRANSACTION_FAILED)",
+            )
 
     # Zero PHI audit logging: counts only
     append_audit(

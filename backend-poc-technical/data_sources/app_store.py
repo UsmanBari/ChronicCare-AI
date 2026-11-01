@@ -49,7 +49,7 @@ APP_STORE_TABLES = {
     "schema_version",
 }
 
-LATEST_SCHEMA_VERSION = 13
+LATEST_SCHEMA_VERSION = 14
 
 SQLITE_RECORD_EDITS_DDL = """
 CREATE TABLE IF NOT EXISTS record_edits (
@@ -447,16 +447,14 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 pp_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
                 if "waist_cm" not in pp_cols:
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN waist_cm REAL DEFAULT NULL")
-
-                cursor.execute(SQLITE_RECORD_EDITS_DDL)
-                cursor.execute(SQLITE_RECORD_EDITS_LOOKUP_INDEX)
-                cursor.execute(SQLITE_RECORD_EDITS_TIMELINE_INDEX)
-
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (13, ?)", (now,))
-            else:
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 14")
+            if not cursor.fetchone():
                 cursor.execute(SQLITE_RECORD_EDITS_DDL)
                 cursor.execute(SQLITE_RECORD_EDITS_LOOKUP_INDEX)
                 cursor.execute(SQLITE_RECORD_EDITS_TIMELINE_INDEX)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (14, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -815,11 +813,12 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 """)
                 if not cursor.fetchone():
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN waist_cm FLOAT NULL")
-
-                cursor.execute(MYSQL_RECORD_EDITS_DDL)
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (13, %s)", (now,))
-            else:
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 14")
+            if not cursor.fetchone():
                 cursor.execute(MYSQL_RECORD_EDITS_DDL)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (14, %s)", (now,))
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -1266,7 +1265,8 @@ def create_allergy(allergy_id: str, user_id: str, substance: str, reaction: Opti
                    confirmed: bool, created_at: Optional[str] = None,
                    backend: Optional[str] = None, db_path: Optional[str] = None,
                    mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None,
-                   changed_by_user_id: Optional[str] = None, origin: str = "self_reported") -> Dict[str, Any]:
+                   changed_by_user_id: Optional[str] = None, origin: str = "self_reported",
+                   cursor: Optional[Any] = None) -> Dict[str, Any]:
     """Inserts a new allergy record for a patient."""
     clean_id = str(allergy_id).strip()
     clean_uid = str(user_id).strip()
@@ -1274,8 +1274,36 @@ def create_allergy(allergy_id: str, user_id: str, substance: str, reaction: Opti
     clean_rx = str(reaction).strip() if reaction else None
     conf_val = 1 if confirmed else 0
     now = created_at or _utc_now_iso()
-
     actor_id = changed_by_user_id or clean_uid
+
+    if cursor is not None:
+        b = backend or ("mysql" if os.environ.get("DB_BACKEND") == "mysql" or os.environ.get("CHRONICCARE_MYSQL_URL") else "sqlite")
+        ph = "%s" if b == "mysql" else "?"
+        cursor.execute(
+            f"INSERT INTO allergies (allergy_id, user_id, substance, reaction, confirmed, created_at) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+            (clean_id, clean_uid, clean_sub, clean_rx, conf_val, now)
+        )
+        record_edit(
+            cursor,
+            ph,
+            user_id=clean_uid,
+            record_type="allergy",
+            record_id=clean_id,
+            field="created",
+            old_value=None,
+            new_value={"substance": clean_sub, "reaction": clean_rx, "confirmed": bool(conf_val)},
+            origin=origin,
+            changed_by_user_id=actor_id,
+        )
+        return {
+            "allergy_id": clean_id,
+            "user_id": clean_uid,
+            "substance": clean_sub,
+            "reaction": clean_rx,
+            "confirmed": bool(conf_val),
+            "created_at": now,
+        }
+
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
             f"INSERT INTO allergies (allergy_id, user_id, substance, reaction, confirmed, created_at) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",

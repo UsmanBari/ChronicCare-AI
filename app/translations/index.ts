@@ -466,6 +466,22 @@ export interface Translations {
   importBaselineNote: string;
   recentRecordChangesTitle: string;
   recentRecordChangesSubtitle: string;
+  importBadgeAdd: string;
+  importBadgeSkip: string;
+  failedToLoadHistory: string;
+  failedToExportRecord: string;
+  failedToPreviewImport: string;
+  failedToCommitImport: string;
+  reasonDuplicate: string;
+  reasonOutOfRange: string;
+  reasonInvalidType: string;
+  reasonInvalidUnit: string;
+  reasonInvalidDate: string;
+  reasonInvalidMedName: string;
+  reasonInvalidMedDosage: string;
+  reasonInvalidMedStatus: string;
+  reasonInvalidAllergy: string;
+  reasonAllergyTooLong: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -926,6 +942,22 @@ export const translations: Record<Language, Translations> = {
     importBaselineNote: "Readings older than 14 days will be imported to your history, but will not be used in the 14-day check-in baseline.",
     recentRecordChangesTitle: "Recent record changes",
     recentRecordChangesSubtitle: "Recent updates made to patient's clinical baseline record",
+    importBadgeAdd: "Add",
+    importBadgeSkip: "Skip",
+    failedToLoadHistory: "Failed to load record history",
+    failedToExportRecord: "Failed to export record",
+    failedToPreviewImport: "Failed to preview import file",
+    failedToCommitImport: "Failed to import record",
+    reasonDuplicate: "Duplicate entry",
+    reasonOutOfRange: "Value out of clinical range",
+    reasonInvalidType: "Unsupported observation type",
+    reasonInvalidUnit: "Invalid unit",
+    reasonInvalidDate: "Invalid date or time",
+    reasonInvalidMedName: "Invalid medication name",
+    reasonInvalidMedDosage: "Invalid dosage",
+    reasonInvalidMedStatus: "Invalid medication status",
+    reasonInvalidAllergy: "Invalid allergy substance",
+    reasonAllergyTooLong: "Reaction text too long",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1386,5 +1418,21 @@ export const translations: Record<Language, Translations> = {
     importBaselineNote: "۱۴ دن سے پرانی ریڈنگز آپ کی تاریخ میں شامل ہوں گی، لیکن روزانہ کے چیک ان موازنے میں استعمال نہیں ہوں گی۔",
     recentRecordChangesTitle: "ریکارڈ میں حالیہ تبدیلیاں",
     recentRecordChangesSubtitle: "مریض کے کلینیکل ریکارڈ میں کی گئی تازہ ترین تبدیلیاں",
+    importBadgeAdd: "شامل کریں",
+    importBadgeSkip: "چھوڑیں",
+    failedToLoadHistory: "ریکارڈ کی تاریخ لوڈ کرنے میں ناکامی",
+    failedToExportRecord: "ریکارڈ ایکسپورٹ کرنے میں ناکامی",
+    failedToPreviewImport: "فائل کا پیش نظارہ حاصل کرنے میں ناکامی",
+    failedToCommitImport: "ریکارڈ امپورٹ کرنے میں ناکامی",
+    reasonDuplicate: "پہلے سے موجود اندراج",
+    reasonOutOfRange: "طبی حد سے باہر قیمت",
+    reasonInvalidType: "غیر معاون معائنہ کی قسم",
+    reasonInvalidUnit: "غلط اکائی",
+    reasonInvalidDate: "تاریخ یا وقت درست نہیں ہے",
+    reasonInvalidMedName: "دوا کا نام درست نہیں ہے",
+    reasonInvalidMedDosage: "خوراک درست نہیں ہے",
+    reasonInvalidMedStatus: "دوا کی حالت درست نہیں ہے",
+    reasonInvalidAllergy: "الرجی کا مادہ درست نہیں ہے",
+    reasonAllergyTooLong: "ردعمل کی تفصیل بہت طویل ہے",
   }
 };

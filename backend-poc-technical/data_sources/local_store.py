@@ -462,9 +462,66 @@ def add_local_observation(
     backend: Optional[str] = None,
     changed_by_user_id: Optional[str] = None,
     reason: Optional[str] = None,
+    cursor: Optional[Any] = None,
 ) -> None:
     """Inserts or updates an observation with provenance origin in the active store."""
     b = _resolve_backend(backend)
+    actor_id = changed_by_user_id or (patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id)
+    clean_uid = patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id
+    obs_dict = {
+        "id": id,
+        "patient_id": patient_id,
+        "observation_type": observation_type,
+        "value": value,
+        "unit": unit,
+        "timestamp": timestamp,
+        "source": source,
+        "origin": origin,
+    }
+
+    if cursor is not None:
+        ph = "%s" if b == "mysql" else "?"
+        if b == "mysql":
+            cursor.execute(
+                """
+                INSERT INTO observations (id, patient_id, type, value, unit, timestamp, source, origin)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    value = VALUES(value),
+                    unit = VALUES(unit),
+                    timestamp = VALUES(timestamp),
+                    origin = VALUES(origin);
+                """,
+                (id, patient_id, observation_type, value, unit, timestamp, source, origin)
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO observations (id, patient_id, type, value, unit, timestamp, source, origin)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    value = excluded.value,
+                    unit = excluded.unit,
+                    timestamp = excluded.timestamp,
+                    origin = excluded.origin
+                """,
+                (id, patient_id, observation_type, value, unit, timestamp, source, origin)
+            )
+        record_edit(
+            cursor,
+            ph,
+            user_id=clean_uid,
+            record_type="observation",
+            record_id=id,
+            field="created",
+            old_value=None,
+            new_value=obs_dict,
+            origin=origin or "self_reported",
+            changed_by_user_id=actor_id,
+            reason=reason,
+        )
+        return
+
     if b == "mysql":
         conn = get_mysql_connection()
         try:
@@ -642,6 +699,7 @@ def add_local_medication(
     backend: Optional[str] = None,
     changed_by_user_id: Optional[str] = None,
     reason: Optional[str] = None,
+    cursor: Optional[Any] = None,
 ) -> None:
     """Inserts a medication and writes record_edits row atomically on the same cursor."""
     from data_sources.app_store import record_edit
@@ -649,6 +707,51 @@ def add_local_medication(
     actor_id = changed_by_user_id or patient_id
     effective_origin = origin or "self_reported"
     clean_uid = patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id
+
+    if cursor is not None:
+        ph = "%s" if b == "mysql" else "?"
+        if b == "mysql":
+            cursor.execute(
+                """
+                INSERT INTO medications (id, patient_id, medication_name, status, dosage, timestamp, source, origin)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    medication_name = VALUES(medication_name),
+                    status = VALUES(status),
+                    dosage = VALUES(dosage),
+                    timestamp = VALUES(timestamp),
+                    origin = VALUES(origin);
+                """,
+                (id, patient_id, medication_name, status, dosage, timestamp, source, effective_origin)
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO medications (id, patient_id, medication_name, status, dosage, timestamp, source, origin)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    medication_name = excluded.medication_name,
+                    status = excluded.status,
+                    dosage = excluded.dosage,
+                    timestamp = excluded.timestamp,
+                    origin = excluded.origin
+                """,
+                (id, patient_id, medication_name, status, dosage, timestamp, source, effective_origin)
+            )
+        record_edit(
+            cursor,
+            ph,
+            user_id=clean_uid,
+            record_type="medication",
+            record_id=id,
+            field="created",
+            old_value=None,
+            new_value={"name": medication_name, "status": status, "dosage": dosage},
+            origin=effective_origin,
+            changed_by_user_id=actor_id,
+            reason=reason,
+        )
+        return
 
     if b == "mysql":
         conn = get_mysql_connection()

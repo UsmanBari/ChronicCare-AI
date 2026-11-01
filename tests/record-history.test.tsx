@@ -124,4 +124,68 @@ describe("Record History UI (HealthRecordScreen)", () => {
 
     expect(api.getRecordHistory).toHaveBeenCalledWith(undefined, undefined, 50);
   });
+
+  it("renders empty state when edits list is empty", async () => {
+    vi.spyOn(api, "getRecordHistory").mockResolvedValue({ count: 0, edits: [] });
+
+    render(<HealthRecordScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("view-full-history-btn")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId("view-full-history-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("record-history-modal")).toBeTruthy();
+    });
+
+    expect(screen.getByText(translations.en.noHistoryRecorded)).toBeTruthy();
+  });
+
+  it("renders error state when GET /api/record/history fails", async () => {
+    vi.spyOn(api, "getRecordHistory").mockRejectedValue(new Error("Network Error"));
+
+    render(<HealthRecordScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("view-full-history-btn")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId("view-full-history-btn"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("record-history-modal")).toBeTruthy();
+    });
+
+    expect(screen.getByText(translations.en.failedToLoadHistory)).toBeTruthy();
+  });
+
+  it("renders modal in Urdu RTL with numbers in bdi tags and closes via close button", async () => {
+    mockAppContext.isUrdu = true;
+    mockAppContext.t = translations.ur;
+
+    render(<HealthRecordScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("view-full-history-btn")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId("view-full-history-btn"));
+
+    await waitFor(() => {
+      const modal = screen.getByTestId("record-history-modal");
+      expect(modal).toBeTruthy();
+      expect(modal.getAttribute("dir")).toBe("rtl");
+    });
+
+    // Check Urdu elements and close button
+    const closeBtn = screen.getByTestId("close-history-modal-btn");
+    expect(closeBtn).toBeTruthy();
+    fireEvent.click(closeBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("record-history-modal")).toBeNull();
+    });
+  });
 });

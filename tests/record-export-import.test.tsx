@@ -20,8 +20,16 @@ vi.mock("../app/lib/firebase", () => ({
 }));
 
 describe("Record Export and Import UI (HealthRecordScreen)", () => {
-  const mockRecord: PatientRecordResponse = {
+  const mockRecordIsolated: PatientRecordResponse = {
     mode: "isolated",
+    conditions: [{ name: "diabetes", basis: "clinician_diagnosed" }],
+    medications: [{ id: "med-1", name: "Metformin 500mg", dosage: "1 tablet BD", status: "active" }],
+    allergies: [],
+    baseline_observations: [],
+  };
+
+  const mockRecordConnected: PatientRecordResponse = {
+    mode: "connected",
     conditions: [{ name: "diabetes", basis: "clinician_diagnosed" }],
     medications: [{ id: "med-1", name: "Metformin 500mg", dosage: "1 tablet BD", status: "active" }],
     allergies: [],
@@ -30,18 +38,22 @@ describe("Record Export and Import UI (HealthRecordScreen)", () => {
 
   const mockImportPreview: RecordImportResponse = {
     dry_run: true,
-    counts: { to_add: 2, duplicates: 1, invalid: 0 },
+    counts: { to_add: 2, duplicates: 1, invalid: 1 },
     imported_counts: { medications: 1, observations: 1, allergies: 0 },
     duplicate_counts: { medications: 1, observations: 0, allergies: 0 },
     preview: {
       medications: [
         { name: "Empagliflozin 10mg", dosage: "1 tab daily", will_import: true },
         { name: "Metformin 500mg", dosage: "1 tablet BD", will_import: false, reason: "duplicate" },
+        { name: "Bad Med", dosage: "", will_import: false, reason: "invalid_medication_dosage" },
       ],
       observations: [
         { observation_type: "glucose", value: 125, unit: "mg/dL", will_import: true },
+        { observation_type: "systolic", value: 400, unit: "mmHg", will_import: false, reason: "out_of_range" },
       ],
-      allergies: [],
+      allergies: [
+        { substance: "Peanuts", reaction: "Anaphylaxis", will_import: true },
+      ],
       conditions_basis: [],
     },
   };
@@ -55,7 +67,7 @@ describe("Record Export and Import UI (HealthRecordScreen)", () => {
     mockAppContext.liveProfile = { conditions: ["diabetes"] };
     mockAppContext.setScreen = vi.fn();
 
-    vi.spyOn(api, "getRecord").mockResolvedValue(mockRecord);
+    vi.spyOn(api, "getRecord").mockResolvedValue(mockRecordIsolated);
     vi.spyOn(api, "exportRecord").mockResolvedValue(new Blob(['{"test": true}'], { type: "application/json" }));
     vi.spyOn(api, "importRecord").mockResolvedValue(mockImportPreview);
 
@@ -67,6 +79,29 @@ describe("Record Export and Import UI (HealthRecordScreen)", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+  });
+
+  it("renders export buttons in both isolated and connected modes, but import ONLY in isolated mode", async () => {
+    // Isolated mode: both export and import exist
+    const { unmount } = render(<HealthRecordScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("export-json-btn")).toBeTruthy();
+      expect(screen.getByTestId("export-fhir-btn")).toBeTruthy();
+      expect(screen.getByTestId("import-record-btn")).toBeTruthy();
+    });
+
+    unmount();
+
+    // Connected mode: exports exist, import is hidden
+    vi.spyOn(api, "getRecord").mockResolvedValue(mockRecordConnected);
+    render(<HealthRecordScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("export-json-btn")).toBeTruthy();
+      expect(screen.getByTestId("export-fhir-btn")).toBeTruthy();
+      expect(screen.queryByTestId("import-record-btn")).toBeNull();
+    });
   });
 
   it("handles record JSON and FHIR export downloads", async () => {
@@ -92,7 +127,7 @@ describe("Record Export and Import UI (HealthRecordScreen)", () => {
     });
   });
 
-  it("handles record import preview and commit flow", async () => {
+  it("handles record import preview with items to add, duplicates, invalid translated reasons and commit", async () => {
     render(<HealthRecordScreen />);
 
     await waitFor(() => {
@@ -100,10 +135,10 @@ describe("Record Export and Import UI (HealthRecordScreen)", () => {
     });
 
     const fileInput = screen.getByTestId("record-file-input") as HTMLInputElement;
-    const testFile = new File(['{"medications": [{"name": "Empagliflozin 10mg", "dosage": "1 tab daily"}]}'], "record.json", {
+    const testFile = new File(['{"medications": []}'], "record.json", {
       type: "application/json",
     });
-    testFile.text = vi.fn().mockResolvedValue('{"medications": [{"name": "Empagliflozin 10mg", "dosage": "1 tab daily"}]}');
+    testFile.text = vi.fn().mockResolvedValue('{"medications": []}');
 
     fireEvent.change(fileInput, { target: { files: [testFile] } });
 
@@ -112,9 +147,15 @@ describe("Record Export and Import UI (HealthRecordScreen)", () => {
       expect(screen.getByTestId("record-import-modal")).toBeTruthy();
     });
 
-    // Verify preview numbers displayed
+    // Check preview sections and badges
     expect(screen.getByText("Items to add")).toBeTruthy();
     expect(screen.getByText("Duplicates (will skip)")).toBeTruthy();
+    expect(screen.getByText("Empagliflozin 10mg (1 tab daily)")).toBeTruthy();
+
+    // Check translated badges
+    expect(screen.getByText(translations.en.reasonDuplicate)).toBeTruthy();
+    expect(screen.getByText(translations.en.reasonOutOfRange)).toBeTruthy();
+    expect(screen.getByText(translations.en.reasonInvalidMedDosage)).toBeTruthy();
 
     // Confirm import
     const confirmBtn = screen.getByTestId("confirm-import-btn");
@@ -125,7 +166,7 @@ describe("Record Export and Import UI (HealthRecordScreen)", () => {
       status: "ok",
       imported: 2,
       duplicates: 1,
-      invalid: 0,
+      invalid: 1,
     });
 
     fireEvent.click(confirmBtn);
@@ -133,6 +174,59 @@ describe("Record Export and Import UI (HealthRecordScreen)", () => {
     await waitFor(() => {
       expect(api.importRecord).toHaveBeenCalledWith(expect.anything(), false, false);
       expect(screen.queryByTestId("record-import-modal")).toBeNull();
+    });
+  });
+
+  it("renders import modal in Urdu RTL", async () => {
+    mockAppContext.isUrdu = true;
+    mockAppContext.t = translations.ur;
+
+    render(<HealthRecordScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("import-record-btn")).toBeTruthy();
+    });
+
+    const fileInput = screen.getByTestId("record-file-input") as HTMLInputElement;
+    const testFile = new File(['{"medications": []}'], "record.json", { type: "application/json" });
+    testFile.text = vi.fn().mockResolvedValue('{"medications": []}');
+
+    fireEvent.change(fileInput, { target: { files: [testFile] } });
+
+    await waitFor(() => {
+      const modal = screen.getByTestId("record-import-modal");
+      expect(modal).toBeTruthy();
+      expect(modal.getAttribute("dir")).toBe("rtl");
+    });
+  });
+
+  it("displays translated error message without stack trace when import commit fails", async () => {
+    render(<HealthRecordScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("import-record-btn")).toBeTruthy();
+    });
+
+    const fileInput = screen.getByTestId("record-file-input") as HTMLInputElement;
+    const testFile = new File(['{"medications": []}'], "record.json", { type: "application/json" });
+    testFile.text = vi.fn().mockResolvedValue('{"medications": []}');
+
+    fireEvent.change(fileInput, { target: { files: [testFile] } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("record-import-modal")).toBeTruthy();
+    });
+
+    // Mock failure on commit
+    vi.spyOn(api, "importRecord").mockRejectedValue(new Error("Database transaction rolled back with error code 500 at server.ts:42"));
+
+    const confirmBtn = screen.getByTestId("confirm-import-btn");
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      // Must show translated error string, never the raw error stack
+      expect(screen.getByText(translations.en.failedToCommitImport)).toBeTruthy();
+      expect(screen.queryByText(/Database transaction rolled back/)).toBeNull();
     });
   });
 });

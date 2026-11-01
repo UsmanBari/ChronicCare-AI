@@ -463,3 +463,63 @@ def test_import_validation_rejects_out_of_range_and_invalid_type(rsa_key_pair):
     assert res["counts"]["invalid"] == 1
     assert len(res["preview"]["observations"]) == 1
     assert res["preview"]["observations"][0]["will_import"] is False
+
+
+# ----------------------------------------------------------------------------
+# 10. All-or-Nothing Atomicity: Failure Mid-Insert Rolls Back All Rows
+# ----------------------------------------------------------------------------
+def test_import_all_or_nothing_rollback_on_failure(rsa_key_pair, monkeypatch):
+    """
+    Proves all-or-nothing atomicity:
+    1. Pre-records initial row counts for medications, observations, allergies, and record_edits.
+    2. Submits a mixed payload containing medication, observation, and allergy.
+    3. Monkeypatches create_allergy (the 3rd insert) to raise an error containing a sensitive test value.
+    4. Asserts response is HTTP 500 with fixed message and error code, without leaking str(e) or sensitive values.
+    5. Asserts the row counts of medications, observations, allergies, and record_edits are identical to before the import.
+    """
+    client = TestClient(app)
+    headers = _setup_patient(client, rsa_key_pair, "p-rollback-1", "p_rollback_1@demo.com")
+
+    # Initial counts
+    patient_id = "local-p-rollback-1"
+    initial_meds = len(local_store.get_local_medications(patient_id))
+    initial_obs = len(local_store.get_local_observations(patient_id))
+    initial_allergies = len(app_store.get_allergies("p-rollback-1"))
+    initial_edits = len(app_store.get_record_edits("p-rollback-1"))
+
+    # Monkeypatch the 3rd insert (create_allergy) to fail
+    def fake_create_allergy(*args, **kwargs):
+        raise RuntimeError("SIMULATED_DB_FAILURE_SENSITIVE_VALUE_999")
+
+    monkeypatch.setattr("main.create_allergy", fake_create_allergy)
+
+    payload = {
+        "medications": [{"name": "Amlodipine 5mg", "dosage": "1 daily", "status": "active"}],
+        "observations": [{"type": "glucose", "value": 110.0, "unit": "mg/dL", "measured_at": "2026-10-31T08:00:00Z"}],
+        "allergies": [{"substance": "Aspirin", "reaction": "Rash", "confirmed": True}],
+    }
+
+    resp = client.post(
+        "/api/me/record/import?dry_run=false",
+        headers={**headers, "Content-Type": "application/json"},
+        content=json.dumps(payload),
+    )
+
+    assert resp.status_code == 500
+    detail = resp.json().get("detail", "")
+    assert "Import transaction failed and was rolled back" in detail
+    assert "IMPORT_TRANSACTION_FAILED" in detail
+    assert "SIMULATED_DB_FAILURE_SENSITIVE_VALUE_999" not in detail
+    assert "Amlodipine" not in detail
+    assert "Aspirin" not in detail
+
+    # Verify all row counts are strictly identical to before the import
+    final_meds = len(local_store.get_local_medications(patient_id))
+    final_obs = len(local_store.get_local_observations(patient_id))
+    final_allergies = len(app_store.get_allergies("p-rollback-1"))
+    final_edits = len(app_store.get_record_edits("p-rollback-1"))
+
+    assert final_meds == initial_meds
+    assert final_obs == initial_obs
+    assert final_allergies == initial_allergies
+    assert final_edits == initial_edits

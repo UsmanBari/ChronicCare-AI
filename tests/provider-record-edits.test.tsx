@@ -53,7 +53,7 @@ describe("Provider Recent Record Edits Panel", () => {
     vi.restoreAllMocks();
   });
 
-  it("omits the recent record edits block when list is empty or null", async () => {
+  it("omits the recent record edits block when list is empty or null (never renders empty card)", async () => {
     const mockDetail: ReviewDetailResponse = {
       checkin_id: "chk-no-edits",
       patient_id: "pat-123",
@@ -79,7 +79,7 @@ describe("Provider Recent Record Edits Panel", () => {
     });
   });
 
-  it("renders recent record changes and displays badges correctly, especially OCR", async () => {
+  it("renders recent record changes and displays OCR badge ONLY when origin === 'ocr'", async () => {
     const mockDetail: ReviewDetailResponse = {
       checkin_id: "chk-with-edits",
       patient_id: "pat-123",
@@ -153,15 +153,20 @@ describe("Provider Recent Record Edits Panel", () => {
     const rows = screen.getAllByTestId("provider-edit-row");
     expect(rows.length).toBe(4);
 
-    // Verify OCR badge specifically
-    const ocrBadge = screen.getByTestId("edit-badge-ocr");
-    expect(ocrBadge).toBeTruthy();
-    expect(ocrBadge.textContent).toContain("OCR");
+    // Verify OCR badge renders ONLY for origin === 'ocr' (exactly 1 occurrence)
+    const ocrBadges = screen.getAllByTestId("edit-badge-ocr");
+    expect(ocrBadges.length).toBe(1);
+    expect(ocrBadges[0].textContent).toContain("OCR");
 
-    // Verify other badges
-    expect(screen.getByTestId("edit-badge-import")).toBeTruthy();
-    expect(screen.getByTestId("edit-badge-clinician")).toBeTruthy();
-    expect(screen.getByTestId("edit-badge-patient")).toBeTruthy();
+    // Verify clinician, import, and patient badges render appropriately
+    const importBadges = screen.getAllByTestId("edit-badge-import");
+    expect(importBadges.length).toBe(1);
+
+    const clinicianBadges = screen.getAllByTestId("edit-badge-clinician");
+    expect(clinicianBadges.length).toBe(1);
+
+    const patientBadges = screen.getAllByTestId("edit-badge-patient");
+    expect(patientBadges.length).toBe(1);
 
     // Verify values rendered
     expect(screen.getByText(/"500mg daily"/)).toBeTruthy();

@@ -399,6 +399,11 @@ In connected mode, FHIR `AllergyIntolerance` entries are returned in `EHRConnect
 
 Table: `record_edits`
 
+Added in schema v14.
+
+> [!IMPORTANT]
+> **PRODUCTION DB MIGRATION**: Run `python scripts/mysql_preflight.py` before and after deploying; expected schema 14.
+
 Stores the granular timeline and audit trail of user-driven and import modifications to clinical health records (medications, observations, allergies, conditions basis).
 
 | Column | Type | Meaning | Example | Personal Data? |

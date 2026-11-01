@@ -326,6 +326,14 @@ MUTATIONS = [
         "replacement": "            clean_unit = \"mg/dL\"",
         "test_node": "backend-poc-technical/test_record_export_import.py::test_import_validation_rejects_out_of_range_and_invalid_type",
     },
+    {
+        "id": "M-H6-3",
+        "name": "Compensating rollback removed from import endpoint",
+        "file": BACKEND_DIR / "main.py",
+        "target": "            if not is_mysql:\n                _rollback_sqlite_import(user_id, patient_id, written_items)",
+        "replacement": "            if False and not is_mysql:\n                _rollback_sqlite_import(user_id, patient_id, written_items)",
+        "test_node": "backend-poc-technical/test_record_export_import.py::test_import_all_or_nothing_rollback_on_failure",
+    },
 ]
 
 

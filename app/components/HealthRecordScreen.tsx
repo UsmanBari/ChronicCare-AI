@@ -40,6 +40,7 @@ export const HealthRecordScreen = () => {
   const { setScreen, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
 
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
+  const [recordMode, setRecordMode] = useState<string>("isolated");
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -124,6 +125,7 @@ export const HealthRecordScreen = () => {
     setError(null);
     try {
       const rec: PatientRecordResponse = await api.getRecord();
+      setRecordMode(rec.mode || "isolated");
       setConditions(rec.conditions || []);
       const basisMap: Record<string, string> = {};
       (rec.conditions || []).forEach((c) => {
@@ -171,7 +173,7 @@ export const HealthRecordScreen = () => {
       const res = await api.getRecordHistory(type, id, 50);
       setHistoryEdits(res.edits || []);
     } catch (err: any) {
-      setHistoryError(err?.message || "Failed to load history");
+      setHistoryError(t.failedToLoadHistory);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -192,7 +194,7 @@ export const HealthRecordScreen = () => {
       document.body.removeChild(a);
       showToast(isUrdu ? "ریکارڈ کامیابی سے ڈاؤن لوڈ ہو گیا ہے" : "Record downloaded successfully");
     } catch (err: any) {
-      setError(err?.message || "Failed to export record");
+      setError(t.failedToExportRecord);
     } finally {
       setIsExporting(false);
     }
@@ -221,11 +223,26 @@ export const HealthRecordScreen = () => {
       setImportPreview(preview);
       setIsImportModalOpen(true);
     } catch (err: any) {
-      setError(err?.message || "Failed to preview import");
+      setError(t.failedToPreviewImport);
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+    const formatReason = (reason?: string | null) => {
+    if (!reason) return t.importBadgeSkip;
+    if (reason === "duplicate") return t.reasonDuplicate;
+    if (reason === "out_of_range") return t.reasonOutOfRange;
+    if (reason === "invalid_observation_type") return t.reasonInvalidType;
+    if (reason === "invalid_unit") return t.reasonInvalidUnit;
+    if (reason === "invalid_date") return t.reasonInvalidDate;
+    if (reason === "invalid_medication_name") return t.reasonInvalidMedName;
+    if (reason === "invalid_medication_dosage") return t.reasonInvalidMedDosage;
+    if (reason === "invalid_medication_status") return t.reasonInvalidMedStatus;
+    if (reason === "invalid_allergy_substance") return t.reasonInvalidAllergy;
+    if (reason === "allergy_reaction_too_long") return t.reasonAllergyTooLong;
+    return t.importBadgeSkip;
   };
 
   const handleConfirmImport = async () => {
@@ -239,7 +256,7 @@ export const HealthRecordScreen = () => {
       setImportPreview(null);
       await loadRecord();
     } catch (err: any) {
-      setError(err?.message || "Failed to commit import");
+      setError(t.failedToCommitImport);
     } finally {
       setIsImporting(false);
     }
@@ -559,24 +576,28 @@ export const HealthRecordScreen = () => {
             </button>
           </div>
 
-          <button
-            type="button"
-            data-testid="import-record-btn"
-            disabled={isImporting}
-            onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
-          >
-            {isImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-            <span>{t.importRecordBtn}</span>
-          </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            accept=".json,application/json,application/fhir+json"
-            className="hidden"
-            data-testid="record-file-input"
-          />
+          {recordMode !== "connected" && (
+            <>
+              <button
+                type="button"
+                data-testid="import-record-btn"
+                disabled={isImporting}
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+              >
+                {isImporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                <span>{t.importRecordBtn}</span>
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                accept=".json,application/json,application/fhir+json"
+                className="hidden"
+                data-testid="record-file-input"
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -1069,6 +1090,7 @@ export const HealthRecordScreen = () => {
           role="dialog"
           aria-modal="true"
           data-testid="record-history-modal"
+          dir={isUrdu ? "rtl" : "ltr"}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/60 backdrop-blur-xs animate-fadeIn"
         >
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
@@ -1082,6 +1104,7 @@ export const HealthRecordScreen = () => {
               </div>
               <button
                 type="button"
+                data-testid="close-history-modal-btn"
                 onClick={() => setIsHistoryOpen(false)}
                 className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition-colors"
                 aria-label="Close"
@@ -1206,6 +1229,7 @@ export const HealthRecordScreen = () => {
           role="dialog"
           aria-modal="true"
           data-testid="record-import-modal"
+          dir={isUrdu ? "rtl" : "ltr"}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/60 backdrop-blur-xs animate-fadeIn"
         >
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
@@ -1264,7 +1288,7 @@ export const HealthRecordScreen = () => {
                       <div key={i} className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                         <span>{m.name} ({m.dosage})</span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${m.will_import ? "bg-teal-100 text-teal-900" : "bg-slate-200 text-slate-700"}`}>
-                          {m.will_import ? "Add" : m.reason || "Skip"}
+                          {m.will_import ? t.importBadgeAdd : formatReason(m.reason)}
                         </span>
                       </div>
                     ))}
@@ -1280,7 +1304,23 @@ export const HealthRecordScreen = () => {
                       <div key={i} className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                         <span>{o.type || o.observation_type}: <bdi>{o.value} {o.unit}</bdi></span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${o.will_import ? "bg-teal-100 text-teal-900" : "bg-slate-200 text-slate-700"}`}>
-                          {o.will_import ? "Add" : o.reason || "Skip"}
+                          {o.will_import ? t.importBadgeAdd : formatReason(o.reason)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {importPreview.preview?.allergies && importPreview.preview.allergies.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="font-bold text-navy-900 block">{isUrdu ? "الرجی" : "Allergies"}</span>
+                  <div className="space-y-1">
+                    {importPreview.preview.allergies.map((a: any, i: number) => (
+                      <div key={i} className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                        <span>{a.substance}{a.reaction ? ` (${a.reaction})` : ""}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${a.will_import ? "bg-teal-100 text-teal-900" : "bg-slate-200 text-slate-700"}`}>
+                          {a.will_import ? t.importBadgeAdd : formatReason(a.reason)}
                         </span>
                       </div>
                     ))}
