@@ -334,6 +334,15 @@ MUTATIONS = [
         "replacement": "            if False and not is_mysql:\n                _rollback_sqlite_import(user_id, patient_id, written_items)",
         "test_node": "backend-poc-technical/test_record_export_import.py::test_import_all_or_nothing_rollback_on_failure",
     },
+    # --- Day 7 P0 Safety Mutation (M-U7-1: Re-add 'no': 9 to Roman Urdu numbers) ---
+    {
+        "id": "M-U7-1",
+        "name": "P0 Safety: Re-introduce 'no': 9 into _ROMAN_URDU_NUMBERS",
+        "file": BACKEND_DIR / "agents" / "answer_understanding.py",
+        "target": '    "nau": 9,',
+        "replacement": '    "nau": 9, "no": 9,',
+        "test_node": "backend-poc-technical/test_no_is_not_a_number.py::test_no_not_in_roman_urdu_numbers",
+    },
 ]
 
 
