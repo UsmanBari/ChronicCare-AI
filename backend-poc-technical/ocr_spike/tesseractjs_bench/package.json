@@ -1,0 +1,10 @@
+{
+  "name": "tesseractjs-bench",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Benchmark runner for Tesseract.js in Node.js (ChronicCare-AI Day 5)",
+  "dependencies": {
+    "tesseract.js": "^5.1.0"
+  }
+}
+

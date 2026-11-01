@@ -1,4 +1,4 @@
-﻿# dependencies
+# dependencies
 /node_modules
 /.pnp
 .pnp.js
@@ -69,3 +69,7 @@ __pycache__/
 backend-poc-technical/ocr_spike/.venv/
 .EasyOCR/
 backend-poc-technical/ocr_spike/.EasyOCR/
+backend-poc-technical/ocr_spike/tesseractjs_bench/node_modules/
+backend-poc-technical/ocr_spike/tesseractjs_bench/.cache/
+*.traineddata
+*.traineddata.gz

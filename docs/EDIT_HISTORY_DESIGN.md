@@ -3,7 +3,7 @@
 **Document ID**: `docs/EDIT_HISTORY_DESIGN.md`  
 **Iteration**: I2-5 (Day 5 Design & Spike)  
 **Author**: Hassaan (AI Assistant Antigravity)  
-**Target Milestone**: Day 6 (Schema v13, API, UI, JSON/FHIR Export/Import)  
+**Target Milestone**: Day 6 (Schema v14, API, UI, JSON/FHIR Export/Import)  
 
 ---
 
@@ -63,7 +63,7 @@ In the local development environment and hermetic CI test suite:
 ### 3.2 The Solution
 1. **Dual Initialization**:
    - `local_store.init_db()` creates `record_edits` inside `local_store.db` (for `medication` and `observation` writes).
-   - `app_store.migrate()` (Schema v13) creates `record_edits` inside `app.db` (for `allergy` and `condition` writes).
+   - `app_store.migrate()` (Schema v14) creates `record_edits` inside `app.db` (for `allergy` and `condition` writes).
    - In production with MySQL (`CHRONICCARE_MYSQL_URL`), both stores connect to the same centralized schema, where both create statements are idempotent `CREATE TABLE IF NOT EXISTS`.
 2. **Atomic Write Helper**:
    - A helper `record_edit(cursor, ph, ...)` is passed the **exact active cursor** of the calling operation before transaction commit.
@@ -80,7 +80,7 @@ In the local development environment and hermetic CI test suite:
 
 ---
 
-## 4. DDL & Migration Plan (Schema v13)
+## 4. DDL & Migration Plan (Schema v14)
 
 ### 4.1 SQLite DDL (`app_store.py` and `local_store.py`)
 ```sql
@@ -122,23 +122,23 @@ CREATE TABLE IF NOT EXISTS record_edits (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-### 4.3 Idempotent Migration Step (v12 $\rightarrow$ v13)
+### 4.3 Idempotent Migration Step (v13 $\rightarrow$ v14)
 ```python
 # In app_store.py migrate()
-cursor.execute("SELECT version FROM schema_version WHERE version = 13")
+cursor.execute("SELECT version FROM schema_version WHERE version = 14")
 if not cursor.fetchone():
     if backend == "sqlite":
         cursor.execute(SQLITE_RECORD_EDITS_DDL)
         cursor.execute(SQLITE_INDEX_LOOKUP)
         cursor.execute(SQLITE_INDEX_TIMELINE)
-        cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (13, ?)", (now,))
+        cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (14, ?)", (now,))
     else:
         cursor.execute(MYSQL_RECORD_EDITS_DDL)
-        cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (13, %s)", (now,))
+        cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (14, %s)", (now,))
 ```
-- Bump `LATEST_SCHEMA_VERSION = 13`.
-- Update `scripts/mysql_preflight.py` to assert schema version 13.
-- Test in `backend-poc-technical/test_schema_v12_to_v13.py` verifying v12 $\rightarrow$ v13 migration, idempotency, data preservation, and index presence.
+- Bump `LATEST_SCHEMA_VERSION = 14`.
+- Update `scripts/mysql_preflight.py` to assert schema version 14.
+- Test in `backend-poc-technical/test_schema_v13_to_v14.py` verifying v13 $\rightarrow$ v14 migration, idempotency, data preservation, and index presence.
 
 ---
 

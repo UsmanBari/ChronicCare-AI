@@ -172,5 +172,69 @@
         "frequency": "at night"
       }
     ]
+  },
+  "rx_handwritten_01.png": {
+    "type": "prescription",
+    "patient_name": "Test Patient",
+    "medicines": [
+      {
+        "name": "metformin",
+        "dose": "500 mg",
+        "frequency": "BD"
+      },
+      {
+        "name": "glimepiride",
+        "dose": "1 mg",
+        "frequency": "OD"
+      }
+    ]
+  },
+  "rx_handwritten_02.png": {
+    "type": "prescription",
+    "patient_name": "Test Patient",
+    "medicines": [
+      {
+        "name": "amlodipine",
+        "dose": "5 mg",
+        "frequency": "OD"
+      },
+      {
+        "name": "losartan",
+        "dose": "50 mg",
+        "frequency": "OD"
+      }
+    ]
+  },
+  "rx_handwritten_03.png": {
+    "type": "prescription",
+    "patient_name": "Test Patient",
+    "medicines": [
+      {
+        "name": "sitagliptin",
+        "dose": "100 mg",
+        "frequency": "OD"
+      },
+      {
+        "name": "metformin",
+        "dose": "1000 mg",
+        "frequency": "BD"
+      }
+    ]
+  },
+  "rx_handwritten_04.png": {
+    "type": "prescription",
+    "patient_name": "Test Patient",
+    "medicines": [
+      {
+        "name": "bisoprolol",
+        "dose": "2.5 mg",
+        "frequency": "OD"
+      },
+      {
+        "name": "empagliflozin",
+        "dose": "10 mg",
+        "frequency": "OD"
+      }
+    ]
   }
 }
