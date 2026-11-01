@@ -1,0 +1,176 @@
+{
+  "lab_01.png": {
+    "type": "lab",
+    "hba1c_pct": 7.8,
+    "glucose": {
+      "value": 126.0,
+      "unit": "mg/dL",
+      "context": "fasting"
+    },
+    "total_chol": 195.0
+  },
+  "lab_02.png": {
+    "type": "lab",
+    "hba1c_pct": 8.1,
+    "glucose": {
+      "value": 7.2,
+      "unit": "mmol/L",
+      "context": "fasting"
+    },
+    "bp": [
+      148,
+      92
+    ]
+  },
+  "lab_03.png": {
+    "type": "lab",
+    "hba1c_pct": 6.9,
+    "glucose": {
+      "value": 160.0,
+      "unit": "mg/dL",
+      "context": "random"
+    },
+    "bp": [
+      130,
+      85
+    ],
+    "total_chol": 212.0
+  },
+  "lab_04.png": {
+    "type": "lab",
+    "hba1c_pct": 7.4,
+    "glucose": {
+      "value": 6.8,
+      "unit": "mmol/L",
+      "context": "fasting"
+    },
+    "total_chol": 180.0
+  },
+  "lab_05.png": {
+    "type": "lab",
+    "hba1c_pct": 9.0,
+    "glucose": {
+      "value": 210.0,
+      "unit": "mg/dL",
+      "context": "random"
+    },
+    "bp": [
+      155,
+      95
+    ]
+  },
+  "lab_06.png": {
+    "type": "lab",
+    "glucose": {
+      "value": 115.0,
+      "unit": "mg/dL",
+      "context": "fasting"
+    },
+    "bp": [
+      120,
+      80
+    ],
+    "total_chol": 175.0
+  },
+  "lab_07.png": {
+    "type": "lab",
+    "hba1c_pct": 7.1,
+    "glucose": {
+      "value": 165.0,
+      "unit": "mg/dL",
+      "context": "post-prandial"
+    }
+  },
+  "lab_08.png": {
+    "type": "lab",
+    "hba1c_pct": 8.5,
+    "glucose": {
+      "value": 8.4,
+      "unit": "mmol/L",
+      "context": "fasting"
+    },
+    "bp": [
+      142,
+      88
+    ]
+  },
+  "lab_09.png": {
+    "type": "lab",
+    "hba1c_pct": 6.5,
+    "glucose": {
+      "value": 140.0,
+      "unit": "mg/dL",
+      "context": "random"
+    }
+  },
+  "rx_01.png": {
+    "type": "prescription",
+    "medicines": [
+      {
+        "name": "metformin",
+        "dose": "500 mg",
+        "frequency": "BD"
+      },
+      {
+        "name": "amlodipine",
+        "dose": "5 mg",
+        "frequency": "OD"
+      }
+    ]
+  },
+  "rx_02.png": {
+    "type": "prescription",
+    "medicines": [
+      {
+        "name": "gliclazide",
+        "dose": "80 mg",
+        "frequency": "1+0+1"
+      },
+      {
+        "name": "losartan",
+        "dose": "50 mg",
+        "frequency": "once daily"
+      }
+    ]
+  },
+  "rx_03.png": {
+    "type": "prescription",
+    "medicines": [
+      {
+        "name": "sitagliptin",
+        "dose": "100 mg",
+        "frequency": "OD"
+      },
+      {
+        "name": "lisinopril",
+        "dose": "10 mg",
+        "frequency": "OD"
+      },
+      {
+        "name": "empagliflozin",
+        "dose": "10 mg",
+        "frequency": "OD"
+      }
+    ]
+  },
+  "rx_06.png": {
+    "type": "prescription",
+    "medicines": [
+      {
+        "name": "metformin",
+        "dose": "850 mg",
+        "frequency": "BD"
+      },
+      {
+        "name": "telmisartan",
+        "dose": "40 mg",
+        "frequency": "OD"
+      },
+      {
+        "name": "insulin glargine",
+        "dose": "10 units",
+        "frequency": "at night"
+      }
+    ]
+  }
+}

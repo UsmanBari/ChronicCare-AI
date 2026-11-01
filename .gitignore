@@ -64,3 +64,8 @@ backend-poc-technical/ml/outputs/
 # Python bytecode
 __pycache__/
 *.py[cod]
+
+# OCR Spike isolated venv and model caches
+backend-poc-technical/ocr_spike/.venv/
+.EasyOCR/
+backend-poc-technical/ocr_spike/.EasyOCR/
