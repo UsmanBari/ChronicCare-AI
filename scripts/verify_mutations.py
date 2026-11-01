@@ -334,6 +334,22 @@ MUTATIONS = [
         "replacement": "            if False and not is_mysql:\n                _rollback_sqlite_import(user_id, patient_id, written_items)",
         "test_node": "backend-poc-technical/test_record_export_import.py::test_import_all_or_nothing_rollback_on_failure",
     },
+    {
+        "id": "M-H7-1",
+        "name": "Server-side re-validation removed in OCR confirm endpoint",
+        "file": BACKEND_DIR / "main.py",
+        "target": "            o_type, val, unit, ts = _validate_ocr_observation(item.observation_type or \"\", item.value, item.measured_at)",
+        "replacement": "            o_type, val, unit, ts = (item.observation_type or \"glucose\", float(item.value or 0), \"mg/dL\", _utc_now_iso())",
+        "test_node": "backend-poc-technical/test_ocr_upload.py::test_confirm_revalidation_rejects_out_of_range_values",
+    },
+    {
+        "id": "M-H7-2",
+        "name": "Unconfirmed OCR items saved before explicit user confirmation",
+        "file": BACKEND_DIR / "main.py",
+        "target": "    upload_id = stage_upload(\n        user_id=user_id,\n        extracted_data=extracted,\n        filename=uploaded_filename or \"upload.jpg\",\n    )",
+        "replacement": "    upload_id = stage_upload(\n        user_id=user_id,\n        extracted_data=extracted,\n        filename=uploaded_filename or \"upload.jpg\",\n    )\n    add_local_observation(f\"premature-{upload_id}\", patient_id, \"glucose\", 118.0, \"mg/dL\", _utc_now_iso(), \"local\", \"ocr\")",
+        "test_node": "backend-poc-technical/test_ocr_upload.py::test_upload_does_not_save_items_before_confirm",
+    },
 ]
 
 

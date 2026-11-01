@@ -29,6 +29,7 @@ import { ConflictScreen } from "./components/ConflictScreen";
 import { RoutedToReviewScreen } from "./components/RoutedToReviewScreen";
 import { EmergencyScreen } from "./components/EmergencyScreen";
 import { PatientAppointmentsScreen } from "./components/PatientAppointmentsScreen";
+import OcrConfirmScreen from "./components/OcrConfirmScreen";
 
 // Provider Portal Components
 import { ProviderLoginScreen } from "./components/provider/ProviderLoginScreen";
@@ -172,6 +173,11 @@ export default function App() {
                 {screen === "health_record" && (
                   <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 md:py-8">
                     <HealthRecordScreen />
+                  </div>
+                )}
+                {screen === "ocr_confirm" && (
+                  <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 md:py-8">
+                    <OcrConfirmScreen />
                   </div>
                 )}
                 {screen === "home" && (

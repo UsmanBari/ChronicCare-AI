@@ -98,6 +98,7 @@ export interface RecordMedicationItem {
   name: string;
   dosage: string;
   status: "active" | "stopped" | string;
+  origin?: string | null;
 }
 
 export interface RecordAllergyItem {
@@ -113,6 +114,7 @@ export interface RecordObservationItem {
   value: number;
   unit: string;
   measured_at: string;
+  origin?: string | null;
 }
 
 export interface DoctorOnRecord {
@@ -124,10 +126,77 @@ export interface DoctorOnRecord {
 
 export interface PatientRecordResponse {
   mode?: string;
+  ocr_enabled?: boolean;
   conditions: RecordConditionItem[];
   medications: RecordMedicationItem[];
   allergies: RecordAllergyItem[];
   baseline_observations: RecordObservationItem[];
+}
+
+export interface OcrExtractedObservation {
+  id?: string;
+  type: string;
+  value: number;
+  unit: string;
+  date?: string | null;
+  evidence?: string | null;
+}
+
+export interface OcrExtractedMedication {
+  id?: string;
+  name: string;
+  dosage: string;
+  status: string;
+  evidence?: string | null;
+}
+
+export interface OcrExtractedAllergy {
+  id?: string;
+  substance: string;
+  reaction?: string | null;
+  severity?: string | null;
+  status?: string | null;
+  evidence?: string | null;
+}
+
+export interface OcrExtractedFields {
+  observations: OcrExtractedObservation[];
+  medications: OcrExtractedMedication[];
+  allergies: OcrExtractedAllergy[];
+  raw_lines?: string[];
+  has_urdu?: boolean;
+}
+
+export interface OcrUploadResponse {
+  upload_id: string;
+  expires_in_seconds: number;
+  extracted: OcrExtractedFields;
+}
+
+export interface ConfirmOcrItem {
+  id?: string;
+  type?: string;
+  name?: string;
+  substance?: string;
+  dosage?: string;
+  value?: number;
+  unit?: string;
+  reaction?: string | null;
+  severity?: string | null;
+  status?: string | null;
+  date?: string | null;
+  evidence?: string | null;
+}
+
+export interface ConfirmOcrUploadResponse {
+  status: string;
+  saved_count: number;
+  saved_items: Array<{
+    type: string;
+    id: string;
+    origin: string;
+  }>;
+  skipped_count: number;
 }
 
 export interface CreateMedicationRequest {
@@ -760,6 +829,32 @@ export const api = {
   getRecord: async (): Promise<PatientRecordResponse> => {
     return request<PatientRecordResponse>("/api/me/record", {
       method: "GET",
+    });
+  },
+
+  uploadOcrImage: async (file: File): Promise<OcrUploadResponse> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request<OcrUploadResponse>("/api/me/record/uploads", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  confirmOcrUpload: async (
+    uploadId: string,
+    confirmedItems: ConfirmOcrItem[]
+  ): Promise<ConfirmOcrUploadResponse> => {
+    return request<ConfirmOcrUploadResponse>(`/api/me/record/uploads/${uploadId}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmed_items: confirmedItems }),
+    });
+  },
+
+  cancelOcrUpload: async (uploadId: string): Promise<{ status: string }> => {
+    return request<{ status: string }>(`/api/me/record/uploads/${uploadId}`, {
+      method: "DELETE",
     });
   },
 

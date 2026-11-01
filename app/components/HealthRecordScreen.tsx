@@ -11,6 +11,7 @@ import {
   Trash2,
   CheckCircle2,
   AlertTriangle,
+  Camera,
   ArrowRight,
   Loader2,
   Info,
@@ -37,7 +38,7 @@ import { mapApiError } from "../lib/presentation";
 import { getConditionFlags } from "../lib/conditions";
 
 export const HealthRecordScreen = () => {
-  const { setScreen, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
+  const { setScreen, setStagedOcrUpload, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
 
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
   const [recordMode, setRecordMode] = useState<string>("isolated");
@@ -78,6 +79,9 @@ export const HealthRecordScreen = () => {
   const [importPreview, setImportPreview] = useState<RecordImportResponse | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const ocrFileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [ocrEnabled, setOcrEnabled] = useState<boolean>(true);
+  const [isUploadingOcr, setIsUploadingOcr] = useState<boolean>(false);
   const historyTriggerRef = React.useRef<HTMLElement | null>(null);
   const historyCloseBtnRef = React.useRef<HTMLButtonElement | null>(null);
 
@@ -148,6 +152,7 @@ export const HealthRecordScreen = () => {
     try {
       const rec: PatientRecordResponse = await api.getRecord();
       setRecordMode(rec.mode || "isolated");
+      setOcrEnabled(rec.ocr_enabled !== false);
       setConditions(rec.conditions || []);
       const basisMap: Record<string, string> = {};
       (rec.conditions || []).forEach((c) => {
@@ -241,6 +246,23 @@ export const HealthRecordScreen = () => {
       setError(t.failedToExportRecord);
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleOcrFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setIsUploadingOcr(true);
+    try {
+      const res = await api.uploadOcrImage(file);
+      setStagedOcrUpload(res);
+      setScreen("ocr_confirm");
+    } catch (err: any) {
+      setError(err?.detail || err?.message || t.ocrUploadFailed);
+    } finally {
+      setIsUploadingOcr(false);
+      if (ocrFileInputRef.current) ocrFileInputRef.current.value = "";
     }
   };
 
@@ -622,6 +644,31 @@ export const HealthRecordScreen = () => {
 
           {recordMode !== "connected" && (
             <>
+              {ocrEnabled && (
+                <>
+                  <button
+                    type="button"
+                    data-testid="upload-ocr-btn"
+                    disabled={isUploadingOcr}
+                    onClick={() => ocrFileInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/40 border border-purple-300/40 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+                  >
+                    {isUploadingOcr ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Camera className="w-3.5 h-3.5" />
+                    )}
+                    <span>{t.uploadDocumentBtn}</span>
+                  </button>
+                  <input
+                    type="file"
+                    ref={ocrFileInputRef}
+                    onChange={handleOcrFileSelect}
+                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    className="hidden"
+                  />
+                </>
+              )}
               <button
                 type="button"
                 data-testid="import-record-btn"
@@ -763,6 +810,11 @@ export const HealthRecordScreen = () => {
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm text-navy-900">{med.name}</span>
+                      {med.origin === "ocr" && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
+                          {t.ocrBadge}
+                        </span>
+                      )}
                       <span
                         className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                           isActive ? "bg-teal-100 text-teal-900" : "bg-slate-200 text-slate-700"
@@ -1018,9 +1070,16 @@ export const HealthRecordScreen = () => {
                 className="p-3.5 rounded-2xl bg-white border border-slate-200 flex items-center justify-between text-xs"
               >
                 <div>
-                  <span className="font-bold text-navy-900 capitalize block">
-                    {obs.observation_type.replace(/_/g, " ")}: {obs.value} {obs.unit}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-navy-900 capitalize">
+                      {obs.observation_type.replace(/_/g, " ")}: {obs.value} {obs.unit}
+                    </span>
+                    {obs.origin === "ocr" && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
+                        {t.ocrBadge}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[11px] text-slate-400">
                     Measured: {new Date(obs.measured_at).toLocaleString()}
                   </span>
@@ -1346,7 +1405,7 @@ export const HealthRecordScreen = () => {
                   <span className="font-bold text-navy-900 block">{isUrdu ? "پیمائشیں" : "Observations"}</span>
                   <div className="space-y-1">
                     {importPreview.preview.observations.map((o, i) => {
-                      const obsLabel = formatObsType(o.type || o.observation_type, isUrdu);
+                      const obsLabel = formatObsType(o.type || o.observation_type || "", isUrdu);
                       return (
                         <div key={i} className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                           <span dir="auto">

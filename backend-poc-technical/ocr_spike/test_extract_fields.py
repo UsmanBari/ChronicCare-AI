@@ -8,7 +8,7 @@ from plain strings without requiring external OCR engines or dependencies.
 from __future__ import annotations
 
 import pytest
-from ocr_spike.extract_fields import (
+from data_sources.ocr.extract_fields import (
     extract_fields,
     levenshtein_distance,
     match_medication_name,
