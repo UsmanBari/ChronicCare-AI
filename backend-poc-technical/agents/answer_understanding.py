@@ -419,7 +419,7 @@ _ROMAN_URDU_NUMBERS: Dict[str, int] = {
     "chheh": 6, "che": 6, "chhe": 6, "chey": 6,
     "saat": 7,
     "aath": 8,
-    "nau": 9, "no": 9,
+    "nau": 9,
     "das": 10,
     "gyaarah": 11, "gyara": 11,
     "baarah": 12, "bara": 12,
@@ -584,6 +584,10 @@ def parse_number(text: str) -> Dict[str, Any]:
 
     norm = normalise_text(trimmed)
     tokens = _tokenize(norm)
+
+    # 1b. Yes/No rejection guard: a bare yes/no token or phrase is never a number
+    if (len(tokens) == 1 and (tokens[0] in _YES_WORDS or tokens[0] in _NO_WORDS or tokens[0] in ("na", "ji", "jee", "جی"))) or tokens in _YES_PHRASES or tokens in _NO_PHRASES:
+        return {"value": None, "evidence": evidence, "kind": None, "direction": None}
 
     # 2. Addendum E4: Meter LO and HI recognition
     lo_cues = {"lo", "low", "bohat kam", "bohot kam"}

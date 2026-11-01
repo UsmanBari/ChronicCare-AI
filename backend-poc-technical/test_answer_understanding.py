@@ -203,7 +203,7 @@ def test_parse_number_roman_urdu_0_to_100(word, val):
     "var_word,val",
     [
         ("aik", 1), ("char", 4), ("panch", 5), ("che", 6), ("chhe", 6),
-        ("no", 9), ("gyara", 11), ("bara", 12), ("tera", 13), ("choda", 14),
+        ("gyara", 11), ("bara", 12), ("tera", 13), ("choda", 14),
         ("pandra", 15), ("sola", 16), ("satra", 17), ("athara", 18), ("unis", 19),
         ("bis", 20), ("ikkis", 21), ("bais", 22), ("pachees", 25), ("pachis", 25),
         ("chhabis", 26), ("untis", 29), ("iktis", 31), ("battis", 32), ("taintis", 33),
