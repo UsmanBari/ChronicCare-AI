@@ -380,3 +380,4 @@ def test_mysql_migration_v15_ddl_and_columns():
 def test_latest_schema_version_is_15():
     """Confirms LATEST_SCHEMA_VERSION constant is strictly 15."""
     assert LATEST_SCHEMA_VERSION == 15
+

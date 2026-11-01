@@ -343,6 +343,15 @@ MUTATIONS = [
         "replacement": '    "nau": 9, "no": 9,',
         "test_node": "backend-poc-technical/test_no_is_not_a_number.py::test_no_not_in_roman_urdu_numbers",
     },
+    # --- Day 7 Explain Isolation Mutation (M-U7-2: Explain step writes into triage decision) ---
+    {
+        "id": "M-U7-2",
+        "name": "Explain step mutates clinical triage decision",
+        "file": BACKEND_DIR / "orchestrator" / "steps.py",
+        "target": '        explain_res = explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n        )\n        return explain_res',
+        "replacement": '        explain_res = explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n        )\n        triage_decision["final_triage_level"] = "routine"\n        return explain_res',
+        "test_node": "backend-poc-technical/test_checkin_risk_explain.py::test_mutation_proof_m_u7_2_explain_never_modifies_triage",
+    },
 ]
 
 
