@@ -205,12 +205,14 @@ export const TrendScreen = () => {
           </p>
         )}
 
-        {isLive && chartData.length === 0 ? (
+        {isLive && chartData.length < 2 ? (
           <div className="h-44 flex flex-col items-center justify-center text-center p-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-1.5">
             <Clock className="w-6 h-6 text-slate-400" />
             <p className="text-xs font-bold text-slate-700">{t.trendNotEnoughHistory}</p>
             <p className="text-[11px] text-slate-500 max-w-sm">
-              {t.trendNotEnoughExplain}
+              {chartData.length === 1
+                ? `${isUrdu ? "ایک ریڈنگ موجود ہے" : "1 reading recorded"}. ${t.trendNotEnoughExplain}`
+                : t.trendNotEnoughExplain}
             </p>
           </div>
         ) : (
@@ -327,12 +329,14 @@ export const TrendScreen = () => {
           </p>
         )}
 
-        {isLive && chartData.length === 0 ? (
+        {isLive && chartData.length < 2 ? (
           <div className="h-44 flex flex-col items-center justify-center text-center p-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-1.5">
             <Clock className="w-6 h-6 text-slate-400" />
             <p className="text-xs font-bold text-slate-700">{t.trendNotEnoughHistory}</p>
             <p className="text-[11px] text-slate-500 max-w-sm">
-              {t.trendNotEnoughExplain}
+              {chartData.length === 1
+                ? `${isUrdu ? "ایک ریڈنگ موجود ہے" : "1 reading recorded"}. ${t.trendNotEnoughExplain}`
+                : t.trendNotEnoughExplain}
             </p>
           </div>
         ) : (

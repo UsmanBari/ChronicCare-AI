@@ -27,14 +27,14 @@ vi.mock("recharts", async () => {
     ...actual,
     ResponsiveContainer: ({ children }: any) => <div data-testid="responsive-container">{children}</div>,
     AreaChart: ({ children, data }: any) => (
-      <div data-testid="area-chart" data-points={data?.length || 0}>
+      <svg data-testid="area-chart" data-points={data?.length || 0}>
         {children}
-      </div>
+      </svg>
     ),
     LineChart: ({ children, data }: any) => (
-      <div data-testid="line-chart" data-points={data?.length || 0}>
+      <svg data-testid="line-chart" data-points={data?.length || 0}>
         {children}
-      </div>
+      </svg>
     ),
     Area: () => <div data-testid="area" />,
     Line: () => <div data-testid="line" />,
@@ -352,6 +352,39 @@ describe("Iteration 2 - Day 5: Longitudinal Trends Live Tests", () => {
 
     await waitFor(() => {
       expect(screen.queryByTestId("provider-trends-section")).toBeNull();
+    });
+  });
+
+  // ===========================================================================
+  // Bug Bash Regression Test: Issue #87
+  // ===========================================================================
+  it("handles cold-start single reading gracefully without rendering collapsing zero-height chart (closes #87)", async () => {
+    mockAppContext.isLiveMode = true;
+    mockAppContext.profile = { conditions: ["Type 2 Diabetes"] };
+    mockAppContext.liveProfile = { conditions: ["Type 2 Diabetes"] };
+
+    const singleReadingTrends: TrendsResponse = {
+      generated_at: new Date().toISOString(),
+      advisory: true,
+      window_days: 30,
+      excluded_count: 0,
+      trends: {
+        glucose: {
+          direction: "not_enough_history",
+          n: 1,
+          window_days: 30,
+          few_readings: true,
+          values: [{ at: new Date().toISOString(), value: 125 }],
+        },
+      },
+    };
+
+    vi.spyOn(api, "getMyTrends").mockResolvedValue(singleReadingTrends);
+    render(<TrendScreen />);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("area-chart")).toBeNull();
+      expect(screen.getByText(/1 reading recorded/i)).toBeTruthy();
     });
   });
 
