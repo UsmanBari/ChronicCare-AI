@@ -1,109 +1,85 @@
 # Independent Danger-Phrase Evaluation (Round 2) — Muhammad Saad
 
 **Date:** 1 November 2026  
-**Evaluator Script:** `scripts/eval_phrase_set.py`  
-**Detector Under Test:** `agents.input_triage.screen_multilingual_danger_phrases` (on `dev`)  
+**Engines Evaluated:**
+- **Live Engine (v2 Default):** `agents.adaptive_interview_agent.run_stage1_red_flag_screen`
+- **Triage Engine (v3 Runner):** `agents.input_triage.classify_input` (backed by `screen_multilingual_danger_phrases`)
 
 ---
 
-## 1. Overview & Context
+## 1. Overview & Authorship
 
-This document reports the performance of the multilingual clinical danger-phrase detector against two independent test sets authored by Muhammad Saad:
-1. **S-1 Baseline Set** (`tests/sim/danger_phrases_independent_saad.json`): 30 phrases (15 danger, 15 safe/negated; English & Roman Urdu), originally authored on 13 October 2026.
-2. **Round 2 Independent Set** (`tests/sim/danger_phrases_independent_saad_r2.json`): 30 new blind phrases (15 danger, 15 safe/negated; balanced across English, Roman Urdu, and Urdu script), hand-authored without inspecting the detector's pattern lists.
+This document reports the performance of the multilingual danger-phrase screening mechanisms against two independent test sets authored by Muhammad Saad:
+1. **S-1 Baseline Set** (`tests/sim/danger_phrases_independent_saad.json`): 30 phrases (15 danger, 15 safe/negated; English & Roman Urdu), authored 13 October 2026.
+2. **Round 2 Independent Set** (`tests/sim/danger_phrases_independent_saad_r2.json`): 30 new blind phrases (15 danger, 15 safe/negated; balanced across English, Roman Urdu, and Urdu script), hand-written directly from clinical emergency scenarios without viewing or referencing the internal pattern tables (`RED_FLAG_PATTERNS` or `screen_multilingual_danger_phrases`).
 
 > **SAFETY PROTOCOL NOTICE:**  
-> The detector (`agents/input_triage.py`) is a protected safety file and was **not modified**. All missed danger phrases are documented here for Usman to triage in a dedicated safety issue.
+> Neither engine was modified for this evaluation. All missed phrases are logged for clinical triage under GitHub issue:  
+> **[Safety Issue #95: Danger-phrase detector low sensitivity on natural multi-lingual syntax](https://github.com/UsmanBari/ChronicCare-AI/issues/95)**
 
 ---
 
-## 2. Evaluation Results
+## 2. Evaluation Results Across Engines
 
-### Table 1: Performance Summary Across Test Sets
+### Table 1: Dual-Engine Performance Matrix
 
-| Metric | S-1 (13 Oct Baseline) | S-1 (Re-evaluated on `dev`) | Round 2 (New Blind Set) |
-|---|:---:|:---:|:---:|
-| **Total Phrases** | 30 | 30 | 30 |
-| **Danger Phrases (Actual Positives)** | 15 | 15 | 15 |
-| **Safe / Negated Phrases (Actual Negatives)** | 15 | 15 | 15 |
-| **True Positives (TP)** | 7 | 6 | 2 |
-| **False Negatives (FN — Missed Danger)** | 8 | 9 | 13 |
-| **False Positives (FP — False Alarm)** | 2 | 1 | 0 |
-| **True Negatives (TN — Correct Rejection)**| 13 | 14 | 15 |
-| **Sensitivity (Recall)** | **46.67%** | **40.00%** | **13.33%** |
-| **Specificity** | **86.67%** | **93.33%** | **100.00%** |
+```
+=== S-1 EVALUATION (30 phrases: 15 Danger, 15 Safe/Negated) ===
+v2 (Live Engine):  TP=3, FN=12, FP=1, TN=14  |  Sensitivity: 20.0%  |  Specificity: 93.3%
+v3 (Triage Engine): TP=6, FN=9,  FP=1, TN=14  |  Sensitivity: 40.0%  |  Specificity: 93.3%
 
-*Note: S-1 re-evaluation yielded 1 additional FN compared to initial 13 Oct baseline because strict boundary matching was refined.*
+=== R2 EVALUATION (30 phrases: 15 Danger, 15 Safe/Negated) ===
+v2 (Live Engine):  TP=1, FN=14, FP=1, TN=14  |  Sensitivity:  6.7%  |  Specificity: 93.3%
+v3 (Triage Engine): TP=2, FN=13, FP=0, TN=15  |  Sensitivity: 13.3%  |  Specificity: 100.0%
+```
+
+| Metric | S-1 (v2 Live) | S-1 (v3 Triage) | R2 (v2 Live) | R2 (v3 Triage) |
+|---|:---:|:---:|:---:|:---:|
+| **Total Phrases** | 30 | 30 | 30 | 30 |
+| **Actual Danger (Positives)** | 15 | 15 | 15 | 15 |
+| **Actual Safe (Negatives)** | 15 | 15 | 15 | 15 |
+| **True Positives (TP)** | **3** | **6** | **1** | **2** |
+| **False Negatives (FN — Missed Danger)** | **12** | **9** | **14** | **13** |
+| **False Positives (FP — False Alarm)** | **1** | **1** | **1** | **0** |
+| **True Negatives (TN — Correct Rejection)** | **14** | **14** | **14** | **15** |
+| **Sensitivity (Recall)** | **20.0%** | **40.0%** | **6.7%** | **13.3%** |
+| **Specificity** | **93.3%** | **93.3%** | **93.3%** | **100.0%** |
 
 ---
 
-## 3. Analysis of Failing Items
+## 3. Detailed Missed Phrases (False Negatives)
 
-### 3.1. Round 2 Missed Danger Phrases (13 False Negatives)
-
-The detector failed to flag 13 out of 15 genuine danger phrases in Round 2 due to reliance on rigid keyword substring patterns:
+### 3.1. Round 2 Missed Danger Expressions
+Both engines missed the majority of conversational expressions where colloquial vocabulary, compound symptoms, or gendered/past-tense inflections differed from rigid dictionary patterns:
 
 1. **Chest Pain:**
-   - `"Severe crushing pressure in the middle of my chest"` (English)  
-     *Reason:* Missing phrase pattern for `"crushing pressure"`.
-   - `"Seene mein achanak shadeed chubhan aur dard ho raha hai"` (Roman Urdu)  
-     *Reason:* Roman Urdu variant `"chubhan aur dard"` not captured.
-   - `"Achanak ultay bazu me shadeed dard aur khichao agya"` (Roman Urdu)  
-     *Reason:* Radiation to left arm (`"ultay bazu me shadeed dard"`) uncaptured without explicit `"seene"` mention.
-   - `"سینے میں بہت شدید گھٹن اور درد ہو رہا ہے"` (Urdu Script)  
-     *Reason:* Exact compound `"گھٹن اور درد"` lacks matching pattern.
+   - `"Severe crushing pressure in the middle of my chest"` (Missed by v2 & v3; lacks pattern for "crushing pressure")
+   - `"Seene mein achanak shadeed chubhan aur dard ho raha hai"` (Missed by v2 & v3; lacks pattern for "chubhan")
+   - `"Achanak ultay bazu me shadeed dard aur khichao agya"` (Missed by v2 & v3; arm radiation without "seene")
+   - `"سینے میں بہت شدید گھٹن اور درد ہو رہا ہے"` (Missed by v2 & v3; lacks pattern for "گھٹن")
 
-2. **Shortness of Breath / Breathing:**
-   - `"I cannot catch my breath even while sitting still"` (English)  
-     *Reason:* Idiomatic expression `"cannot catch my breath"` uncaptured.
-   - `"Sans bilkul ruk raha hai ghutan mehsoos ho rahi hai"` (Roman Urdu)  
-     *Reason:* Phrasing `"sans bilkul ruk raha hai"` not in exact keyword table.
-   - `"سانس لینا ناممکن لگ رہا ہے دم گھٹ رہا ہے"` (Urdu Script)  
-     *Reason:* Metaphorical expression `"دم گھٹ رہا ہے"` uncaptured.
+2. **Dyspnea / Breathing:**
+   - `"I cannot catch my breath even while sitting still"` (Missed by v2 & v3; idiomatic phrase)
+   - `"Sans bilkul ruk raha hai ghutan mehsoos ho rahi hai"` (Missed by v2 & v3; colloquial Roman Urdu)
+   - `"سانس لینا ناممکن لگ رہا ہے دم گھٹ رہا ہے"` (Missed by v2 & v3; metaphorical expression "دم گھٹ رہا ہے")
 
-3. **Stroke & Neurological Impairment:**
-   - `"Sudden numbness in right side of face and arm"` (English)  
-     *Reason:* Pattern looks for `"face drooping"` or `"slurred speech"`, missing `"numbness in right side of face"`.
-   - `"Mera chehra achanak aik taraf terha ho gaya hai"` (Roman Urdu)  
-     *Reason:* Variant spelling `"terha ho gaya"` missing from regex.
-   - `"اچانک بائیں بازو اور آدھے چہرے پر سن پن آ گیا ہے"` (Urdu Script)  
-     *Reason:* Urdu vocabulary `"سن پن"` (numbness) uncaptured.
+3. **Stroke & Neurological:**
+   - `"Sudden numbness in right side of face and arm"` (Missed by v2 & v3; pattern expects "face drooping")
+   - `"Mera chehra achanak aik taraf terha ho gaya hai"` (Missed by v2 & v3; variant spelling "terha")
+   - `"اچانک بائیں بازو اور آدھے چہرے پر سن پن آ گیا ہے"` (Missed by v2 & v3; vocabulary "سن پن")
 
-4. **Fainting / Syncope:**
-   - `"Achanak behosh ho kar gir paray thay"` (Roman Urdu)  
-     *Reason:* Grammatical past tense `"gir paray thay"` not matched.
-   - `"چکر آ کر بیہوش ہو گئی تھیں چند منٹ کے لیے"` (Urdu Script)  
-     *Reason:* Feminine honorific past inflection `"بیہوش ہو گئی تھیں"` missing from root lemma.
+4. **Syncope / Fainting:**
+   - `"Achanak behosh ho kar gir paray thay"` (Missed by v2 & v3; past auxiliary "gir paray thay")
+   - `"چکر آ کر بیہوش ہو گئی تھیں چند منٹ کے لیے"` (Missed by v2 & v3; feminine inflection "ہو گئی تھیں")
 
 5. **Acute Vision Loss:**
-   - `"My vision suddenly went completely black in left eye"` (English)  
-     *Reason:* Exact phrasing `"went completely black"` not captured.
-   - `"اچانک دائیں آنکھ سے بالکل اندھیرا چھا گیا ہے"` (Urdu Script)  
-     *Reason:* Idiomatic phrase `"اندھیرا چھا گیا ہے"` uncaptured.
-
-### 3.2. S-1 Missed Danger Phrases (9 False Negatives)
-
-1. `"My chest feels very tight and painful"` (`chest_pain`)
-2. `"Mere se saans nahi li ja rahi"` (`breathing`)
-3. `"I am not breathing properly"` (`breathing`)
-4. `"Mujhe saans lene mein bohat mushkil ho rahi hai"` (`breathing`)
-5. `"I suddenly feel confused and cannot speak properly"` (`confusion_and_stroke`)
-6. `"Mera aik bazu achanak sunn ho gaya hai aur bolne mein mushkil hai"` (`confusion_and_stroke`)
-7. `"One side of my face suddenly feels weak"` (`confusion_and_stroke`)
-8. `"My sugar is extremely high and I keep vomiting"` (`dka_vomiting_high_glucose`)
-9. `"Sugar bohat high hai aur mujhe bar bar ulti ho rahi hai"` (`dka_vomiting_high_glucose`)
-
-### 3.3. S-1 False Positives (1 Item)
-
-1. `"I had a severe headache yesterday but it is completely gone now"`  
-   - Expected: `False` (resolved historical symptom).  
-   - Detected: `True` (`severe_headache`).  
-   - *Reason:* Detector lacks past-tense temporal negation extraction for headache mentions.
+   - `"My vision suddenly went completely black in left eye"` (Missed by v2 & v3; phrasing "went completely black")
+   - `"اچانک دائیں آنکھ سے بالکل اندھیرا چھا گیا ہے"` (Missed by v2 & v3; idiomatic phrase "اندھیرا چھا گیا ہے")
 
 ---
 
-## 4. Key Findings & Recommendations
+## 4. Key Takeaways & Recommendations
 
-1. **High Specificity (100% on R2):** The current detector demonstrates excellent specificity (0 false alarms on Round 2 safe and negated inputs), successfully rejecting negative and non-emergency statements.
-2. **Substantial Danger Recall Gap (13.33% on R2):** Keyword-matching detectors fail on natural conversational variations, inflections (especially Urdu verb conjugations), and compound symptom descriptions.
-3. **Action Item for Usman:** Open GitHub safety issue titled: `safety(triage): danger-phrase detector low sensitivity on natural multi-lingual syntax (S-1: 40%, R2: 13.3%)` attaching the full failure logs from this report.
+1. **Specificity is High (93.3%–100%):** False alarms remain minimal across both engines.
+2. **Critical Sensitivity Deficit:** Because both engines rely on exact substring matching, sensitivity drops from 20–40% on standard phrasing down to 6.7–13.3% on realistic conversational inputs.
+3. **Assigned to Usman:** Logged in safety backlog for semantic embedding / fast keyword stemmer upgrade in Iteration 3.
