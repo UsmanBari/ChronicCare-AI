@@ -269,7 +269,7 @@ def test_mysql_v13_ddl_and_duplicate_guard():
 
 def test_latest_schema_version_is_13():
     """Confirms LATEST_SCHEMA_VERSION constant is updated to 13."""
-    assert LATEST_SCHEMA_VERSION == 13
+    assert LATEST_SCHEMA_VERSION >= 13
 
 
 def test_sqlite_v13_non_duplicate_error_is_raised():

@@ -11,6 +11,7 @@ Guarantees:
 
 import os
 import json
+import uuid
 import sqlite3
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any, Optional
@@ -44,10 +45,53 @@ APP_STORE_TABLES = {
     "checkin_results",
     "review_actions",
     "allergies",
+    "record_edits",
     "schema_version",
 }
 
-LATEST_SCHEMA_VERSION = 13
+LATEST_SCHEMA_VERSION = 14
+
+SQLITE_RECORD_EDITS_DDL = """
+CREATE TABLE IF NOT EXISTS record_edits (
+    edit_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    record_type TEXT NOT NULL,
+    record_id TEXT NOT NULL,
+    field TEXT NOT NULL,
+    old_value TEXT DEFAULT NULL,
+    new_value TEXT DEFAULT NULL,
+    origin TEXT NOT NULL,
+    changed_by_user_id TEXT NOT NULL,
+    changed_at TEXT NOT NULL,
+    reason TEXT DEFAULT NULL
+);
+"""
+SQLITE_RECORD_EDITS_LOOKUP_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_record_edits_lookup 
+    ON record_edits (user_id, record_type, record_id);
+"""
+SQLITE_RECORD_EDITS_TIMELINE_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_record_edits_timeline 
+    ON record_edits (user_id, changed_at DESC);
+"""
+
+MYSQL_RECORD_EDITS_DDL = """
+CREATE TABLE IF NOT EXISTS record_edits (
+    edit_id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL,
+    record_type VARCHAR(32) NOT NULL,
+    record_id VARCHAR(64) NOT NULL,
+    field VARCHAR(64) NOT NULL,
+    old_value TEXT DEFAULT NULL,
+    new_value TEXT DEFAULT NULL,
+    origin VARCHAR(32) NOT NULL,
+    changed_by_user_id VARCHAR(64) NOT NULL,
+    changed_at VARCHAR(64) NOT NULL,
+    reason TEXT DEFAULT NULL,
+    INDEX idx_record_edits_lookup (user_id, record_type, record_id),
+    INDEX idx_record_edits_timeline (user_id, changed_at DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
 
 
 def _utc_now_iso() -> str:
@@ -403,8 +447,14 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 pp_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
                 if "waist_cm" not in pp_cols:
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN waist_cm REAL DEFAULT NULL")
-
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (13, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 14")
+            if not cursor.fetchone():
+                cursor.execute(SQLITE_RECORD_EDITS_DDL)
+                cursor.execute(SQLITE_RECORD_EDITS_LOOKUP_INDEX)
+                cursor.execute(SQLITE_RECORD_EDITS_TIMELINE_INDEX)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (14, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -763,8 +813,12 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 """)
                 if not cursor.fetchone():
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN waist_cm FLOAT NULL")
-
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (13, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 14")
+            if not cursor.fetchone():
+                cursor.execute(MYSQL_RECORD_EDITS_DDL)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (14, %s)", (now,))
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -1089,15 +1143,36 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
 
 def update_patient_conditions_basis(user_id: str, conditions_basis: Dict[str, Optional[str]],
                                    backend: Optional[str] = None, db_path: Optional[str] = None,
-                                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
-    """Updates conditions basis mapping in patient profile."""
+                                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None,
+                                   changed_by_user_id: Optional[str] = None, origin: str = "self_reported") -> Dict[str, Any]:
+    """Updates conditions basis mapping in patient profile and logs record_edits per changed basis."""
+    existing_prof = get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) or {}
+    old_basis_dict = existing_prof.get("conditions_basis", {})
     basis_json = json.dumps(conditions_basis)
     now = _utc_now_iso()
+    actor_id = changed_by_user_id or user_id
+
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
             f"UPDATE patient_profiles SET conditions_basis_json = {ph}, updated_at = {ph} WHERE user_id = {ph}",
             (basis_json, now, user_id)
         )
+        for cond_name, new_val in conditions_basis.items():
+            old_val = old_basis_dict.get(cond_name)
+            if new_val != old_val:
+                record_edit(
+                    cursor,
+                    ph,
+                    user_id=user_id,
+                    record_type="condition",
+                    record_id=cond_name,
+                    field="basis",
+                    old_value=old_val,
+                    new_value=new_val,
+                    origin=origin,
+                    changed_by_user_id=actor_id,
+                    reason=None,
+                )
     return get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
 
@@ -1189,7 +1264,9 @@ def set_patient_provider_notification_consent(user_id: str, granted: bool, backe
 def create_allergy(allergy_id: str, user_id: str, substance: str, reaction: Optional[str],
                    confirmed: bool, created_at: Optional[str] = None,
                    backend: Optional[str] = None, db_path: Optional[str] = None,
-                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
+                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None,
+                   changed_by_user_id: Optional[str] = None, origin: str = "self_reported",
+                   cursor: Optional[Any] = None) -> Dict[str, Any]:
     """Inserts a new allergy record for a patient."""
     clean_id = str(allergy_id).strip()
     clean_uid = str(user_id).strip()
@@ -1197,11 +1274,53 @@ def create_allergy(allergy_id: str, user_id: str, substance: str, reaction: Opti
     clean_rx = str(reaction).strip() if reaction else None
     conf_val = 1 if confirmed else 0
     now = created_at or _utc_now_iso()
+    actor_id = changed_by_user_id or clean_uid
+
+    if cursor is not None:
+        b = backend or ("mysql" if os.environ.get("DB_BACKEND") == "mysql" or os.environ.get("CHRONICCARE_MYSQL_URL") else "sqlite")
+        ph = "%s" if b == "mysql" else "?"
+        cursor.execute(
+            f"INSERT INTO allergies (allergy_id, user_id, substance, reaction, confirmed, created_at) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+            (clean_id, clean_uid, clean_sub, clean_rx, conf_val, now)
+        )
+        record_edit(
+            cursor,
+            ph,
+            user_id=clean_uid,
+            record_type="allergy",
+            record_id=clean_id,
+            field="created",
+            old_value=None,
+            new_value={"substance": clean_sub, "reaction": clean_rx, "confirmed": bool(conf_val)},
+            origin=origin,
+            changed_by_user_id=actor_id,
+        )
+        return {
+            "allergy_id": clean_id,
+            "user_id": clean_uid,
+            "substance": clean_sub,
+            "reaction": clean_rx,
+            "confirmed": bool(conf_val),
+            "created_at": now,
+        }
 
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
             f"INSERT INTO allergies (allergy_id, user_id, substance, reaction, confirmed, created_at) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
             (clean_id, clean_uid, clean_sub, clean_rx, conf_val, now)
+        )
+        record_edit(
+            cursor,
+            ph,
+            user_id=clean_uid,
+            record_type="allergy",
+            record_id=clean_id,
+            field="created",
+            old_value=None,
+            new_value={"substance": clean_sub, "reaction": clean_rx, "confirmed": bool(confirmed)},
+            origin=origin,
+            changed_by_user_id=actor_id,
+            reason=None,
         )
     return {
         "allergy_id": clean_id,
@@ -1255,8 +1374,15 @@ def get_allergy_by_id(allergy_id: str, user_id: Optional[str] = None,
 
 def delete_allergy(allergy_id: str, user_id: Optional[str] = None,
                    backend: Optional[str] = None, db_path: Optional[str] = None,
-                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> bool:
-    """Deletes an allergy record. Returns True if deleted."""
+                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None,
+                   changed_by_user_id: Optional[str] = None, origin: str = "self_reported") -> bool:
+    """Deletes an allergy record and writes a deletion record_edit row on the same cursor."""
+    existing = get_allergy_by_id(allergy_id, user_id=user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+    if not existing:
+        return False
+    actor_id = changed_by_user_id or (user_id or existing["user_id"])
+    target_uid = user_id or existing["user_id"]
+
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         if user_id:
             cursor.execute(
@@ -1268,7 +1394,22 @@ def delete_allergy(allergy_id: str, user_id: Optional[str] = None,
                 f"DELETE FROM allergies WHERE allergy_id = {ph}",
                 (allergy_id,)
             )
-        return (cursor.rowcount or 0) > 0
+        deleted = (cursor.rowcount or 0) > 0
+        if deleted:
+            record_edit(
+                cursor,
+                ph,
+                user_id=target_uid,
+                record_type="allergy",
+                record_id=allergy_id,
+                field="deleted",
+                old_value={"substance": existing["substance"], "reaction": existing["reaction"], "confirmed": existing["confirmed"]},
+                new_value=None,
+                origin=origin,
+                changed_by_user_id=actor_id,
+                reason=None,
+            )
+        return deleted
 
 
 # =============================================================================
@@ -2107,3 +2248,162 @@ def get_user_reading_history(
 
 
 
+
+
+# =============================================================================
+# RECORD EDIT HISTORY (SCHEMA V13)
+# =============================================================================
+
+def record_edit(
+    cursor: Any,
+    ph: str,
+    *,
+    user_id: str,
+    record_type: str,
+    record_id: str,
+    field: str,
+    old_value: Any,
+    new_value: Any,
+    origin: str,
+    changed_by_user_id: str,
+    reason: Optional[str] = None,
+) -> str:
+    """
+    Inserts a row into record_edits using the active caller's cursor.
+    Values are JSON-encoded (None represents null).
+    changed_at is UTC ISO-8601 ending in 'Z'.
+    """
+    edit_id = str(uuid.uuid4())
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    old_json = json.dumps(old_value) if old_value is not None else None
+    new_json = json.dumps(new_value) if new_value is not None else None
+
+    query = f"""
+        INSERT INTO record_edits (
+            edit_id, user_id, record_type, record_id, field,
+            old_value, new_value, origin, changed_by_user_id, changed_at, reason
+        ) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+    """
+    cursor.execute(
+        query,
+        (
+            edit_id,
+            str(user_id),
+            str(record_type),
+            str(record_id),
+            str(field),
+            old_json,
+            new_json,
+            str(origin),
+            str(changed_by_user_id),
+            ts,
+            reason,
+        ),
+    )
+    return edit_id
+
+
+def get_record_edits(
+    user_id: str,
+    record_type: Optional[str] = None,
+    record_id: Optional[str] = None,
+    limit: int = 50,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Retrieves record edit history for a user, newest first.
+    Filters by record_type and/or record_id if provided.
+    In SQLite isolated dev mode, merges edits from app_store and local_store.
+    """
+    safe_limit = max(1, min(int(limit), 200))
+    edits: List[Dict[str, Any]] = []
+
+    # 1. Fetch from app_store.record_edits
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        where_clauses = [f"(user_id = {ph} OR user_id = {ph})"]
+        params: List[Any] = [user_id, f"local-{user_id}"]
+
+        if record_type:
+            where_clauses.append(f"record_type = {ph}")
+            params.append(record_type)
+        if record_id:
+            where_clauses.append(f"record_id = {ph}")
+            params.append(record_id)
+
+        where_sql = " AND ".join(where_clauses)
+        query = f"""
+            SELECT edit_id, user_id, record_type, record_id, field,
+                   old_value, new_value, origin, changed_by_user_id, changed_at, reason
+            FROM record_edits
+            WHERE {where_sql}
+            ORDER BY changed_at DESC, edit_id DESC
+            LIMIT {ph}
+        """
+        params.append(safe_limit)
+        cursor.execute(query, tuple(params))
+        for r in cursor.fetchall():
+            d = dict(r)
+            if d.get("old_value") is not None:
+                try:
+                    d["old_value"] = json.loads(d["old_value"])
+                except Exception:
+                    pass
+            if d.get("new_value") is not None:
+                try:
+                    d["new_value"] = json.loads(d["new_value"])
+                except Exception:
+                    pass
+            edits.append(d)
+
+    # 2. In SQLite dev/CI mode, local_store.db has separate record_edits for meds/obs
+    selected_be = (backend or get_db_backend()).lower()
+    if selected_be != "mysql":
+        try:
+            from data_sources import local_store
+            local_edits = local_store.get_record_edits(
+                user_id=user_id,
+                record_type=record_type,
+                record_id=record_id,
+                limit=safe_limit,
+            )
+            edits.extend(local_edits)
+        except Exception:
+            pass
+
+    # Deduplicate by edit id across stores if paths point to the same database
+    seen = set()
+    unique_edits = []
+    for e in edits:
+        eid = e.get("id") or e.get("edit_id")
+        if eid and eid in seen:
+            continue
+        if eid:
+            seen.add(eid)
+        unique_edits.append(e)
+
+    # Sort merged results newest first and slice by limit
+    unique_edits.sort(key=lambda x: str(x.get("changed_at", "")), reverse=True)
+    return unique_edits[:safe_limit]
+
+
+def get_recent_edits_for_patient(
+    patient_id: str,
+    limit: int = 20,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Retrieves the last N edits for a patient across all record types."""
+    clean_uid = patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id
+    return get_record_edits(
+        user_id=clean_uid,
+        limit=limit,
+        backend=backend,
+        db_path=db_path,
+        mysql_url=mysql_url,
+        ssl_ca=ssl_ca,
+    )
