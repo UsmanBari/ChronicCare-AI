@@ -333,7 +333,7 @@ export const ReviewQueueScreen = () => {
               ) : (
                 /* MOCK QUEUE ROWS */
                 <>
-                  {demoScenario === "conflict" && (
+                  {(demoScenario === "conflict" || demoScenario === "normal" || liveQueue.length === 0) && (
                     <tr
                       onClick={() => {
                         setSelectedPatient("Ali Khan");
