@@ -40,6 +40,31 @@ def brfss_core_path() -> Path:
     return data_dir() / "brfss" / "brfss_core.parquet"
 
 
+def cardio70k_path() -> Path:
+    """Return Path to cardio70k/cardio_train.csv."""
+    return data_dir() / "cardio70k" / "cardio_train.csv"
+
+
+def framingham_path() -> Path:
+    """Return Path to framingham/framingham.csv."""
+    return data_dir() / "framingham" / "framingham.csv"
+
+
+def brfss2015_kaggle_path(filename: str = "diabetes_binary_health_indicators_BRFSS2015.csv") -> Path:
+    """Return Path to brfss2015_kaggle/<filename>."""
+    return data_dir() / "brfss2015_kaggle" / filename
+
+
+def pima_path() -> Path:
+    """Return Path to pima dataset csv file."""
+    pima_dir = data_dir() / "pima"
+    if pima_dir.exists():
+        csv_files = sorted(list(pima_dir.glob("*.csv")))
+        if csv_files:
+            return csv_files[0]
+    return pima_dir / "pima-indians-diabetes.data.csv"
+
+
 def load_nhanes_core(columns: Sequence[str] | None = None) -> pd.DataFrame:
     """
     Load nhanes_core.csv optionally selecting specific columns.
