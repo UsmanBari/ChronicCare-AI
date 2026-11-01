@@ -840,16 +840,19 @@ class CheckinAnswerResponse(BaseModel):
     option_items: Optional[List[Dict[str, str]]] = None
 
 
-class CheckinCompleteResponse(BaseModel):
-    emergency: bool
-    intakes: List[Dict[str, Any]]
-    reconciliation: Optional[Dict[str, Any]] = None
-    verification: Optional[Dict[str, Any]] = None
-    requires_review: bool
-    max_severity: Optional[str] = None
-    triage: Optional[Dict[str, Any]] = None
-    record_source_label: Optional[str] = None
-    answered_by: Optional[str] = None
+from orchestrator.steps import (
+    CheckinCompleteResponse,
+    step_check_idempotency,
+    step_parse_and_validate_intake,
+    step_fetch_prior_bundle,
+    step_build_bundles,
+    step_reconcile,
+    step_verify,
+    step_persist_local_observations,
+    step_decide_triage,
+    step_persist_and_respond,
+)
+ORCHESTRATOR = os.environ.get("ORCHESTRATOR", "direct").lower()
 
 
 class UserCheckinSummaryResponse(BaseModel):
@@ -3312,422 +3315,58 @@ def complete_checkin_endpoint(
             detail="Check-in session not found",
         )
 
-    # Idempotent check
-    stored_result = get_checkin_result(checkin_id)
     record_label = _compute_record_source_label(checkin["mode"], checkin.get("ehr_system_id"))
-    if stored_result:
-        return CheckinCompleteResponse(
-            emergency=stored_result["emergency"],
-            intakes=stored_result["intakes"],
-            reconciliation=stored_result.get("reconciliation"),
-            verification=stored_result.get("verification"),
-            requires_review=stored_result["requires_review"],
-            max_severity=stored_result.get("max_severity"),
-            triage=stored_result.get("triage"),
-            record_source_label=record_label,
-        )
 
-    raw_state = checkin.get("state") or {}
-    is_v3_session = bool(raw_state.get("engine") == "v3" or raw_state.get("completed") is not None)
+    # 1. Idempotency Check
+    stored = step_check_idempotency(checkin_id, record_label)
+    if stored:
+        return stored
 
-    if is_v3_session:
-        is_completed = bool(raw_state.get("completed"))
-        is_emergency = bool(raw_state.get("stage1_red_flag") or raw_state.get("emergency") or checkin["status"] == "emergency")
-        if not is_completed and not is_emergency:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Interview is not complete",
-            )
-        if is_emergency:
-            emergency_reason = raw_state.get("emergency_reason") or raw_state.get("stage1_reason")
-            intakes = raw_state.get("intakes") or ([{"condition": "general", "emergency": True, "reason": emergency_reason}] if emergency_reason else [])
-            now_iso = _utc_now_iso()
-            create_checkin_result(
-                checkin_id=checkin_id,
-                emergency=True,
-                intakes=intakes,
-                reconciliation=None,
-                verification=None,
-                requires_review=True,
-                max_severity="high",
-                review_status="open",
-                trigger_category=emergency_reason or "emergency",
-                trigger_text=None,
-                escalated_at=now_iso,
-                triage_level="emergency",
-                triage=None,
-            )
-            update_checkin_state(
-                checkin_id=checkin_id,
-                state_dict=raw_state,
-                status="emergency",
-                completed_at=now_iso,
-                med_state_dict=None,
-                protocol_state_dict=None,
-            )
-            answered_by_val = None
-            for it in intakes:
-                if it.get("answered_by"):
-                    answered_by_val = it["answered_by"]
-                    break
-            return CheckinCompleteResponse(
-                emergency=True,
-                intakes=intakes,
-                reconciliation=None,
-                verification=None,
-                requires_review=True,
-                max_severity="high",
-                triage=None,
-                record_source_label=record_label,
-                answered_by=answered_by_val,
-            )
+    # Dynamic orchestrator path selection
+    orchestrator_mode = os.environ.get("ORCHESTRATOR", ORCHESTRATOR).lower()
+    if orchestrator_mode == "graph":
+        from orchestrator.graph import run_checkin_graph
+        return run_checkin_graph(checkin, current_user, record_label)
 
-        v3_summary = finish_v3_session(raw_state)
-        intakes = v3_summary.get("intakes", [])
-        state = InterviewState(
-            patient_id=checkin["record_patient_id"],
-            conditions_on_file=raw_state.get("conditions_on_file") or ["diabetes"],
-            step=INTERVIEW_COMPLETE,
-            intakes=intakes,
-        )
-        # Construct protocol_state for v3 if readings triggered triage
-        readings_map = {}
-        for intake_item in intakes:
-            for r_item in intake_item.get("readings", []):
-                obs_t = r_item.get("observation_type")
-                if obs_t == "glucose":
-                    readings_map[GLUCOSE] = float(r_item["value"])
-                elif obs_t == "blood_pressure_systolic":
-                    readings_map[SYSTOLIC] = float(r_item["value"])
-                elif obs_t == "blood_pressure_diastolic":
-                    readings_map[DIASTOLIC] = float(r_item["value"])
+    # 2. Intake Validation & Emergency Early Return
+    parsed_context, early_resp = step_parse_and_validate_intake(checkin, current_user, record_label)
+    if early_resp:
+        return early_resp
 
-        triggers = evaluate_triggers(readings_map)
-        if triggers:
-            primary_trig = triggers[0]
-            raw_answers = raw_state.get("raw_answers", {})
-            findings = raw_state.get("findings", [])
-            finding_labels = {f.get("finding_type") for f in findings if isinstance(f, dict)}
+    state = parsed_context["state"]
+    protocol_state = parsed_context["protocol_state"]
+    med_state = parsed_context["med_state"]
 
-            proto_answers = {
-                "dka_symptoms": bool("nausea_or_vomiting" in finding_labels),
-                "can_swallow": True,
-                "neuro": False,
-                "symptoms": bool(finding_labels),
-                "recheck": None,
-                "substances": False,
-                "circumstances": False,
-            }
-            p_state = TriageProtocolState(
-                protocol=primary_trig.protocol,
-                age_band="adult",
-                trigger_reason=primary_trig.reason,
-                readings=readings_map,
-                answers=proto_answers,
-            )
-            p_state.result = _decide(p_state)
-            protocol_state = p_state
-        else:
-            protocol_state = None
-        med_state = None
-    else:
-        state = InterviewState.from_dict(checkin["state"])
-        protocol_state_dict = checkin.get("protocol_state")
-        protocol_state = TriageProtocolState.from_dict(protocol_state_dict) if protocol_state_dict else None
-        med_state_dict = checkin.get("med_state")
-        med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
+    # 3. Fetch Prior Baseline Bundle from EHR / Local Store
+    prior_bundle = step_fetch_prior_bundle(checkin["record_patient_id"], checkin["mode"], current_user["user_id"], get_patient_bundle_fn=get_patient_bundle)
 
-        # Check incomplete checkin
-        if not state.stage1_red_flag and checkin["status"] != "emergency":
-            if state.step != INTERVIEW_COMPLETE:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Interview is not complete",
-                )
-            if protocol_state and not protocol_state.complete:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="triage_incomplete",
-                )
-            if med_state and not med_state.complete:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="medication_check_incomplete",
-                )
-
-        # 1. Emergency Flow
-        if state.stage1_red_flag or checkin["status"] == "emergency":
-            intakes = state.intakes if state.intakes else ([{"condition": state.active_condition or "general", "emergency": True, "reason": state.stage1_reason}] if state.stage1_reason else [])
-            now_iso = _utc_now_iso()
-            triage_dict = protocol_state.result if (protocol_state and protocol_state.complete) else None
-            create_checkin_result(
-                checkin_id=checkin_id,
-                emergency=True,
-                intakes=intakes,
-                reconciliation=None,
-                verification=None,
-                requires_review=True,
-                max_severity="high",
-                review_status="open",
-                trigger_category=state.stage1_reason or (f"triage:{protocol_state.protocol}" if protocol_state else None),
-                trigger_text=triage_dict.get("summary") if triage_dict else None,
-                escalated_at=now_iso,
-                triage_level="emergency" if triage_dict else None,
-                triage=triage_dict,
-            )
-            update_checkin_state(
-                checkin_id=checkin_id,
-                state_dict=state.to_dict(),
-                status="emergency",
-                completed_at=now_iso,
-                med_state_dict=med_state.to_dict() if med_state else None,
-                protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
-            )
-            answered_by_val = None
-            for it in intakes:
-                if it.get("answered_by"):
-                    answered_by_val = it["answered_by"]
-                    break
-            return CheckinCompleteResponse(
-                emergency=True,
-                intakes=intakes,
-                reconciliation=None,
-                verification=None,
-                requires_review=True,
-                max_severity="high",
-                triage=triage_dict,
-                record_source_label=record_label,
-                answered_by=answered_by_val,
-            )
-
-    # 2. Non-Emergency Flow
-    base_url = None
-    if checkin["mode"] == "connected":
-        active_conn = get_active_ehr_connection(current_user["user_id"])
-        if active_conn:
-            ehr_sys = get_ehr_system_by_id(active_conn["ehr_system_id"])
-            base_url = ehr_sys["fhir_base_url"] if ehr_sys else None
-
-    # Fetch prior baseline
-    try:
-        prior_bundle = get_patient_bundle(checkin["record_patient_id"], mode=checkin["mode"], base_url=base_url)
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Record source unavailable",
-        )
-
-    # Build check-in bundle
-    source = "fhir" if checkin["mode"] == "connected" else "local"
+    # 4. Build Bundles
     patient_name = current_user.get("display_name") or (prior_bundle["patient"].name if prior_bundle.get("patient") else "Patient")
-    now_iso = _utc_now_iso()
-    try:
-        checkin_bundle = build_checkin_bundle(state, source=source, patient_name=patient_name, checkin_timestamp=now_iso)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+    prior_bundle, checkin_bundle = step_build_bundles(state, prior_bundle, checkin["mode"], patient_name, med_state, checkin["record_patient_id"])
 
-    if med_state and med_state.items:
-        checkin_bundle["medications"] = build_medication_bundle_items(
-            med_state,
-            patient_id=checkin["record_patient_id"],
-            source=source,
-            timestamp=now_iso,
-        )
-        prior_bundle["medications"] = restrict_to_asked(prior_bundle.get("medications", []), med_state)
+    # 5. Reconcile Bundles
+    recon_result = step_reconcile(prior_bundle, checkin_bundle)
 
-    # Reconcile bundles
-    try:
-        recon_result = reconcile_bundles(prior_bundle, checkin_bundle)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+    # 6. Verify Reconciliation
+    verif_result = step_verify(recon_result, checkin_bundle, med_state, checkin["mode"], checkin["record_patient_id"])
 
-    # Verify reconciliation with origins
-    checkin_origins = build_checkin_origins(checkin_bundle)
-    if med_state and med_state.items:
-        checkin_origins.update(build_medication_origins(checkin_bundle["medications"]))
+    # 7. Persist Local Observations (Isolated Mode)
+    step_persist_local_observations(checkin_bundle, checkin["record_patient_id"], checkin["mode"])
 
-    if checkin["mode"] == "isolated":
-        local_obs_origins = get_local_observation_origins(checkin["record_patient_id"])
-        local_med_origins = get_local_medication_origins(checkin["record_patient_id"])
-        combined_origins = {**local_obs_origins, **local_med_origins, **checkin_origins}
-    else:
-        combined_origins = checkin_origins
+    # 8. Triage Decision
+    triage_decision = step_decide_triage(verif_result, state, protocol_state, current_user["user_id"], get_patient_profile_fn=get_patient_profile)
 
-    verif_result = verify_reconciliation(recon_result, origins=combined_origins)
-
-    # Isolated Mode: write check-in observations to Local Store tagged self_reported
-    if checkin["mode"] == "isolated":
-        for obs in checkin_bundle["observations"]:
-            add_local_observation(
-                id=obs.source_record_id,
-                patient_id=checkin["record_patient_id"],
-                observation_type=obs.observation_type,
-                value=obs.value,
-                unit=obs.unit,
-                timestamp=obs.timestamp,
-                source="local",
-                origin="self_reported",
-            )
-
-    # Determine severity and review necessity
-    summary = verif_result.summary
-    verif_requires_review = bool(summary.get("requires_review", 0) > 0)
-    if summary.get("severity_high", 0) > 0:
-        verif_max_severity = "high"
-    elif summary.get("severity_moderate", 0) > 0:
-        verif_max_severity = "moderate"
-    elif summary.get("severity_low", 0) > 0:
-        verif_max_severity = "low"
-    else:
-        verif_max_severity = "none"
-
-    intake_requires_review = any(it.get("requires_review") for it in (state.intakes or []))
-    if protocol_state and protocol_state.complete:
-        triage_res = dict(protocol_state.result)
-        profile = get_patient_profile(current_user["user_id"]) or {}
-        if not profile.get("date_of_birth"):
-            triage_res["age_assumed"] = True
-
-        proto_level = triage_res.get("level", "routine")
-        if verif_requires_review or intake_requires_review:
-            final_triage_level = _raise_level(proto_level, "review")
-        else:
-            final_triage_level = proto_level
-
-        stroke_eval = None
-        for it in (state.intakes or []):
-            eval_res = evaluate_stroke_extras(it.get("symptoms", {}), patient_profile=profile)
-            if eval_res:
-                stroke_eval = eval_res
-                break
-        if stroke_eval:
-            final_triage_level = _raise_level(final_triage_level, stroke_eval["level"])
-            if stroke_eval.get("advice"):
-                triage_res["advice"] = stroke_eval["advice"]
-                if stroke_eval["level"] == "urgent":
-                    triage_res["guidance"] = stroke_eval["advice"]
-
-        final_requires_review = (final_triage_level in ("review", "urgent", "emergency") or verif_requires_review or intake_requires_review)
-
-        SEV_ORDER = {"none": 0, "low": 1, "moderate": 2, "high": 3}
-        if final_triage_level == "urgent":
-            final_max_sev = "high"
-        elif final_triage_level == "review":
-            if SEV_ORDER.get(verif_max_severity, 0) < SEV_ORDER["moderate"]:
-                final_max_sev = "moderate"
-            else:
-                final_max_sev = verif_max_severity
-        else:
-            final_max_sev = verif_max_severity
-
-        review_status = "open" if final_requires_review else "resolved"
-
-        create_checkin_result(
-            checkin_id=checkin_id,
-            emergency=False,
-            intakes=state.intakes,
-            reconciliation=recon_result.to_dict(),
-            verification=verif_result.to_dict(),
-            requires_review=final_requires_review,
-            max_severity=final_max_sev,
-            review_status=review_status,
-            triage_level=final_triage_level,
-            triage=triage_res,
-        )
-        update_checkin_state(
-            checkin_id=checkin_id,
-            state_dict=state.to_dict(),
-            status="complete",
-            completed_at=_utc_now_iso(),
-            med_state_dict=med_state.to_dict() if med_state else None,
-            protocol_state_dict=protocol_state.to_dict(),
-        )
-
-        return CheckinCompleteResponse(
-            emergency=False,
-            intakes=state.intakes,
-            reconciliation=recon_result.to_dict(),
-            verification=verif_result.to_dict(),
-            requires_review=final_requires_review,
-            max_severity=final_max_sev,
-            triage=triage_res,
-            record_source_label=record_label,
-        )
-    else:
-        profile = get_patient_profile(current_user["user_id"]) or {}
-        stroke_eval = None
-        for it in (state.intakes or []):
-            eval_res = evaluate_stroke_extras(it.get("symptoms", {}), patient_profile=profile)
-            if eval_res:
-                stroke_eval = eval_res
-                break
-
-        final_requires_review = bool(verif_requires_review or intake_requires_review or (stroke_eval is not None))
-        final_triage_level = "review" if final_requires_review else "routine"
-        if stroke_eval:
-            final_triage_level = _raise_level(final_triage_level, stroke_eval["level"])
-
-        review_status = "open" if final_requires_review else "resolved"
-        final_max_sev = "high" if final_triage_level == "urgent" else ("moderate" if (final_requires_review and verif_max_severity == "none") else verif_max_severity)
-        if stroke_eval:
-            triage_dict = {
-                "level": stroke_eval["level"],
-                "guidance": stroke_eval.get("advice", "Check-in flagged for clinician review."),
-                "advice": stroke_eval.get("advice", "Check-in flagged for clinician review."),
-                "summary": stroke_eval.get("advice", "Stroke extras evaluation: clinician review required."),
-            }
-        elif intake_requires_review:
-            triage_dict = {
-                "level": "review",
-                "guidance": "Low blood sugar safety review required. If you feel shaky, sweaty, or confused, consume fast-acting sugar immediately.",
-                "summary": "Check-in flagged for clinician review.",
-            }
-        else:
-            triage_dict = None
-
-        create_checkin_result(
-            checkin_id=checkin_id,
-            emergency=False,
-            intakes=state.intakes,
-            reconciliation=recon_result.to_dict(),
-            verification=verif_result.to_dict(),
-            requires_review=final_requires_review,
-            max_severity=final_max_sev,
-            review_status=review_status,
-            triage_level=final_triage_level,
-            triage=triage_dict,
-        )
-        update_checkin_state(
-            checkin_id=checkin_id,
-            state_dict=state.to_dict(),
-            status="complete",
-            completed_at=_utc_now_iso(),
-            med_state_dict=med_state.to_dict() if med_state else None,
-            protocol_state_dict=None,
-        )
-
-        answered_by_val = None
-        for it in (state.intakes or []):
-            if it.get("answered_by"):
-                answered_by_val = it["answered_by"]
-                break
-        return CheckinCompleteResponse(
-            emergency=False,
-            intakes=state.intakes,
-            reconciliation=recon_result.to_dict(),
-            verification=verif_result.to_dict(),
-            requires_review=final_requires_review,
-            max_severity=final_max_sev,
-            triage=triage_dict,
-            record_source_label=record_label,
-            answered_by=answered_by_val,
-        )
+    # 9. Persistence & Response
+    return step_persist_and_respond(
+        checkin_id=checkin_id,
+        state=state,
+        recon_result=recon_result,
+        verif_result=verif_result,
+        triage_decision=triage_decision,
+        med_state=med_state,
+        protocol_state=protocol_state,
+        record_label=record_label,
+    )
 
 
 
