@@ -350,6 +350,15 @@ MUTATIONS = [
         "replacement": "    upload_id = stage_upload(\n        user_id=user_id,\n        extracted_data=extracted,\n        filename=uploaded_filename or \"upload.jpg\",\n    )\n    add_local_observation(f\"premature-{upload_id}\", patient_id, \"glucose\", 118.0, \"mg/dL\", _utc_now_iso(), \"local\", \"ocr\")",
         "test_node": "backend-poc-technical/test_ocr_upload.py::test_upload_does_not_save_items_before_confirm",
     },
+    # --- Day 7 P0 Safety Mutation (M-U7-1: Re-add 'no': 9 to Roman Urdu numbers) ---
+    {
+        "id": "M-U7-1",
+        "name": "P0 Safety: Re-introduce 'no': 9 into _ROMAN_URDU_NUMBERS",
+        "file": BACKEND_DIR / "agents" / "answer_understanding.py",
+        "target": '    "nau": 9,',
+        "replacement": '    "nau": 9, "no": 9,',
+        "test_node": "backend-poc-technical/test_no_is_not_a_number.py::test_no_not_in_roman_urdu_numbers",
+    },
 ]
 
 
