@@ -17,7 +17,7 @@ def run_desktop_tesseract():
     for cat in ["synthetic", "photos"]:
         cat_dir = spike_dir / "samples" / cat
         if cat_dir.exists():
-            for p in sorted(cat_dir.glob("*.png")):
+            for p in sorted(list(cat_dir.glob("*.png")) + list(cat_dir.glob("*.jpg")) + list(cat_dir.glob("*.jpeg"))):
                 sample_files.append((p.name, cat, p))
 
     print(f"Benchmarking Desktop Tesseract on {len(sample_files)} samples...")

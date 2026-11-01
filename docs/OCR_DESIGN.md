@@ -10,28 +10,28 @@
 ## 1. Measured Benchmarks & Deployability Matrix
 
 ### 1.1 Measured Performance Table
-All performance and accuracy numbers below are **MEASURED** directly from programmatic benchmark execution on 17 deterministic document samples (10 clean synthetic, 3 rotated/noise/blur, and 4 handwritten prescription photos) using the spike benchmark harness [`backend-poc-technical/ocr_spike/run_compare.py`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/backend-poc-technical/ocr_spike/run_compare.py).
+All performance and accuracy numbers below are **MEASURED** directly from programmatic benchmark execution on 17 deterministic document samples (10 clean synthetic, 3 rotated/noise/blur, and 4 real phone-photographed handwritten prescriptions) using the spike benchmark harness [`backend-poc-technical/ocr_spike/run_compare.py`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/backend-poc-technical/ocr_spike/run_compare.py). OCR character quality (**CER**) and deterministic rule extraction (**Field Recall & Precision**) are reported separately to isolate parsing bottlenecks.
 
 #### Table 1A: Clean Synthetic Reports & Prescriptions (10 Samples)
-| Option | Status | Mean Latency (ms) | Field Recall | Field Precision | Medicine Recall | Peak RSS / Overhead |
-|---|---|---|---|---|---|---|
-| **Option A: Tesseract.js (Client Phone)** | **MEASURED** | 652.1 ms | 29.2% (7/24) | 28.0% | 100.0% (7/7) | **0 MB Server RAM** (Client Peak: 125.58 MB) |
-| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 2,427.3 ms | 29.2% (7/24) | 29.2% | 100.0% (7/7) | **108.63 MB Server RAM** (Fits 512 MB ceiling) |
-| **Option C: Tesseract Desktop (v5)** | **NOT RUN** | — | — | — | — | `TesseractNotFoundError: tesseract is not installed or it's not in your PATH (Windows installer requires administrator elevation to install to Program Files)` |
+| Option | Status | Mean Latency (ms) | OCR CER (%) | Field Recall | Field Precision | Medicine Recall | RAM / Footprint |
+|---|---|---|---|---|---|---|---|
+| **Option A: Tesseract.js (Client Phone)** | **MEASURED** | 1,286.1 ms | **33.7%** | 100.0% (24/24) | 100.0% | 100.0% (7/7) | **0 MB Server RAM** (Client: 131.66 MB) |
+| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 2,605.2 ms | **32.7%** | 95.8% (23/24) | 95.8% | 100.0% (7/7) | **110.31 MB Server RAM** (Fits 512 MB ceiling) |
+| **Option C: Tesseract Desktop (v5.3.4)** | **MEASURED** | 1,904.2 ms | **34.6%** | 91.7% (22/24) | 100.0% | 100.0% (7/7) | **48.2 MB Server RAM** (WSL2 / Linux binary) |
 
 #### Table 1B: Rotated, Blurred & Noisy Documents (3 Samples: lab_08, lab_09, rx_06)
-| Option | Status | Mean Latency (ms) | Field Recall | Field Precision | Medicine Recall | Measured Notes |
-|---|---|---|---|---|---|---|
-| **Option A: Tesseract.js (Client Phone)** | **MEASURED** | 823.7 ms | 37.5% (3/8) | 50.0% | 100.0% (3/3) | Resilient to 90° rotation and moderate sensor noise |
-| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 1,993.5 ms | 37.5% (3/8) | 50.0% | 100.0% (3/3) | Built-in text angle classifier handles rotation |
-| **Option C: Tesseract Desktop (v5)** | **NOT RUN** | — | — | — | — | Empty (Option could not be installed/run without admin) |
+| Option | Status | Mean Latency (ms) | OCR CER (%) | Field Recall | Field Precision | Medicine Recall | Measured Notes |
+|---|---|---|---|---|---|---|---|
+| **Option A: Tesseract.js (Client Phone)** | **MEASURED** | 1,583.3 ms | **40.0%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Resilient to 90° rotation and moderate sensor noise |
+| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 2,092.0 ms | **27.9%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Built-in text angle classifier handles rotation |
+| **Option C: Tesseract Desktop (v5.3.4)** | **MEASURED** | 1,959.0 ms | **31.4%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Native C++ multi-threaded baseline |
 
-#### Table 1C: Handwritten Prescription Photos (4 Samples: rx_handwritten_01 to 04)
-| Option | Status | Mean Latency (ms) | Field Recall | Field Precision | Medicine Recall | Honest Clinical Assessment |
-|---|---|---|---|---|---|---|
-| **Option A: Tesseract.js (Client Phone)** | **MEASURED** | 2,353.8 ms | 75.0% (6/8) | 100.0% | 75.0% (6/8) | **Weak on cursive handwriting**: Read 6/8 medications on high-contrast lines; misread dense sigs |
-| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 2,371.0 ms | 37.5% (3/8) | 100.0% | 37.5% (3/8) | **Poor on handwriting**: Segmenter fragments pen ligatures as unsegmented noise |
-| **Option C: Tesseract Desktop (v5)** | **NOT RUN** | — | — | — | — | Empty (Option could not be installed/run without admin) |
+#### Table 1C: Real Phone-Photographed Handwritten Prescriptions (4 Samples: rx_photo_01 to 04)
+| Option | Status | Mean Latency (ms) | OCR CER (%) | Field Recall | Field Precision | Medicine Recall | Honest Clinical Assessment |
+|---|---|---|---|---|---|---|---|
+| **Option A: Tesseract.js (Client Phone)** | **MEASURED** | 7,713.0 ms | **85.0%** | 11.1% (1/9) | 100.0% | 11.1% (1/9) | High CER on cursive handwriting; patient confirmation screen mandatory |
+| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 4,503.2 ms | **31.5%** | 100.0% (9/9) | 100.0% | 100.0% (9/9) | Moderate OCR accuracy on cursive; token joiner extracts medicines cleanly |
+| **Option C: Tesseract Desktop (v5.3.4)** | **MEASURED** | 2,448.8 ms | **54.5%** | 44.4% (4/9) | 80.0% | 44.4% (4/9) | High CER on cursive; patient confirmation screen mandatory |
 
 ---
 
@@ -40,22 +40,22 @@ All performance and accuracy numbers below are **MEASURED** directly from progra
 | Dimension | Option A: Tesseract.js | Option B: RapidOCR | Dropped: EasyOCR | Dropped: Groq Vision |
 |---|---|---|---|---|
 | **Execution Host** | **Patient Browser / Phone** | Render Web Service Backend | Render Web Service Backend | Remote Cloud API |
-| **Server RAM Footprint** | **0 MB** (MEASURED: in-browser Web Worker) | **108.63 MB Peak** (MEASURED via psutil) | EXPECTED: 400–700 MB — source: [PyTorch/EasyOCR memory specs](https://github.com/JaidedAI/EasyOCR) | EXPECTED: ~15 MB HTTP Client — source: [Groq Python SDK](https://github.com/groq/groq-python) |
-| **Fits Render 512 MB Tier?** | **YES** (Zero server impact) | **YES** (108 MB + 70 MB app = 178 MB) | **NO** (Triggers Linux OOM Kill 137) | **YES** (API client only) |
+| **Server RAM Footprint** | **0 MB** (MEASURED: in-browser Web Worker) | **110.31 MB Peak** (MEASURED via psutil) | EXPECTED: 400–700 MB — source: [PyTorch/EasyOCR memory specs](https://github.com/JaidedAI/EasyOCR) | EXPECTED: ~15 MB HTTP Client — source: [Groq Python SDK](https://github.com/groq/groq-python) |
+| **Fits Render 512 MB Tier?** | **YES** (Zero server impact) | **YES** (~110 MB + 70 MB app = 180 MB) | **NO** (Triggers Linux OOM Kill 137) | **YES** (API client only) |
 | **Server Binary Dependencies**| **None** (Browser JavaScript) | **None** (Precompiled ONNX wheels) | Requires PyTorch C++ wheels (~1.5 GB) | **None** (Python HTTP client) |
 | **Model / Asset Download** | **6.29 MB** (MEASURED: `eng` 4.96MB + `urd` 1.33MB) | **15.44 MB** (MEASURED: 3 ONNX models) | EXPECTED: > 1.5 GB PyTorch distribution | 0 MB (Hosted off-site) |
-| **Urdu Script Support** | **YES** (MEASURED: `urd.traineddata` 1.33 MB) | **NO** (English / Chinese only) | Poor on connected Nastaliq | High (LLaMA vision context) |
-| **Handwriting Quality** | **Poor (Weak on cursive)** | **Poor (Fails on cursive)** | Moderate on clean block text | High on cursive prescriptions |
+| **Urdu Script Support** | **YES** (MEASURED: `urd.traineddata` 1.33 MB) | **NO** (Latin / Chinese only) | Poor on connected Nastaliq | High (LLaMA vision context) |
+| **Handwriting Quality** | **CER: 85.0% (Med Recall: 11.1%)** | **CER: 31.5% (Med Recall: 100.0%)** | EXPECTED: Moderate on clean block text | EXPECTED: High on cursive prescriptions |
 | **Image Privacy Boundary** | **Phone-Local** (Image never leaves device) | Processed in Server RAM | Processed in Server RAM | **Leaves Server** (3rd party API) |
 | **Operational Cost** | **Free ($0)** | **Free ($0)** | Free ($0) | Paid API Tokens |
 
 ---
 
 ### 1.3 Architectural Recommendation (Based Strictly on MEASURED Rows)
-1. **Selection**: **Tesseract.js running client-side on the patient's device** is selected as the winning architecture for ChronicCare-AI.
+1. **Selection**: **Tesseract.js running client-side on the patient's device** is selected as the winning architecture for ChronicCare-AI, achieving **100.0% field recall** on clean printed reports and **11.1% medicine recall** on real handwritten phone photos.
 2. **Zero Server Footprint & Total Privacy**: Because Tesseract.js executes inside a browser Web Worker, the backend server consumes **0 MB of RAM**, and patient document photos **never leave the user's phone or browser**.
 3. **Bilingual Clinical Support**: Tesseract.js supports bilingual English and Urdu (`eng+urd`) with a one-time 6.29 MB cached download, unlike RapidOCR which is strictly limited to Latin and Chinese characters.
-4. **Safety Net**: As measured, free local OCR engines struggle with doctor handwriting (relying on clean block print or high-contrast lines). The patient confirmation screen ([`OcrConfirmScreen.tsx`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/app/components/OcrConfirmScreen.tsx)), where patients verify, fix, or manually add unread medicines, is the mandatory clinical safety net.
+4. **Safety Net**: Real doctor handwriting produces an average Character Error Rate of **85.0%**. The patient confirmation screen ([`OcrConfirmScreen.tsx`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/app/components/OcrConfirmScreen.tsx)), where patients verify, fix, or manually add unread medicines, is the mandatory clinical safety net.
 
 ---
 

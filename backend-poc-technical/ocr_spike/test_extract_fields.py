@@ -230,3 +230,42 @@ def test_evidence_string_always_present():
         assert "evidence" in field
         assert len(field["evidence"].strip()) > 0
 
+
+
+def test_ocr_slip_hba1c_letters():
+    text = "HbAlc: 7.8% and HbA1.c: 8.5%"
+    res = extract_fields(text)
+    hba1c_fields = [f for f in res["fields"] if f["kind"] == "hba1c"]
+    assert len(hba1c_fields) == 2
+    assert {f["value"] for f in hba1c_fields} == {7.8, 8.5}
+
+
+def test_cross_line_observation_table():
+    text = "TEST\nGlycated haemoglobin\n8.1%\nBlood Pressure\n140/90 mmHg"
+    res = extract_fields(text)
+    kinds = {f["kind"] for f in res["fields"]}
+    assert "hba1c" in kinds
+    assert "bp" in kinds
+
+
+def test_cholesterol_not_extracted_as_glucose():
+    text = "Total Cholesterol: 195 mg/dL\nFasting Blood Glucose: 110 mg/dL"
+    res = extract_fields(text)
+    gluc_fields = [f for f in res["fields"] if f["kind"] == "glucose"]
+    assert len(gluc_fields) == 1
+    assert gluc_fields[0]["value"] == 110.0
+
+
+def test_medication_with_internal_whitespace():
+    text = "Tab. Glime pinide 2mg 1+0+0\nTab. Empag liflozin 10mg OD"
+    res = extract_fields(text)
+    med_names = {f["name"] for f in res["fields"] if f["kind"] == "medication"}
+    assert "glimepiride" in med_names
+    assert "empagliflozin" in med_names
+
+
+def test_medication_digit_ocr_slip():
+    text = "Tab. Lisinopni1 10mg OD"
+    res = extract_fields(text)
+    med_names = {f["name"] for f in res["fields"] if f["kind"] == "medication"}
+    assert "lisinopril" in med_names

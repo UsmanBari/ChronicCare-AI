@@ -7,7 +7,8 @@
       "unit": "mg/dL",
       "context": "fasting"
     },
-    "total_chol": 195.0
+    "total_chol": 195.0,
+    "full_text": "SAMPLE LAB - DIAGNOSTIC REPORT\nPatient: Test Patient 01    Age: 58    Gender: M\nDate: 2026-10-15\n--------------------------------------------------\nTEST NAME                   RESULT       REFERENCE\nHbA1c:                      7.8 %        < 5.7 %\nFasting Blood Glucose:      126 mg/dL    70-99 mg/dL\nTotal Cholesterol:          195 mg/dL    < 200 mg/dL"
   },
   "lab_02.png": {
     "type": "lab",
@@ -20,7 +21,8 @@
     "bp": [
       148,
       92
-    ]
+    ],
+    "full_text": "SAMPLE LAB SERVICES\nPatient: Test Patient 02    DOB: 1968-05-12\n==================================================\nInvestigation              Observation\nGlycated haemoglobin       8.1%\nBlood Glucose (Fasting)    7.2 mmol/L\nBP:                        148/92 mmHg"
   },
   "lab_03.png": {
     "type": "lab",
@@ -34,7 +36,8 @@
       130,
       85
     ],
-    "total_chol": 212.0
+    "total_chol": 212.0,
+    "full_text": "SAMPLE CLINICAL LABORATORIES\nName: Test Patient 03\n--------------------------------------------------\nHbA1c: 6.9 %\nRandom Glucose: 160 mg/dL\nBlood Pressure: 130/85 mmHg\nTotal Cholesterol: 212 mg/dL"
   },
   "lab_04.png": {
     "type": "lab",
@@ -44,7 +47,8 @@
       "unit": "mmol/L",
       "context": "fasting"
     },
-    "total_chol": 180.0
+    "total_chol": 180.0,
+    "full_text": "SAMPLE LAB - ENDOCRINE PANEL\nPatient: Test Patient 04\nHbA1c: 7.4 %\nFasting Glucose: 6.8 mmol/L\nTotal Cholesterol: 180 mg/dL"
   },
   "lab_05.png": {
     "type": "lab",
@@ -57,7 +61,8 @@
     "bp": [
       155,
       95
-    ]
+    ],
+    "full_text": "SAMPLE LAB PATHOLOGY\nPatient: Test Patient 05\nTest                       Result\nGlycated haemoglobin       9.0%\nGlucose (RBS)              210 mg/dL\nBP                         155/95 mmHg"
   },
   "lab_06.png": {
     "type": "lab",
@@ -70,7 +75,8 @@
       120,
       80
     ],
-    "total_chol": 175.0
+    "total_chol": 175.0,
+    "full_text": "SAMPLE LAB - GENERAL PROFILE\nPatient: Test Patient 06\nFasting Blood Sugar: 115 mg/dL\nBP: 120/80 mmHg\nTotal Cholesterol: 175 mg/dL"
   },
   "lab_07.png": {
     "type": "lab",
@@ -79,7 +85,8 @@
       "value": 165.0,
       "unit": "mg/dL",
       "context": "post-prandial"
-    }
+    },
+    "full_text": "SAMPLE LAB BIOCHEMISTRY\nPatient: Test Patient 07\nHbA1c: 7.1 %\nGlucose (Post-prandial): 165 mg/dL"
   },
   "lab_08.png": {
     "type": "lab",
@@ -92,7 +99,8 @@
     "bp": [
       142,
       88
-    ]
+    ],
+    "full_text": "SAMPLE LAB - METABOLIC CHECK\nPatient: Test Patient 08\nHbA1c: 8.5 %\nFasting Glucose: 8.4 mmol/L\nBP: 142/88 mmHg"
   },
   "lab_09.png": {
     "type": "lab",
@@ -101,7 +109,8 @@
       "value": 140.0,
       "unit": "mg/dL",
       "context": "random"
-    }
+    },
+    "full_text": "SAMPLE LAB - ROUTINE REPORT\nPatient: Test Patient 09\nHbA1c: 6.5 %\nRandom Glucose: 140 mg/dL"
   },
   "rx_01.png": {
     "type": "prescription",
@@ -116,7 +125,8 @@
         "dose": "5 mg",
         "frequency": "OD"
       }
-    ]
+    ],
+    "full_text": "SAMPLE CLINIC PRESCRIPTION\nDr. Sample Physician, MBBS, FCPS\nPatient: Test Patient 11\nRx:\n1. Tab. Metformin 500 mg BD\n2. Tab. Amlodipine 5mg OD"
   },
   "rx_02.png": {
     "type": "prescription",
@@ -131,7 +141,8 @@
         "dose": "50 mg",
         "frequency": "once daily"
       }
-    ]
+    ],
+    "full_text": "SAMPLE MEDICAL CLINIC\nPatient: Test Patient 12\nRx:\n1. Tab. Gliclazide 80mg 1+0+1\n2. Tab. Losartan 50 mg — once daily"
   },
   "rx_03.png": {
     "type": "prescription",
@@ -151,7 +162,8 @@
         "dose": "10 mg",
         "frequency": "OD"
       }
-    ]
+    ],
+    "full_text": "SAMPLE FAMILY HEALTH CLINIC\nPatient: Test Patient 13\nRx:\n1. Tab. Sitagliptin 100 mg OD\n2. Tab. Lisinopril 10 mg OD\n3. Tab. Empagliflozin 10 mg OD"
   },
   "rx_06.png": {
     "type": "prescription",
@@ -171,70 +183,80 @@
         "dose": "10 units",
         "frequency": "at night"
       }
-    ]
+    ],
+    "full_text": "SAMPLE SPECIALIST CLINIC\nPatient: Test Patient 16\nRx:\n1. Tab. Metformin 850 mg BD\n2. Tab. Telmisartan 40 mg OD\n3. Insulin glargine 10 units at night"
   },
-  "rx_handwritten_01.png": {
+  "rx_photo_01.jpg": {
     "type": "prescription",
     "patient_name": "Test Patient",
     "medicines": [
       {
         "name": "metformin",
         "dose": "500 mg",
-        "frequency": "BD"
+        "frequency": "1+0+1"
       },
       {
         "name": "glimepiride",
         "dose": "1 mg",
-        "frequency": "OD"
+        "frequency": "1+0+0"
       }
-    ]
+    ],
+    "full_text": "CLINICAL PRESCRIPTION NOTE\nPatient: Test Patient Age: 54y / M\nDate: 30/10/2026\n\nRx:\n1. Tab. Metformin 500mg\n1 + 0 + 1 (after meals)\n\n2. Tab. Glimepiride 1mg\n1 + 0 + 0 (before breakfast)\n\nAdvice: Check fasting blood sugar twice weekly.\nDr. A. Khan, MBBS, FCPS"
   },
-  "rx_handwritten_02.png": {
+  "rx_photo_02.jpg": {
     "type": "prescription",
     "patient_name": "Test Patient",
     "medicines": [
       {
         "name": "amlodipine",
         "dose": "5 mg",
-        "frequency": "OD"
+        "frequency": "0+0+1"
       },
       {
         "name": "losartan",
         "dose": "50 mg",
-        "frequency": "OD"
+        "frequency": "1+0+0"
       }
-    ]
+    ],
+    "full_text": "MEDICAL CONSULTATION SLIP\nName: Test Patient Age: 62y / F\nDate: 29/10/2026\n\nRx:\n1. Tab. Amlodipine 5mg\n0 + 0 + 1 (OD at bedtime)\n\n2. Tab. Losartan 50mg\n1 + 0 + 0 (once daily in morning)\n\nAdvice: Record BP daily in morning; low salt diet.\nDr. S. Tariq, Consultant Physician"
   },
-  "rx_handwritten_03.png": {
+  "rx_photo_03.jpg": {
     "type": "prescription",
     "patient_name": "Test Patient",
     "medicines": [
       {
         "name": "sitagliptin",
         "dose": "100 mg",
-        "frequency": "OD"
+        "frequency": "1+0+0 OD"
       },
       {
         "name": "metformin",
         "dose": "1000 mg",
-        "frequency": "BD"
+        "frequency": "1+0+1 BD"
+      },
+      {
+        "name": "lisinopril",
+        "dose": "10 mg",
+        "frequency": "1+0+0 OD"
       }
-    ]
+    ],
+    "full_text": "PATIENT PRESCRIPTION\nPt: Test Patient Age: 58y / M\nDate: 28/10/2026\n\nRx:\n1. Tab. Sitagliptin 100mg\n1 + 0 + 0 OD\n\n2. Tab. Metformin 1000mg\n1 + 0 + 1 BD (after food)\n\n3. Tab. Lisinopril 10mg\n1 + 0 + 0 OD\n\nDr. R. Ahmed, MBBS"
   },
-  "rx_handwritten_04.png": {
+  "rx_photo_04.jpg": {
     "type": "prescription",
     "patient_name": "Test Patient",
     "medicines": [
       {
         "name": "bisoprolol",
         "dose": "2.5 mg",
-        "frequency": "OD"
+        "frequency": "1+0+0 OD"
       },
       {
         "name": "empagliflozin",
         "dose": "10 mg",
-        "frequency": "OD"
+        "frequency": "1+0+0"
       }
-    ]
+    ],
+    "full_text": "CLINIC OUTPATIENT NOTE\nPatient Name: Test Patient Age: 65y / F\nDate: 31/10/2026\n\nRx:\n1. Tab. Bisoprolol 2.5mg\n1 + 0 + 0 OD\n\n2. Tab. Empagliflozin 10mg\n1 + 0 + 0 (once daily in morning)\n\nAdvice: Maintain adequate hydration; check kidney function.\nDr. N. Malik, FCPS"
   }
 }

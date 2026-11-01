@@ -33,7 +33,7 @@ async function runBenchmark() {
 
   const photoFiles = fs.existsSync(PHOTOS_DIR)
     ? fs.readdirSync(PHOTOS_DIR)
-        .filter(f => f.endsWith('.png'))
+        .filter(f => f.endsWith('.png') || f.endsWith('.jpg') || f.endsWith('.jpeg'))
         .map(f => ({ name: f, path: path.join(PHOTOS_DIR, f), category: 'handwritten' }))
     : [];
 
