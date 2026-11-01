@@ -91,19 +91,19 @@
 
 ## 5. Proposed for Doctor Review (14 Missed Urdu Danger Phrases)
 
-These regex patterns are proposed for clinical sign-off by Usman / Dr. Farooq before being incorporated into `backend-poc-technical/agents/input_triage.py`. Per project safety rules, **no triage code has been modified**; these proposals are submitted for formal review.
+These regex patterns are proposed for clinical sign-off by Usman, then the reviewing doctors (see docs/DOCTOR_REVIEW_PACK_W2.md) before being incorporated into `backend-poc-technical/agents/input_triage.py`. Per project safety rules, **no triage code has been modified**; these proposals are submitted for formal review.
 
 | Phrase | Proposed Pattern | Category | Proposed Level | Clinical Reason |
 |---|---|---|---|---|
 | چھاتی پر شدید دباؤ ہے اور درد بائیں بازو میں جا رہا ہے | `(?:چھاتی\|سینے).*(?:دباؤ\|بوجھ).*بائیں بازو` | `chest_pain` | `emergency` | Radiation of heavy chest pressure into the left arm is a hallmark symptom of acute coronary syndrome (ACS). |
 | سینے میں جلن اور شدید گھٹن ہو رہی ہے | `(?:سینے\|چھاتی).*(?:گھٹن\|شدید گھٹن)` | `chest_pain` | `emergency` | Severe chest constriction/suffocation ("گھٹن") with burning sensations often indicates ischemic cardiac pain rather than benign gastroesophageal reflux. |
 | سانس پھول رہی ہے اور بیٹھا بھی نہیں جا رہا | `سانس پھول.*(?:بیٹھا بھی نہیں جا رہا\|چلنا محال)` | `breathing` | `emergency` | Orthopnea or acute breathlessness that impairs sitting still indicates acute respiratory compromise or decompensated heart failure. |
-| آنکھوں کے آگے اندھیرا آ گیا اور غشی کے دورے پڑ رہے ہیں | `غشی(?: کے دورے)?\|آنکھوں کے آگے اندھیرا` | `syncope` | `emergency` | Recurrent blackout episodes or actual fainting spells ("غشی") suggest hemodynamically unstable arrhythmias or transient cerebral hypoperfusion. |
+| آنکھوں کے آگے اندھیرا آ گیا اور غشی کے دورے پڑ رہے ہیں | `غشی(?: کے دورے)?\|(?:آنکھوں کے آگے اندھیرا.*(?:دورے\|غشی\|بے ہوش\|گر پڑا))` | `syncope` | `emergency` | Recurrent blackout episodes or actual fainting spells ("غشی") suggest hemodynamically unstable arrhythmias or transient cerebral hypoperfusion. Tightened to require faint/blackout context so benign sensory mentions do not alarm. |
 | میرا آدھا جسم بالکل سن ہو گیا ہے اور ہلایا نہیں جا رہا | `آدھا جسم.*(?:سن\|ہلایا نہیں جا رہا)` | `focal_weakness_stroke` | `emergency` | Acute unilateral body numbness and inability to move limbs (hemiparesis) is a cardinal stroke warning sign (FAST criteria). |
 | میرے بائیں ہاتھ اور پاؤں میں جان نہیں رہی، کمزوری ہو گئی ہے | `(?:ہاتھ اور پاؤں\|ایک طرف).*جان نہیں رہی` | `focal_weakness_stroke` | `emergency` | Sudden unilateral motor loss ("جان نہیں رہی") indicates focal neurological deficit consistent with ischemic stroke or TIA. |
-| میرا منہ ایک طرف ٹیڑھا ہو گیا ہے اور بولا نہیں جا رہا | `منہ.*ٹیڑھا\|بولا نہیں جا رہا` | `focal_weakness_stroke` | `emergency` | Acute facial asymmetry ("منہ ٹیڑھا") paired with dysphasia ("بولا نہیں جا رہا") demands immediate emergency thrombolysis evaluation. |
+| میرا منہ ایک طرف ٹیڑھا ہو گیا ہے اور بولا نہیں جا رہا | `(?:منہ.*ٹیڑھا.*بولا نہیں جا رہا)\|(?:منہ ایک طرف ٹیڑھا)` | `focal_weakness_stroke` | `emergency` | Acute facial asymmetry ("منہ ٹیڑھا") paired with dysphasia ("بولا نہیں جا رہا") demands immediate emergency thrombolysis evaluation. Tightened to exclude bare "بولا نہیں جا رہا" which occurs in benign sore throats. |
 | بہت شدید چکر آ رہے ہیں اور سر گھوم رہا ہے، حواس کام نہیں کر رہے | `حواس کام نہیں کر رہے` | `confusion` | `emergency` | Acute loss of faculties / encephalopathy / severe cognitive confusion ("حواس کام نہیں کر رہے") indicates critical cerebral compromise. |
-| شوگر 35 آ گئی ہے اور ہاتھ کانپ رہے ہیں، شدید پسینہ آ رہا ہے | `شوگر.*(?:3[0-9]\|2[0-9]\|[1-9])\b.*(?:کانپ\|پسینہ)` | `severe_hypoglycemia` | `emergency` | Objective glucose $< 40\text{ mg/dL}$ with acute autonomic symptoms (tremors, sweating) represents neuroglycopenic risk of seizure/coma. |
+| شوگر 35 آ گئی ہے اور ہاتھ کانپ رہے ہیں، شدید پسینہ آ رہا ہے | Numeric extraction with `\b\d{1,3}\b < 54` + autonomic symptoms `(?:ہاتھ کانپ\|پسینہ\|کپکپی\|لرز)` | `severe_hypoglycemia` | `emergency` | Objective glucose $< 54\text{ mg/dL}$ with acute autonomic symptoms represents neuroglycopenic risk of seizure/coma. Evaluated numerically with Eastern Arabic digit conversion (۰-۹) and word boundaries to guarantee `135` never matches `35`. |
 | کپکپی طاری ہے، آنکھوں کے آگے اندھیرا ہے اور شوگر 40 سے کم ہے | `شوگر.*40 سے کم\|کپکپی.*آنکھوں کے آگے اندھیرا` | `severe_hypoglycemia` | `emergency` | Explicit report of glucose $< 40\text{ mg/dL}$ with presyncopal visual darkening and tremors requires immediate intervention. |
 | میرے سر میں ایسا شدید درد ہے جیسے پہلے کبھی نہیں ہوا | `شدید درد.*پہلے کبھی نہیں ہوا\|بدترین سر درد` | `severe_headache` | `emergency` | Classic "thunderclap" headache description ("worst headache of life"), a red flag for subarachnoid hemorrhage (SAH). |
 | اچانک ایک آنکھ سے نظر آنا بند ہو گیا ہے | `اچانک.*نظر آنا بند\|ایک آنکھ سے.*بند` | `vision_loss` | `emergency` | Acute monocular visual loss (amaurosis fugax or central retinal artery occlusion) is an acute ocular and cerebrovascular emergency. |
@@ -112,8 +112,38 @@ These regex patterns are proposed for clinical sign-off by Usman / Dr. Farooq be
 
 ---
 
-## 6. Engine Comparison: v2 vs v3 Triage on Urdu Phrases
+## 6. Measured Engine Comparison: v2 vs v3 vs Proposed
 
+All performance figures below are **MEASURED** directly from programmatic execution using [`scripts/eval_proposed_urdu_patterns.py`](file:///C:/Users/Dell/OneDrive/Desktop/ChronicCare-AI/scripts/eval_proposed_urdu_patterns.py) across 20 independent Urdu danger phrases, 10 safe look-alikes, and 40 handwritten benign Urdu patient sentences (`tests/sim/benign_urdu_sentences_hassaan.json`).
+
+### Table 6A: Measured Triage Classification Performance
+| Evaluation Metric | Legacy v2 Engine (`run_stage1_red_flag_screen`) | Current v3 Engine (`classify_input`) | Proposed v3+ Engine (with 14 Proposed Patterns) |
+|---|---|---|---|
+| **True Positives (TP)** | 4 / 20 | 6 / 20 | **20 / 20** |
+| **False Negatives (FN)** | 16 / 20 | 14 / 20 | **0 / 20** |
+| **True Negatives (TN) — Lookalikes** | 10 / 10 | 10 / 10 | **10 / 10** |
+| **False Positives (FP) — Lookalikes**| 0 / 10 | 0 / 10 | **0 / 10** |
+| **True Negatives (TN) — Benign 40** | 40 / 40 | 40 / 40 | **40 / 40** |
+| **False Positives (FP) — Benign 40** | 0 / 40 | 0 / 40 | **0 / 40** |
+| **Sensitivity** | **20.0%** (4/20) | **30.0%** (6/20) | **100.0%** (20/20) |
+| **Overall Specificity** | **100.0%** (50/50) | **100.0%** (50/50) | **100.0%** (50/50) |
+| **False Alarm Rate (FPR)** | **0.0%** (0/50) | **0.0%** (0/50) | **0.0%** (0/50) |
+
+### Table 6B: Critical Safety & Regression Checks
+1. **Hypoglycemia Greedy Regex Regression Check**:
+   - Patient Input: `"شوگر 135 ہے اور ہاتھ کانپ رہے ہیں"`
+   - Result: **NOT TRIGGERED** (`is_danger: False`, `category: None`).
+   - Reason: Standalone integer word boundary extraction and numeric threshold (`val < 54`) prevents `135` from matching substring `35`.
+2. **Stroke Dysphasia Tightening Check**:
+   - Patient Input: `"کل رات گلا خراب ہوا تھا اس لیے زیادہ بولا نہیں جا رہا"`
+   - Result: **NOT TRIGGERED** (`is_danger: False`, `category: None`).
+   - Reason: Requires facial asymmetry (`منہ ٹیڑھا`) or hemiparesis pairing; isolated benign dysphasia from pharyngitis does not alarm.
+3. **Syncope Visual Blackout Tightening Check**:
+   - Patient Input: `"کمرے کی لائٹ بند کی تو آنکھوں کے آگے اندھیرا محسوس ہوا مگر کوئی تکلیف نہیں"`
+   - Result: **NOT TRIGGERED** (`is_danger: False`, `category: None`).
+   - Reason: Requires presyncope/fainting context (`غشی`, `بے ہوش`, `دورے`, `گر پڑا`); benign dark adaptation does not alarm.
+
+### Table 6C: Architectural Workflow Comparison
 | Architectural Dimension | Legacy v2 Engine (`adaptive_interview_agent.py`) | Modern v3 Engine (`input_triage.py` + Runner) | Impact on Urdu Safety & User Experience |
 |---|---|---|---|
 | **Triage Screening Phase** | Triage screening is embedded late in sequential question steps. | Upfront screening on **every patient input** before question planning. | In v3, a patient typing an emergency phrase in Urdu at turn 1 is escalated immediately without enduring symptom questions. |
