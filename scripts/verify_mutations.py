@@ -284,7 +284,33 @@ MUTATIONS = [
         "replacement": "        if change >= threshold:\n            direction = DIRECTION_RISING\n        elif change <= -threshold:\n            direction = DIRECTION_FALLING",
         "test_node": "backend-poc-technical/test_trend_agent.py::test_conflict_median_positive_slope_non_positive_yields_stable",
     },
+    # --- Day 5 Mutations (M-U5-1 to M-U5-3: Risk Agent & Can-Only-Raise Invariants) ---
+    {
+        "id": "M-U5-1",
+        "name": "Can-Only-Raise Invariant: apply_risk_to_level lowers a triage level",
+        "file": BACKEND_DIR / "agents" / "risk_rules.py",
+        "target": "    if level == \"routine\":\n        target = \"review\"\n        if LEVEL_RANK[target] > LEVEL_RANK[level]:\n            return target, True",
+        "replacement": "    if level == \"emergency\":\n        return \"routine\", True",
+        "test_node": "backend-poc-technical/test_risk_rules.py::test_apply_risk_to_level_matrix[emergency-high-True-True]",
+    },
+    {
+        "id": "M-U5-2",
+        "name": "Can-Only-Raise Invariant: RISK_CAN_RAISE flag ignored",
+        "file": BACKEND_DIR / "agents" / "risk_rules.py",
+        "target": "    if not (risk_enabled and risk_can_raise):\n        return level, False",
+        "replacement": "    if not risk_enabled:\n        return level, False",
+        "test_node": "backend-poc-technical/test_risk_rules.py::test_apply_risk_to_level_matrix[routine-high-True-False]",
+    },
+    {
+        "id": "M-U5-3",
+        "name": "Risk Agent: Fall back to basic when waist is missing",
+        "file": BACKEND_DIR / "agents" / "risk_agent.py",
+        "target": "        # 4. Check Missing Features (No Basic Fallback per D8/D12)\n        if missing:\n            return {\n                \"status\": \"not_enough_information\",\n                \"missing\": sorted(list(set(missing))),\n                \"audience\": \"provider_only\",\n            }",
+        "replacement": "        # 4. Check Missing Features (No Basic Fallback per D8/D12)\n        if missing and missing != [\"waist_cm\"]:\n            return {\n                \"status\": \"not_enough_information\",\n                \"missing\": sorted(list(set(missing))),\n                \"audience\": \"provider_only\",\n            }\n        if missing == [\"waist_cm\"]:\n            raw_features[\"waist_cm\"] = 85.0",
+        "test_node": "backend-poc-technical/test_risk_agent.py::test_missing_waist_yields_not_enough_info",
+    },
 ]
+
 
 
 def run_mutation(mut: dict) -> dict:

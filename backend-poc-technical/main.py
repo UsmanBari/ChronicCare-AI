@@ -365,6 +365,10 @@ ALLOWED_COMORBIDITIES = {
     "nerve_or_foot_problems",
 }
 
+# Physiological plausible range for adult waist circumference in cm (needs doctor review)
+WAIST_MIN_CM = 40.0
+WAIST_MAX_CM = 200.0
+
 
 class ProfileUpdateRequest(BaseModel):
     model_config = {"extra": "forbid"}
@@ -378,6 +382,7 @@ class ProfileUpdateRequest(BaseModel):
     voice_enabled: Optional[bool] = None
     height_cm: Optional[float] = None
     weight_kg: Optional[float] = None
+    waist_cm: Optional[float] = None
     diagnosis_year_diabetes: Optional[int] = None
     diagnosis_year_hypertension: Optional[int] = None
     smoking_status: Optional[str] = None
@@ -455,6 +460,19 @@ class ProfileUpdateRequest(BaseModel):
             raise ValueError("Weight must be between 20 and 400 kg")
         return round(val, 1)
 
+    @field_validator("waist_cm")
+    @classmethod
+    def validate_waist_cm(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return None
+        try:
+            val = float(v)
+        except (ValueError, TypeError):
+            raise ValueError("Waist circumference must be a valid number")
+        if val < WAIST_MIN_CM or val > WAIST_MAX_CM:
+            raise ValueError(f"Waist circumference must be between {WAIST_MIN_CM} and {WAIST_MAX_CM} cm (needs doctor review)")
+        return round(val, 1)
+
     @field_validator("diagnosis_year_diabetes")
     @classmethod
     def validate_diag_year_dm(cls, v: Optional[int]) -> Optional[int]:
@@ -515,6 +533,7 @@ class ProfileResponse(BaseModel):
     voice_enabled: bool = False
     height_cm: Optional[float] = None
     weight_kg: Optional[float] = None
+    waist_cm: Optional[float] = None
     diagnosis_year_diabetes: Optional[int] = None
     diagnosis_year_hypertension: Optional[int] = None
     smoking_status: Optional[str] = None
@@ -937,6 +956,7 @@ class ReviewDetailResponse(BaseModel):
     patient_background: Optional[Dict[str, Any]] = None
     answered_by: Optional[str] = None
     trends: Optional[TrendsResponse] = None
+    risk: Optional[Dict[str, Any]] = None
 
 
 class VoiceTranscribeResponse(BaseModel):
@@ -1328,6 +1348,9 @@ def get_profile_endpoint(current_user: Dict[str, Any] = Depends(require_role("pa
             on_insulin_or_sulfonylurea=False,
             language="en",
             voice_enabled=False,
+            height_cm=None,
+            weight_kg=None,
+            waist_cm=None,
             consent_granted_at=None,
             consent_revoked_at=None,
             provider_notification_consent_at=None,
@@ -1346,6 +1369,7 @@ def get_profile_endpoint(current_user: Dict[str, Any] = Depends(require_role("pa
         voice_enabled=profile.get("voice_enabled", False),
         height_cm=profile.get("height_cm"),
         weight_kg=profile.get("weight_kg"),
+        waist_cm=profile.get("waist_cm"),
         diagnosis_year_diabetes=profile.get("diagnosis_year_diabetes"),
         diagnosis_year_hypertension=profile.get("diagnosis_year_hypertension"),
         smoking_status=profile.get("smoking_status"),
@@ -1412,6 +1436,7 @@ def update_profile_endpoint(
         voice_enabled=body.voice_enabled,
         height_cm=body.height_cm,
         weight_kg=body.weight_kg,
+        waist_cm=body.waist_cm,
         diagnosis_year_diabetes=body.diagnosis_year_diabetes,
         diagnosis_year_hypertension=body.diagnosis_year_hypertension,
         smoking_status=body.smoking_status,
@@ -1433,6 +1458,8 @@ def update_profile_endpoint(
         updated_fields.append("height_cm")
     if body.weight_kg is not None:
         updated_fields.append("weight_kg")
+    if body.waist_cm is not None:
+        updated_fields.append("waist_cm")
     if body.diagnosis_year_diabetes is not None:
         updated_fields.append("diagnosis_year_diabetes")
     if body.diagnosis_year_hypertension is not None:
@@ -1461,6 +1488,7 @@ def update_profile_endpoint(
         voice_enabled=updated.get("voice_enabled", False),
         height_cm=updated.get("height_cm"),
         weight_kg=updated.get("weight_kg"),
+        waist_cm=updated.get("waist_cm"),
         diagnosis_year_diabetes=updated.get("diagnosis_year_diabetes"),
         diagnosis_year_hypertension=updated.get("diagnosis_year_hypertension"),
         smoking_status=updated.get("smoking_status"),
@@ -3766,6 +3794,28 @@ def _compute_patient_trends_safe(user_id: str, days: int = 30) -> Optional[Trend
         return None
 
 
+def _compute_patient_risk_safe(user_id: str) -> Optional[Dict[str, Any]]:
+    """Safely compute patient diabetes risk assessment for provider review; fails gracefully to None."""
+    if os.environ.get("RISK_ENABLED", "").strip().lower() != "true":
+        return None
+    try:
+        profile = get_patient_profile(user_id)
+        if not profile:
+            return None
+        conditions = profile.get("conditions", [])
+        conds_lower = [str(c).lower() for c in conditions]
+        has_htn = any("hyper" in c for c in conds_lower)
+        has_diabetes = any("diabet" in c for c in conds_lower)
+        if not has_htn or has_diabetes:
+            return None
+        history = get_user_reading_history(user_id, days=30)
+        from agents.risk_agent import assess as assess_risk
+        return assess_risk(profile=profile, latest_readings=history, conditions=conditions)
+    except Exception as e:
+        logger.warning(f"Risk computation failed: {type(e).__name__}")
+        return None
+
+
 @app.get("/api/me/trends", response_model=TrendsResponse, tags=["Trends"])
 def get_my_trends_endpoint(
     days: int = Query(30, ge=7, le=90, description="Observation window in days (7-90)"),
@@ -3803,6 +3853,7 @@ def _build_patient_background(user_id: str) -> Optional[Dict[str, Any]]:
     return {
         "height_cm": height_cm,
         "weight_kg": weight_kg,
+        "waist_cm": profile.get("waist_cm"),
         "bmi": bmi,
         "diagnosis_year_diabetes": profile.get("diagnosis_year_diabetes"),
         "diagnosis_year_hypertension": profile.get("diagnosis_year_hypertension"),
@@ -3878,6 +3929,7 @@ def get_provider_review_detail_endpoint(
         patient_background=patient_bg,
         answered_by=answered_by_val,
         trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
+        risk=_compute_patient_risk_safe(checkin["user_id"]),
     )
 
 
@@ -3951,6 +4003,7 @@ def post_provider_review_action_endpoint(
         record_source_label=record_label,
         patient_background=patient_bg,
         trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
+        risk=_compute_patient_risk_safe(checkin["user_id"]),
     )
 
 
