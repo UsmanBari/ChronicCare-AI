@@ -71,6 +71,33 @@ def test_label_with_no_equivalent_is_skipped():
     assert candidates == []
 
 
+def test_card_lookup_by_label_and_population():
+    """
+    Verify explicit (label, population) lookup:
+    unknown card is skipped; diabetes_undiagnosed receives exactly Table 1 + Table 2 pairs.
+    """
+    # Unknown label/population is skipped
+    unknown_card = {"label": "unknown_biomarker", "population": "general"}
+    assert get_candidate_datasets_for_model(unknown_card) == []
+    assert get_model_disease_category("unknown_biomarker", "general") is None
+
+    # Exact diabetes_undiagnosed card gets Table 1 + Table 2 targets
+    diabetes_card = {
+        "label": "diabetes_undiagnosed",
+        "population": "adults_without_diabetes",
+        "features": ["age", "sex_male", "bmi", "waist_cm"],
+    }
+    candidates = get_candidate_datasets_for_model(diabetes_card)
+    expected_pairs = [
+        ("framingham", "glucose_ge_200"),
+        ("framingham", "glucose_ge_126"),
+        ("pima", "diabetes"),
+        ("brfss2015_kaggle", "diabetes"),
+        ("brfss_core", "diabetes"),
+    ]
+    assert candidates == expected_pairs
+
+
 def test_as_saved_mode_when_all_features_present(synthetic_model_dir):
     """Verify that as-saved mode is selected when all model features are in the dataset."""
     _, pipe, card = synthetic_model_dir
@@ -217,11 +244,11 @@ def test_missing_dataset_returns_not_run_without_crashing(synthetic_model_dir):
 def test_cardio70k_skipped_for_models_with_bp_features():
     """Verify Cardio70k is excluded from candidates for models with BP features."""
     # Model 1: no BP feature -> Cardio70k included
-    card_no_bp = {"label": "hypertension_measured_130_80", "features": ["age", "bmi"]}
+    card_no_bp = {"label": "hypertension_measured_130_80", "population": "adults_without_htn_unmedicated", "features": ["age", "bmi"]}
     candidates_no_bp = [c[0] for c in get_candidate_datasets_for_model(card_no_bp)]
     assert "cardio70k" in candidates_no_bp
 
     # Model 2: has BP feature -> Cardio70k excluded
-    card_with_bp = {"label": "hypertension_measured_130_80", "features": ["age", "bmi", "sbp", "dbp"]}
+    card_with_bp = {"label": "hypertension_measured_130_80", "population": "adults_without_htn_unmedicated", "features": ["age", "bmi", "sbp", "dbp"]}
     candidates_with_bp = [c[0] for c in get_candidate_datasets_for_model(card_with_bp)]
     assert "cardio70k" not in candidates_with_bp

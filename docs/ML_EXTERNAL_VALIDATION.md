@@ -81,19 +81,17 @@ Evaluates diabetes models against external cohorts with biochemical or laborator
 
 ### 1. Model Target vs External Label Distinctions
 - **Undiagnosed Diabetes (`diabetes_undiagnosed`) vs Diagnosed Diabetes (`told_diabetes`):**
-  ChronicCare-AI models were developed to detect occult, undiagnosed dysglycemia among adults unaware of their diabetic status. When applied to BRFSS cohorts, the target is doctor-diagnosed diabetes. Because individuals with established clinical diagnoses frequently have long-standing disease, elevated BMI, older age, and prescribed comorbidities, discriminative ranking appears deceptively high (AUROC 0.76–0.77). However, calibration and diagnostic sensitivity/specificity from these cohorts do not apply to our screening task.
+  ChronicCare-AI models were developed to detect undiagnosed elevated blood sugar among adults unaware of their diabetic status. When applied to BRFSS cohorts, the target is doctor-diagnosed diabetes. Because individuals with established clinical diagnoses frequently have long-standing disease, elevated BMI, older age, and prescribed comorbidities, discriminative ranking appears higher (AUROC 0.741–0.770). However, calibration and diagnostic sensitivity/specificity from these cohorts do not apply to our screening task.
 - **Framingham Blood Glucose Distribution:**
-  In the Framingham Heart Study baseline examination, after excluding subjects with known diabetes (`diabetes == 0`, N = 4,129; 3,745 with measured glucose), the maximum observed blood glucose is 163.0 mg/dL. Every subject in the original cohort with glucose >= 200 mg/dL had already been clinically diagnosed and coded as `diabetes == 1`. Consequently, applying the ADA random glucose threshold (`>= 200 mg/dL`) yields exactly 0 positive cases in the undiagnosed cohort, precluding AUROC computation. Applying the fasting threshold (`>= 126 mg/dL`) yields 22 positive cases (0.54% prevalence), producing an overlap refit AUROC of 0.596.
+  In the Framingham Heart Study baseline examination, after excluding subjects with known diabetes (`diabetes == 0`, N = 4,129; 3,745 with measured glucose), the maximum observed blood glucose is 163.0 mg/dL. Every subject in the original cohort with glucose >= 200 mg/dL had already been clinically diagnosed and coded as `diabetes == 1`. Consequently, applying the ADA random glucose threshold (`>= 200 mg/dL`) yields exactly 0 positive cases in the undiagnosed cohort, precluding AUROC computation. Applying the fasting threshold (`>= 126 mg/dL`) yields 22 positive cases (0.54% prevalence), producing an overlap refit AUROC of 0.596 [0.487, 0.715]. Because the confidence interval includes 0.5, with only 22 cases, this can't be told apart from chance.
 - **Pima Indians Biochemical OGTT:**
-  Pima diabetes status is determined by formal 2-hour post-load oral glucose tolerance test (OGTT >= 200 mg/dL). This biochemical criterion detects true metabolic dysregulation in a high-prevalence cohort (35.1% prevalence among adult females). The model achieves an AUROC of 0.735, with negative calibration-in-the-large reflecting the substantially higher prevalence compared to general screening populations.
+  Pima diabetes status is determined by formal 2-hour post-load oral glucose tolerance test (OGTT >= 200 mg/dL), identifying elevated blood glucose in a cohort with 35.1% prevalence among adult females. The models achieve an AUROC of 0.735 [0.706, 0.769], with negative calibration-in-the-large reflecting the substantially higher prevalence compared to general screening populations. Because Pima lacks waist circumference, smoking, and blood pressure history, all three diabetes models reduce to the same overlap refit on age and BMI (yielding identical discrimination); consequently, Pima evaluation says nothing about diabetes_full's additional features.
 
 ### 2. Reference Development Discrimination
-For context, the locked internal test AUROCs achieved on the held-out NHANES test split (survey cycles 1999–2023, 11 cycles) are documented in [`docs/ml/EXPERIMENTS_SUMMARY.md:14-18`](file:///C:/Users/Saad/Documents/ChronicCare-AI/docs/ml/EXPERIMENTS_SUMMARY.md#L14-L18):
-- `diabetes_full_nhanes`: AUROC = **0.7527** [0.7291, 0.7763]
-- `diabetes_basic_nhanes`: AUROC = **0.7403** [0.7161, 0.7645]
-- `diabetes_ref_age_sex_bmi`: AUROC = **0.7421** [0.7179, 0.7663]
-
-External ranking on biochemical criteria (Pima AUROC 0.735) closely aligns with NHANES test discrimination, while proxy single-glucose detection in Framingham exhibits lower discrimination (0.596) due to the absence of HbA1c and repeated testing.
+For context, the locked internal test AUROCs achieved on the held-out NHANES temporal test set (`test` 2017–2023, 2 survey cycles) are documented in [`docs/ml/EXPERIMENTS_SUMMARY.md:14-18`](file:///C:/Users/Saad/Documents/ChronicCare-AI/docs/ml/EXPERIMENTS_SUMMARY.md#L14-L18):
+- `diabetes_full_nhanes`: AUROC = **0.7527 [0.7293–0.7748]**
+- `diabetes_basic_nhanes`: AUROC = **0.7403 [0.7182–0.7616]**
+- `diabetes_ref_age_sex_bmi`: AUROC = **0.7421 [0.7203–0.7640]**
 
 ### 3. Feature Mapping Approximations
 Differences in survey and clinical capture between cohorts introduce mapping approximations:
@@ -103,10 +101,10 @@ Differences in survey and clinical capture between cohorts introduce mapping app
   - Blood glucose: Recorded as a single measurement without protocol specification of fasting duration.
 - **CDC BRFSS (Kaggle & Core Parquet):**
   - Age: Recorded in 13 ordinal five-year intervals (`_AGEG5YR`), mapped to category midpoints (e.g. 18–24 -> 21, 80+ -> 82), collapsing intra-interval variance.
-  - Sex Coding: Documented in [CDC BRFSS 2015 Codebook](https://www.cdc.gov/brfss/annual_data/2015/pdf/codebook15_llcp.pdf) (Section 8.1, Variable `SEX`: `1 = Male`, `2 = Female`), mapped to binary indicator `sex_male`.
+  - Sex Coding: Kaggle dataset description specifies 0 = female, 1 = male (https://www.kaggle.com/datasets/alexteboul/diabetes-health-indicators-dataset), coding taken from the Kaggle description, TO CONFIRM.
 - **Cardio70k Examination Records:**
   - Glucose: Recorded only as 3-level ordinal category (`gluc`: 1, 2, 3), precluding diabetes evaluation.
-  - Blood Pressure: Raw examination measurements required systematic rule-based cleaning (1,234 raw inverted rows, with 7 negative values caught in Rule 1, leaving 1,227 non-negative inverted rows handled in Rule 2: 100 swapped and 1,127 set to NaN). Clean measured hypertension prevalence is 81.56% (56,094 / 68,775).
+  - Blood Pressure: Raw examination measurements required systematic rule-based cleaning (1,234 raw inverted rows, with 7 negative values caught in Rule 1, leaving 1,227 non-negative inverted rows handled in Rule 2: 100 swapped and 1,127 set to NaN). Clean measured hypertension prevalence is 81.56% (56,061 / 68,737).
 - **Pima Indians Diabetes:**
   - All participants are adult females of Pima Indian heritage. Features lack waist circumference and smoking history, necessitating overlap refit.
 
