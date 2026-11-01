@@ -66,7 +66,9 @@ export const ReconciliationAlertDetail = () => {
         reconciliation: null,
         verification: null,
         requires_review: true,
+        max_severity: "moderate",
         review_status: "open",
+        actions: [],
         created_at: new Date().toISOString(),
         patient_background: {
           height_cm: 172,
