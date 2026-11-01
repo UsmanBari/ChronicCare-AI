@@ -627,8 +627,23 @@ def step_risk(
             return None
 
         from agents.risk_agent import assess as assess_risk
-        history = get_reading_history_fn(user_id, days=30)
-        risk_res = assess_risk(profile=profile, latest_readings=history, conditions=conditions)
+        history = get_reading_history_fn(user_id, days=30) or []
+
+        current_readings = []
+        for it in (state.intakes or []):
+            for r in it.get("readings", []):
+                obs_t = r.get("observation_type")
+                val = r.get("value")
+                ts = r.get("at") or _utc_now_iso()
+                if obs_t in ("blood_pressure_systolic", "blood_pressure_diastolic", "glucose") and val is not None:
+                    current_readings.append({
+                        "observation_type": obs_t,
+                        "value": float(val),
+                        "timestamp": ts,
+                        "source": "checkin",
+                    })
+        combined_readings = current_readings + history
+        risk_res = assess_risk(profile=profile, latest_readings=combined_readings, conditions=conditions)
         if not risk_res:
             return None
 

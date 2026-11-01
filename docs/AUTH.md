@@ -101,12 +101,27 @@ All authentication events, role escalations, and permission denials are appended
 
 ---
 
-## Clinical Decision Support & Leak Defense (Risk Assessment)
+## Clinical Decision Support, Leak Defense & Audit Trace Permissions
 
-As defined in decisions D12–D15:
-- **Provider Only**: Diabetes risk assessment is computed exclusively on provider review endpoints (`/api/provider/review/{checkin_id}`) and only when the runtime flag `RISK_ENABLED="true"` is set.
-- **Strict Patient Leak Defense**: Patient-facing endpoints (`/api/me`, `/api/me/profile`, `/api/checkins/{id}`, `/api/me/trends`) NEVER compute or return risk scores, bands, or probabilities. Patients never see a risk score or band anywhere in the client UI.
-- **Fail Closed / Safe Fallback**: If `RISK_ENABLED` is false/unset, if the patient is not eligible (diagnosed with diabetes or lacks hypertension), or if an error occurs during evaluation, the backend returns `risk: null` without interrupting clinical workflow.
+As established in decisions D12–D15 and Week 2 Day 7:
+
+### 1. Patient Permissions (`POST /api/checkins/{id}/complete`)
+- **Qualitative Risk Only**: When `RISK_ENABLED="true"` and applicable (hypertension without diabetes), the check-in completion response includes a qualitative patient view (`band`, plain-text `reasons`, and `advisory` caveat).
+- **Strict Leak Defense**: The patient view **NEVER** contains numerical probabilities, regression logits, model names, model versions, or raw weights.
+- **Guideline Explanations**: When `EXPLAIN_ENABLED="true"`, patients receive plain-language guideline explanations (`sentences` and `sources` only).
+- **Trace Restriction**: Patients **NEVER** receive or have access to decision audit traces (`trace`).
+- **Emergency Invariant**: In any emergency check-in (`emergency == true`), both `risk` and `explanation` evaluate strictly to `null`.
+
+### 2. Provider Permissions (`GET /api/provider/review/{checkin_id}` & actions)
+- **Check-in Risk Snapshot (`checkin_risk`)**: Providers have full access to the frozen risk assessment evaluated at check-in completion, including exact `probability`, `band`, `raised` status, `model_name`, `model_version`, `reasons`, and `caveats`.
+- **Live Provider Risk Panel (`risk`)**: Providers view the dynamic risk panel computed live on request via `_compute_patient_risk_safe`.
+- **Full Explanation (`explanation`)**: Providers access the complete RAG explanation structure, including generation `mode`, `status`, `sentences`, `sources`, and validator `rejected_reasons`.
+- **Decision Audit Trace (`trace`)**: Providers have access to the complete execution trace list detailing every completed pipeline node (`node_intake` through `node_persist`) and aggregate summary counts.
+
+### 3. Fail-Closed & Fallback Invariants
+- If `RISK_ENABLED` or `EXPLAIN_ENABLED` is false or unset, the respective fields evaluate to `null`.
+- Ineligible patients (e.g. diagnosed with diabetes) receive `null` for risk assessment fields.
+- Runtime errors during risk calculation or explanation generation fail safely to non-blocking error objects or safe templates, preserving clinical triage decisions and data persistence without interruption.
 
 ---
 

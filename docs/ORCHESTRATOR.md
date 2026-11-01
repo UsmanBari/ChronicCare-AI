@@ -37,6 +37,8 @@ class CheckinState(TypedDict, total=False):
     record_label: Optional[str]
     parsed_context: Optional[Dict[str, Any]]
     triage_decision: Optional[Dict[str, Any]]
+    risk: Optional[Dict[str, Any]]
+    explanation: Optional[Dict[str, Any]]
 ```
 
 ---
@@ -62,7 +64,9 @@ flowchart TD
     is_isolated -- No --> decide_triage["node_decide_triage<br/>Compute deterministic clinical triage & review"]
     
     persist_local --> decide_triage
-    decide_triage --> persist
+    decide_triage --> risk["node_risk<br/>Assess diabetes risk advisory & review escalation"]
+    risk --> explain["node_explain<br/>Generate guideline explanation via RAG/templates"]
+    explain --> persist
     persist --> END([END])
 ```
 
@@ -79,6 +83,8 @@ flowchart TD
 | `node_verify` | `step_verify` | Executes deterministic M4 provenance verification (`verify_reconciliation`) | `verified; requires_review={N}, conflicts={N}` |
 | `node_persist_local` | `step_persist_local_observations` | Saves self-reported observations to local SQLite store (isolated mode only) | `local observations persisted; {N} obs` |
 | `node_decide_triage` | `step_decide_triage` | Applies clinical triage rules, stroke extras, and review escalation | `triage decided; level={level}, requires_review={bool}` |
+| `node_risk` | `step_risk` | Computes diabetes risk if `RISK_ENABLED` and applicable; applies can-only-raise rule if `RISK_CAN_RAISE` | `risk assessed; status={status}, band={band}, raised={bool}` |
+| `node_explain` | `step_explain` | Retrieves guideline chunks and generates clinical explanation if `EXPLAIN_ENABLED` | `explanation generated; status={status}, mode={mode}` |
 | `node_persist` | `step_persist_and_respond` | Persists `checkin_results` row, updates `checkin` state to complete, and generates API response | `persisted checkin result; level={level}, status=complete` |
 
 ---
