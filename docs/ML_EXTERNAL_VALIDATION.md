@@ -104,7 +104,7 @@ Differences in survey and clinical capture between cohorts introduce mapping app
   - Sex Coding: Kaggle dataset description specifies 0 = female, 1 = male (https://www.kaggle.com/datasets/alexteboul/diabetes-health-indicators-dataset), coding taken from the Kaggle description, TO CONFIRM.
 - **Cardio70k Examination Records:**
   - Glucose: Recorded only as 3-level ordinal category (`gluc`: 1, 2, 3), precluding diabetes evaluation.
-  - Blood Pressure: Raw examination measurements required systematic rule-based cleaning (1,234 raw inverted rows, with 7 negative values caught in Rule 1, leaving 1,227 non-negative inverted rows handled in Rule 2: 100 swapped and 1,127 set to NaN). Clean measured hypertension prevalence is 81.56% (56,061 / 68,737).
+  - Blood Pressure: Raw examination measurements required systematic rule-based cleaning (1,235 raw inverted rows, with 8 negative values caught in Rule 1, leaving 1,227 non-negative inverted rows handled in Rule 2: 100 swapped and 1,127 set to NaN). Clean measured hypertension prevalence is 81.56% (56,061 / 68,737).
 - **Pima Indians Diabetes:**
   - All participants are adult females of Pima Indian heritage. Features lack waist circumference and smoking history, necessitating overlap refit.
 
