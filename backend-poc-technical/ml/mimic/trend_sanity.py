@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from agents.answer_validation import PLAUSIBILITY_RANGES
 from agents.trend_agent import (
     DIRECTION_FALLING,
     DIRECTION_RISING,
@@ -80,8 +81,12 @@ def evaluate_mimic_trends(omr_path: str | Path) -> dict[str, Any]:
             parse_failures += 1
             continue
 
-        # Check plausibility: sbp 60-260, dbp 30-160, sbp > dbp
-        if not (60.0 <= sbp <= 260.0 and 30.0 <= dbp <= 160.0 and sbp > dbp):
+        # Check plausibility against core app bounds: sbp min-max, dbp min-max, sbp > dbp
+        sbp_min = PLAUSIBILITY_RANGES["bp_systolic_mmhg"]["min"]
+        sbp_max = PLAUSIBILITY_RANGES["bp_systolic_mmhg"]["max"]
+        dbp_min = PLAUSIBILITY_RANGES["bp_diastolic_mmhg"]["min"]
+        dbp_max = PLAUSIBILITY_RANGES["bp_diastolic_mmhg"]["max"]
+        if not (sbp_min <= sbp <= sbp_max and dbp_min <= dbp <= dbp_max and sbp > dbp):
             parse_failures += 1
             continue
 
@@ -286,7 +291,7 @@ def main() -> None:
         # Output ONLY formatted aggregates JSON (zero row-level disclosures)
         print(json.dumps(report, indent=2))
     except (FileNotFoundError, ValueError, OSError, RuntimeError) as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        print(f"Error: {type(exc).__name__} (execution failed)", file=sys.stderr)
         sys.exit(1)
 
 

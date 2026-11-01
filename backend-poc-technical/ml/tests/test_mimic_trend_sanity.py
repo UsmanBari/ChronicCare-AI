@@ -46,10 +46,10 @@ def _create_synthetic_omr_file(file_path: Path) -> None:
     df.to_csv(file_path, index=False)
 
 
-def test_is_path_in_repo():
+def test_is_path_in_repo(tmp_path: Path):
     repo_root = Path(__file__).resolve().parents[2]
     inside_file = repo_root / "fake_omr.csv"
-    outside_file = Path("C:/arbitrary_external_dir/omr.csv")
+    outside_file = tmp_path / "omr.csv"
 
     assert is_path_in_repo(inside_file) is True
     assert is_path_in_repo(outside_file) is False
@@ -116,3 +116,17 @@ def test_cli_execution_zero_leakage(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert "subjects_with_evaluable_windows" in output_json
     assert "10001" not in captured.out
     assert "2150-05" not in captured.out
+
+
+def test_cli_execution_error_sanitization(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]):
+    secret_path = tmp_path / "super_secret_patient_data_file.csv"
+    monkeypatch.setattr(sys, "argv", ["trend_sanity.py", "--omr", str(secret_path)])
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    # Ensure no path details or secrets leaked into stderr
+    assert "super_secret_patient_data_file" not in captured.err
+    assert "FileNotFoundError" in captured.err
