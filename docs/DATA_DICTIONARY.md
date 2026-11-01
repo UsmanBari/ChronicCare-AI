@@ -434,3 +434,21 @@ Stores the granular timeline and audit trail of user-driven and import modificat
 ## Personal Data Summary
 
 Personal data is stored across several parts of the ChronicCare AI data model. Account identity and access information is stored in `users`; demographic, condition, consent, and other patient-specific information is stored in `patient_profiles`; check-in responses and clinical processing information are stored in `checkins` and `checkin_results`; provider review activity is stored in `review_actions`; allergy information is stored in `allergies`; and external patient identifiers and EHR linkage information are stored in `ehr_connections`. The separate local clinical data store contains patient identity information in `patients`, clinical measurements in `observations`, and medication information in `medications`. `audit_log` may also contain personal data when an event identifies a user or contains user-related details. By contrast, `schema_version` contains database migration metadata and `ehr_systems` primarily contains system configuration rather than patient information.
+---
+
+## OCR Staging Store & Provenance (Iteration 2 Day 7)
+
+### Ephemeral In-Memory Staging Store
+- **Memory-Only Processing**: Document photos uploaded to `POST /api/me/record/uploads` are processed in RAM and staged exclusively in the server's in-memory staging dictionary. Zero image bytes, client filenames, or unconfirmed clinical values are ever written to disk or the database.
+- **TTL (Time to Live)**: 30 minutes from creation. Staged uploads older than 30 minutes are purged automatically.
+- **Per-User Concurrency Limit**: Maximum 3 pending uploads per user. When a fourth upload is initiated by the same patient, the oldest pending upload is dropped (FIFO eviction).
+- **User Isolation**: Staged uploads are keyed by `upload_id` and verified against authenticated `user_id`. Any cross-user access attempts return `404 Not Found`.
+- **Immediate Cleanup**: Upon successful confirmation (`POST /api/me/record/uploads/{upload_id}/confirm`), the staged upload is immediately evicted from memory (`remove_staged_upload`).
+
+### Provenance Tracking (`origin = "ocr"`)
+- **Trust Tier**: Medium trust. Distinct from `self_reported` (manual user input), `clinician` (provider entered), `import` (bulk file upload), and `ehr` (FHIR synched).
+- **Confirmation Requirement**: Nothing is persisted prior to explicit patient review and confirmation.
+- **Edit History Audit Trail**:
+  - Unchanged confirmed values create `record_edits` entries with `old_value = NULL`, `origin = "ocr"`, and `reason = "ocr_confirmed"`.
+  - Values modified by the patient during review create `record_edits` entries with `old_value = <staged_extracted_value>`, `new_value = <confirmed_value>`, `origin = "ocr"`, and `reason = "patient corrected OCR value"`.
+- **Audit Logging**: Upload and confirmation audit events (`record_ocr_upload_processed`, `record_ocr_upload_confirmed`) record discrete counts only (`med_count`, `obs_count`, `allergy_count`, `confirmed_count`), never filenames or clinical values.

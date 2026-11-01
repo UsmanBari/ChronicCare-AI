@@ -6,6 +6,7 @@ Never touches real ML models, external OCR binaries, or native libraries.
 from __future__ import annotations
 
 import re
+import uuid
 from typing import Any, Dict, Optional
 from data_sources.ocr.provider import OcrProvider
 from data_sources.ocr.extract_fields import extract_fields
@@ -62,6 +63,7 @@ class FakeOcrProvider(OcrProvider):
             kind = f.get("kind")
             if kind == "medication":
                 medications.append({
+                    "id": f"ocr-med-{uuid.uuid4().hex[:8]}",
                     "name": f.get("name", ""),
                     "dosage": f.get("dose") or f.get("frequency") or "",
                     "frequency": f.get("frequency"),
@@ -71,6 +73,7 @@ class FakeOcrProvider(OcrProvider):
                 })
             elif kind == "glucose":
                 observations.append({
+                    "id": f"ocr-obs-{uuid.uuid4().hex[:8]}",
                     "observation_type": "glucose",
                     "value": f.get("value"),
                     "unit": f.get("unit") or "mg/dL",
@@ -80,6 +83,7 @@ class FakeOcrProvider(OcrProvider):
                 })
             elif kind == "hba1c":
                 observations.append({
+                    "id": f"ocr-obs-{uuid.uuid4().hex[:8]}",
                     "observation_type": "hba1c",
                     "value": f.get("value"),
                     "unit": "%",
@@ -90,6 +94,7 @@ class FakeOcrProvider(OcrProvider):
                 vals = f.get("value", [])
                 if len(vals) == 2:
                     observations.append({
+                        "id": f"ocr-obs-{uuid.uuid4().hex[:8]}",
                         "observation_type": "blood_pressure_systolic",
                         "value": vals[0],
                         "unit": "mmHg",
@@ -97,6 +102,7 @@ class FakeOcrProvider(OcrProvider):
                         "confidence": f.get("confidence", "High"),
                     })
                     observations.append({
+                        "id": f"ocr-obs-{uuid.uuid4().hex[:8]}",
                         "observation_type": "blood_pressure_diastolic",
                         "value": vals[1],
                         "unit": "mmHg",
@@ -114,6 +120,7 @@ class FakeOcrProvider(OcrProvider):
                     substance = m.group(1).strip()
                     reaction = m.group(2).strip() if m.group(2) else None
                     allergies.append({
+                        "id": f"ocr-all-{uuid.uuid4().hex[:8]}",
                         "substance": substance,
                         "reaction": reaction,
                         "confirmed": True,
@@ -123,7 +130,10 @@ class FakeOcrProvider(OcrProvider):
 
         notice = None
         if has_urdu:
-            notice = "We can only read English reports for now. Please add these values yourself."
+            notice = (
+                "Urdu text detected in document. In v1, Urdu handwriting recognition is experimental. "
+                "Please review detected values carefully against the original prescription or report."
+            )
 
         return {
             "raw_text": raw_text,

@@ -1295,6 +1295,7 @@ def create_allergy(allergy_id: str, user_id: str, substance: str, reaction: Opti
                    backend: Optional[str] = None, db_path: Optional[str] = None,
                    mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None,
                    changed_by_user_id: Optional[str] = None, origin: str = "self_reported",
+                   reason: Optional[str] = None, old_value: Optional[Any] = None,
                    cursor: Optional[Any] = None) -> Dict[str, Any]:
     """Inserts a new allergy record for a patient."""
     clean_id = str(allergy_id).strip()
@@ -1319,10 +1320,11 @@ def create_allergy(allergy_id: str, user_id: str, substance: str, reaction: Opti
             record_type="allergy",
             record_id=clean_id,
             field="created",
-            old_value=None,
+            old_value=old_value,
             new_value={"substance": clean_sub, "reaction": clean_rx, "confirmed": bool(conf_val)},
             origin=origin,
             changed_by_user_id=actor_id,
+            reason=reason,
         )
         return {
             "allergy_id": clean_id,
@@ -1345,11 +1347,11 @@ def create_allergy(allergy_id: str, user_id: str, substance: str, reaction: Opti
             record_type="allergy",
             record_id=clean_id,
             field="created",
-            old_value=None,
+            old_value=old_value,
             new_value={"substance": clean_sub, "reaction": clean_rx, "confirmed": bool(confirmed)},
             origin=origin,
             changed_by_user_id=actor_id,
-            reason=None,
+            reason=reason,
         )
     return {
         "allergy_id": clean_id,

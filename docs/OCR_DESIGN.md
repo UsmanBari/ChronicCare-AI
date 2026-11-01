@@ -225,3 +225,40 @@ sequenceDiagram
    - Audit logs capture only discrete extraction counts and latency (e.g., `event="ocr_upload", items_extracted=3, latency_ms=2100`), never storing raw image bytes or raw transcriptions.
 4. **Hermetic Testing**:
    - 28 unit tests pass in `test_extract_fields.py` without requiring OCR libraries or binary dependencies.
+
+---
+
+## 6. Cloud Deployment & Production Hardening (Render Headless)
+
+### 6.1 Headless Render Build Command
+In production cloud environments (such as Render Linux containers), `rapidocr-onnxruntime` transitively pulls `opencv-python`, which attempts to link against desktop GUI display packages (`libGL.so`, X11) and consumes ~400 MB of container storage. To run fully headless on Render:
+
+```bash
+pip install -r backend-poc-technical/requirements.txt && pip install -r backend-poc-technical/requirements-ocr.txt && pip uninstall -y opencv-python || true
+```
+
+`requirements-ocr.txt` explicitly pins `opencv-python-headless==4.9.0.80`. The uninstall command removes the GUI package while keeping the headless build, preventing `libGL.so` runtime crashes and saving ~400 MB of build footprint.
+
+### 6.2 Confirmation Batch Atomicity & Structured Error Feedback
+- **Structured Error Schema**:
+  ```json
+  {
+    "code": "invalid_item",
+    "item_index": 0,
+    "reason_code": "out_of_range",
+    "detail": {
+      "code": "invalid_item",
+      "item_index": 0,
+      "reason_code": "out_of_range",
+      "message": "Observation item 0 (glucose) invalid: out_of_range"
+    }
+  }
+  ```
+- **Atomicity with Staging Retention**: If any confirmed item violates clinical validation bounds (e.g., glucose outside 20–600 mg/dL, systolic BP outside 60–260 mmHg, diastolic BP outside 40–150 mmHg, duplicate active medication, invalid status), the entire save transaction is rejected (HTTP 422). The staged upload remains active in the in-memory staging store.
+- **Frontend Interaction**: `OcrConfirmScreen.tsx` receives the structured error, maps it to the specific card (`invalidItem = { index: i, reasonCode: ... }`), displays a translated warning banner with a distinct red card border, and guides the patient to either Fix or Remove the item without losing any other confirmed items.
+
+### 6.3 Memory & Spike Measurements Summary (A2 / A8)
+- **Base Server Memory**: 61.73 MB RSS (matches 61.8 MB baseline, 0 MB hit when `OCR_ENABLED=false`).
+- **Peak Inference Spikes**: 108.99 MB peak RSS (fits well inside the 512 MB Render free tier).
+- **Latency**: ~2–3 seconds per document scan.
+- **Handwritten Medicine Accuracy**: RapidOCR achieved 9/9 handwritten medications recognized (100.0% recall, 22.3% CER) vs 1/9 (11.1% recall, 75.8% CER) for Tesseract.js.

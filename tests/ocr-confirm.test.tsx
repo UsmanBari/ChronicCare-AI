@@ -183,6 +183,44 @@ describe("OCR v1 UI (HealthRecordScreen & OcrConfirmScreen)", () => {
     expect(screen.getByText(/ہم فی الحال صرف انگریزی رپورٹس پڑھ سکتے ہیں/i)).toBeTruthy();
   });
 
+  it("highlights invalid item and shows translated guidance when confirm rejects with invalid_item", async () => {
+    const errorObj = {
+      status: 422,
+      data: {
+        code: "invalid_item",
+        item_index: 0,
+        reason_code: "out_of_range",
+      },
+    };
+    vi.spyOn(api, "confirmOcrUpload").mockRejectedValue(errorObj);
+
+    mockAppContext.language = "en";
+    mockAppContext.t = translations["en"];
+    mockAppContext.isUrdu = false;
+    mockAppContext.stagedOcrUpload = {
+      upload_id: "up-invalid-test",
+      expires_in_seconds: 1800,
+      extracted: {
+        observations: [
+          { id: "obs-inv-1", type: "glucose", value: 750, unit: "mg/dL", evidence: "Glucose: 750" },
+        ],
+        medications: [],
+        allergies: [],
+      },
+    };
+
+    render(<OcrConfirmScreen />);
+
+    const saveBtn = screen.getByTestId("ocr-save-confirmed-btn");
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("ocr-invalid-item-highlight")).toBeTruthy();
+      expect(screen.getByText(translations["en"].reasonOutOfRange)).toBeTruthy();
+      expect(screen.getByText(translations["en"].ocrInvalidItemBanner)).toBeTruthy();
+    });
+  });
+
   it("cancels upload and navigates back to health_record", async () => {
     const cancelSpy = vi.spyOn(api, "cancelOcrUpload").mockResolvedValue({ status: "cancelled" });
 

@@ -21,11 +21,11 @@ All 7 milestones for Week 2 were completed, tested, and verified against project
 ### Day 1 & Day 2 — Interview v3 Answer Understanding & Slot Filling
 - **Deliverables:** Built deterministic understanding rules for free-text check-in responses, extracting blood glucose and blood pressure numbers, units (mg/dL vs mmol/L, mmHg), and missing reading reasons.
 - **Testing:** Implemented automated probe harness across 107 clinical scenarios to verify that safe triage and boundary rules are preserved.
-- **PR:** #71 / #74 (Merged into `dev`).
+- **PR:** #71 (Merged into `dev`). Note: PR #74 was superseded by #76 and closed without merging.
 
 ### Day 3 — Dual Diagnosis, Caregiver Reporting, and Confirmation Summary
 - **Deliverables:** Extended the interview planner to support dual-diagnosis patients (T2D and HTN simultaneously), eliminating duplicate questions and isolating condition-specific red flags. Added caregiver reporting awareness and a pre-submission review summary.
-- **PR:** #77 (Merged into `dev`).
+- **PR:** #76 / #77 (Merged into `dev`).
 
 ### Day 4 — Full Urdu Localization & Independent Danger Phrase Testing
 - **Deliverables:** Localized the complete interview catalogue to Urdu (100% zero English leakage across 12 test personas). Ensured proper typography using RTL layout and `<bdi>` directional isolation.
@@ -34,7 +34,7 @@ All 7 milestones for Week 2 were completed, tested, and verified against project
 
 ### Day 5 — OCR Feasibility Spike & Benchmark
 - **Deliverables:** Evaluated 3 free OCR engines (Desktop Tesseract, RapidOCR ONNX, Tesseract.js in-browser). Measured Character Error Rate (CER), latency, memory, and field extraction accuracy across printed and handwritten prescription/lab photos.
-- **Outcome:** Formally recommended server-side RapidOCR due to lightweight ONNX footprint (61.8 MB baseline, ~0.6s latency) and poor mobile browser performance of client-side Tesseract.js.
+- **Outcome:** Formally recommended server-side RapidOCR due to lightweight ONNX footprint (Option B RapidOCR peak footprint: 108.99 MB peak RSS, ~2-3s latency, 9/9 handwritten medicines recognized vs 1/9 for Tesseract.js).
 - **PR:** #84 (Approved & Merged into `dev`).
 
 ### Day 6 — Record Edit History (Schema v14) & Export/Import
@@ -45,10 +45,10 @@ All 7 milestones for Week 2 were completed, tested, and verified against project
 - **Deliverables:**
   1. **Flagged Endpoints:** Built `POST /api/me/record/uploads` and `POST /api/me/record/uploads/{upload_id}/confirm` gated behind `OCR_ENABLED=false` (returns HTTP 503 when disabled; refuses connected mode with HTTP 409).
   2. **Zero PHI Persistence:** Implemented ephemeral in-memory staging store (max 3 uploads per user, 30-minute TTL, automatic cleanup). Raw image bytes are never written to disk or database.
-  3. **Strict Re-Validation:** Clinical bounds (glucose 20–600 mg/dL, systolic BP 50–300 mmHg) and dosage formatting are strictly re-verified on server confirmation before writing to the database with `origin="ocr"` and medium trust.
+  3. **Strict Re-Validation:** Clinical bounds (glucose 20–600 mg/dL, systolic BP 60–260 mmHg, diastolic BP 40–150 mmHg) and dosage formatting are strictly re-verified on server confirmation before writing to the database with `origin="ocr"` and medium trust.
   4. **Frontend Confirmation UI:** Built `OcrConfirmScreen.tsx` allowing patients to review each detected value with its evidence snippet, and Confirm, Fix, or Remove each item. Added Urdu notice banner for Urdu-script documents.
-  5. **Screenshots:** Generated documentation screenshots for English review (`ocr_confirm_en.png`), Urdu review (`ocr_confirm_ur.png`), and Health Record badge (`ocr_badge_record_en.png`).
-- **PR:** `feat/i2-5-ocr-v1` (Current).
+  5. **Screenshots:** Generated documentation screenshots for English review (`ocr_confirm_en.png`), Urdu review (`ocr_confirm_ur.png`), Health Record badge (`ocr_badge_record_en.png`), and invalid-item clinical rejection highlight in English (`ocr_invalid_item_en.png`) and Urdu (`ocr_invalid_item_ur.png`).
+- **PR:** PR #96 (`feat/i2-5-ocr-v1`, open). Merged PRs this week: #71, #76, #77, #80, #84, #89, #92.
 
 ---
 

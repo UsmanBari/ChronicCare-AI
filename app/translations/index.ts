@@ -503,6 +503,8 @@ export interface Translations {
   reasonInvalidMedStatus: string;
   reasonInvalidAllergy: string;
   reasonAllergyTooLong: string;
+  ocrInvalidItemBanner: string;
+  ocrFixOrRemoveHint: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -1000,6 +1002,8 @@ export const translations: Record<Language, Translations> = {
     reasonInvalidMedStatus: "Invalid medication status",
     reasonInvalidAllergy: "Invalid allergy substance",
     reasonAllergyTooLong: "Reaction text too long",
+    ocrInvalidItemBanner: "Please fix or remove the highlighted invalid item before saving.",
+    ocrFixOrRemoveHint: "Value is invalid. Click Fix to correct or Remove to discard.",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1497,5 +1501,7 @@ export const translations: Record<Language, Translations> = {
     reasonInvalidMedStatus: "دوا کی حالت درست نہیں ہے",
     reasonInvalidAllergy: "الرجی کا مادہ درست نہیں ہے",
     reasonAllergyTooLong: "ردعمل کی تفصیل بہت طویل ہے",
+    ocrInvalidItemBanner: "براہ کرم محفوظ کرنے سے پہلے نمایاں کیے گئے غلط اندراج کو درست کریں یا ہٹا دیں۔",
+    ocrFixOrRemoveHint: "یہ اندراج درست نہیں ہے۔ درست کرنے کے لیے 'درست کریں' یا خارج کرنے کے لیے 'ہٹائیں' کا بٹن دبائیں۔",
   }
 };

@@ -59,6 +59,8 @@ Roles are stored in the `users` table and enforced via the backend `require_role
 | `/api/me/record/history` | GET | `patient` | Authenticated |
 | `/api/me/record/export` | GET | `patient` | Authenticated |
 | `/api/me/record/import` | POST | `patient` (isolated mode only) | Authenticated |
+| `/api/me/record/uploads` | POST | `patient` (isolated mode only, gated by `OCR_ENABLED=true`) | Authenticated |
+| `/api/me/record/uploads/{upload_id}/confirm` | POST | `patient` (isolated mode only, gated by `OCR_ENABLED=true`) | Authenticated |
 | `/api/profile` | GET / PUT | `patient` | Authenticated |
 | `/api/consent` | GET / POST | `patient` | Authenticated |
 | `/api/ehr/connect` | POST | `patient` | Authenticated |

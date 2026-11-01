@@ -93,6 +93,38 @@ export default function OcrConfirmScreen() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [invalidItem, setInvalidItem] = useState<{
+    type: "observation" | "medication" | "allergy";
+    index: number;
+    reasonCode: string;
+  } | null>(null);
+
+  const getReasonText = (code: string) => {
+    switch (code) {
+      case "out_of_range":
+        return t.reasonOutOfRange;
+      case "bad_unit":
+        return t.reasonInvalidUnit;
+      case "bad_observation_type":
+        return t.reasonInvalidType;
+      case "medication_name_invalid":
+        return t.reasonInvalidMedName;
+      case "medication_dosage_invalid":
+        return t.reasonInvalidMedDosage;
+      case "medication_status_invalid":
+        return t.reasonInvalidMedStatus;
+      case "maximum_medications_exceeded":
+        return isUrdu ? "ادویات کی زیادہ سے زیادہ حد (30) مکمل ہو چکی ہے" : "Maximum limit of 30 medications reached";
+      case "duplicate_medication":
+        return t.reasonDuplicate;
+      case "allergy_substance_invalid":
+        return t.reasonInvalidAllergy;
+      case "allergy_reaction_invalid":
+        return t.reasonAllergyTooLong;
+      default:
+        return t.reasonOutOfRange;
+    }
+  };
 
   const hasUrdu = Boolean(stagedOcrUpload?.extracted?.has_urdu);
   const uploadId = stagedOcrUpload?.upload_id;
@@ -168,8 +200,55 @@ export default function OcrConfirmScreen() {
       setStagedOcrUpload(null);
       setScreen("health_record");
     } catch (err: any) {
-      setError(err?.detail || err?.message || (isUrdu ? "محفوظ کرنے میں خرابی واقع ہوئی" : "Failed to save confirmed items."));
       setIsSaving(false);
+      const errData = err?.data?.detail || err?.data;
+      if (errData?.code === "invalid_item") {
+        const itemIdx = Number(errData.item_index ?? 0);
+        const rCode = String(errData.reason_code || "out_of_range");
+
+        let currentConfirmedCount = 0;
+        let matched = false;
+
+        for (let i = 0; i < observations.length; i++) {
+          if (observations[i].confirmed) {
+            if (currentConfirmedCount === itemIdx) {
+              setInvalidItem({ type: "observation", index: i, reasonCode: rCode });
+              matched = true;
+              break;
+            }
+            currentConfirmedCount++;
+          }
+        }
+
+        if (!matched) {
+          for (let i = 0; i < medications.length; i++) {
+            if (medications[i].confirmed) {
+              if (currentConfirmedCount === itemIdx) {
+                setInvalidItem({ type: "medication", index: i, reasonCode: rCode });
+                matched = true;
+                break;
+              }
+              currentConfirmedCount++;
+            }
+          }
+        }
+
+        if (!matched) {
+          for (let i = 0; i < allergies.length; i++) {
+            if (allergies[i].confirmed) {
+              if (currentConfirmedCount === itemIdx) {
+                setInvalidItem({ type: "allergy", index: i, reasonCode: rCode });
+                matched = true;
+                break;
+              }
+              currentConfirmedCount++;
+            }
+          }
+        }
+        setError(t.ocrInvalidItemBanner);
+      } else {
+        setError(err?.detail || err?.message || (isUrdu ? "محفوظ کرنے میں خرابی واقع ہوئی" : "Failed to save confirmed items."));
+      }
     }
   };
 
@@ -256,7 +335,9 @@ export default function OcrConfirmScreen() {
                 key={obs.id}
                 data-testid={`ocr-obs-item-${idx}`}
                 className={`p-4 rounded-2xl border-2 transition-all space-y-2.5 ${
-                  obs.confirmed
+                  invalidItem?.type === "observation" && invalidItem?.index === idx
+                    ? "border-red-500 bg-red-50/50 ring-2 ring-red-400"
+                    : obs.confirmed
                     ? "bg-purple-50/40 border-purple-200"
                     : "bg-slate-50 border-slate-200 opacity-60"
                 }`}
@@ -393,6 +474,21 @@ export default function OcrConfirmScreen() {
                     <span className="italic font-mono text-slate-700">&quot;{obs.evidence}&quot;</span>
                   </div>
                 )}
+
+                {invalidItem?.type === "observation" && invalidItem?.index === idx && (
+                  <div
+                    data-testid="ocr-invalid-item-highlight"
+                    className="p-3 rounded-xl bg-red-100 border border-red-300 text-red-900 text-xs flex flex-wrap items-center justify-between gap-2 mt-2"
+                  >
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                      <span>{getReasonText(invalidItem.reasonCode)}</span>
+                    </div>
+                    <span className="text-[11px] text-red-700 italic font-normal">
+                      {t.ocrFixOrRemoveHint}
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -418,7 +514,9 @@ export default function OcrConfirmScreen() {
                 key={med.id}
                 data-testid={`ocr-med-item-${idx}`}
                 className={`p-4 rounded-2xl border-2 transition-all space-y-2.5 ${
-                  med.confirmed
+                  invalidItem?.type === "medication" && invalidItem?.index === idx
+                    ? "border-red-500 bg-red-50/50 ring-2 ring-red-400"
+                    : med.confirmed
                     ? "bg-purple-50/40 border-purple-200"
                     : "bg-slate-50 border-slate-200 opacity-60"
                 }`}
@@ -537,6 +635,21 @@ export default function OcrConfirmScreen() {
                     <span className="italic font-mono text-slate-700">&quot;{med.evidence}&quot;</span>
                   </div>
                 )}
+
+                {invalidItem?.type === "medication" && invalidItem?.index === idx && (
+                  <div
+                    data-testid="ocr-invalid-item-highlight"
+                    className="p-3 rounded-xl bg-red-100 border border-red-300 text-red-900 text-xs flex flex-wrap items-center justify-between gap-2 mt-2"
+                  >
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                      <span>{getReasonText(invalidItem.reasonCode)}</span>
+                    </div>
+                    <span className="text-[11px] text-red-700 italic font-normal">
+                      {t.ocrFixOrRemoveHint}
+                    </span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -562,7 +675,9 @@ export default function OcrConfirmScreen() {
                 key={all.id}
                 data-testid={`ocr-all-item-${idx}`}
                 className={`p-4 rounded-2xl border-2 transition-all space-y-2.5 ${
-                  all.confirmed
+                  invalidItem?.type === "allergy" && invalidItem?.index === idx
+                    ? "border-red-500 bg-red-50/50 ring-2 ring-red-400"
+                    : all.confirmed
                     ? "bg-purple-50/40 border-purple-200"
                     : "bg-slate-50 border-slate-200 opacity-60"
                 }`}
@@ -679,6 +794,21 @@ export default function OcrConfirmScreen() {
                   <div className="text-[11px] text-slate-600 bg-white/80 p-2 rounded-xl border border-slate-200">
                     <span className="font-semibold text-slate-500 mr-1">{t.ocrEvidenceLabel}</span>
                     <span className="italic font-mono text-slate-700">&quot;{all.evidence}&quot;</span>
+                  </div>
+                )}
+
+                {invalidItem?.type === "allergy" && invalidItem?.index === idx && (
+                  <div
+                    data-testid="ocr-invalid-item-highlight"
+                    className="p-3 rounded-xl bg-red-100 border border-red-300 text-red-900 text-xs flex flex-wrap items-center justify-between gap-2 mt-2"
+                  >
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                      <span>{getReasonText(invalidItem.reasonCode)}</span>
+                    </div>
+                    <span className="text-[11px] text-red-700 italic font-normal">
+                      {t.ocrFixOrRemoveHint}
+                    </span>
                   </div>
                 )}
               </div>

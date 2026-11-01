@@ -1,6 +1,7 @@
 """
 In-Memory Ephemeral Staging Store for OCR Uploads.
 Ensures zero disk persistence, 30-minute TTL, and max 3 pending uploads per user.
+Never stores filenames or raw image bytes.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ def stage_upload(user_id: str, extracted_data: Dict[str, Any], filename: Optiona
     """
     Stages an OCR upload in memory.
     Enforces TTL cleanup and per-user max 3 pending uploads limit.
+    Never stores filenames or raw image bytes.
     Returns generated upload_id.
     """
     _clean_expired()
@@ -59,7 +61,6 @@ def stage_upload(user_id: str, extracted_data: Dict[str, Any], filename: Optiona
     _STAGING_STORE[upload_id] = {
         "upload_id": upload_id,
         "user_id": clean_uid,
-        "filename": filename or "document.jpg",
         "created_at": now,
         "extracted": extracted_data,
         "status": "pending",

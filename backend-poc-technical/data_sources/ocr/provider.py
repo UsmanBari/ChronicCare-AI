@@ -24,6 +24,34 @@ class OcrProvider(ABC):
         raise NotImplementedError
 
 
+def check_ocr_provider_available(provider_type: Optional[str] = None) -> bool:
+    """
+    Checks whether the configured OCR provider can be imported and executed.
+    Returns False in production if provider is fake, or if rapidocr is not installed.
+    """
+    selected_provider = (
+        provider_type
+        or os.environ.get("OCR_PROVIDER")
+        or "rapidocr"
+    ).strip().lower()
+
+    app_env = os.environ.get("APP_ENV", "").strip().lower()
+    if app_env == "production" and selected_provider == "fake":
+        return False
+
+    if selected_provider == "fake":
+        return True
+
+    if selected_provider == "rapidocr":
+        try:
+            import rapidocr_onnxruntime  # noqa: F401
+            return True
+        except Exception:
+            return False
+
+    return False
+
+
 def get_ocr_provider(provider_type: Optional[str] = None) -> OcrProvider:
     """
     Factory function returning the configured OCR provider.
