@@ -27,7 +27,7 @@
 | Rule | Description | Condition | Count Affected | Action Taken |
 |---|---|---|---|---|
 | Rule 1 | Negative BP values | `ap_hi < 0` or `ap_lo < 0` | 8 rows (7 SBP, 1 DBP) | Set to NaN |
-| Rule 2 | Inverted BP readings | `ap_hi < ap_lo` | 1,234 rows total | 100 swapped (both in plausible range post-swap); 1,127 unswappable set to NaN |
+| Rule 2 | Inverted BP readings | `ap_hi < ap_lo` | 1,234 raw inverted (7 negative caught in Rule 1; 1,227 non-negative reached Rule 2) | 100 swapped (both in plausible range post-swap); 1,127 unswappable set to NaN (100 + 1,127 = 1,227) |
 | Rule 3 | Extreme typo values | BP $\ge 1000$ (e.g. 1100, 14020, 16020) | 24 rows (24 SBP, 0 DBP) | Set to NaN (no divide-by-10 guessing) |
 | Rule 4 | Out-of-app plausibility bounds | SBP $\notin [60, 260]$ or DBP $\notin [30, 160]$ | 65 rows (21 SBP, 55 DBP) | Set to NaN |
 | Rule 5 | Inconsistent residual relationship | SBP $\le$ DBP after rules 1–4 | 2 rows | Set to NaN |
@@ -35,4 +35,5 @@
 ## Final Clean Record Counts
 - **Total Valid BP Records:** 68,775 rows (98.25%)
 - **Complete Feature Rows (age, sex, bmi, sbp, dbp):** 68,737 rows (98.20%)
-- **Measured Hypertension Prevalence (SBP $\ge$ 130 or DBP $\ge$ 80):** 46.52% (31,993 / 68,775)
+- **Measured Hypertension Prevalence (SBP $\ge$ 130 or DBP $\ge$ 80):** 81.56% (56,094 / 68,775)
+

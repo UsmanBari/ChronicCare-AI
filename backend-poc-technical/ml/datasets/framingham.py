@@ -98,3 +98,4 @@ def load_framingham(path: str | Path | None = None) -> tuple[pd.DataFrame, dict[
 
     raw_df = pd.read_csv(target_path)
     return clean_framingham_df(raw_df)
+

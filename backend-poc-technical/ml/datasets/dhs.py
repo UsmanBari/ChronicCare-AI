@@ -21,9 +21,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pandas as pd
-
 from ml.common import data_dir
-
 
 DhsCountry = Literal["india_nfhs5", "bangladesh_2017", "nepal_2022"]
 
@@ -32,7 +30,6 @@ SUPPORTED_COUNTRIES: tuple[str, ...] = ("india_nfhs5", "bangladesh_2017", "nepal
 
 class DhsDataNotAvailable(FileNotFoundError):
     """Raised when DHS microdata files are not present in the local filesystem."""
-    pass
 
 
 # Every variable code is explicitly marked TO CONFIRM per project instructions
@@ -114,7 +111,14 @@ def load_dhs(
     if path is not None:
         target_path = Path(path)
     else:
-        target_path = data_dir() / "dhs" / country / f"{country}.dta"
+        try:
+            target_path = data_dir() / "dhs" / country / f"{country}.dta"
+        except RuntimeError:
+            raise DhsDataNotAvailable(
+                f"DHS dataset for '{country}' not found (CHRONICCARE_DATA_DIR environment variable is not set). "
+                "DHS data requires authorized access from https://dhsprogram.com. "
+                "Please obtain approved microdata and place the .dta file at the expected location."
+            )
 
     if not target_path.exists():
         raise DhsDataNotAvailable(
@@ -127,8 +131,9 @@ def load_dhs(
     df = pd.read_stata(target_path)
     report = {
         "dataset": f"dhs_{country}",
-        "total_rows": int(len(df)),
+        "total_rows": len(df),
         "variables_present": [c for c in EXPECTED_VARIABLES if c in df.columns],
         "variables_expected": list(EXPECTED_VARIABLES.keys()),
     }
     return df, report
+

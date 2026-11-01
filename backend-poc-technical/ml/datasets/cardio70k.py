@@ -28,7 +28,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-
 from ml.common import cardio70k_path
 
 
@@ -39,7 +38,7 @@ def clean_cardio_df(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
     """
     report: dict[str, Any] = {
         "dataset": "cardio70k",
-        "total_rows": int(len(df)),
+        "total_rows": len(df),
     }
 
     # 1. Gender check & coding
@@ -107,6 +106,8 @@ def clean_cardio_df(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
 
     # (2) ap_hi < ap_lo: swap only if BOTH are in range after swap, else NaN
     # Inverted condition: both non-null and sbp < dbp
+    # Audit note: 1,234 raw rows have ap_hi < ap_lo; 7 had negative values caught in Rule 1.
+    # Exactly 1,227 non-negative inverted rows enter Rule 2 (100 swapped + 1,127 set to NaN).
     inv_mask = (sbp < dbp) & sbp.notna() & dbp.notna()
     cand_sbp = dbp
     cand_dbp = sbp
@@ -202,3 +203,4 @@ def load_cardio70k(path: str | Path | None = None) -> tuple[pd.DataFrame, dict[s
 
     raw_df = pd.read_csv(target_path, sep=";")
     return clean_cardio_df(raw_df)
+

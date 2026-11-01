@@ -1,111 +1,118 @@
 # External Validation of ChronicCare-AI ML Models
 
 ## Executive Summary
-This document presents the rigorous external validation of all trained clinical machine learning models
-for adult type 2 diabetes and hypertension across five independent cohorts:
-1. **CDC BRFSS 2015 Kaggle** (N = 253,680)
-2. **CDC BRFSS Core Parquet** (N = 2,181,756)
-3. **Pima Indians Diabetes Cohort** (N = 768)
-4. **Framingham Heart Study Cohort** (N = 4,238)
-5. **Cardio70k Cardiovascular Examination Records** (N = 70,000)
+This document presents external validation of trained machine learning models across independent external cohorts:
+- **Framingham Heart Study Cohort** (N = 4,238)
+- **Pima Indians Diabetes Cohort** (N = 768)
+- **CDC BRFSS 2015 Kaggle** (N = 253,680)
+- **CDC BRFSS Core Parquet** (N = 2,181,756)
+- **Cardio70k Examination Records** (N = 70,000)
 
-Every model is evaluated strictly at its locked operating threshold established during training
-or validation on NHANES. **In strict adherence to clinical safety standards, operational thresholds
-were never re-tuned or modified on external validation data.**
+Per ML_PLAN D12, the primary model evaluated is `diabetes_full_nhanes` (the only model deployed in the application as provider-only, experimental).
+Per ML_PLAN D13, hypertension models are retired and not used in the application; their evaluations appear in the Appendix.
 
----
-
-## Results Table
-
-| Model | Dataset | Mode | N | Prevalence | AUROC (95% CI) | Sens | Spec | Cal-in-Large | Brier | Missing Features |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| baseline_temporal_lr | brfss2015_kaggle | as-saved | 253,680 | 13.9% | 0.737 [0.730, 0.741] | 0.859 | 0.466 | +0.367 | 0.260 | - |
-| baseline_temporal_lr | brfss_core | as-saved | 1,982,127 | 13.5% | 0.751 [0.743, 0.755] | 0.864 | 0.489 | +0.354 | 0.252 | - |
-| baseline_temporal_lr | pima | as-saved | 757 | 35.1% | 0.736 [0.704, 0.769] | 0.278 | 0.888 | -0.067 | 0.203 | - |
-| diabetes_basic_nhanes | brfss2015_kaggle | as-saved | 253,680 | 13.9% | 0.761 [0.754, 0.765] | 0.904 | 0.428 | -0.086 | 0.120 | - |
-| diabetes_basic_nhanes | brfss_core | as-saved | 1,931,900 | 13.5% | 0.769 [0.764, 0.775] | 0.905 | 0.454 | -0.084 | 0.116 | - |
-| diabetes_basic_nhanes | pima | overlap refit, not Usman's saved model | 757 | 35.1% | 0.735 [0.702, 0.770] | 0.391 | 0.849 | -0.329 | 0.330 | ever_smoked_100, told_high_bp |
-| diabetes_full_nhanes | brfss2015_kaggle | overlap refit, not Usman's saved model | 253,680 | 13.9% | 0.761 [0.755, 0.766] | 0.903 | 0.430 | -0.086 | 0.120 | sbp, dbp, waist_cm |
-| diabetes_full_nhanes | brfss_core | overlap refit, not Usman's saved model | 1,931,900 | 13.5% | 0.770 [0.765, 0.775] | 0.905 | 0.454 | -0.084 | 0.116 | sbp, dbp, waist_cm |
-| diabetes_full_nhanes | pima | overlap refit, not Usman's saved model | 757 | 35.1% | 0.735 [0.702, 0.770] | 0.391 | 0.845 | -0.329 | 0.330 | ever_smoked_100, told_high_bp, sbp, dbp, waist_cm |
-| diabetes_ref_age_sex_bmi | brfss2015_kaggle | as-saved | 253,680 | 13.9% | 0.742 [0.735, 0.747] | 0.891 | 0.413 | -0.087 | 0.121 | - |
-| diabetes_ref_age_sex_bmi | brfss_core | as-saved | 1,982,127 | 13.5% | 0.753 [0.744, 0.756] | 0.895 | 0.438 | -0.084 | 0.117 | - |
-| diabetes_ref_age_sex_bmi | pima | as-saved | 757 | 35.1% | 0.735 [0.702, 0.770] | 0.391 | 0.849 | -0.329 | 0.330 | - |
-| htn_basic_nhanes | framingham | as-saved | 4,219 | 31.0% | 0.701 [0.686, 0.718] | 0.890 | 0.395 | +0.004 | 0.194 | - |
-| htn_basic_nhanes | brfss_core | as-saved | 1,931,900 | 40.7% | 0.743 [0.738, 0.747] | 0.937 | 0.343 | +0.002 | 0.201 | - |
-| htn_basic_nhanes | cardio70k | overlap refit, not Usman's saved model | 68,737 | 81.6% | 0.667 [0.664, 0.677] | 0.785 | 0.439 | -0.402 | 0.304 | ever_smoked_100, told_diabetes |
-| htn_full_nhanes | framingham | overlap refit, not Usman's saved model | 4,219 | 31.0% | 0.720 [0.704, 0.736] | 0.800 | 0.544 | +0.060 | 0.194 | hba1c, waist_cm |
-| htn_full_nhanes | brfss_core | overlap refit, not Usman's saved model | 1,931,900 | 40.7% | 0.753 [0.750, 0.758] | 0.909 | 0.416 | +0.060 | 0.201 | hba1c, waist_cm |
-| htn_full_nhanes | cardio70k | overlap refit, not Usman's saved model | 68,737 | 81.6% | 0.667 [0.664, 0.677] | 0.785 | 0.439 | -0.402 | 0.304 | ever_smoked_100, told_diabetes, hba1c, waist_cm |
-| htn_ref_age_sex_bmi | framingham | as-saved | 4,219 | 31.0% | 0.700 [0.684, 0.717] | 0.879 | 0.405 | +0.001 | 0.194 | - |
-| htn_ref_age_sex_bmi | brfss_core | as-saved | 1,979,349 | 40.7% | 0.751 [0.751, 0.759] | 0.938 | 0.349 | +0.005 | 0.198 | - |
-| htn_ref_age_sex_bmi | cardio70k | as-saved | 68,737 | 81.6% | 0.663 [0.660, 0.672] | 0.860 | 0.329 | -0.465 | 0.361 | - |
+Operating decision thresholds are strictly locked from training/validation on NHANES. Thresholds are never re-tuned on external cohorts.
+For cohorts missing model features, an overlap refit is trained on NHANES `train_core` and thresholded on NHANES `validation`.
 
 ---
 
-## In-Depth Clinical Discussion
+## 1. Undiagnosed Diabetes Target Equivalents
 
-### 1. Label Differences (Self-Report vs Measured vs OGTT)
-A critical determinant of external performance is the semantic and diagnostic distinction between labels:
-- **Self-Reported / Told Diagnoses (BRFSS Core, BRFSS Kaggle, Framingham):**
-  Survey respondents were asked whether a physician or healthcare provider ever informed them they had diabetes
-  or hypertension. Self-report captures *diagnosed* disease, inherently missing individuals with undiagnosed disease
-  and reflecting healthcare access biases (individuals with insurance or higher socio-economic status are more likely to be diagnosed).
-- **Physiologically Measured Readings (Cardio70k):**
-  Cardio70k defines hypertension strictly as measured SBP >= 130 or DBP >= 80 mmHg.
-  This identifies all individuals with acutely elevated blood pressure at examination, irrespective of prior clinical diagnosis
-  or white-coat effect.
-- **Biochemical Oral Glucose Tolerance Testing (Pima Indians):**
-  Pima diabetes status is determined by formal 2-hour post-load plasma glucose (>= 200 mg/dL per WHO criteria).
-  This biochemical gold-standard detects true metabolic dysregulation far more sensitively than self-report.
-  Consequently, models calibrated on survey self-report or undiagnosed screening display lower apparent sensitivity
-  at locked thresholds when applied against biochemically definitive OGTT criteria.
+Evaluates diabetes models against external cohorts with biochemical or laboratory proxies for undiagnosed diabetes:
+- **Framingham (`diabetes == 0` cohort):** Evaluates two proxies: (1) `glucose >= 200 mg/dL` (ADA random glucose cutoff; 0 positive cases as max glucose is 163.0 mg/dL in undiagnosed cohort); (2) `glucose >= 126 mg/dL` (fasting cutoff proxy; 22 positive cases, 0.54% prevalence).
+- **Pima Indians:** Evaluates 2-hour post-load oral glucose tolerance testing (`Outcome` >= 200 mg/dL; caveat: adult females only, indigenous heritage, not restricted to undiagnosed individuals).
+- **Cardio70k:** Skipped for diabetes because blood glucose is recorded only as a 3-level categorical index (`1 = normal`, `2 = above normal`, `3 = well above normal`), which does not constitute a clinical diabetes diagnostic equivalent.
 
-### 2. Population Differences
-The five cohorts represent starkly divergent demographic, epidemiological, and temporal populations:
-- **NHANES (Reference Development Population):**
-  A representative cross-section of the non-institutionalized United States population across multi-ethnic strata
-  (White, Black, Hispanic, Asian, Multi-racial) collected between 1999 and 2018.
-- **Framingham Heart Study (1948-1968):**
-  A predominantly Caucasian, suburban New England community cohort from the mid-20th century. Dietary patterns,
-  anti-hypertensive medications, and baseline cardiovascular risk profiles reflect historic clinical baselines
-  substantially differing from contemporary 21st-century cohorts.
-- **Pima Indians (Phoenix, Arizona):**
-  A culturally homogeneous, genetically distinct American Indian population characterized by historically
-  extreme genetic susceptibility to insulin resistance and type 2 diabetes. Adult females have a 35.1% diabetes prevalence,
-  resulting in strong negative calibration-in-the-large when evaluated with models calibrated on 8-14% general population prevalence.
-- **Cardio70k (Clinical Examination Cohort):**
-  An examination dataset of 70,000 adults seeking medical examination or cardiovascular checkups. Mean age is 53.3 years
-  and 81.6% meet measured >= 130/80 mmHg criteria. This high baseline prevalence causes models trained on general
-  screening populations to substantially underestimate absolute risk (Calibration-in-the-large approx -0.46).
+| Model | Dataset | Target Definition | Mode | N | Prevalence | AUROC (95% CI) | CI Basis | Sens | Spec | Cal-in-Large | Brier | Missing Features |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| diabetes_full_nhanes | framingham | glucose >= 200 mg/dL (proxy random glucose, ADA cutoff) | overlap refit, not Usman's saved model | 4,112 | 0.0% | NOT RUN | - | - | - | - | - | waist_cm |
+| diabetes_full_nhanes | framingham | glucose >= 126 mg/dL ("only valid if fasting") | overlap refit, not Usman's saved model | 4,112 | 0.5% | 0.596 [0.487, 0.715] | full n | 0.500 | 0.641 | +0.022 | 0.006 | waist_cm |
+| diabetes_full_nhanes | pima | diabetes (measured 2h OGTT >= 200 mg/dL) | overlap refit, not Usman's saved model | 757 | 35.1% | 0.735 [0.706, 0.769] | full n | 0.391 | 0.845 | -0.329 | 0.330 | ever_smoked_100, told_high_bp, sbp, dbp, waist_cm |
+| diabetes_basic_nhanes | framingham | glucose >= 200 mg/dL (proxy random glucose, ADA cutoff) | as-saved | 4,112 | 0.0% | NOT RUN | - | - | - | - | - | - |
+| diabetes_basic_nhanes | framingham | glucose >= 126 mg/dL ("only valid if fasting") | as-saved | 4,112 | 0.5% | 0.585 [0.483, 0.695] | full n | 0.455 | 0.689 | +0.020 | 0.006 | - |
+| diabetes_basic_nhanes | pima | diabetes (measured 2h OGTT >= 200 mg/dL) | overlap refit, not Usman's saved model | 757 | 35.1% | 0.735 [0.706, 0.769] | full n | 0.391 | 0.849 | -0.329 | 0.330 | ever_smoked_100, told_high_bp |
+| diabetes_ref_age_sex_bmi | framingham | glucose >= 200 mg/dL (proxy random glucose, ADA cutoff) | as-saved | 4,112 | 0.0% | NOT RUN | - | - | - | - | - | - |
+| diabetes_ref_age_sex_bmi | framingham | glucose >= 126 mg/dL ("only valid if fasting") | as-saved | 4,112 | 0.5% | 0.571 [0.483, 0.672] | full n | 0.364 | 0.698 | +0.019 | 0.006 | - |
+| diabetes_ref_age_sex_bmi | pima | diabetes (measured 2h OGTT >= 200 mg/dL) | as-saved | 757 | 35.1% | 0.735 [0.706, 0.769] | full n | 0.391 | 0.849 | -0.329 | 0.330 | - |
 
-### 3. Feature-Mapping Losses
-Feature granularity differences between cohorts necessitate methodological trade-offs:
-- **Age Aggregation:** BRFSS Kaggle records age in 13 ordinal five-year intervals (_AGEG5YR), requiring mapping to category
-  midpoints (e.g., age 18-24 -> 21, 80+ -> 82). This collapses intra-interval variance, dampening linear predictor precision.
-- **Smoking History:** NHANES distinguishes pack-years, lifetime smoking (>100 cigarettes), and current status, whereas Framingham
-  captures cigarettes/day and BRFSS captures binary lifetime exposure.
-- **Missing Anthropometric Measures:** Waist circumference and laboratory biomarkers (HbA1c) are absent in phone survey
-  cohorts (BRFSS), requiring mechanical overlap refits to quantify the generalizability of non-invasive feature subsets.
+---
 
-### 4. Interpretation of AUROC Changes
-Across external cohorts, discrimination demonstrates solid robustness with expected domain shifts:
-- Minimal discrimination drop was observed on large survey populations (BRFSS Core AUROC approx 0.75-0.76 for diabetes models
-  versus 0.78-0.81 on NHANES held-out test split). This modest approx 0.03-0.05 AUROC drop confirms that age, sex, BMI,
-  and smoking carry consistent discriminative signal across independent North American samples.
-- On highly selected cohorts (Cardio70k and Pima), discrimination ranges from 0.66 to 0.74. The primary mode of failure
-  is **calibration drift** (calibration-in-the-large up to -0.46), not loss of feature ranking capability. This demonstrates that
-  decision thresholds must never be applied cross-population without local calibration.
+## 2. Different Target (Told Diabetes): Ranking Only
 
-### 5. South Asian Applicability & The Imperative for DHS Validation
-**CRITICAL CLINICAL NOTICE:**
-None of the five external validation cohorts represents a South Asian or Pakistani population:
-- South Asian individuals experience the "South Asian Phenotype", developing type 2 diabetes and premature coronary artery disease
-  at substantially younger ages (5-10 years earlier) and at lower Body Mass Index thresholds (BMI >= 23 kg/m^2
-  versus >= 25 kg/m^2 per WHO Asian cutoffs), with elevated visceral adiposity and central obesity.
-- Evaluating Western or Native American populations provides zero guarantee of calibration or safety in South Asian primary care.
-- **Conclusion:** Validation on South Asian Demographic and Health Surveys (India NFHS-5, Bangladesh DHS, Nepal DHS)
-  and local Pakistani clinical data remains an indispensable, non-negotiable prerequisite prior to any clinical deployment.
+> **Important Clinical Methodological Distinction:**
+> Calibration, sensitivity, and specificity are not meaningful for our models in this table. Our models predict **undiagnosed diabetes** in adults without prior diabetes diagnosis (`label: diabetes_undiagnosed`, `population: adults_without_diabetes`). BRFSS records **ever told diabetes** (self-reported doctor diagnosis in the general population).
+> Self-reported diagnosed diabetes is substantially easier to discriminate from age, BMI, and hypertension history than undiagnosed metabolic dysregulation, producing higher apparent AUROCs that do not reflect performance on undiagnosed screening. Only discriminative ranking (AUROC) is reported.
+
+| Model | Dataset | Target Definition | Mode | N | Prevalence | AUROC (95% CI) | CI Basis | Missing Features |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| diabetes_full_nhanes | brfss2015_kaggle | diabetes (ever told diabetes) | overlap refit, not Usman's saved model | 253,680 | 13.9% | 0.760 [0.755, 0.766] | 50k stratified sample | sbp, dbp, waist_cm |
+| diabetes_full_nhanes | brfss_core | diabetes (ever told diabetes) | overlap refit, not Usman's saved model | 1,931,900 | 13.5% | 0.770 [0.765, 0.775] | 50k stratified sample | sbp, dbp, waist_cm |
+| diabetes_basic_nhanes | brfss2015_kaggle | diabetes (ever told diabetes) | as-saved | 253,680 | 13.9% | 0.760 [0.754, 0.765] | 50k stratified sample | - |
+| diabetes_basic_nhanes | brfss_core | diabetes (ever told diabetes) | as-saved | 1,931,900 | 13.5% | 0.770 [0.764, 0.775] | 50k stratified sample | - |
+| diabetes_ref_age_sex_bmi | brfss2015_kaggle | diabetes (ever told diabetes) | as-saved | 253,680 | 13.9% | 0.741 [0.735, 0.746] | 50k stratified sample | - |
+| diabetes_ref_age_sex_bmi | brfss_core | diabetes (ever told diabetes) | as-saved | 1,982,127 | 13.5% | 0.750 [0.743, 0.756] | 50k stratified sample | - |
+
+---
+
+## Appendix: Retired Models (Not Used in the App)
+
+> **Retirement Notice:**
+> Per ML_PLAN D13, hypertension models (`htn_full_nhanes`, `htn_basic_nhanes`, `htn_ref_age_sex_bmi`) are retired and not used in the ChronicCare-AI application. Their target was undiagnosed hypertension (measured SBP >= 130 or DBP >= 80 mmHg among adults not told and not on antihypertensive medication).
+> Evaluated below against:
+> 1. Framingham undiagnosed HTN analogue (`prevalent_hyp == 0 & bp_meds == 0`, label measured SBP >= 130 or DBP >= 80 mmHg).
+> 2. Cardio70k (measured SBP >= 130 or DBP >= 80 mmHg in clinical examinees; evaluated only for models without BP features).
+> 3. BRFSS Core (different target: self-reported told high blood pressure).
+
+| Model | Dataset | Target Definition | Mode | N | Prevalence | AUROC (95% CI) | CI Basis | Sens | Spec | Cal-in-Large | Brier | Missing Features |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| htn_full_nhanes | framingham | measured >= 130/80 mmHg (prevalent_hyp==0 & bp_meds==0) | overlap refit, not Usman's saved model | 2,879 | 51.2% | 0.631 [0.608, 0.653] | full n | 0.556 | 0.652 | -0.168 | 0.268 | hba1c, waist_cm |
+| htn_full_nhanes | cardio70k | htn_measured_130_80 (measured >= 130/80 mmHg) | overlap refit, not Usman's saved model | 68,737 | 81.6% | 0.671 [0.665, 0.676] | 50k stratified sample | 0.785 | 0.439 | -0.402 | 0.304 | ever_smoked_100, told_diabetes, hba1c, waist_cm |
+| htn_full_nhanes | brfss_core | high_bp (ever told high BP) | overlap refit, not Usman's saved model | 1,934,561 | 40.8% | 0.753 [0.749, 0.758] | 50k stratified sample | 0.906 | 0.420 | +0.060 | 0.201 | told_diabetes, hba1c, waist_cm |
+| htn_basic_nhanes | framingham | measured >= 130/80 mmHg (prevalent_hyp==0 & bp_meds==0) | as-saved | 2,879 | 51.2% | 0.629 [0.607, 0.651] | full n | 0.701 | 0.495 | -0.222 | 0.290 | - |
+| htn_basic_nhanes | cardio70k | htn_measured_130_80 (measured >= 130/80 mmHg) | overlap refit, not Usman's saved model | 68,737 | 81.6% | 0.671 [0.665, 0.676] | 50k stratified sample | 0.785 | 0.439 | -0.402 | 0.304 | ever_smoked_100, told_diabetes |
+| htn_basic_nhanes | brfss_core | high_bp (ever told high BP) | overlap refit, not Usman's saved model | 1,934,561 | 40.8% | 0.753 [0.749, 0.758] | 50k stratified sample | 0.906 | 0.420 | +0.060 | 0.201 | told_diabetes |
+| htn_ref_age_sex_bmi | framingham | measured >= 130/80 mmHg (prevalent_hyp==0 & bp_meds==0) | as-saved | 2,879 | 51.2% | 0.627 [0.606, 0.650] | full n | 0.687 | 0.503 | -0.225 | 0.291 | - |
+| htn_ref_age_sex_bmi | cardio70k | htn_measured_130_80 (measured >= 130/80 mmHg) | as-saved | 68,737 | 81.6% | 0.666 [0.660, 0.672] | 50k stratified sample | 0.860 | 0.329 | -0.465 | 0.361 | - |
+| htn_ref_age_sex_bmi | brfss_core | high_bp (ever told high BP) | as-saved | 1,979,349 | 40.7% | 0.755 [0.751, 0.759] | 50k stratified sample | 0.938 | 0.349 | +0.005 | 0.198 | - |
+
+---
+
+## Clinical Discussion & Epidemiological Findings
+
+### 1. Model Target vs External Label Distinctions
+- **Undiagnosed Diabetes (`diabetes_undiagnosed`) vs Diagnosed Diabetes (`told_diabetes`):**
+  ChronicCare-AI models were developed to detect occult, undiagnosed dysglycemia among adults unaware of their diabetic status. When applied to BRFSS cohorts, the target is doctor-diagnosed diabetes. Because individuals with established clinical diagnoses frequently have long-standing disease, elevated BMI, older age, and prescribed comorbidities, discriminative ranking appears deceptively high (AUROC 0.76–0.77). However, calibration and diagnostic sensitivity/specificity from these cohorts do not apply to our screening task.
+- **Framingham Blood Glucose Distribution:**
+  In the Framingham Heart Study baseline examination, after excluding subjects with known diabetes (`diabetes == 0`, N = 4,129; 3,745 with measured glucose), the maximum observed blood glucose is 163.0 mg/dL. Every subject in the original cohort with glucose >= 200 mg/dL had already been clinically diagnosed and coded as `diabetes == 1`. Consequently, applying the ADA random glucose threshold (`>= 200 mg/dL`) yields exactly 0 positive cases in the undiagnosed cohort, precluding AUROC computation. Applying the fasting threshold (`>= 126 mg/dL`) yields 22 positive cases (0.54% prevalence), producing an overlap refit AUROC of 0.596.
+- **Pima Indians Biochemical OGTT:**
+  Pima diabetes status is determined by formal 2-hour post-load oral glucose tolerance test (OGTT >= 200 mg/dL). This biochemical criterion detects true metabolic dysregulation in a high-prevalence cohort (35.1% prevalence among adult females). The model achieves an AUROC of 0.735, with negative calibration-in-the-large reflecting the substantially higher prevalence compared to general screening populations.
+
+### 2. Reference Development Discrimination
+For context, the locked internal test AUROCs achieved on the held-out NHANES test split (survey cycles 1999–2023, 11 cycles) are documented in [`docs/ml/EXPERIMENTS_SUMMARY.md:14-18`](file:///C:/Users/Saad/Documents/ChronicCare-AI/docs/ml/EXPERIMENTS_SUMMARY.md#L14-L18):
+- `diabetes_full_nhanes`: AUROC = **0.7527** [0.7291, 0.7763]
+- `diabetes_basic_nhanes`: AUROC = **0.7403** [0.7161, 0.7645]
+- `diabetes_ref_age_sex_bmi`: AUROC = **0.7421** [0.7179, 0.7663]
+
+External ranking on biochemical criteria (Pima AUROC 0.735) closely aligns with NHANES test discrimination, while proxy single-glucose detection in Framingham exhibits lower discrimination (0.596) due to the absence of HbA1c and repeated testing.
+
+### 3. Feature Mapping Approximations
+Differences in survey and clinical capture between cohorts introduce mapping approximations:
+- **Framingham Heart Study:**
+  - `current_smoker` mapped to `ever_smoked_100`: Current smoking does not capture former smokers who smoked >= 100 lifetime cigarettes.
+  - `prevalent_hyp` mapped to `told_high_bp`: Hypertensive status at examination is an epidemiological indicator, not identical to doctor-told diagnosis.
+  - Blood glucose: Recorded as a single measurement without protocol specification of fasting duration.
+- **CDC BRFSS (Kaggle & Core Parquet):**
+  - Age: Recorded in 13 ordinal five-year intervals (`_AGEG5YR`), mapped to category midpoints (e.g. 18–24 -> 21, 80+ -> 82), collapsing intra-interval variance.
+  - Sex Coding: Documented in [CDC BRFSS 2015 Codebook](https://www.cdc.gov/brfss/annual_data/2015/pdf/codebook15_llcp.pdf) (Section 8.1, Variable `SEX`: `1 = Male`, `2 = Female`), mapped to binary indicator `sex_male`.
+- **Cardio70k Examination Records:**
+  - Glucose: Recorded only as 3-level ordinal category (`gluc`: 1, 2, 3), precluding diabetes evaluation.
+  - Blood Pressure: Raw examination measurements required systematic rule-based cleaning (1,234 raw inverted rows, with 7 negative values caught in Rule 1, leaving 1,227 non-negative inverted rows handled in Rule 2: 100 swapped and 1,127 set to NaN). Clean measured hypertension prevalence is 81.56% (56,094 / 68,775).
+- **Pima Indians Diabetes:**
+  - All participants are adult females of Pima Indian heritage. Features lack waist circumference and smoking history, necessitating overlap refit.
+
+### 4. South Asian Applicability
+**None of these five external cohorts is a South Asian population; DHS validation is still required.**
+The external cohorts comprise North American general survey participants, historic suburban communities, and Indigenous American cohorts. South Asian populations exhibit different metabolic risk profiles, earlier onset of dysglycemia, and altered adiposity distributions. Validation on South Asian Demographic and Health Surveys (India NFHS-5, Bangladesh DHS, Nepal DHS) remains necessary prior to clinical deployment.
 
 ---
 

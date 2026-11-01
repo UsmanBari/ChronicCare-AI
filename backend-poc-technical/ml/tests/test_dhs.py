@@ -2,8 +2,8 @@
 Unit tests for DHS dataset loader skeleton and variables audit.
 """
 from pathlib import Path
-import pytest
 
+import pytest
 from ml.datasets.dhs import (
     EXPECTED_VARIABLES,
     SUPPORTED_COUNTRIES,
@@ -12,12 +12,18 @@ from ml.datasets.dhs import (
 )
 
 
-def test_dhs_data_not_available_on_missing_file():
+def test_dhs_data_not_available_on_missing_file(tmp_path: Path):
     """Verify that load_dhs raises DhsDataNotAvailable when data files are missing."""
+    # Test with explicit non-existent path
     with pytest.raises(DhsDataNotAvailable) as exc_info:
-        load_dhs("india_nfhs5")
+        load_dhs("india_nfhs5", path=tmp_path / "missing_nfhs5.dta")
     assert "not found" in str(exc_info.value).lower()
     assert issubclass(DhsDataNotAvailable, FileNotFoundError)
+
+    # Test with default path (handles both unset and set CHRONICCARE_DATA_DIR)
+    with pytest.raises(DhsDataNotAvailable) as exc_info_def:
+        load_dhs("india_nfhs5")
+    assert "not found" in str(exc_info_def.value).lower()
 
 
 def test_dhs_unsupported_country():
@@ -61,3 +67,4 @@ def test_dhs_expected_variables_all_marked_to_confirm():
         info = EXPECTED_VARIABLES[concept]
         assert "TO CONFIRM" in info["code"], f"Variable code for {concept} not marked 'TO CONFIRM': {info['code']}"
         assert len(info["description"]) > 5
+

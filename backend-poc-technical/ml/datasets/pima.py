@@ -109,3 +109,4 @@ def load_pima(path: str | Path | None = None) -> tuple[pd.DataFrame, dict[str, A
     # File has no header
     raw_df = pd.read_csv(target_path, header=None)
     return clean_pima_df(raw_df)
+

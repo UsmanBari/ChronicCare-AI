@@ -2,24 +2,21 @@
 Unit tests for external validation pipeline and clinical safety invariants.
 """
 from pathlib import Path
-from unittest.mock import MagicMock
+
+import ml.external_validation as ev
 import numpy as np
 import pandas as pd
 import pytest
 import sklearn
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-
 from ml.artifacts import save_model_artifact
-import ml.external_validation as ev
 from ml.external_validation import (
     evaluate_pair,
     get_candidate_datasets_for_model,
     get_model_disease_category,
-    load_external_dataset,
-    refit_on_overlap,
 )
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 
 @pytest.fixture
@@ -129,6 +126,28 @@ def test_overlap_refit_mode_when_features_missing(synthetic_model_dir, monkeypat
 
     monkeypatch.setattr(ev, "choose_threshold", spy_choose)
 
+    # Create synthetic NHANES reference data so test never depends on real parquet
+    rng = np.random.default_rng(42)
+    n_train = 100
+    n_val = 50
+    n_total = n_train + n_val
+    synth_nhanes = pd.DataFrame({
+        "seqn": list(range(n_total)),
+        "age": rng.uniform(20, 80, n_total),
+        "sex_male": rng.choice([0, 1], n_total),
+        "bmi": rng.uniform(18, 40, n_total),
+        "waist_cm": rng.uniform(60, 120, n_total),
+        "told_diabetes": np.concatenate([
+            rng.choice([0, 1], n_train, p=[0.7, 0.3]),
+            rng.choice([0, 1], n_val, p=[0.7, 0.3]),
+        ]),
+    })
+    synth_splits = {
+        "train_core": set(range(n_train)),
+        "validation": set(range(n_train, n_total)),
+        "test": set(),
+    }
+
     res = evaluate_pair(
         model_name="synthetic_diabetes_model",
         pipeline=pipe,
@@ -136,6 +155,8 @@ def test_overlap_refit_mode_when_features_missing(synthetic_model_dir, monkeypat
         dataset_name="test_ext_dataset",
         target_col="diabetes",
         dataset_df=df_ext,
+        nhanes_df=synth_nhanes,
+        splits=synth_splits,
     )
 
     assert res["status"] == "PASS"
@@ -147,7 +168,7 @@ def test_overlap_refit_mode_when_features_missing(synthetic_model_dir, monkeypat
     # NEVER with the external dataset length (len=4).
     assert len(choose_calls) == 1
     assert choose_calls[0]["y_len"] != len(df_ext)
-    assert choose_calls[0]["y_len"] > 1000  # NHANES validation split size
+    assert choose_calls[0]["y_len"] == n_val  # Reference validation split size
 
 
 def test_overlap_under_two_features_is_not_run(synthetic_model_dir):
