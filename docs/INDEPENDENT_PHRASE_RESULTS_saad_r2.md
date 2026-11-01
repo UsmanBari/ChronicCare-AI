@@ -15,7 +15,7 @@ This document reports the performance of the multilingual danger-phrase screenin
 
 > **SAFETY PROTOCOL NOTICE:**  
 > Neither engine was modified for this evaluation. All missed phrases are logged for clinical triage under GitHub issue:  
-> **[Safety Issue #95: Danger-phrase detector low sensitivity on natural multi-lingual syntax](https://github.com/UsmanBari/ChronicCare-AI/issues/95)**
+> **[Safety Issue #97: Emergency phrase detection sensitivity gaps across v2 and v3 triage engines](https://github.com/UsmanBari/ChronicCare-AI/issues/97)**
 
 ---
 
@@ -82,4 +82,4 @@ Both engines missed the majority of conversational expressions where colloquial 
 
 1. **Specificity is High (93.3%–100%):** False alarms remain minimal across both engines.
 2. **Critical Sensitivity Deficit:** Because both engines rely on exact substring matching, sensitivity drops from 20–40% on standard phrasing down to 6.7–13.3% on realistic conversational inputs.
-3. **Assigned to Usman:** Logged in safety backlog for semantic embedding / fast keyword stemmer upgrade in Iteration 3.
+3. **Assigned to Usman:** Logged in safety backlog for semantic embedding / fast keyword stemmer upgrade in Iteration 3 ([Issue #97](https://github.com/UsmanBari/ChronicCare-AI/issues/97)).
