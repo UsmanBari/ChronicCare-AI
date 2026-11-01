@@ -81,6 +81,7 @@ def test_mysql_preflight_signatures_and_constants():
         "patients",
         "observations",
         "medications",
+        "record_edits",
     }
     assert mysql_preflight.EXPECTED_TABLES == expected_tables
 
