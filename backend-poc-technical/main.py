@@ -2618,7 +2618,7 @@ async def import_patient_record_endpoint(
                     if valid_basis:
                         current_basis = dict(profile.get("conditions_basis", {}))
                         current_basis.update(valid_basis)
-                        update_patient_conditions_basis(user_id, current_basis, changed_by_user_id=user_id, origin="import")
+                        update_patient_conditions_basis(user_id, current_basis, changed_by_user_id=user_id, origin="import", cursor=cursor)
             conn.commit()
         except Exception as e:
             conn.rollback()

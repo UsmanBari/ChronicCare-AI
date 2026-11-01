@@ -1144,13 +1144,42 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
 def update_patient_conditions_basis(user_id: str, conditions_basis: Dict[str, Optional[str]],
                                    backend: Optional[str] = None, db_path: Optional[str] = None,
                                    mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None,
-                                   changed_by_user_id: Optional[str] = None, origin: str = "self_reported") -> Dict[str, Any]:
+                                   changed_by_user_id: Optional[str] = None, origin: str = "self_reported",
+                                   cursor: Optional[Any] = None) -> Dict[str, Any]:
     """Updates conditions basis mapping in patient profile and logs record_edits per changed basis."""
     existing_prof = get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) or {}
     old_basis_dict = existing_prof.get("conditions_basis", {})
     basis_json = json.dumps(conditions_basis)
     now = _utc_now_iso()
     actor_id = changed_by_user_id or user_id
+
+    if cursor is not None:
+        b = backend or ("mysql" if os.environ.get("DB_BACKEND") == "mysql" or os.environ.get("CHRONICCARE_MYSQL_URL") else "sqlite")
+        ph = "%s" if b == "mysql" else "?"
+        cursor.execute(
+            f"UPDATE patient_profiles SET conditions_basis_json = {ph}, updated_at = {ph} WHERE user_id = {ph}",
+            (basis_json, now, user_id)
+        )
+        for cond_name, new_val in conditions_basis.items():
+            old_val = old_basis_dict.get(cond_name)
+            if new_val != old_val:
+                record_edit(
+                    cursor,
+                    ph,
+                    user_id=user_id,
+                    record_type="condition",
+                    record_id=cond_name,
+                    field="basis",
+                    old_value=old_val,
+                    new_value=new_val,
+                    origin=origin,
+                    changed_by_user_id=actor_id,
+                    reason=None,
+                )
+        updated_prof = dict(existing_prof)
+        updated_prof["conditions_basis"] = conditions_basis
+        updated_prof["updated_at"] = now
+        return updated_prof
 
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(

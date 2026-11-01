@@ -188,4 +188,38 @@ describe("Record History UI (HealthRecordScreen)", () => {
       expect(screen.queryByTestId("record-history-modal")).toBeNull();
     });
   });
+
+  it("manages focus when opening and closes on Escape, restoring focus to trigger", async () => {
+    render(<HealthRecordScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("view-full-history-btn")).toBeTruthy();
+    });
+
+    const triggerBtn = screen.getByTestId("view-full-history-btn");
+    triggerBtn.focus();
+    expect(document.activeElement).toBe(triggerBtn);
+
+    fireEvent.click(triggerBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("record-history-modal")).toBeTruthy();
+    });
+
+    const closeBtn = screen.getByTestId("close-history-modal-btn");
+    await waitFor(() => {
+      expect(document.activeElement).toBe(closeBtn);
+    });
+
+    // Press Escape to close
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("record-history-modal")).toBeNull();
+    });
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(triggerBtn);
+    });
+  });
 });

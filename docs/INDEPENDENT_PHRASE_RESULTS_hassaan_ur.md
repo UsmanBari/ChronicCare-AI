@@ -149,7 +149,7 @@ Matching phrase by phrase using static regular expressions inherently fails to g
 | Evaluation Set | Safe Sentence Count | Legacy v2 TN (Spec) | Current v3 TN (Spec) | Proposed v3+ TN (Spec) |
 |---|---|---|---|---|
 | **Hassaan Safe Look-alikes** | 10 | 10 / 10 (100.0%) | 10 / 10 (100.0%) | 10 / 10 (100.0%) |
-| **Saad Held-Out Safe Sentences** | 20 | 20 / 20 (100.0%) | 20 / 20 (100.0%) | 20 / 20 (100.0%) |
+| **Tuning set safe sentences** | 20 | 20 / 20 (100.0%) | 20 / 20 (100.0%) | 20 / 20 (100.0%) |
 | **Conversational Benign Patient Sentences** | 40 | 40 / 40 (100.0%) | 40 / 40 (100.0%) | 40 / 40 (100.0%) |
 | **Combined Overall Specificity** | **70** | **70 / 70 (100.0%)** | **70 / 70 (100.0%)** | **70 / 70 (100.0%)** |
 | **Total False Positives (FPR)** | - | **0 (0.0%)** | **0 (0.0%)** | **0 (0.0%)** |
