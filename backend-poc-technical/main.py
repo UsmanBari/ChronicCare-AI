@@ -214,7 +214,7 @@ async def lifespan(app: FastAPI):
             store = get_db_chunk_store()
             logger.info("DbChunkStore loaded at startup: %d chunks", store.total_chunks())
         except Exception as e:
-            logger.warning("DbChunkStore startup load skipped: %s", str(e))
+            logger.warning("DbChunkStore startup load skipped: %s", type(e).__name__)
     yield
 
 

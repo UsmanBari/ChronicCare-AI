@@ -110,7 +110,7 @@ We evaluated all three engines (`v2`, `v3`, and `PROTOTYPE`) across gold, indepe
 | | `PROTOTYPE` | 26 / 83 (31.3%) | 4 / 56 (7.1%) |
 | **Saad Independent Set** | `v2` | 3 / 15 (20.0%) | 1 / 15 (6.7%) |
 | | `v3` | 6 / 15 (40.0%) | 1 / 15 (6.7%) |
-| | `PROTOTYPE` | 5 / 15 (33.3%) | 3 / 20 (15.0%) |
+| | `PROTOTYPE` | 5 / 15 (33.3%) | 3 / 15 (20.0%) |
 | **Hassaan Urdu Independent** | `v2` | 4 / 20 (20.0%) | 0 / 10 (0.0%) |
 | | `v3` | 6 / 20 (30.0%) | 0 / 10 (0.0%) |
 | | `PROTOTYPE` | **10 / 20 (50.0%)** | 2 / 10 (20.0%) |
@@ -123,6 +123,9 @@ We evaluated all three engines (`v2`, `v3`, and `PROTOTYPE`) across gold, indepe
 | **Tuning Set Urdu** | `v2` | 1 / 20 (5.0%) | 0 / 20 (0.0%) |
 | | `v3` | 1 / 20 (5.0%) | 0 / 20 (0.0%) |
 | | `PROTOTYPE` | **7 / 20 (35.0%)** | 2 / 20 (10.0%) |
+| **Saad Independent R2** | `v2` | 1 / 15 (6.7%) | 1 / 15 (6.7%) |
+| | `v3` | 2 / 15 (13.3%) | 0 / 15 (0.0%) |
+| | `PROTOTYPE` | 4 / 15 (26.7%) | 3 / 15 (20.0%) |
 
 ### Key Clinical Observations
 1. **Urdu Sensitivity Gain**: On vernacular Urdu sets (`Hassaan Urdu Independent`, `Saad Blind Urdu`, `Tuning Set Urdu`), the composable PROTOTYPE caught **2x to 7x more true emergency phrases** than either v2 or v3 (e.g. 50% vs 30% on Hassaan Urdu, 35% vs 5% on Tuning Set).

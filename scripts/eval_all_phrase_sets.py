@@ -182,8 +182,8 @@ PHRASE_FILES = [
         "format": "blind_list",
     },
     {
-        "name": "Dr Anam Clinical Review Set",
-        "path": REPO_ROOT / "tests" / "sim" / "dr_anam_clinical_set.json",
+        "name": "Saad Independent R2",
+        "path": REPO_ROOT / "tests" / "sim" / "danger_phrases_independent_saad_r2.json",
         "format": "gold_list",
     },
 ]
