@@ -801,17 +801,21 @@ def test_audit_logs_contain_counts_only_no_phi_no_filename(rsa_key_pair, monkeyp
     assert len(ocr_logs) >= 2
 
     for l in ocr_logs:
-        details_str = json.dumps(l.get("detail", {}))
+        detail_copy = dict(l.get("detail", {}))
+        popped_upload_id = detail_copy.pop("upload_id", None)
+        assert popped_upload_id == upload_id
+
+        rest_str = json.dumps(detail_copy)
         # Must NOT contain uploaded filename
-        assert "patient_secret_lab_scan" not in details_str
+        assert "patient_secret_lab_scan" not in rest_str
         # Must NOT contain clinical measurement value 125.0
-        assert "125.0" not in details_str
-        assert "125" not in details_str
+        assert "125.0" not in rest_str
+        assert "125" not in rest_str
         # Must contain counts
         if l["action"] == "record_ocr_upload_processed":
-            assert "obs_count" in details_str or "med_count" in details_str
+            assert "obs_count" in rest_str or "med_count" in rest_str
         elif l["action"] == "record_ocr_upload_confirmed":
-            assert "confirmed_count" in details_str
+            assert "confirmed_count" in rest_str
 
 
 # ----------------------------------------------------------------------------
