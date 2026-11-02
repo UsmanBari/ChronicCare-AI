@@ -85,7 +85,7 @@ export const HealthRecordScreen = () => {
   const historyTriggerRef = React.useRef<HTMLElement | null>(null);
   const historyCloseBtnRef = React.useRef<HTMLButtonElement | null>(null);
 
-  const formatObsType = (rawType: string, isUrduText: boolean) => {
+  const formatObsType = (rawType: string = "", isUrduText: boolean = false) => {
     const norm = (rawType || "").toLowerCase();
     if (norm === "glucose" || norm.includes("glucose")) {
       return isUrduText ? "بلڈ شوگر" : "Blood Glucose";

@@ -12,7 +12,6 @@ During Week 44, engineering efforts focused on advancing Iteration 2 across two 
 1. **Adaptive Clinical Interview v3 Localization & Safety:** Hardening understanding, multi-turn slot filling, dual-diagnosis management (diabetes + hypertension), full Urdu localization with zero English leakage, and independent danger phrase screening.
 2. **Patient Health Record Integrity & OCR Ingestion (I2-5):** Implementing immutable record edit history (`record_edits`, schema v14), all-or-nothing JSON/FHIR import/export with preview, and building OCR v1 behind a server-side feature flag (`OCR_ENABLED=false`) using server RapidOCR and human-in-the-loop review.
 
-All 7 milestones for Week 2 were completed, tested, and verified against project safety guidelines ("the model proposes, the rules decide").
 
 ---
 
@@ -45,7 +44,7 @@ All 7 milestones for Week 2 were completed, tested, and verified against project
 - **Deliverables:**
   1. **Flagged Endpoints:** Built `POST /api/me/record/uploads` and `POST /api/me/record/uploads/{upload_id}/confirm` gated behind `OCR_ENABLED=false` (returns HTTP 503 when disabled; refuses connected mode with HTTP 409).
   2. **Zero PHI Persistence:** Implemented ephemeral in-memory staging store (max 3 uploads per user, 30-minute TTL, automatic cleanup). Raw image bytes are never written to disk or database.
-  3. **Strict Re-Validation:** Clinical bounds (glucose 20–600 mg/dL, systolic BP 60–260 mmHg, diastolic BP 40–150 mmHg) and dosage formatting are strictly re-verified on server confirmation before writing to the database with `origin="ocr"` and medium trust.
+  3. **Strict Re-Validation:** Clinical bounds (glucose 20–600 mg/dL, systolic BP 60–260 mmHg, diastolic BP 30–160 mmHg) and dosage formatting are strictly re-verified on server confirmation before writing to the database with `origin="ocr"` and medium trust.
   4. **Frontend Confirmation UI:** Built `OcrConfirmScreen.tsx` allowing patients to review each detected value with its evidence snippet, and Confirm, Fix, or Remove each item. Added Urdu notice banner for Urdu-script documents.
   5. **Screenshots:** Generated documentation screenshots for English review (`ocr_confirm_en.png`), Urdu review (`ocr_confirm_ur.png`), Health Record badge (`ocr_badge_record_en.png`), and invalid-item clinical rejection highlight in English (`ocr_invalid_item_en.png`) and Urdu (`ocr_invalid_item_ur.png`).
 - **PR:** PR #96 (`feat/i2-5-ocr-v1`, open). Merged PRs this week: #71, #76, #77, #80, #84, #89, #92.
@@ -54,7 +53,7 @@ All 7 milestones for Week 2 were completed, tested, and verified against project
 
 ## 3. Architecture & Safety Design Choices
 
-- **Server-Side RapidOCR:** RapidOCR with ONNX Runtime is isolated in an optional `requirements-ocr.txt` dependency set. The server loads the OCR engine lazily upon the first upload request, leaving the base process memory footprint at 61.8 MB.
+- **Server-Side RapidOCR:** RapidOCR with ONNX Runtime is isolated in an optional `requirements-ocr.txt` dependency set. The server loads the OCR engine lazily upon the first upload request. Backend process memory was measured directly in a clean Python 3.11 Linux environment: 70.15 MB baseline RSS (with `OCR_ENABLED=false`), 226.51 MB RSS after the first real OCR call, and 436.09 MB peak RSS during inference (leaving 75.91 MB / 14.8% headroom within Render's 512 MB free tier).
 - **Production Guard:** A hard check in `provider.py` refuses `OCR_PROVIDER=fake` whenever `APP_ENV=production`, preventing mock providers from being inadvertently deployed.
 - **Human-in-the-Loop Safeguard:** Extracted values are never auto-committed to the patient's record. Every value requires explicit patient confirmation, saving with `origin="ocr"` (medium trust) and creating immutable `record_edits` audit records.
 - **No Schema Conflicts:** Day 7 stays strictly on schema v14, avoiding collisions with lead developer Usman's schema v15 migration.
