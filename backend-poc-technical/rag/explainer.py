@@ -74,6 +74,8 @@ TEMPLATES = load_templates()
 
 def extract_numbers(text: str) -> set[str]:
     """Extract normalized numbers (integers and decimals) from text."""
+    if not text or not isinstance(text, str):
+        return set()
     # Find all numeric matches
     raw_nums = re.findall(r"\b\d+(?:\.\d+)?\b", text)
     # Normalize: strip trailing .0 for clean comparison

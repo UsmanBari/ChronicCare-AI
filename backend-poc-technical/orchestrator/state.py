@@ -26,3 +26,5 @@ class CheckinState(TypedDict, total=False):
     record_label: Optional[str]
     parsed_context: Optional[Dict[str, Any]]
     triage_decision: Optional[Dict[str, Any]]
+    risk: Optional[Dict[str, Any]]
+    explanation: Optional[Dict[str, Any]]

@@ -134,6 +134,9 @@ Stores the result, review status, escalation information, and generated clinical
 | `created_at` | TEXT | Timestamp recording when the check-in result was created. | `2026-10-11T09:10:00Z` | Yes |
 | `triage_level` | TEXT | Optional triage level assigned during check-in processing. | `high` | Yes |
 | `triage_json` | TEXT | Optional JSON-encoded detailed triage result/state. | `{"level":"high"}` | Yes |
+| `risk_json` | TEXT | Optional JSON-encoded diabetes risk assessment evaluated at check-in time (`status`, `band`, `probability`, `model_name`, `model_version`, `raised`, `reasons`, `caveats`). Added in schema v15. | `{"status":"ok","band":"low","probability":0.025}` | Yes |
+| `explanation_json` | TEXT | Optional JSON-encoded clinical guideline explanation generated at check-in time (`status`, `mode`, `sentences`, `sources`, `rejected_reasons`). Added in schema v15. | `{"status":"ok","mode":"llm","sentences":[]}` | Yes |
+| `trace_json` | TEXT | Optional JSON-encoded decision audit trace sequence capturing executed pipeline nodes, timestamps, and aggregate counts (sanitized of reading values and PHI). Added in schema v15. | `[{"node":"node_intake","summary":"..."}]` | Yes |
 
 ### Constraints and notes
 
@@ -428,6 +431,42 @@ Stores the granular timeline and audit trail of user-driven and import modificat
 - `origin` must be one of `patient`, `clinician`, `import`, `ocr`, or `ehr`.
 - Composite indexes: `idx_record_edits_lookup` on `(user_id, record_type, record_id)` and `idx_record_edits_timeline` on `(user_id, changed_at DESC)`.
 - Enforces atomic writes on the same transaction cursor as the record change.
+
+---
+
+## Guideline Chunks
+
+Table: `guideline_chunks`
+
+Added in schema v15.
+
+> [!IMPORTANT]
+> **PRODUCTION DB MIGRATION**: Run `python scripts/mysql_preflight.py` before and after deploying; expected schema 15.
+
+Stores ingested clinical guideline knowledge chunks for RAG explanations and patient decision support. Populated from source guideline JSONL files using `scripts/rag/load_chunks.py`.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `chunk_id` | TEXT | Unique chunk identifier. Primary key. | `chunk_htn_001` | No |
+| `source_id` | TEXT | Source guideline reference code (e.g. `AHA_ACC_2017`, `ADA_2024`, `ISH_2020`). Cannot be null. | `AHA_ACC_2017` | No |
+| `title` | TEXT | Section or guideline title. Cannot be null. | `Blood Pressure Thresholds` | No |
+| `edition` | TEXT | Guideline publication year or edition label. | `2017` | No |
+| `priority` | INTEGER | Priority ranking for retrieval tie-breaking (defaults to 1). | `1` | No |
+| `section_path` | TEXT | Path of the section within the guideline hierarchy. | `Section 4.1` | No |
+| `page_start` | INTEGER | Starting page number in the source guideline document. | `12` | No |
+| `page_end` | INTEGER | Ending page number in the source guideline document. | `15` | No |
+| `grade` | TEXT | Clinical recommendation grade or evidence class. | `Class I, Level A` | No |
+| `condition` | TEXT | Target clinical condition (`hypertension`, `diabetes`, `both`). Indexed. Cannot be null. | `hypertension` | No |
+| `topics_json` | TEXT | JSON-encoded topic slugs for category filtering. | `["bp_targets","lifestyle"]` | No |
+| `text` | TEXT | Full passage text of the guideline chunk. Cannot be null. | `Stage 1 hypertension is defined...` | No |
+| `loaded_at` | TEXT | UTC ISO-8601 timestamp when the chunk was inserted or updated. Cannot be null. | `2026-11-01T12:00:00Z` | No |
+
+### Constraints and notes
+
+- `chunk_id` is the primary key.
+- `source_id`, `title`, `condition`, `text`, and `loaded_at` cannot be null.
+- Secondary indexes: `idx_guideline_chunks_condition` on `condition`, `idx_guideline_chunks_source` on `source_id`.
+- This table contains only medical guideline literature and no patient health information.
 
 ---
 
