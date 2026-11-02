@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import unquote, urlparse
 
 try:
@@ -17,7 +17,7 @@ except ImportError:
     pymysql = None
 
 
-def resolve_ssl_ca(path_or_content: Optional[str]) -> Optional[str]:
+def resolve_ssl_ca(path_or_content: str | None) -> str | None:
     if not path_or_content:
         return None
     p = Path(path_or_content)
@@ -26,7 +26,7 @@ def resolve_ssl_ca(path_or_content: Optional[str]) -> Optional[str]:
     return None
 
 
-def get_params(raw_url: Optional[str], raw_ca: Optional[str]) -> Dict[str, Any]:
+def get_params(raw_url: str | None, raw_ca: str | None) -> dict[str, Any]:
     if not raw_url:
         raise ValueError("Missing database URL")
     parsed = urlparse(raw_url)
@@ -37,7 +37,7 @@ def get_params(raw_url: Optional[str], raw_ca: Optional[str]) -> Dict[str, Any]:
     db = parsed.path.lstrip("/")
     if not db:
         raise ValueError("Missing database name")
-    cfg: Dict[str, Any] = {
+    cfg: dict[str, Any] = {
         "host": h,
         "port": pt,
         "user": u,
@@ -46,13 +46,15 @@ def get_params(raw_url: Optional[str], raw_ca: Optional[str]) -> Dict[str, Any]:
         "charset": "utf8mb4",
         "cursorclass": pymysql.cursors.DictCursor if pymysql else None,
     }
-    ca = resolve_ssl_ca(raw_ca)
-    if ca:
+    if raw_ca:
+        ca = resolve_ssl_ca(raw_ca)
+        if not ca:
+            raise FileNotFoundError(f"MYSQL_SSL_CA file not found: {raw_ca}")
         cfg["ssl"] = {"ca": ca}
     return cfg
 
 
-def inspect_production(conn: Any) -> Dict[str, Any]:
+def inspect_production(conn: Any) -> dict[str, Any]:
     with conn.cursor() as cursor:
         cursor.execute("SET SESSION TRANSACTION READ ONLY")
         cursor.execute("SELECT MAX(version) AS max_v FROM schema_version")
@@ -62,14 +64,14 @@ def inspect_production(conn: Any) -> Dict[str, Any]:
         cursor.execute("SHOW TABLES")
         table_rows = cursor.fetchall()
 
-        table_names: List[str] = []
+        table_names: list[str] = []
         for r in table_rows:
             if isinstance(r, dict):
-                table_names.append(list(r.values())[0])
+                table_names.append(next(iter(r.values())))
             else:
                 table_names.append(r[0])
 
-        tallies: Dict[str, int] = {}
+        tallies: dict[str, int] = {}
         for t in sorted(table_names):
             if not t.isidentifier():
                 continue
@@ -97,6 +99,18 @@ def main() -> None:
         print("ERROR: MYSQL_URL is not set.")
         sys.exit(1)
 
+    parsed = urlparse(raw_url)
+    db_name = parsed.path.lstrip("/")
+    print(f"Database: {db_name}")
+    if db_name == "defaultdb":
+        print("WARNING: defaultdb is NOT production. Production is chroniccare_demo.")
+
+    if raw_ca:
+        ca_path = Path(raw_ca)
+        if not ca_path.is_file():
+            print("ERROR: MYSQL_SSL_CA file not found")
+            sys.exit(1)
+
     if pymysql is None:
         print("ERROR: pymysql is not installed.")
         sys.exit(1)
@@ -117,4 +131,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

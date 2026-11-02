@@ -80,6 +80,14 @@ In Firebase Console -> **Authentication** -> **Settings** -> **Authorized domain
 
 ## 4. Deployment & Migration Step-by-Step Order
 
+### Which database
+- **Production database**: `chroniccare_demo`. Test database: `chroniccare_dev`. `defaultdb` is unused.
+- **Aiven's Service URI**: Ends in `/defaultdb`: always change it to `/chroniccare_demo` for Render and for the read-only check.
+- **Production check before Release 1 (2 Nov 2026)**: schema 12, 13 tables, `users` 15, `checkins` 17, `checkin_results` 8, `audit_log` 155.
+- **Aiven Free Plan**: Powers the service off when idle; it can take 5+ minutes to come back. Wake it before any demo.
+- **Render Startup Migrations**: The backend only logs "Database migration skipped on startup" if a migration fails and keeps running, so always check the Render logs after a deploy.
+
+
 1. **Step 1: Read-Only Production Database Check (Pre-Deploy)**:
    Before deploying new code or touching production, the human operator runs `scripts/prod_schema_readonly.py` in their local terminal with the production database settings. This script executes zero write SQL (enforcing `SET SESSION TRANSACTION READ ONLY` and rolling back), safely asserting the current schema version, table list, and row tallies:
    ```bash

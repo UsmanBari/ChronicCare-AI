@@ -1,17 +1,19 @@
 """
 Hermetic test for scripts/prod_schema_readonly.py:
-1. Asserts no write SQL keywords (INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, TRUNCATE, REPLACE, GRANT)
-   exist anywhere in the file (case-insensitive, whole file including comments).
+1. Asserts no write SQL keywords exist anywhere in the script file.
 2. Asserts SET SESSION TRANSACTION READ ONLY and rollback are present.
-3. Tests inspect_production and main behavior with mocks without touching any network or database.
-4. Asserts no credentials or secrets can be leaked.
+3. Tests inspect_production with mocks.
+4. Tests main masks secrets and prints database name.
+5. Tests warning when database name is defaultdb.
+6. Tests missing CA file causes exit 1 without connecting.
 """
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_PATH = REPO_ROOT / "scripts" / "prod_schema_readonly.py"
@@ -59,29 +61,76 @@ def test_inspect_production_mock():
     mock_conn.rollback.assert_called_once()
 
 
-def test_main_masks_secrets(monkeypatch, capsys):
+def test_main_prints_db_and_masks_secrets(monkeypatch, capsys, tmp_path):
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     import prod_schema_readonly
 
-    secret_url = "mysql://admin_user:super_secret_password_123@db.example.com:3306/prod_db"
+    ca_file = tmp_path / "test_ca.pem"
+    ca_file.write_text("dummy ca content", encoding="utf-8")
+
+    secret_url = "mysql://admin_user:super_secret_password_123@db.example.com:3306/chroniccare_demo"
     monkeypatch.setenv("MYSQL_URL", secret_url)
-    monkeypatch.setenv("MYSQL_SSL_CA", "/path/to/ca.pem")
+    monkeypatch.setenv("MYSQL_SSL_CA", str(ca_file))
 
     with patch.object(prod_schema_readonly, "inspect_production") as mock_inspect, \
-         patch("pymysql.connect") as mock_connect:
+         patch("pymysql.connect"):
         mock_inspect.return_value = {
             "version": 12,
             "tables": ["users"],
-            "counts": {"users": 5},
+            "counts": {"users": 15},
         }
         prod_schema_readonly.main()
 
     captured = capsys.readouterr().out
     assert "MYSQL_URL: SET" in captured
     assert "MYSQL_SSL_CA: SET" in captured
+    assert "Database: chroniccare_demo" in captured
     assert "super_secret_password_123" not in captured
     assert "admin_user" not in captured
     assert "db.example.com" not in captured
+    assert "WARNING: defaultdb is NOT production" not in captured
     assert "Schema Version: 12" in captured
-    assert "users: 5" in captured
+    assert "users: 15" in captured
 
+
+def test_main_warns_on_defaultdb(monkeypatch, capsys, tmp_path):
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import prod_schema_readonly
+
+    ca_file = tmp_path / "test_ca.pem"
+    ca_file.write_text("dummy ca content", encoding="utf-8")
+
+    secret_url = "mysql://test_user:pass@db.example.com:3306/defaultdb"
+    monkeypatch.setenv("MYSQL_URL", secret_url)
+    monkeypatch.setenv("MYSQL_SSL_CA", str(ca_file))
+
+    with patch.object(prod_schema_readonly, "inspect_production") as mock_inspect, \
+         patch("pymysql.connect"):
+        mock_inspect.return_value = {
+            "version": 1,
+            "tables": [],
+            "counts": {},
+        }
+        prod_schema_readonly.main()
+
+    captured = capsys.readouterr().out
+    assert "Database: defaultdb" in captured
+    assert "WARNING: defaultdb is NOT production. Production is chroniccare_demo." in captured
+
+
+def test_main_missing_ssl_ca_exits(monkeypatch, capsys):
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    import prod_schema_readonly
+
+    monkeypatch.setenv("MYSQL_URL", "mysql://u:p@localhost:3306/chroniccare_demo")
+    monkeypatch.setenv("MYSQL_SSL_CA", "/nonexistent/path/to/missing_ca_file.pem")
+
+    with patch("pymysql.connect") as mock_connect:
+        with pytest.raises(SystemExit) as exc_info:
+            prod_schema_readonly.main()
+
+        assert exc_info.value.code == 1
+        mock_connect.assert_not_called()
+
+    captured = capsys.readouterr().out
+    assert "ERROR: MYSQL_SSL_CA file not found" in captured
