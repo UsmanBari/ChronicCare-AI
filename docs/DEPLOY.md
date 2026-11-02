@@ -78,27 +78,42 @@ In Firebase Console -> **Authentication** -> **Settings** -> **Authorized domain
 
 ---
 
-## 4. First Deployment Step-by-Step Order
+## 4. Deployment & Migration Step-by-Step Order
 
-1. **Step 1: MySQL Pre-flight Check**:
-   The human operator runs `scripts/mysql_preflight.py` in their local terminal with the production database settings to apply migrations and verify TLS connectivity:
+1. **Step 1: Read-Only Production Database Check (Pre-Deploy)**:
+   Before deploying new code or touching production, the human operator runs `scripts/prod_schema_readonly.py` in their local terminal with the production database settings. This script executes zero write SQL (enforcing `SET SESSION TRANSACTION READ ONLY` and rolling back), safely asserting the current schema version, table list, and row tallies:
    ```bash
-   # In terminal with environment populated:
-   python scripts/mysql_preflight.py
+   # In terminal with production environment populated:
+   $env:PYTHONPATH="backend-poc-technical"
+   python scripts/prod_schema_readonly.py
    ```
-   *Note: `mysql_preflight.py` is fully idempotent. After any schema change (such as Schema Version 11), it can be re-run safely at any time to assert schema readiness and verify table structures without data loss.*
+   *Note: Never run `scripts/mysql_preflight.py` before deploy, as it executes migrations and temporary table creation/deletion. Pre-deploy inspection must strictly be read-only.*
+
 2. **Step 2: Deploy Backend to Render**:
-   - Create Web Service in Render with the environment variables listed above.
-   - Manually trigger first deploy.
+   - Merge the release PR to `main` or trigger the deploy webhook.
+   - The backend service automatically applies additive migrations on startup via the lifespan context (`migrate()`).
    - Verify health check: `curl https://<your-render-app>.onrender.com/api/health` -> `{"status":"healthy"}`.
-3. **Step 3: Deploy Frontend to Netlify**:
+
+3. **Step 3: Post-Deploy Database Verification**:
+   - Run `scripts/prod_schema_readonly.py` again to confirm the upgraded schema version (e.g. v15) and new tables/columns:
+     ```bash
+     python scripts/prod_schema_readonly.py
+     ```
+   - Run `scripts/mysql_preflight.py` ONCE after deploy (it is idempotent and verifies TLS connectivity and schema structure):
+     ```bash
+     python scripts/mysql_preflight.py
+     ```
+
+4. **Step 4: Deploy Frontend to Netlify**:
    - Link repository to Netlify with build command `npm run build` and publish directory `out`.
    - Add the `NEXT_PUBLIC_*` environment variables in Netlify site settings.
    - Trigger build and note the live Netlify domain URL.
-4. **Step 4: Update CORS on Backend**:
+
+5. **Step 5: Update CORS on Backend**:
    - In Render Dashboard, add the live Netlify URL (e.g., `https://chroniccare.netlify.app`) to `CORS_ALLOWED_ORIGINS`.
    - Render restarts the backend service with updated CORS origin permissions.
-5. **Step 5: Run Post-Deployment Smoke Test**:
+
+6. **Step 6: Run Post-Deployment Smoke Test**:
    - Execute the smoke test script:
    ```bash
    python scripts/smoke_test.py --backend https://<your-render-app>.onrender.com --frontend https://<your-netlify-app>.netlify.app
