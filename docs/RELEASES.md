@@ -22,7 +22,7 @@ All new capabilities (risk prediction, RAG guideline explainer, adaptive intervi
 | #71 | @hassaan07mudassar | Docs/i2 4 interview audit | 2026-10-27 |
 | #72 | @usmanbari-ub | I2-2 Day 2: guideline corpus, ingestion, rules check | 2026-10-27 |
 | #73 | @hassaan07mudassar | fix(interview): probe answers by step and correct interview audit | 2026-10-27 |
-| #74 | @msaadd25 | #74: closed; its commit came in through #75 | 2026-10-28 |
+| #74 | @msaadd25 | #74: closed; its commit came in through #75 | - |
 | #75 | @msaadd25 | I2-1 Day 2: temporal split, fair baseline, feature map, label catalogue | 2026-10-28 |
 | #76 | @hassaan07mudassar | feat(interview): v3 answer understanding and slot filling (Day 2) | 2026-10-28 |
 | #77 | @hassaan07mudassar | feat(interview): v3 dual diagnosis, de-duplication, caregiver, and summary confirmation (Day 3) | 2026-10-28 |
@@ -52,8 +52,8 @@ All new capabilities (risk prediction, RAG guideline explainer, adaptive intervi
 - **Production Database:** `chroniccare_demo` (managed on Aiven MySQL).
 - **Migration Execution:** Applied additively on startup via FastAPI lifespan `migrate()` (v12 $\to$ v15).
   - **v13**: Adds nullable column `waist_cm` (FLOAT NULL) to `patient_profiles`.
-  - **v14**: Creates table `record_edits` with foreign key referencing `patient_profiles(id)` and query indexes on `patient_id` and `(target_type, target_id)`.
-  - **v15**: Adds nullable columns `risk_json` (TEXT NULL), `explanation_json` (TEXT NULL), `trace_json` (TEXT NULL) to `checkin_results`, and creates `guideline_chunks` table with composite index `(condition, chunk_type)`.
+  - **v14**: Creates table `record_edits` (no foreign key) with indexes `idx_record_edits_lookup (user_id, record_type, record_id)` and `idx_record_edits_timeline (user_id, changed_at DESC)`.
+  - **v15**: Adds nullable columns `risk_json` (TEXT NULL), `explanation_json` (TEXT NULL), `trace_json` (TEXT NULL) to `checkin_results`, and creates `guideline_chunks` table with indexes `idx_guideline_chunks_condition (condition)` and `idx_guideline_chunks_source (source_id)`.
 - **Render Startup Verification:** Render backend logs confirmed clean migration; `"Database migration skipped on startup"` was **NOT** found.
 
 #### Before vs. After Row Tallies (`scripts/prod_schema_readonly.py`)
@@ -122,10 +122,11 @@ Checked and verified in Render dashboard:
 ### 6. Operational Incident Notes
 
 1. **Aiven Free Plan Idle Spin-Down:**
-   The Aiven free tier powers off the MySQL instance when inactive; upon receiving connection attempts, it requires ~5+ minutes to spin back up. Pre-deployment and demonstration procedures must explicitly account for this wake-up delay.
+   The Aiven free plan powered the database off while idle. It showed 'Rebuilding' and took 5+ minutes to come back. Wake it and wait for 'Running' before any deploy or demo.
 2. **Default Database Disambiguation:**
    Aiven's default Service URI ends in `/defaultdb`. During initial testing, `defaultdb` was connected to by mistake instead of the intended database (`chroniccare_demo`). Tooling was patched in PR #99 (`scripts/prod_schema_readonly.py`) to explicitly output the target database name and display an error warning if `defaultdb` is detected.
 3. **Database Credential Rotation:**
    The production database password was rotated and reset on 2 Nov 2026 after exposure in a chat window; the Render dashboard configuration was updated accordingly.
 4. **Flaky Test Fixed in PR #101:**
    CI on release PR #100 initially failed on `test_ocr_upload.py::test_audit_logs_contain_counts_only_no_phi_no_filename` because `uuid.uuid4()` produced an `upload_id` containing the substring `"125"` (`...3c125d3c947b`), triggering a false-positive PHI check. PR #101 resolved this by isolating `upload_id` verification before running PHI assertions on the remaining payload.
+
