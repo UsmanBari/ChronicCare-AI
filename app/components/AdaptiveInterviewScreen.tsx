@@ -59,6 +59,7 @@ export const AdaptiveInterviewScreen = () => {
   const [liveAnswerInput, setLiveAnswerInput] = useState<string>("");
   const [isSending, setIsSending] = useState<boolean>(false);
   const [liveError, setLiveError] = useState<string | null>(null);
+  const [safetyNoteBanner, setSafetyNoteBanner] = useState<string | null>(null);
   const [isConsentError, setIsConsentError] = useState<boolean>(false);
   const [isPregnancyIneligible, setIsPregnancyIneligible] = useState<boolean>(false);
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([]);
@@ -235,6 +236,9 @@ export const AdaptiveInterviewScreen = () => {
         return;
       }
 
+      if (answerRes.safety_note) {
+        setSafetyNoteBanner(answerRes.safety_note);
+      }
       if (answerRes.step) {
         setCurrentStep(answerRes.step);
       }
@@ -548,6 +552,24 @@ export const AdaptiveInterviewScreen = () => {
                 type="button"
                 onClick={() => setTranscribedSafetyNotice(false)}
                 className="text-teal-700 hover:text-teal-900 text-xs px-1"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Danger Wordgroup Advisory Banner */}
+          {safetyNoteBanner && (
+            <div data-testid="danger-wordgroup-banner" className="p-3.5 rounded-xl bg-amber-50 border-2 border-amber-600 text-amber-950 text-sm font-bold flex items-center justify-between gap-3 animate-fadeIn shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0" />
+                <span>{safetyNoteBanner}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSafetyNoteBanner(null)}
+                className="text-amber-800 hover:text-amber-950 text-xs px-1 font-bold"
+                aria-label="Dismiss safety note"
               >
                 ✕
               </button>

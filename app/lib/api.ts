@@ -304,6 +304,7 @@ export interface CheckinStartResponse {
   can_skip?: boolean | null;
   can_say_unknown?: boolean | null;
   engine?: string | null;
+  safety_note?: string | null;
 }
 
 export interface CheckinAnswerResponse {
@@ -336,6 +337,7 @@ export interface CheckinCompleteResponse {
   max_severity: string | null;
   triage?: Record<string, any> | null;
   record_source_label?: string | null;
+  safety_note?: string | null;
 }
 
 export interface UserCheckinSummaryResponse {
@@ -463,6 +465,7 @@ export interface ReviewDetailResponse {
   trends?: TrendsResponse | null;
   risk?: RiskAssessmentResponse | null;
   recent_record_edits?: RecordEditItem[] | null;
+  danger_wordgroups?: string[] | null;
 }
 export interface RecordEditItem {
   edit_id: string;

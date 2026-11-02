@@ -880,6 +880,7 @@ class CheckinAnswerResponse(BaseModel):
     last_odd_class: Optional[str] = None
     is_probe: Optional[bool] = None
     option_items: Optional[List[Dict[str, str]]] = None
+    safety_note: Optional[str] = None
 
 
 from orchestrator.steps import (
@@ -1034,6 +1035,7 @@ class ReviewDetailResponse(BaseModel):
     explanation: Optional[Dict[str, Any]] = None
     trace: Optional[List[Dict[str, Any]]] = None
     recent_record_edits: Optional[List[RecordEditItem]] = None
+    danger_wordgroups: Optional[List[str]] = None
 
 
 class VoiceTranscribeResponse(BaseModel):
@@ -4339,6 +4341,23 @@ def answer_checkin_endpoint(
 
         # Stage-1 red-flag screen on medication answer
         triggered, reason = run_stage1_red_flag_screen(body.answer)
+        med_safety_note = None
+        from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note
+        if not triggered and is_danger_wordgroups_enabled() and body.answer:
+            wg_hit = detect_wordgroups(body.answer)
+            if wg_hit.is_danger:
+                lang = getattr(current_state, "language", None) or "en"
+                med_safety_note = get_safety_note(lang)
+                if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
+                    current_state.answers = {}
+                current_state.answers.setdefault("_wordgroup_hits", []).append(wg_hit.to_dict())
+                append_audit(
+                    actor_user_id=current_user["user_id"],
+                    action="danger_wordgroup_hit",
+                    target=checkin_id,
+                    outcome="flagged",
+                    detail={"group": wg_hit.group},
+                )
         if triggered:
             rf_level = get_red_flag_level(reason)
             is_emerg = (rf_level == "emergency")
@@ -4426,6 +4445,7 @@ def answer_checkin_endpoint(
                 version=next_version,
                 phase="medication",
                 triage=protocol_state.result if protocol_state else None,
+                safety_note=med_safety_note,
             )
         else:
             return CheckinAnswerResponse(
@@ -4437,6 +4457,7 @@ def answer_checkin_endpoint(
                 version=next_version,
                 phase="medication",
                 triage=protocol_state.result if protocol_state else None,
+                safety_note=med_safety_note,
             )
 
     # 3. INTERVIEW PHASE
@@ -4546,6 +4567,17 @@ def answer_checkin_endpoint(
 
         next_version = current_version + 1
 
+        if next_state.get("wordgroup_hits"):
+            for h in next_state["wordgroup_hits"]:
+                if isinstance(h, dict) and h.get("group"):
+                    append_audit(
+                        actor_user_id=current_user["user_id"],
+                        action="danger_wordgroup_hit",
+                        target=checkin_id,
+                        outcome="flagged",
+                        detail={"group": h["group"]},
+                    )
+
         return CheckinAnswerResponse(
             engine="v3",
             question=next_question_str,
@@ -4566,6 +4598,7 @@ def answer_checkin_endpoint(
             last_odd_class=next_state.get("last_odd_class"),
             is_probe=next_state.get("is_probe"),
             option_items=next_state.get("option_items"),
+            safety_note=next_state.get("safety_note"),
         )
 
     # v2 Interview node path
@@ -4587,6 +4620,24 @@ def answer_checkin_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+
+    v2_safety_note = None
+    from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note
+    if is_danger_wordgroups_enabled() and body.answer:
+        wg_hit = detect_wordgroups(body.answer)
+        if wg_hit.is_danger:
+            lang = getattr(next_state, "language", None) or "en"
+            v2_safety_note = get_safety_note(lang)
+            if not hasattr(next_state, "answers") or not isinstance(next_state.answers, dict):
+                next_state.answers = {}
+            next_state.answers.setdefault("_wordgroup_hits", []).append(wg_hit.to_dict())
+            append_audit(
+                actor_user_id=current_user["user_id"],
+                action="danger_wordgroup_hit",
+                target=checkin_id,
+                outcome="flagged",
+                detail={"group": wg_hit.group},
+            )
 
     rf_level = get_red_flag_level(next_state.stage1_reason) if next_state.stage1_red_flag else "routine"
     is_emergency = bool(
@@ -4699,6 +4750,7 @@ def answer_checkin_endpoint(
         version=next_version,
         escalation_recorded=True if is_emergency else None,
         phase=next_phase,
+        safety_note=v2_safety_note,
     )
 
 
@@ -4958,6 +5010,7 @@ def get_provider_review_detail_endpoint(
             detail="Check-in result not found",
         )
 
+    from agents.danger_wordgroups import is_danger_wordgroups_enabled
     patient_user = get_user_by_id(checkin["user_id"])
     patient_display = (patient_user.get("display_name") if patient_user else None) or (patient_user.get("email") if patient_user else None) or "Patient"
     actions = get_review_actions(checkin_id)
@@ -5009,6 +5062,19 @@ def get_provider_review_detail_endpoint(
             RecordEditItem(**e)
             for e in get_recent_edits_for_patient(checkin["user_id"], limit=20)
         ],
+        danger_wordgroups=(
+            sorted(list({
+                *(result.get("triage", {}).get("wordgroups", []) if isinstance(result.get("triage"), dict) else []),
+                *([h.get("group") for h in checkin.get("state", {}).get("wordgroup_hits", []) if isinstance(h, dict) and h.get("group")] if isinstance(checkin.get("state"), dict) else []),
+                *([h.get("group") for h in checkin.get("state", {}).get("answers", {}).get("_wordgroup_hits", []) if isinstance(h, dict) and h.get("group")] if isinstance(checkin.get("state"), dict) else []),
+            }))
+            if (is_danger_wordgroups_enabled() and (
+                (isinstance(result.get("triage"), dict) and result.get("triage", {}).get("wordgroups"))
+                or (isinstance(checkin.get("state"), dict) and checkin.get("state", {}).get("wordgroup_hits"))
+                or (isinstance(checkin.get("state"), dict) and checkin.get("state", {}).get("answers", {}).get("_wordgroup_hits"))
+            ))
+            else None
+        ),
     )
 
 
@@ -5048,6 +5114,7 @@ def post_provider_review_action_endpoint(
     )
 
     updated_result = get_checkin_result(checkin_id)
+    from agents.danger_wordgroups import is_danger_wordgroups_enabled
     patient_user = get_user_by_id(checkin["user_id"])
     patient_display = (patient_user.get("display_name") if patient_user else None) or (patient_user.get("email") if patient_user else None) or "Patient"
     actions = get_review_actions(checkin_id)
