@@ -334,6 +334,30 @@ MUTATIONS = [
         "replacement": "            if False and not is_mysql:\n                _rollback_sqlite_import(user_id, patient_id, written_items)",
         "test_node": "backend-poc-technical/test_record_export_import.py::test_import_all_or_nothing_rollback_on_failure",
     },
+    {
+        "id": "M-H7-1",
+        "name": "Server-side re-validation removed in OCR confirm endpoint",
+        "file": BACKEND_DIR / "main.py",
+        "target": '                o_type, val, unit, ts = _validate_ocr_observation(\n                    obs_type=item.observation_type or "",\n                    value=item.value,\n                    measured_at=item.measured_at,\n                    item_index=idx,\n                )',
+        "replacement": '                o_type, val, unit, ts = (item.observation_type or "glucose", float(item.value or 0), "mg/dL", _utc_now_iso())',
+        "test_node": "backend-poc-technical/test_ocr_upload.py::test_confirm_revalidation_rejects_out_of_range_values",
+    },
+    {
+        "id": "M-H7-2",
+        "name": "Unconfirmed OCR items saved before explicit user confirmation",
+        "file": BACKEND_DIR / "main.py",
+        "target": "    upload_id = stage_upload(\n        user_id=user_id,\n        extracted_data=extracted,\n    )",
+        "replacement": '    upload_id = stage_upload(\n        user_id=user_id,\n        extracted_data=extracted,\n    )\n    add_local_observation(f"premature-{upload_id}", patient_id, "glucose", 118.0, "mg/dL", _utc_now_iso(), "local", "ocr")',
+        "test_node": "backend-poc-technical/test_ocr_upload.py::test_upload_does_not_save_items_before_confirm",
+    },
+    {
+        "id": "M-H7-3",
+        "name": "Provider exception handler removed from OCR upload endpoint",
+        "file": BACKEND_DIR / "main.py",
+        "target": '    try:\n        extracted = provider.extract(processed_bytes)\n    except (ImportError, ModuleNotFoundError) as e:\n        logger.error("OCR provider missing dependency: %s", type(e).__name__)\n        return JSONResponse(\n            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,\n            content={"code": "ocr_unavailable", "detail": "ocr_unavailable"},\n        )\n    except Exception as e:\n        logger.error("OCR provider error: %s", type(e).__name__)\n        return JSONResponse(\n            status_code=status.HTTP_502_BAD_GATEWAY,\n            content={"code": "ocr_provider_error", "detail": "ocr_provider_error"},\n        )',
+        "replacement": "    extracted = provider.extract(processed_bytes)",
+        "test_node": "backend-poc-technical/test_ocr_upload.py::test_provider_exception_returns_502_and_logs_type_only",
+    },
     # --- Day 7 P0 Safety Mutation (M-U7-1: Re-add 'no': 9 to Roman Urdu numbers) ---
     {
         "id": "M-U7-1",

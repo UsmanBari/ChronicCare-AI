@@ -468,6 +468,27 @@ export interface Translations {
   recentRecordChangesSubtitle: string;
   importBadgeAdd: string;
   importBadgeSkip: string;
+
+  // OCR v1 (Day 7)
+  uploadDocumentBtn: string;
+  ocrConfirmTitle: string;
+  ocrConfirmSubtitle: string;
+  ocrNoticeUrdu: string;
+  ocrConfirmSaveBtn: string;
+  ocrFixBtn: string;
+  ocrRemoveBtn: string;
+  ocrConfirmedBadge: string;
+  ocrEvidenceLabel: string;
+  ocrBadge: string;
+  ocrObservationsTitle: string;
+  ocrMedicationsTitle: string;
+  ocrAllergiesTitle: string;
+  ocrEmptyExtracted: string;
+  ocrUploading: string;
+  ocrUploadFailed: string;
+  ocrSaveSuccess: string;
+  ocrConfirmItem: string;
+  ocrCancelBtn: string;
   failedToLoadHistory: string;
   failedToExportRecord: string;
   failedToPreviewImport: string;
@@ -482,6 +503,8 @@ export interface Translations {
   reasonInvalidMedStatus: string;
   reasonInvalidAllergy: string;
   reasonAllergyTooLong: string;
+  ocrInvalidItemBanner: string;
+  ocrFixOrRemoveHint: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -944,6 +967,27 @@ export const translations: Record<Language, Translations> = {
     recentRecordChangesSubtitle: "Recent updates made to patient's clinical baseline record",
     importBadgeAdd: "Add",
     importBadgeSkip: "Skip",
+
+    // OCR v1 (Day 7)
+    uploadDocumentBtn: "Upload Lab Report / Prescription",
+    ocrConfirmTitle: "Confirm Extracted Values",
+    ocrConfirmSubtitle: "Review each detected value below. Only confirmed items will be saved to your health record.",
+    ocrNoticeUrdu: "We can only read English reports for now. Please add these values yourself.",
+    ocrConfirmSaveBtn: "Confirm & Save to Record",
+    ocrFixBtn: "Fix",
+    ocrRemoveBtn: "Remove",
+    ocrConfirmedBadge: "Confirmed",
+    ocrEvidenceLabel: "Detected in document:",
+    ocrBadge: "OCR",
+    ocrObservationsTitle: "Observations & Lab Tests",
+    ocrMedicationsTitle: "Medications",
+    ocrAllergiesTitle: "Allergies",
+    ocrEmptyExtracted: "No readable clinical values were detected in this image.",
+    ocrUploading: "Analyzing document...",
+    ocrUploadFailed: "Could not process document. Please ensure it is a clear JPEG or PNG under 5MB.",
+    ocrSaveSuccess: "Confirmed values saved to your health record.",
+    ocrConfirmItem: "Confirm",
+    ocrCancelBtn: "Cancel",
     failedToLoadHistory: "Failed to load record history",
     failedToExportRecord: "Failed to export record",
     failedToPreviewImport: "Failed to preview import file",
@@ -958,6 +1002,8 @@ export const translations: Record<Language, Translations> = {
     reasonInvalidMedStatus: "Invalid medication status",
     reasonInvalidAllergy: "Invalid allergy substance",
     reasonAllergyTooLong: "Reaction text too long",
+    ocrInvalidItemBanner: "Please fix or remove the highlighted invalid item before saving.",
+    ocrFixOrRemoveHint: "Value is invalid. Click Fix to correct or Remove to discard.",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1420,6 +1466,27 @@ export const translations: Record<Language, Translations> = {
     recentRecordChangesSubtitle: "مریض کے کلینیکل ریکارڈ میں کی گئی تازہ ترین تبدیلیاں",
     importBadgeAdd: "شامل کریں",
     importBadgeSkip: "چھوڑیں",
+
+    // OCR v1 (Day 7)
+    uploadDocumentBtn: "لیب رپورٹ یا نسخہ اپ لوڈ کریں",
+    ocrConfirmTitle: "نکالی گئی اقدار کی تصدیق کریں",
+    ocrConfirmSubtitle: "نیچے دی گئی ہر قدر کا جائزہ لیں۔ صرف تصدیق شدہ اندراجات ہی آپ کے ہیلتھ ریکارڈ میں شامل کیے جائیں گے۔",
+    ocrNoticeUrdu: "ہم فی الحال صرف انگریزی رپورٹس پڑھ سکتے ہیں۔ براہ کرم یہ اقدار خود شامل کریں۔",
+    ocrConfirmSaveBtn: "تصدیق کریں اور محفوظ کریں",
+    ocrFixBtn: "تبدیل کریں",
+    ocrRemoveBtn: "حذف کریں",
+    ocrConfirmedBadge: "تصدیق شدہ",
+    ocrEvidenceLabel: "دستاویز میں پایا گیا:",
+    ocrBadge: "او سی آر",
+    ocrObservationsTitle: "مشاہدات اور لیب ٹیسٹ",
+    ocrMedicationsTitle: "ادویات",
+    ocrAllergiesTitle: "الرجیز",
+    ocrEmptyExtracted: "اس تصویر میں کوئی پڑھنے کے قابل طبی اقدار نہیں ملیں۔",
+    ocrUploading: "دستاویز کا تجزیہ جاری ہے...",
+    ocrUploadFailed: "دستاویز پر کارروائی نہیں ہو سکی۔ براہ کرم یقینی بنائیں کہ تصویر 5MB سے کم اور JPEG یا PNG فارمیٹ میں ہو۔",
+    ocrSaveSuccess: "تصدیق شدہ اقدار آپ کے ہیلتھ ریکارڈ میں محفوظ کر دی گئی ہیں۔",
+    ocrConfirmItem: "تصدیق کریں",
+    ocrCancelBtn: "منسوخ کریں",
     failedToLoadHistory: "ریکارڈ کی تاریخ لوڈ کرنے میں ناکامی",
     failedToExportRecord: "ریکارڈ ایکسپورٹ کرنے میں ناکامی",
     failedToPreviewImport: "فائل کا پیش نظارہ حاصل کرنے میں ناکامی",
@@ -1434,5 +1501,7 @@ export const translations: Record<Language, Translations> = {
     reasonInvalidMedStatus: "دوا کی حالت درست نہیں ہے",
     reasonInvalidAllergy: "الرجی کا مادہ درست نہیں ہے",
     reasonAllergyTooLong: "ردعمل کی تفصیل بہت طویل ہے",
+    ocrInvalidItemBanner: "براہ کرم محفوظ کرنے سے پہلے نمایاں کیے گئے غلط اندراج کو درست کریں یا ہٹا دیں۔",
+    ocrFixOrRemoveHint: "یہ اندراج درست نہیں ہے۔ درست کرنے کے لیے 'درست کریں' یا خارج کرنے کے لیے 'ہٹائیں' کا بٹن دبائیں۔",
   }
 };

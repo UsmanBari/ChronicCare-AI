@@ -523,3 +523,47 @@ def test_import_all_or_nothing_rollback_on_failure(rsa_key_pair, monkeypatch):
     assert final_obs == initial_obs
     assert final_allergies == initial_allergies
     assert final_edits == initial_edits
+
+
+# ----------------------------------------------------------------------------
+# 11. Conditions Basis Update Transaction Support with External Cursor
+# ----------------------------------------------------------------------------
+def test_update_patient_conditions_basis_accepts_cursor(monkeypatch):
+    """
+    Proves that update_patient_conditions_basis accepts an external cursor
+    so that MySQL single-transaction imports include the conditions basis update
+    and its record_edit entry on the same cursor without committing early.
+    """
+    executed_queries = []
+
+    class FakeCursor:
+        def execute(self, sql, params=None):
+            executed_queries.append((sql, params))
+
+    fake_cursor = FakeCursor()
+    test_user_id = "test-u-cond-basis-tx"
+
+    # Mock get_patient_profile to return existing profile with diabetes clinical basis
+    monkeypatch.setattr(
+        app_store,
+        "get_patient_profile",
+        lambda uid, **kwargs: {
+            "user_id": test_user_id,
+            "conditions": ["type_2_diabetes"],
+            "conditions_basis": {"type_2_diabetes": "self_reported"},
+        },
+    )
+
+    result = app_store.update_patient_conditions_basis(
+        user_id=test_user_id,
+        conditions_basis={"type_2_diabetes": "clinical_document"},
+        changed_by_user_id=test_user_id,
+        origin="import",
+        cursor=fake_cursor,
+    )
+
+    assert result["conditions_basis"]["type_2_diabetes"] == "clinical_document"
+    # Ensure queries were executed directly on the provided cursor
+    assert len(executed_queries) == 2
+    assert "UPDATE patient_profiles SET conditions_basis_json" in executed_queries[0][0]
+    assert "INSERT INTO record_edits" in executed_queries[1][0]

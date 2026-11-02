@@ -11,6 +11,7 @@ import {
   Trash2,
   CheckCircle2,
   AlertTriangle,
+  Camera,
   ArrowRight,
   Loader2,
   Info,
@@ -37,7 +38,7 @@ import { mapApiError } from "../lib/presentation";
 import { getConditionFlags } from "../lib/conditions";
 
 export const HealthRecordScreen = () => {
-  const { setScreen, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
+  const { setScreen, setStagedOcrUpload, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
 
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
   const [recordMode, setRecordMode] = useState<string>("isolated");
@@ -78,6 +79,31 @@ export const HealthRecordScreen = () => {
   const [importPreview, setImportPreview] = useState<RecordImportResponse | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const ocrFileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [ocrEnabled, setOcrEnabled] = useState<boolean>(true);
+  const [isUploadingOcr, setIsUploadingOcr] = useState<boolean>(false);
+  const historyTriggerRef = React.useRef<HTMLElement | null>(null);
+  const historyCloseBtnRef = React.useRef<HTMLButtonElement | null>(null);
+
+  const formatObsType = (rawType: string = "", isUrduText: boolean = false) => {
+    const norm = (rawType || "").toLowerCase();
+    if (norm === "glucose" || norm.includes("glucose")) {
+      return isUrduText ? "بلڈ شوگر" : "Blood Glucose";
+    }
+    if (norm === "blood_pressure_systolic" || norm === "systolic" || norm.includes("systolic")) {
+      return isUrduText ? "سسٹولک بی پی" : "Systolic BP";
+    }
+    if (norm === "blood_pressure_diastolic" || norm === "diastolic" || norm.includes("diastolic")) {
+      return isUrduText ? "ڈائیسٹولک بی پی" : "Diastolic BP";
+    }
+    if (norm === "hba1c") {
+      return isUrduText ? "ایچ بی اے ون سی" : "HbA1c";
+    }
+    if (norm === "weight") {
+      return isUrduText ? "وزن" : "Weight";
+    }
+    return rawType;
+  };
 
   const conditionFlags = getConditionFlags(
     isLiveMode
@@ -126,6 +152,7 @@ export const HealthRecordScreen = () => {
     try {
       const rec: PatientRecordResponse = await api.getRecord();
       setRecordMode(rec.mode || "isolated");
+      setOcrEnabled(rec.ocr_enabled !== false);
       setConditions(rec.conditions || []);
       const basisMap: Record<string, string> = {};
       (rec.conditions || []).forEach((c) => {
@@ -153,18 +180,40 @@ export const HealthRecordScreen = () => {
     setTimeout(() => setSuccessMsg(null), 3000);
   };
 
+  const closeHistory = () => {
+    setIsHistoryOpen(false);
+    setTimeout(() => {
+      historyTriggerRef.current?.focus();
+    }, 0);
+  };
+
+  useEffect(() => {
+    if (isHistoryOpen) {
+      setTimeout(() => {
+        historyCloseBtnRef.current?.focus();
+      }, 50);
+    }
+  }, [isHistoryOpen]);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setIsHistoryOpen(false);
-        setIsImportModalOpen(false);
+        if (isHistoryOpen) {
+          closeHistory();
+        }
+        if (isImportModalOpen) {
+          setIsImportModalOpen(false);
+          setImportPreview(null);
+          setImportPayload(null);
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [isHistoryOpen, isImportModalOpen]);
 
   const openHistory = async (type?: string, id?: string, label?: string) => {
+    historyTriggerRef.current = (document.activeElement as HTMLElement) || null;
     setHistoryFilter({ type, id, label });
     setIsHistoryOpen(true);
     setIsLoadingHistory(true);
@@ -197,6 +246,23 @@ export const HealthRecordScreen = () => {
       setError(t.failedToExportRecord);
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleOcrFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setIsUploadingOcr(true);
+    try {
+      const res = await api.uploadOcrImage(file);
+      setStagedOcrUpload(res);
+      setScreen("ocr_confirm");
+    } catch (err: any) {
+      setError(err?.detail || err?.message || t.ocrUploadFailed);
+    } finally {
+      setIsUploadingOcr(false);
+      if (ocrFileInputRef.current) ocrFileInputRef.current.value = "";
     }
   };
 
@@ -578,6 +644,31 @@ export const HealthRecordScreen = () => {
 
           {recordMode !== "connected" && (
             <>
+              {ocrEnabled && (
+                <>
+                  <button
+                    type="button"
+                    data-testid="upload-ocr-btn"
+                    disabled={isUploadingOcr}
+                    onClick={() => ocrFileInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/40 border border-purple-300/40 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
+                  >
+                    {isUploadingOcr ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Camera className="w-3.5 h-3.5" />
+                    )}
+                    <span>{t.uploadDocumentBtn}</span>
+                  </button>
+                  <input
+                    type="file"
+                    ref={ocrFileInputRef}
+                    onChange={handleOcrFileSelect}
+                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    className="hidden"
+                  />
+                </>
+              )}
               <button
                 type="button"
                 data-testid="import-record-btn"
@@ -719,6 +810,11 @@ export const HealthRecordScreen = () => {
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm text-navy-900">{med.name}</span>
+                      {med.origin === "ocr" && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
+                          {t.ocrBadge}
+                        </span>
+                      )}
                       <span
                         className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                           isActive ? "bg-teal-100 text-teal-900" : "bg-slate-200 text-slate-700"
@@ -974,9 +1070,16 @@ export const HealthRecordScreen = () => {
                 className="p-3.5 rounded-2xl bg-white border border-slate-200 flex items-center justify-between text-xs"
               >
                 <div>
-                  <span className="font-bold text-navy-900 capitalize block">
-                    {obs.observation_type.replace(/_/g, " ")}: {obs.value} {obs.unit}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-navy-900 capitalize">
+                      {obs.observation_type.replace(/_/g, " ")}: {obs.value} {obs.unit}
+                    </span>
+                    {obs.origin === "ocr" && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
+                        {t.ocrBadge}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[11px] text-slate-400">
                     Measured: {new Date(obs.measured_at).toLocaleString()}
                   </span>
@@ -1104,8 +1207,9 @@ export const HealthRecordScreen = () => {
               </div>
               <button
                 type="button"
+                ref={historyCloseBtnRef}
                 data-testid="close-history-modal-btn"
-                onClick={() => setIsHistoryOpen(false)}
+                onClick={closeHistory}
                 className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition-colors"
                 aria-label="Close"
               >
@@ -1286,7 +1390,7 @@ export const HealthRecordScreen = () => {
                   <div className="space-y-1">
                     {importPreview.preview.medications.map((m, i) => (
                       <div key={i} className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                        <span>{m.name} ({m.dosage})</span>
+                        <span dir="auto">{m.name}{m.dosage ? ` (${m.dosage})` : ""}</span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${m.will_import ? "bg-teal-100 text-teal-900" : "bg-slate-200 text-slate-700"}`}>
                           {m.will_import ? t.importBadgeAdd : formatReason(m.reason)}
                         </span>
@@ -1298,16 +1402,21 @@ export const HealthRecordScreen = () => {
 
               {importPreview.preview?.observations && importPreview.preview.observations.length > 0 && (
                 <div className="space-y-1.5">
-                  <span className="font-bold text-navy-900 block">Observations</span>
+                  <span className="font-bold text-navy-900 block">{isUrdu ? "پیمائشیں" : "Observations"}</span>
                   <div className="space-y-1">
-                    {importPreview.preview.observations.map((o, i) => (
-                      <div key={i} className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                        <span>{o.type || o.observation_type}: <bdi>{o.value} {o.unit}</bdi></span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${o.will_import ? "bg-teal-100 text-teal-900" : "bg-slate-200 text-slate-700"}`}>
-                          {o.will_import ? t.importBadgeAdd : formatReason(o.reason)}
-                        </span>
-                      </div>
-                    ))}
+                    {importPreview.preview.observations.map((o, i) => {
+                      const obsLabel = formatObsType(o.type || o.observation_type || "", isUrdu);
+                      return (
+                        <div key={i} className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                          <span dir="auto">
+                            <span>{obsLabel}</span>: <bdi>{o.value} {o.unit}</bdi>
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${o.will_import ? "bg-teal-100 text-teal-900" : "bg-slate-200 text-slate-700"}`}>
+                            {o.will_import ? t.importBadgeAdd : formatReason(o.reason)}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1318,7 +1427,7 @@ export const HealthRecordScreen = () => {
                   <div className="space-y-1">
                     {importPreview.preview.allergies.map((a: any, i: number) => (
                       <div key={i} className="p-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                        <span>{a.substance}{a.reaction ? ` (${a.reaction})` : ""}</span>
+                        <span dir="auto">{a.substance}{a.reaction ? ` (${a.reaction})` : ""}</span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${a.will_import ? "bg-teal-100 text-teal-900" : "bg-slate-200 text-slate-700"}`}>
                           {a.will_import ? t.importBadgeAdd : formatReason(a.reason)}
                         </span>

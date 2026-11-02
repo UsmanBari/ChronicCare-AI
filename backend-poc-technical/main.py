@@ -29,6 +29,9 @@ from contextlib import asynccontextmanager
 
 import requests
 from fastapi import FastAPI, HTTPException, status, Header, Depends, Query, Request
+import io
+from data_sources.ocr.provider import get_ocr_provider, check_ocr_provider_available
+from data_sources.ocr.staging import stage_upload, get_staged_upload, remove_staged_upload
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
@@ -620,6 +623,32 @@ class PatientRecordResponse(BaseModel):
     medications: List[RecordMedicationItem]
     allergies: List[RecordAllergyItem]
     baseline_observations: List[RecordObservationItem]
+    ocr_enabled: bool = False
+
+class OcrConfirmItem(BaseModel):
+    model_config = {"extra": "forbid"}
+    id: Optional[str] = None
+    type: str  # "medication" | "observation" | "allergy"
+    name: Optional[str] = None
+    dosage: Optional[str] = None
+    status: Optional[str] = "active"
+    observation_type: Optional[str] = None
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    measured_at: Optional[str] = None
+    substance: Optional[str] = None
+    reaction: Optional[str] = None
+    confirmed: Optional[bool] = True
+
+
+class OcrConfirmRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    confirmed_items: Optional[List[OcrConfirmItem]] = None
+    items: Optional[List[OcrConfirmItem]] = None
+
+    def get_items(self) -> List[OcrConfirmItem]:
+        return self.confirmed_items or self.items or []
+
 
 
 class CreateMedicationRequest(BaseModel):
@@ -1744,6 +1773,7 @@ def get_patient_record_endpoint(current_user: Dict[str, Any] = Depends(require_r
         medications=medications_list,
         allergies=allergies_list,
         baseline_observations=observations_list,
+        ocr_enabled=_is_ocr_enabled(),
     )
 
 
@@ -1797,18 +1827,13 @@ def create_record_medication_endpoint(
     patient_id = _require_isolated_mode_patient(current_user)
     user_id = current_user["user_id"]
     current_meds = get_local_medications(patient_id)
-    if len(current_meds) >= 30:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="maximum_medications_exceeded",
-        )
-
-    norm_new = _norm(body.name)
-    if any(_norm(m["medication_name"]) == norm_new for m in current_meds):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="duplicate_medication",
-        )
+    clean_name, clean_dose, clean_status = _validate_medication_entry(
+        name=body.name,
+        dosage=body.dosage,
+        status_val=body.status,
+        patient_id=patient_id,
+        current_meds=current_meds,
+    )
 
     med_id = f"local-med-{uuid.uuid4()}"
     now_ts = _utc_now_iso()
@@ -1816,9 +1841,9 @@ def create_record_medication_endpoint(
     add_local_medication(
         id=med_id,
         patient_id=patient_id,
-        medication_name=body.name,
-        status=body.status,
-        dosage=body.dosage,
+        medication_name=clean_name,
+        status=clean_status,
+        dosage=clean_dose,
         timestamp=now_ts,
         source="local",
         origin="self_reported",
@@ -2631,7 +2656,7 @@ async def import_patient_record_endpoint(
                     if valid_basis:
                         current_basis = dict(profile.get("conditions_basis", {}))
                         current_basis.update(valid_basis)
-                        update_patient_conditions_basis(user_id, current_basis, changed_by_user_id=user_id, origin="import")
+                        update_patient_conditions_basis(user_id, current_basis, changed_by_user_id=user_id, origin="import", cursor=cursor)
             conn.commit()
         except Exception as e:
             conn.rollback()
@@ -2722,6 +2747,660 @@ async def import_patient_record_endpoint(
         "imported_counts": imported_counts,
         "duplicate_counts": dup_counts,
     }
+
+
+
+
+def _is_ocr_enabled() -> bool:
+    if os.environ.get("OCR_ENABLED", "false").strip().lower() not in ("true", "1", "yes"):
+        return False
+    return check_ocr_provider_available()
+
+
+def _validate_medication_entry(
+    name: str,
+    dosage: str,
+    status_val: str = "active",
+    patient_id: Optional[str] = None,
+    current_meds: Optional[List[Dict[str, Any]]] = None,
+    item_index: Optional[int] = None,
+) -> Tuple[str, str, str]:
+    """
+    Shared medication validation logic for both manual entry and OCR confirm.
+    Enforces non-empty string, length limits (name <= 80, dosage <= 100),
+    control character stripping, allowed status values ('active', 'stopped'),
+    maximum 30 active medications limit, and duplicate check.
+    """
+    clean_name = _reject_control_chars(name)
+    if not clean_name or len(clean_name) > 80:
+        if item_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": "medication_name_invalid"},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid medication name")
+
+    clean_dose = _reject_control_chars(dosage)
+    if not clean_dose or len(clean_dose) > 100:
+        if item_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": "medication_dosage_invalid"},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid medication dosage")
+
+    clean_status = str(status_val).strip().lower()
+    if clean_status not in ("active", "stopped"):
+        if item_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": "medication_status_invalid"},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Medication status must be 'active' or 'stopped'")
+
+    if patient_id is not None or current_meds is not None:
+        meds = current_meds if current_meds is not None else get_local_medications(patient_id or "")
+        if len(meds) >= 30:
+            if item_index is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"code": "invalid_item", "item_index": item_index, "reason_code": "maximum_medications_exceeded"},
+                )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="maximum_medications_exceeded",
+            )
+        norm_new = _norm(clean_name)
+        if any(_norm(m.get("medication_name", "")) == norm_new for m in meds):
+            if item_index is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"code": "invalid_item", "item_index": item_index, "reason_code": "duplicate_medication"},
+                )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="duplicate_medication",
+            )
+
+    return clean_name, clean_dose, clean_status
+
+
+def _validate_ocr_allergy(substance: str, reaction: Optional[str] = None, item_index: Optional[int] = None) -> Tuple[str, Optional[str]]:
+    clean_sub = _reject_control_chars(substance)
+    if not clean_sub or len(clean_sub) > 80:
+        if item_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": "allergy_substance_invalid"},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid allergy substance")
+    clean_rx = None
+    if reaction:
+        clean_rx = _reject_control_chars(reaction)
+        if len(clean_rx) > 120:
+            if item_index is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"code": "invalid_item", "item_index": item_index, "reason_code": "allergy_reaction_invalid"},
+                )
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Allergy reaction exceeds 120 characters")
+    return clean_sub, clean_rx
+
+
+def _validate_ocr_observation(obs_type: str, value: Any, measured_at: Optional[str] = None, item_index: Optional[int] = None) -> Tuple[str, float, str, str]:
+    clean_type = str(obs_type).strip().lower()
+    if clean_type not in ("glucose", "blood_pressure_systolic", "blood_pressure_diastolic", "weight", "hba1c"):
+        if item_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": "bad_observation_type"},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unsupported observation type '{obs_type}'")
+    try:
+        val = float(value)
+    except (TypeError, ValueError):
+        if item_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": "out_of_range"},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid numeric observation value")
+    try:
+        unit = _validate_observation_value_and_unit(clean_type, val)
+    except HTTPException as e:
+        if item_index is not None:
+            reason = "bad_unit" if "unit" in str(e.detail).lower() else "out_of_range"
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": reason},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.detail)
+    ts = _parse_and_validate_measured_at(measured_at)
+    return clean_type, val, unit, ts
+
+
+def _extract_image_from_body(body_bytes: bytes, content_type: str) -> bytes:
+    """Extracts raw file payload from multipart or direct body without preserving client filenames."""
+    if "multipart/form-data" in content_type and "boundary=" in content_type:
+        boundary = content_type.split("boundary=")[-1].strip().split(";")[0].strip('"').encode()
+        parts = body_bytes.split(b"--" + boundary)
+        for part in parts:
+            if b"Content-Disposition" in part and (b"filename=" in part or b'name="file"' in part):
+                header_end = part.find(b"\r\n\r\n")
+                if header_end != -1:
+                    file_bytes = part[header_end + 4 :].rstrip(b"\r\n")
+                    return file_bytes
+    return body_bytes
+
+
+@app.post("/api/me/record/uploads", tags=["Patient Record OCR"])
+async def upload_record_image_endpoint(
+    request: Request,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """
+    Accepts photo of a lab report or prescription for OCR field extraction.
+    Requires isolated mode and OCR_ENABLED=true.
+    Never persists image bytes or client filenames to disk or database.
+    """
+    if os.environ.get("OCR_ENABLED", "false").strip().lower() not in ("true", "1", "yes"):
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "ocr_unavailable", "detail": "OCR feature is currently disabled (error_code: OCR_DISABLED)"},
+        )
+    if not _is_ocr_enabled():
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "ocr_unavailable", "detail": "ocr_unavailable"},
+        )
+
+    patient_id = _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+
+    body_bytes = await request.body()
+    content_type = request.headers.get("content-type", "").lower()
+    raw_bytes = _extract_image_from_body(body_bytes, content_type)
+    if len(raw_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Uploaded image exceeds 5MB limit",
+        )
+    if len(raw_bytes) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Uploaded file is empty",
+        )
+
+    # Magic bytes & Content-Type validation (415 for all unsupported formats)
+    is_jpeg = raw_bytes.startswith(b"\xff\xd8\xff")
+    is_png = raw_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+    is_pdf = raw_bytes.startswith(b"%PDF")
+    is_heic = b"ftyp" in raw_bytes[:16] and any(b in raw_bytes[:16] for b in [b"heic", b"mif1", b"msf1", b"heix"])
+
+    if is_pdf or "pdf" in content_type:
+        return JSONResponse(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            content={
+                "code": "unsupported_media_type",
+                "detail": "Unsupported document format. Please upload JPEG or PNG images (PDF and HEIC are not currently supported).",
+            },
+        )
+    if is_heic or "heic" in content_type:
+        return JSONResponse(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            content={
+                "code": "unsupported_media_type",
+                "detail": "Unsupported document format. Please upload JPEG or PNG images (PDF and HEIC are not currently supported).",
+            },
+        )
+    if not (is_jpeg or is_png):
+        return JSONResponse(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            content={
+                "code": "unsupported_media_type",
+                "detail": "Unsupported file format. Please upload a valid JPEG or PNG image.",
+            },
+        )
+
+    # Pillow availability & decoding check
+    try:
+        from PIL import Image, ImageOps
+    except (ImportError, ModuleNotFoundError):
+        logger.error("Pillow library is not installed")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "ocr_unavailable", "detail": "ocr_unavailable"},
+        )
+
+    try:
+        img = Image.open(io.BytesIO(raw_bytes))
+        img.verify()
+        # Re-open after verify
+        img = Image.open(io.BytesIO(raw_bytes))
+        img = ImageOps.exif_transpose(img)
+        if max(img.width, img.height) > 2000:
+            img.thumbnail((2000, 2000), Image.Resampling.LANCZOS)
+        buf = io.BytesIO()
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        img.save(buf, format="JPEG", quality=90)
+        processed_bytes = buf.getvalue()
+    except Exception as e:
+        logger.warning("Image decoding failed: %s", type(e).__name__)
+        return JSONResponse(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            content={"code": "image_unreadable", "detail": "image_unreadable"},
+        )
+
+    # Run OCR provider with strict error boundary
+    try:
+        provider = get_ocr_provider()
+    except (ImportError, ModuleNotFoundError, RuntimeError) as e:
+        logger.error("OCR provider unavailable: %s", type(e).__name__)
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "ocr_unavailable", "detail": "ocr_unavailable"},
+        )
+
+    try:
+        extracted = provider.extract(processed_bytes)
+    except (ImportError, ModuleNotFoundError) as e:
+        logger.error("OCR provider missing dependency: %s", type(e).__name__)
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "ocr_unavailable", "detail": "ocr_unavailable"},
+        )
+    except Exception as e:
+        logger.error("OCR provider error: %s", type(e).__name__)
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={"code": "ocr_provider_error", "detail": "ocr_provider_error"},
+        )
+
+    # Stage in memory (zero filename / zero raw bytes persistence)
+    upload_id = stage_upload(
+        user_id=user_id,
+        extracted_data=extracted,
+    )
+
+    # Zero PHI audit logging: counts only, no filename, no values
+    append_audit(
+        actor_user_id=user_id,
+        action="record_ocr_upload_processed",
+        target="patient_record",
+        outcome="ok",
+        detail={
+            "upload_id": upload_id,
+            "has_urdu": extracted.get("has_urdu", False),
+            "med_count": len(extracted.get("medications", [])),
+            "obs_count": len(extracted.get("observations", [])),
+            "allergy_count": len(extracted.get("allergies", [])),
+        },
+    )
+
+    return {
+        "upload_id": upload_id,
+        "extracted": {
+            "medications": extracted.get("medications", []),
+            "observations": extracted.get("observations", []),
+            "allergies": extracted.get("allergies", []),
+        },
+        "notice": extracted.get("notice"),
+        "has_urdu": extracted.get("has_urdu", False),
+        "warnings": extracted.get("warnings", []),
+        "created_at": _utc_now_iso(),
+    }
+
+
+@app.post("/api/me/record/uploads/{upload_id}/confirm", tags=["Patient Record OCR"])
+def confirm_ocr_upload_endpoint(
+    upload_id: str,
+    body: OcrConfirmRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """
+    Saves ONLY confirmed values from a staged OCR upload to the patient record with origin 'ocr' (medium trust).
+    Re-validates every confirmed item against clinical boundaries.
+    Writes record_edits rows atomically with provenance tracking.
+    """
+    if not _is_ocr_enabled():
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "ocr_unavailable", "detail": "OCR feature is currently disabled (error_code: OCR_DISABLED)"},
+        )
+
+    patient_id = _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+
+    upload = get_staged_upload(upload_id, user_id=user_id)
+    if not upload:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload not found or expired. Please upload the document again.",
+        )
+
+    # Build staged lookup by field ID to detect patient edits vs direct confirmations
+    staged_extracted = upload.get("extracted", {})
+    staged_by_id: Dict[str, Tuple[str, Dict[str, Any]]] = {}
+    for m in staged_extracted.get("medications", []):
+        if "id" in m:
+            staged_by_id[m["id"]] = ("medication", m)
+    for o in staged_extracted.get("observations", []):
+        if "id" in o:
+            staged_by_id[o["id"]] = ("observation", o)
+    for a in staged_extracted.get("allergies", []):
+        if "id" in a:
+            staged_by_id[a["id"]] = ("allergy", a)
+
+    items_to_save = body.get_items()
+    now_ts = _utc_now_iso()
+
+    current_meds = get_local_medications(patient_id)
+
+    # Re-validate all items before any DB writes
+    validated_items = []
+    for idx, item in enumerate(items_to_save):
+        itype = str(item.type).strip().lower()
+        if itype == "medication":
+            try:
+                m_name, m_dose, m_status = _validate_medication_entry(
+                    name=item.name or "",
+                    dosage=item.dosage or "",
+                    status_val=item.status or "active",
+                    patient_id=patient_id,
+                    current_meds=current_meds + [v for v in validated_items if v["type"] == "medication"],
+                    item_index=idx,
+                )
+            except HTTPException as he:
+                if isinstance(he.detail, dict) and he.detail.get("code") == "invalid_item":
+                    return JSONResponse(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        content={
+                            "code": "invalid_item",
+                            "item_index": he.detail.get("item_index"),
+                            "reason_code": he.detail.get("reason_code"),
+                            "detail": he.detail,
+                        },
+                    )
+                raise he
+
+            staged_match = staged_by_id.get(item.id or "") if item.id else None
+            old_val = None
+            reason = "ocr_confirmed"
+            if staged_match and staged_match[0] == "medication":
+                s_med = staged_match[1]
+                s_name = s_med.get("name", "")
+                s_dose = s_med.get("dosage", "")
+                if s_name != m_name or s_dose != m_dose:
+                    old_val = f"{s_name} {s_dose}".strip()
+                    reason = "patient corrected OCR value"
+
+            validated_items.append({
+                "type": "medication",
+                "id": f"local-med-{uuid.uuid4()}",
+                "name": m_name,
+                "dosage": m_dose,
+                "status": m_status,
+                "old_val": old_val,
+                "reason": reason,
+            })
+        elif itype == "observation":
+            try:
+                o_type, val, unit, ts = _validate_ocr_observation(
+                    obs_type=item.observation_type or "",
+                    value=item.value,
+                    measured_at=item.measured_at,
+                    item_index=idx,
+                )
+            except HTTPException as he:
+                if isinstance(he.detail, dict) and he.detail.get("code") == "invalid_item":
+                    return JSONResponse(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        content={
+                            "code": "invalid_item",
+                            "item_index": he.detail.get("item_index"),
+                            "reason_code": he.detail.get("reason_code"),
+                            "detail": he.detail,
+                        },
+                    )
+                raise he
+
+            staged_match = staged_by_id.get(item.id or "") if item.id else None
+            old_val = None
+            reason = "ocr_confirmed"
+            if staged_match and staged_match[0] == "observation":
+                s_obs = staged_match[1]
+                try:
+                    s_val = float(s_obs.get("value", 0))
+                    if abs(s_val - val) > 1e-4:
+                        old_val = s_val
+                        reason = "patient corrected OCR value"
+                except (TypeError, ValueError):
+                    pass
+
+            validated_items.append({
+                "type": "observation",
+                "id": f"local-obs-{uuid.uuid4()}",
+                "observation_type": o_type,
+                "value": val,
+                "unit": unit,
+                "measured_at": ts,
+                "old_val": old_val,
+                "reason": reason,
+            })
+        elif itype == "allergy":
+            try:
+                sub, rx = _validate_ocr_allergy(
+                    substance=item.substance or "",
+                    reaction=item.reaction,
+                    item_index=idx,
+                )
+            except HTTPException as he:
+                if isinstance(he.detail, dict) and he.detail.get("code") == "invalid_item":
+                    return JSONResponse(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        content={
+                            "code": "invalid_item",
+                            "item_index": he.detail.get("item_index"),
+                            "reason_code": he.detail.get("reason_code"),
+                            "detail": he.detail,
+                        },
+                    )
+                raise he
+
+            staged_match = staged_by_id.get(item.id or "") if item.id else None
+            old_val = None
+            reason = "ocr_confirmed"
+            if staged_match and staged_match[0] == "allergy":
+                s_all = staged_match[1]
+                if s_all.get("substance") != sub or s_all.get("reaction") != rx:
+                    old_val = s_all.get("substance")
+                    reason = "patient corrected OCR value"
+
+            validated_items.append({
+                "type": "allergy",
+                "id": f"alg-{uuid.uuid4()}",
+                "substance": sub,
+                "reaction": rx,
+                "confirmed": bool(item.confirmed),
+                "old_val": old_val,
+                "reason": reason,
+            })
+        else:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unsupported item type '{itype}'")
+
+    add_local_patient_if_missing(patient_id, name=current_user.get("display_name") or "Patient")
+
+    is_mysql = (os.environ.get("DB_BACKEND") == "mysql" or os.environ.get("CHRONICCARE_MYSQL_URL"))
+    if is_mysql:
+        from data_sources.db_config import get_mysql_connection
+        conn = get_mysql_connection()
+        cursor = conn.cursor()
+        try:
+            for vitem in validated_items:
+                itype = vitem["type"]
+                if itype == "medication":
+                    add_local_medication(
+                        id=vitem["id"],
+                        patient_id=patient_id,
+                        medication_name=vitem["name"],
+                        status=vitem["status"],
+                        dosage=vitem["dosage"],
+                        timestamp=now_ts,
+                        source="local",
+                        origin="ocr",
+                        changed_by_user_id=user_id,
+                        reason=vitem["reason"],
+                        old_value=vitem["old_val"],
+                        cursor=cursor,
+                    )
+                elif itype == "observation":
+                    add_local_observation(
+                        id=vitem["id"],
+                        patient_id=patient_id,
+                        observation_type=vitem["observation_type"],
+                        value=vitem["value"],
+                        unit=vitem["unit"],
+                        timestamp=vitem["measured_at"],
+                        source="local",
+                        origin="ocr",
+                        changed_by_user_id=user_id,
+                        reason=vitem["reason"],
+                        old_value=vitem["old_val"],
+                        cursor=cursor,
+                    )
+                elif itype == "allergy":
+                    create_allergy(
+                        allergy_id=vitem["id"],
+                        user_id=user_id,
+                        substance=vitem["substance"],
+                        reaction=vitem["reaction"],
+                        confirmed=vitem["confirmed"],
+                        created_at=now_ts,
+                        changed_by_user_id=user_id,
+                        origin="ocr",
+                        reason=vitem["reason"],
+                        old_value=vitem["old_val"],
+                        cursor=cursor,
+                    )
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error("OCR confirm transaction failed (MySQL): %s", type(e).__name__)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save confirmed items to database and was rolled back",
+            )
+        finally:
+            conn.close()
+    else:
+        written_items: List[Tuple[str, str]] = []
+        try:
+            for vitem in validated_items:
+                itype = vitem["type"]
+                if itype == "medication":
+                    add_local_medication(
+                        id=vitem["id"],
+                        patient_id=patient_id,
+                        medication_name=vitem["name"],
+                        status=vitem["status"],
+                        dosage=vitem["dosage"],
+                        timestamp=now_ts,
+                        source="local",
+                        origin="ocr",
+                        changed_by_user_id=user_id,
+                        reason=vitem["reason"],
+                        old_value=vitem["old_val"],
+                    )
+                    written_items.append(("medication", vitem["id"]))
+                elif itype == "observation":
+                    add_local_observation(
+                        id=vitem["id"],
+                        patient_id=patient_id,
+                        observation_type=vitem["observation_type"],
+                        value=vitem["value"],
+                        unit=vitem["unit"],
+                        timestamp=vitem["measured_at"],
+                        source="local",
+                        origin="ocr",
+                        changed_by_user_id=user_id,
+                        reason=vitem["reason"],
+                        old_value=vitem["old_val"],
+                    )
+                    written_items.append(("observation", vitem["id"]))
+                elif itype == "allergy":
+                    create_allergy(
+                        allergy_id=vitem["id"],
+                        user_id=user_id,
+                        substance=vitem["substance"],
+                        reaction=vitem["reaction"],
+                        confirmed=vitem["confirmed"],
+                        created_at=now_ts,
+                        changed_by_user_id=user_id,
+                        origin="ocr",
+                        reason=vitem["reason"],
+                        old_value=vitem["old_val"],
+                    )
+                    written_items.append(("allergy", vitem["id"]))
+        except Exception as e:
+            logger.error("OCR confirm transaction failed (SQLite): %s", type(e).__name__)
+            for wtype, wid in reversed(written_items):
+                try:
+                    if wtype == "medication":
+                        delete_local_medication(wid, patient_id)
+                    elif wtype == "observation":
+                        delete_local_observation(wid, patient_id)
+                    elif wtype == "allergy":
+                        delete_allergy(wid, user_id)
+                except Exception:
+                    pass
+            try:
+                from data_sources.app_store import get_db_cursor
+                with get_db_cursor(backend="sqlite") as (cur, be, ph):
+                    for wtype, wid in written_items:
+                        cur.execute("DELETE FROM record_edits WHERE record_type = ? AND record_id = ?", (wtype, wid))
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save confirmed items to database and was rolled back",
+            )
+
+    remove_staged_upload(upload_id)
+
+    append_audit(
+        actor_user_id=user_id,
+        action="record_ocr_upload_confirmed",
+        target="patient_record",
+        outcome="ok",
+        detail={
+            "upload_id": upload_id,
+            "confirmed_count": len(validated_items),
+        },
+    )
+
+    return {
+        "status": "ok",
+        "upload_id": upload_id,
+        "confirmed_count": len(validated_items),
+        "saved_items": validated_items,
+    }
+
+@app.delete("/api/me/record/uploads/{upload_id}", tags=["Patient Record OCR"])
+def cancel_ocr_upload_endpoint(
+    upload_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Cancels a pending OCR upload and clears its in-memory staged data."""
+    user_id = current_user["user_id"]
+    upload = get_staged_upload(upload_id, user_id=user_id)
+    if not upload:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload not found or expired",
+        )
+    remove_staged_upload(upload_id)
+    return {"status": "ok", "message": "Upload cancelled"}
 
 
 def _compute_record_source_label(mode: str, ehr_system_id: Optional[str] = None) -> str:
