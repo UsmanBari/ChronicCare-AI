@@ -17,16 +17,21 @@ from the validated technical proof-of-concept.
 
 import os
 import re
+import json
 import uuid
 import time
 import copy
 import logging
+import sqlite3
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Literal, Tuple
 from contextlib import asynccontextmanager
 
 import requests
 from fastapi import FastAPI, HTTPException, status, Header, Depends, Query, Request
+import io
+from data_sources.ocr.provider import get_ocr_provider, check_ocr_provider_available
+from data_sources.ocr.staging import stage_upload, get_staged_upload, remove_staged_upload
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
@@ -87,6 +92,7 @@ from agents.triage_protocol import (
     SYSTOLIC,
     DIASTOLIC,
 )
+from agents.trend_agent import compute_trends
 from data_sources.data_source import get_patient_bundle
 from data_sources.local_store import (
     init_db as local_store_init_db,
@@ -106,7 +112,14 @@ from data_sources.local_store import (
 from llm.groq_client import is_configured, get_configured_model, chat
 from auth.firebase_verify import verify_firebase_token, AuthError, get_firebase_project_id
 from data_sources.medication_scope import select_chronic_care_medications
-from data_sources.fhir_client import get_fhir_patient, fhir_get, check_fhir_metadata, FHIRError, clear_fhir_cache
+from data_sources import fhir_client, fhir_adapter
+from data_sources.fhir_client import (
+    get_fhir_patient,
+    fhir_get,
+    check_fhir_metadata,
+    FHIRError,
+    clear_fhir_cache,
+)
 from data_sources.fhir_sim import SAMPLE_PATIENTS
 from data_sources.validation import (
     calculate_age,
@@ -114,6 +127,10 @@ from data_sources.validation import (
     detect_pregnancy_statement,
 )
 from data_sources.app_store import (
+    get_db_cursor,
+    get_record_edits,
+    get_recent_edits_for_patient,
+    record_edit,
     migrate,
     get_user_by_id,
     get_user_by_email,
@@ -145,6 +162,7 @@ from data_sources.app_store import (
     get_checkin_result,
     get_user_checkins,
     get_user_baseline_history,
+    get_user_reading_history,
     get_provider_review_queue,
     append_review_action,
     get_review_actions,
@@ -193,6 +211,13 @@ async def lifespan(app: FastAPI):
         logger.info("local store ready")
     except Exception as e:
         logger.warning("Local store initialization skipped on startup: %s", str(e))
+    if os.environ.get("EXPLAIN_ENABLED", "").strip().lower() == "true":
+        try:
+            from rag.store import get_db_chunk_store
+            store = get_db_chunk_store()
+            logger.info("DbChunkStore loaded at startup: %d chunks", store.total_chunks())
+        except Exception as e:
+            logger.warning("DbChunkStore startup load skipped: %s", type(e).__name__)
     yield
 
 
@@ -356,6 +381,10 @@ ALLOWED_COMORBIDITIES = {
     "nerve_or_foot_problems",
 }
 
+# Physiological plausible range for adult waist circumference in cm (needs doctor review)
+WAIST_MIN_CM = 40.0
+WAIST_MAX_CM = 200.0
+
 
 class ProfileUpdateRequest(BaseModel):
     model_config = {"extra": "forbid"}
@@ -369,6 +398,7 @@ class ProfileUpdateRequest(BaseModel):
     voice_enabled: Optional[bool] = None
     height_cm: Optional[float] = None
     weight_kg: Optional[float] = None
+    waist_cm: Optional[float] = None
     diagnosis_year_diabetes: Optional[int] = None
     diagnosis_year_hypertension: Optional[int] = None
     smoking_status: Optional[str] = None
@@ -446,6 +476,19 @@ class ProfileUpdateRequest(BaseModel):
             raise ValueError("Weight must be between 20 and 400 kg")
         return round(val, 1)
 
+    @field_validator("waist_cm")
+    @classmethod
+    def validate_waist_cm(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return None
+        try:
+            val = float(v)
+        except (ValueError, TypeError):
+            raise ValueError("Waist circumference must be a valid number")
+        if val < WAIST_MIN_CM or val > WAIST_MAX_CM:
+            raise ValueError(f"Waist circumference must be between {WAIST_MIN_CM} and {WAIST_MAX_CM} cm (needs doctor review)")
+        return round(val, 1)
+
     @field_validator("diagnosis_year_diabetes")
     @classmethod
     def validate_diag_year_dm(cls, v: Optional[int]) -> Optional[int]:
@@ -506,6 +549,7 @@ class ProfileResponse(BaseModel):
     voice_enabled: bool = False
     height_cm: Optional[float] = None
     weight_kg: Optional[float] = None
+    waist_cm: Optional[float] = None
     diagnosis_year_diabetes: Optional[int] = None
     diagnosis_year_hypertension: Optional[int] = None
     smoking_status: Optional[str] = None
@@ -566,12 +610,45 @@ class RecordObservationItem(BaseModel):
     measured_at: str
 
 
+class DoctorOnRecord(BaseModel):
+    name: str
+    identifier: Optional[str] = None
+    source: str  # "ehr_general_practitioner" | "ehr_encounter"
+    as_of: Optional[str] = None
+
+
 class PatientRecordResponse(BaseModel):
     mode: str
     conditions: List[RecordConditionItem]
     medications: List[RecordMedicationItem]
     allergies: List[RecordAllergyItem]
     baseline_observations: List[RecordObservationItem]
+    ocr_enabled: bool = False
+
+class OcrConfirmItem(BaseModel):
+    model_config = {"extra": "forbid"}
+    id: Optional[str] = None
+    type: str  # "medication" | "observation" | "allergy"
+    name: Optional[str] = None
+    dosage: Optional[str] = None
+    status: Optional[str] = "active"
+    observation_type: Optional[str] = None
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    measured_at: Optional[str] = None
+    substance: Optional[str] = None
+    reaction: Optional[str] = None
+    confirmed: Optional[bool] = True
+
+
+class OcrConfirmRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    confirmed_items: Optional[List[OcrConfirmItem]] = None
+    items: Optional[List[OcrConfirmItem]] = None
+
+    def get_items(self) -> List[OcrConfirmItem]:
+        return self.confirmed_items or self.items or []
+
 
 
 class CreateMedicationRequest(BaseModel):
@@ -726,6 +803,14 @@ class EHRConnectionInfo(BaseModel):
     last_verified_at: Optional[str] = None
 
 
+class EHRAllergyItem(BaseModel):
+    substance: str
+    criticality: str
+    verification_status: str
+    origin: Literal["ehr"] = "ehr"
+    trust: Literal["high"] = "high"
+
+
 class EHRConnectionResponse(BaseModel):
     mode: str
     connection: Optional[EHRConnectionInfo] = None
@@ -735,6 +820,8 @@ class EHRConnectionResponse(BaseModel):
     record_source_label: Optional[str] = None
     summary: Optional[EHRConnectionSummary] = None
     warning: Optional[str] = None
+    doctor_on_record: Optional[DoctorOnRecord] = None
+    ehr_allergies: List[EHRAllergyItem] = Field(default_factory=list)
 
 
 class ConfigItem(BaseModel):
@@ -763,6 +850,7 @@ class CheckinStartResponse(BaseModel):
     can_skip: Optional[bool] = None
     can_say_unknown: Optional[bool] = None
     engine: Optional[str] = None
+    option_items: Optional[List[Dict[str, str]]] = None
 
 
 class CheckinAnswerRequest(BaseModel):
@@ -791,17 +879,25 @@ class CheckinAnswerResponse(BaseModel):
     engine: Optional[str] = None
     last_odd_class: Optional[str] = None
     is_probe: Optional[bool] = None
+    option_items: Optional[List[Dict[str, str]]] = None
 
 
-class CheckinCompleteResponse(BaseModel):
-    emergency: bool
-    intakes: List[Dict[str, Any]]
-    reconciliation: Optional[Dict[str, Any]] = None
-    verification: Optional[Dict[str, Any]] = None
-    requires_review: bool
-    max_severity: Optional[str] = None
-    triage: Optional[Dict[str, Any]] = None
-    record_source_label: Optional[str] = None
+from orchestrator.steps import (
+    CheckinCompleteResponse,
+    step_check_idempotency,
+    step_parse_and_validate_intake,
+    step_fetch_prior_bundle,
+    step_build_bundles,
+    step_reconcile,
+    step_verify,
+    step_persist_local_observations,
+    step_decide_triage,
+    step_risk,
+    step_explain,
+    build_direct_trace,
+    step_persist_and_respond,
+)
+ORCHESTRATOR = os.environ.get("ORCHESTRATOR", "direct").lower()
 
 
 class UserCheckinSummaryResponse(BaseModel):
@@ -856,6 +952,60 @@ class ReviewActionResponse(BaseModel):
     ts: str
 
 
+class TrendValue(BaseModel):
+    value: float
+    at: str
+
+
+class TrendSeries(BaseModel):
+    direction: str
+    n: int
+    window_days: int
+    few_readings: bool
+    first_at: Optional[str] = None
+    last_at: Optional[str] = None
+    median_earlier: Optional[float] = None
+    median_recent: Optional[float] = None
+    change: Optional[float] = None
+    slope_per_week: Optional[float] = None
+    values: List[TrendValue]
+    contexts_seen: Optional[List[str]] = None
+    mixed_contexts: Optional[bool] = None
+
+
+class TrendsResponse(BaseModel):
+    generated_at: str
+    advisory: bool = True
+    window_days: int
+    excluded_count: int
+    trends: Dict[str, TrendSeries]
+
+
+
+class RecordEditItem(BaseModel):
+    edit_id: str
+    id: Optional[str] = None
+    user_id: Optional[str] = None
+    record_type: str
+    record_id: str
+    field: str
+    old_value: Optional[Any] = None
+    new_value: Optional[Any] = None
+    origin: str
+    changed_by_user_id: str
+    changed_at: str
+    reason: Optional[str] = None
+
+    def __init__(self, **data: Any):
+        if 'edit_id' in data and 'id' not in data:
+            data['id'] = data['edit_id']
+        super().__init__(**data)
+
+
+class RecordHistoryResponse(BaseModel):
+    edits: List[RecordEditItem]
+    count: int
+
 class ReviewDetailResponse(BaseModel):
     checkin_id: str
     patient_id: str
@@ -877,6 +1027,13 @@ class ReviewDetailResponse(BaseModel):
     actions: List[ReviewActionResponse]
     record_source_label: Optional[str] = None
     patient_background: Optional[Dict[str, Any]] = None
+    answered_by: Optional[str] = None
+    trends: Optional[TrendsResponse] = None
+    risk: Optional[Dict[str, Any]] = None
+    checkin_risk: Optional[Dict[str, Any]] = None
+    explanation: Optional[Dict[str, Any]] = None
+    trace: Optional[List[Dict[str, Any]]] = None
+    recent_record_edits: Optional[List[RecordEditItem]] = None
 
 
 class VoiceTranscribeResponse(BaseModel):
@@ -1268,6 +1425,9 @@ def get_profile_endpoint(current_user: Dict[str, Any] = Depends(require_role("pa
             on_insulin_or_sulfonylurea=False,
             language="en",
             voice_enabled=False,
+            height_cm=None,
+            weight_kg=None,
+            waist_cm=None,
             consent_granted_at=None,
             consent_revoked_at=None,
             provider_notification_consent_at=None,
@@ -1286,6 +1446,7 @@ def get_profile_endpoint(current_user: Dict[str, Any] = Depends(require_role("pa
         voice_enabled=profile.get("voice_enabled", False),
         height_cm=profile.get("height_cm"),
         weight_kg=profile.get("weight_kg"),
+        waist_cm=profile.get("waist_cm"),
         diagnosis_year_diabetes=profile.get("diagnosis_year_diabetes"),
         diagnosis_year_hypertension=profile.get("diagnosis_year_hypertension"),
         smoking_status=profile.get("smoking_status"),
@@ -1352,6 +1513,7 @@ def update_profile_endpoint(
         voice_enabled=body.voice_enabled,
         height_cm=body.height_cm,
         weight_kg=body.weight_kg,
+        waist_cm=body.waist_cm,
         diagnosis_year_diabetes=body.diagnosis_year_diabetes,
         diagnosis_year_hypertension=body.diagnosis_year_hypertension,
         smoking_status=body.smoking_status,
@@ -1373,6 +1535,8 @@ def update_profile_endpoint(
         updated_fields.append("height_cm")
     if body.weight_kg is not None:
         updated_fields.append("weight_kg")
+    if body.waist_cm is not None:
+        updated_fields.append("waist_cm")
     if body.diagnosis_year_diabetes is not None:
         updated_fields.append("diagnosis_year_diabetes")
     if body.diagnosis_year_hypertension is not None:
@@ -1401,6 +1565,7 @@ def update_profile_endpoint(
         voice_enabled=updated.get("voice_enabled", False),
         height_cm=updated.get("height_cm"),
         weight_kg=updated.get("weight_kg"),
+        waist_cm=updated.get("waist_cm"),
         diagnosis_year_diabetes=updated.get("diagnosis_year_diabetes"),
         diagnosis_year_hypertension=updated.get("diagnosis_year_hypertension"),
         smoking_status=updated.get("smoking_status"),
@@ -1608,6 +1773,7 @@ def get_patient_record_endpoint(current_user: Dict[str, Any] = Depends(require_r
         medications=medications_list,
         allergies=allergies_list,
         baseline_observations=observations_list,
+        ocr_enabled=_is_ocr_enabled(),
     )
 
 
@@ -1661,18 +1827,13 @@ def create_record_medication_endpoint(
     patient_id = _require_isolated_mode_patient(current_user)
     user_id = current_user["user_id"]
     current_meds = get_local_medications(patient_id)
-    if len(current_meds) >= 30:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="maximum_medications_exceeded",
-        )
-
-    norm_new = _norm(body.name)
-    if any(_norm(m["medication_name"]) == norm_new for m in current_meds):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="duplicate_medication",
-        )
+    clean_name, clean_dose, clean_status = _validate_medication_entry(
+        name=body.name,
+        dosage=body.dosage,
+        status_val=body.status,
+        patient_id=patient_id,
+        current_meds=current_meds,
+    )
 
     med_id = f"local-med-{uuid.uuid4()}"
     now_ts = _utc_now_iso()
@@ -1680,9 +1841,9 @@ def create_record_medication_endpoint(
     add_local_medication(
         id=med_id,
         patient_id=patient_id,
-        medication_name=body.name,
-        status=body.status,
-        dosage=body.dosage,
+        medication_name=clean_name,
+        status=clean_status,
+        dosage=clean_dose,
         timestamp=now_ts,
         source="local",
         origin="self_reported",
@@ -1908,6 +2069,1339 @@ def delete_record_observation_endpoint(
     )
     return {"status": "ok"}
 
+@app.get("/api/me/record/history", response_model=RecordHistoryResponse, tags=["Patient Record"])
+def get_record_history_endpoint(
+    record_type: Optional[str] = None,
+    record_id: Optional[str] = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Retrieves patient's own record edit history (patient only, own data only, newest first)."""
+    user_id = current_user["user_id"]
+    if record_id:
+        with get_db_cursor() as (cursor, be, ph):
+            cursor.execute(f"SELECT user_id FROM record_edits WHERE record_id = {ph} LIMIT 1", (record_id,))
+            row = cursor.fetchone()
+            if row:
+                other_uid = row.get("user_id") if isinstance(row, dict) else row[0]
+                if other_uid != user_id:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot access another patient's record history")
+    edits = get_record_edits(
+        user_id=user_id,
+        record_type=record_type,
+        record_id=record_id,
+        limit=limit,
+    )
+    return RecordHistoryResponse(
+        edits=[RecordEditItem(**e) for e in edits],
+        count=len(edits),
+    )
+
+
+@app.get("/api/me/record/export", tags=["Patient Record"])
+def export_patient_record_endpoint(
+    format: str = Query(default="json", pattern="^(json|fhir)$"),
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Exports patient's own record as ChronicCare JSON or standard FHIR R4 Bundle. Works in both isolated and connected modes."""
+    user_id = current_user["user_id"]
+    now_str = _utc_now_iso()
+    today_str = now_str[:10]
+
+    # Zero PHI audit logging: format only
+    append_audit(
+        actor_user_id=user_id,
+        action="record_exported",
+        target="patient_record",
+        outcome="ok",
+        detail={"format": format},
+    )
+
+    profile = get_patient_profile(user_id) or {}
+    active_conn = get_active_ehr_connection(user_id)
+    is_connected = bool(active_conn)
+
+    if is_connected:
+        mode = "connected"
+        ehr_system = get_ehr_system_by_id(active_conn["ehr_system_id"])
+        base_url = ehr_system.get("fhir_base_url") if ehr_system else None
+        ext_pid = active_conn["external_patient_id"]
+        from data_sources import fhir_adapter
+        ehr_meds = fhir_adapter.get_normalized_medications(ext_pid, base_url=base_url)
+        ehr_obs = fhir_adapter.get_normalized_observations(ext_pid, base_url=base_url)
+        medications_list = [
+            RecordMedicationItem(id=m.source_record_id, name=m.medication_name, dosage=m.dosage, status=m.status)
+            for m in ehr_meds
+        ]
+        observations_list = [
+            RecordObservationItem(id=o.source_record_id, observation_type=o.observation_type, value=o.value, unit=o.unit, measured_at=o.timestamp)
+            for o in ehr_obs
+        ]
+    else:
+        mode = "isolated"
+        patient_id = f"local-{user_id}"
+        local_meds = get_local_medications(patient_id)
+        medications_list = [
+            RecordMedicationItem(id=m["id"], name=m["medication_name"], dosage=m["dosage"], status=m["status"])
+            for m in local_meds
+        ]
+        local_obs = get_local_observations(patient_id)
+        observations_list = [
+            RecordObservationItem(id=o["id"], observation_type=o["type"], value=float(o["value"]), unit=o["unit"], measured_at=o["timestamp"])
+            for o in local_obs
+        ]
+
+    conds = profile.get("conditions", [])
+    cond_basis = profile.get("conditions_basis", {})
+    conditions_list = [RecordConditionItem(name=c, basis=cond_basis.get(c)) for c in conds]
+
+    user_allergies = get_allergies(user_id)
+    allergies_list = [
+        RecordAllergyItem(id=a["allergy_id"], substance=a["substance"], reaction=a.get("reaction"), confirmed=bool(a["confirmed"]))
+        for a in user_allergies
+    ]
+
+    record_resp = PatientRecordResponse(
+        mode=mode,
+        conditions=conditions_list,
+        medications=medications_list,
+        allergies=allergies_list,
+        baseline_observations=observations_list,
+    )
+
+    if format == "json":
+        edits = get_record_edits(user_id=user_id, limit=200)
+        payload = {
+            "format": "chroniccare-record",
+            "version": 1,
+            "exported_at": now_str,
+            "record": record_resp.model_dump(),
+            "record_edits_count": len(edits),
+        }
+        filename = f"chroniccare-record-{today_str}.json"
+        return JSONResponse(
+            content=payload,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    # format == "fhir"
+    bundle_entries = []
+
+    # 1. Patient resource (no name or contact details)
+    pat_res = {
+        "resourceType": "Patient",
+        "id": user_id,
+        "gender": profile.get("sex_at_birth") or "unknown",
+    }
+    if profile.get("date_of_birth"):
+        pat_res["birthDate"] = profile["date_of_birth"].split("-")[0]
+    bundle_entries.append({"resource": pat_res})
+
+    # 2. MedicationRequest resources
+    for m in medications_list:
+        bundle_entries.append({
+            "resource": {
+                "resourceType": "MedicationRequest",
+                "id": m.id,
+                "status": "active" if m.status == "active" else "stopped",
+                "medicationCodeableConcept": {"text": m.name},
+                "dosageInstruction": [{"text": m.dosage}],
+                "authoredOn": now_str,
+                "subject": {"reference": f"Patient/{user_id}"},
+                "meta": {"tag": [{"system": "https://chroniccare.ai/origin", "code": "self_reported"}]},
+            }
+        })
+
+    # 3. AllergyIntolerance resources
+    for a in allergies_list:
+        bundle_entries.append({
+            "resource": {
+                "resourceType": "AllergyIntolerance",
+                "id": a.id,
+                "code": {"text": a.substance},
+                "reaction": [{"description": a.reaction}] if a.reaction else [],
+                "verificationStatus": {"coding": [{"code": "confirmed" if a.confirmed else "unconfirmed"}]},
+                "meta": {"tag": [{"system": "https://chroniccare.ai/origin", "code": "self_reported"}]},
+            }
+        })
+
+    # 4. Observation resources
+    loinc_map = {
+        "glucose": ("2339-0", "Glucose"),
+        "hba1c": ("4548-4", "HbA1c"),
+        "weight": ("29463-7", "Weight"),
+        "blood_pressure_systolic": ("8480-6", "Systolic Blood Pressure"),
+        "blood_pressure_diastolic": ("8462-4", "Diastolic Blood Pressure"),
+    }
+    for o in observations_list:
+        loinc_code, display_name = loinc_map.get(o.observation_type, ("unknown", o.observation_type))
+        bundle_entries.append({
+            "resource": {
+                "resourceType": "Observation",
+                "id": o.id,
+                "status": "final",
+                "code": {
+                    "coding": [{"system": "http://loinc.org", "code": loinc_code, "display": display_name}],
+                    "text": display_name,
+                },
+                "valueQuantity": {
+                    "value": float(o.value),
+                    "unit": o.unit,
+                    "system": "http://unitsofmeasure.org",
+                    "code": o.unit,
+                },
+                "effectiveDateTime": o.measured_at,
+                "subject": {"reference": f"Patient/{user_id}"},
+                "meta": {"tag": [{"system": "https://chroniccare.ai/origin", "code": "self_reported"}]},
+            }
+        })
+
+    fhir_bundle = {
+        "resourceType": "Bundle",
+        "type": "collection",
+        "entry": bundle_entries,
+    }
+    filename = f"chroniccare-record-{today_str}.fhir.json"
+    return JSONResponse(
+        content=fhir_bundle,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _rollback_sqlite_import(user_id: str, patient_id: str, written_items: List[Tuple[str, str]]) -> None:
+    """Compensating rollback for SQLite dev/CI import transactions."""
+    from data_sources.local_store import _get_db_path as get_local_db_path
+    local_path = get_local_db_path(None)
+    app_path = os.environ.get("LOCAL_DB_PATH", "local_store.db")
+
+    for itype, item_id in written_items:
+        try:
+            if itype == "medication":
+                with sqlite3.connect(local_path) as conn:
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM medications WHERE id = ? AND patient_id = ?", (item_id, patient_id))
+                    cur.execute("DELETE FROM record_edits WHERE record_type = 'medication' AND record_id = ?", (item_id,))
+                    conn.commit()
+            elif itype == "observation":
+                with sqlite3.connect(local_path) as conn:
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM observations WHERE id = ? AND patient_id = ?", (item_id, patient_id))
+                    cur.execute("DELETE FROM record_edits WHERE record_type = 'observation' AND record_id = ?", (item_id,))
+                    conn.commit()
+            elif itype == "allergy":
+                with sqlite3.connect(app_path) as conn:
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM allergies WHERE allergy_id = ? AND user_id = ?", (item_id, user_id))
+                    cur.execute("DELETE FROM record_edits WHERE record_type = 'allergy' AND record_id = ?", (item_id,))
+                    conn.commit()
+        except Exception as cleanup_err:
+            logger.error("Compensating rollback error for %s %s: %s", itype, item_id, type(cleanup_err).__name__)
+
+
+@app.post("/api/me/record/import", tags=["Patient Record"])
+async def import_patient_record_endpoint(
+    request: Request,
+    dry_run: bool = Query(default=True),
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Imports clinical record in ChronicCare JSON or FHIR Bundle format through validation preview (patient only, isolated mode)."""
+    patient_id = _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+
+    # 1. Content-Type check -> 415
+    ct = (request.headers.get("content-type") or "").lower().split(";")[0].strip()
+    if ct not in ("application/json", "application/fhir+json"):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Unsupported media type. Expected application/json",
+        )
+
+    # 2. Raw body read & size limit 2MB -> 413
+    body_bytes = await request.body()
+    if len(body_bytes) > 2 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Payload exceeds 2MB limit",
+        )
+
+    try:
+        payload = json.loads(body_bytes.decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid JSON payload")
+
+    raw_meds: List[Dict[str, Any]] = []
+    raw_obs: List[Dict[str, Any]] = []
+    raw_allergies: List[Dict[str, Any]] = []
+    raw_cond_basis: Dict[str, Any] = {}
+
+    if isinstance(payload, dict) and (
+        payload.get("format") in ("chroniccare-record", "chroniccare_record_v1")
+        or "record" in payload
+        or "medications" in payload
+        or "observations" in payload
+        or "baseline_observations" in payload
+        or "allergies" in payload
+        or "conditions_basis" in payload
+    ):
+        rec = payload.get("record") if "record" in payload and isinstance(payload.get("record"), dict) else payload
+        raw_meds = rec.get("medications", [])
+        raw_obs = rec.get("baseline_observations") or rec.get("observations", [])
+        raw_allergies = rec.get("allergies", [])
+        raw_cond_basis = rec.get("conditions_basis", {})
+    elif isinstance(payload, dict) and payload.get("resourceType") == "Bundle":
+        from data_sources import fhir_adapter
+        norm_obs = fhir_adapter.fhir_to_normalized_observations(payload, patient_id=user_id)
+        for no in norm_obs:
+            raw_obs.append({
+                "id": no.source_record_id,
+                "observation_type": no.observation_type,
+                "value": no.value,
+                "unit": no.unit,
+                "measured_at": no.timestamp,
+            })
+        norm_meds = fhir_adapter.fhir_to_normalized_medications(payload, patient_id=user_id)
+        for nm in norm_meds:
+            raw_meds.append({
+                "id": nm.source_record_id,
+                "name": nm.medication_name,
+                "dosage": nm.dosage,
+                "status": nm.status,
+            })
+        for entry in payload.get("entry", []):
+            res = entry.get("resource", {})
+            if res.get("resourceType") == "AllergyIntolerance":
+                sub = (res.get("code", {}).get("text") or "Allergy").strip()
+                rx = None
+                if res.get("reaction") and isinstance(res["reaction"], list) and len(res["reaction"]) > 0:
+                    rx = res["reaction"][0].get("description")
+                raw_allergies.append({
+                    "id": res.get("id"),
+                    "substance": sub,
+                    "reaction": rx,
+                    "confirmed": True,
+                })
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unrecognized record format. Expected 'chroniccare-record' JSON or FHIR 'Bundle'",
+        )
+
+    total_count = len(raw_meds) + len(raw_obs) + len(raw_allergies)
+    if total_count > 500:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Payload exceeds maximum 500 items limit",
+        )
+
+    to_add: List[Dict[str, Any]] = []
+    duplicates: List[Dict[str, Any]] = []
+    invalid: List[Dict[str, Any]] = []
+
+    # Fetch existing patient items
+    existing_meds = get_local_medications(patient_id)
+    existing_med_keys = {(m["medication_name"].strip().lower(), m["dosage"].strip().lower()) for m in existing_meds}
+    existing_med_ids = {m["id"] for m in existing_meds}
+
+    existing_obs = get_local_observations(patient_id)
+    existing_obs_keys = {(o["type"], round(float(o["value"]), 1), o["timestamp"]) for o in existing_obs}
+    existing_obs_ids = {o["id"] for o in existing_obs}
+
+    existing_allergies = get_allergies(user_id)
+    existing_allergy_substances = {a["substance"].strip().lower() for a in existing_allergies}
+    existing_allergy_ids = {a["allergy_id"] for a in existing_allergies}
+
+    # Validate medications
+    for m in raw_meds:
+        name = str(m.get("name") or "").strip()
+        dosage = str(m.get("dosage") or "").strip()
+        status_val = str(m.get("status") or "active").strip().lower()
+        med_id = m.get("id")
+
+        if not name or len(name) > 120:
+            invalid.append({"type": "medication", "item": m, "reason": "invalid_medication_name"})
+            continue
+        if not dosage or len(dosage) > 120:
+            invalid.append({"type": "medication", "item": m, "reason": "invalid_medication_dosage"})
+            continue
+        if status_val not in ("active", "stopped"):
+            invalid.append({"type": "medication", "item": m, "reason": "invalid_medication_status"})
+            continue
+
+        is_dup = (med_id and med_id in existing_med_ids) or ((name.lower(), dosage.lower()) in existing_med_keys)
+        if is_dup:
+            duplicates.append({"type": "medication", "name": name, "dosage": dosage, "status": status_val})
+        else:
+            to_add.append({
+                "type": "medication",
+                "id": f"local-med-{uuid.uuid4()}",
+                "name": name,
+                "dosage": dosage,
+                "status": status_val,
+            })
+            existing_med_keys.add((name.lower(), dosage.lower()))
+
+    # Validate observations using shared validation helpers
+    for o in raw_obs:
+        obs_type = str(o.get("observation_type") or o.get("type") or "").strip().lower()
+        val_raw = o.get("value")
+        measured_at_raw = o.get("measured_at") or o.get("timestamp")
+        obs_id = o.get("id")
+
+        if val_raw is None:
+            invalid.append({"type": "observation", "item": o, "reason": "missing_observation_value"})
+            continue
+
+        try:
+            val_float = float(val_raw)
+            clean_unit = _validate_observation_value_and_unit(obs_type, val_float)
+            clean_ts = _parse_and_validate_measured_at(measured_at_raw)
+        except HTTPException as he:
+            det = str(he.detail).lower()
+            if "unsupported" in det or "observation type" in det:
+                rc = "invalid_observation_type"
+            elif "invalid unit" in det or "unit" in det:
+                rc = "invalid_unit"
+            elif "measured_at" in det or "date" in det:
+                rc = "invalid_date"
+            else:
+                rc = "out_of_range"
+            invalid.append({"type": "observation", "item": o, "reason": rc})
+            continue
+        except Exception:
+            invalid.append({"type": "observation", "item": o, "reason": "invalid_value"})
+            continue
+
+        is_dup = (obs_id and obs_id in existing_obs_ids) or ((obs_type, round(val_float, 1), clean_ts) in existing_obs_keys)
+        if is_dup:
+            duplicates.append({"type": "observation", "observation_type": obs_type, "value": val_float, "unit": clean_unit, "measured_at": clean_ts})
+        else:
+            to_add.append({
+                "type": "observation",
+                "id": f"local-obs-{uuid.uuid4()}",
+                "observation_type": obs_type,
+                "value": val_float,
+                "unit": clean_unit,
+                "measured_at": clean_ts,
+            })
+            existing_obs_keys.add((obs_type, round(val_float, 1), clean_ts))
+
+    # Validate allergies
+    for a in raw_allergies:
+        sub = str(a.get("substance") or "").strip()
+        rx = str(a.get("reaction") or "").strip() if a.get("reaction") else None
+        conf = bool(a.get("confirmed", True))
+        a_id = a.get("id")
+
+        if not sub or len(sub) > 120:
+            invalid.append({"type": "allergy", "item": a, "reason": "invalid_allergy_substance"})
+            continue
+        if rx and len(rx) > 200:
+            invalid.append({"type": "allergy", "item": a, "reason": "allergy_reaction_too_long"})
+            continue
+
+        is_dup = (a_id and a_id in existing_allergy_ids) or (sub.lower() in existing_allergy_substances)
+        if is_dup:
+            duplicates.append({"type": "allergy", "substance": sub, "reaction": rx, "confirmed": conf})
+        else:
+            to_add.append({
+                "type": "allergy",
+                "id": str(uuid.uuid4()),
+                "substance": sub,
+                "reaction": rx,
+                "confirmed": conf,
+            })
+            existing_allergy_substances.add(sub.lower())
+
+    # Build preview structure
+    preview_meds = [
+        {"name": item["name"], "dosage": item["dosage"], "status": item["status"], "will_import": True, "reason": None}
+        for item in to_add if item["type"] == "medication"
+    ] + [
+        {"name": item["name"], "dosage": item["dosage"], "status": item.get("status", "active"), "will_import": False, "reason": "duplicate"}
+        for item in duplicates if item["type"] == "medication"
+    ] + [
+        {"name": item.get("item", {}).get("name", "Unknown"), "dosage": item.get("item", {}).get("dosage", ""), "status": item.get("item", {}).get("status", "active"), "will_import": False, "reason": item.get("reason")}
+        for item in invalid if item.get("type") == "medication"
+    ]
+
+    preview_obs = [
+        {"type": item["observation_type"], "value": item["value"], "unit": item["unit"], "measured_at": item["measured_at"], "will_import": True, "reason": None}
+        for item in to_add if item["type"] == "observation"
+    ] + [
+        {"type": item["observation_type"], "value": item["value"], "unit": item["unit"], "measured_at": item["measured_at"], "will_import": False, "reason": "duplicate"}
+        for item in duplicates if item["type"] == "observation"
+    ] + [
+        {"type": item.get("item", {}).get("type") or item.get("item", {}).get("observation_type", "unknown"), "value": item.get("item", {}).get("value"), "will_import": False, "reason": item.get("reason")}
+        for item in invalid if item.get("type") == "observation"
+    ]
+
+    preview_allergies = [
+        {"substance": item["substance"], "reaction": item["reaction"], "confirmed": item["confirmed"], "will_import": True, "reason": None}
+        for item in to_add if item["type"] == "allergy"
+    ] + [
+        {"substance": item["substance"], "reaction": item["reaction"], "confirmed": item["confirmed"], "will_import": False, "reason": "duplicate"}
+        for item in duplicates if item["type"] == "allergy"
+    ] + [
+        {"substance": item.get("item", {}).get("substance", "Unknown"), "will_import": False, "reason": item.get("reason")}
+        for item in invalid if item.get("type") == "allergy"
+    ]
+
+    preview_conds = [
+        {"condition": k, "basis": v, "will_import": True, "reason": None}
+        for k, v in raw_cond_basis.items()
+    ]
+
+    preview = {
+        "medications": preview_meds,
+        "observations": preview_obs,
+        "allergies": preview_allergies,
+        "conditions_basis": preview_conds,
+    }
+
+    counts = {
+        "to_add": len(to_add),
+        "duplicates": len(duplicates),
+        "invalid": len(invalid),
+    }
+
+    imported_counts = {
+        "medications": len([x for x in to_add if x["type"] == "medication"]),
+        "observations": len([x for x in to_add if x["type"] == "observation"]),
+        "allergies": len([x for x in to_add if x["type"] == "allergy"]),
+    }
+    dup_counts = {
+        "medications": len([x for x in duplicates if x["type"] == "medication"]),
+        "observations": len([x for x in duplicates if x["type"] == "observation"]),
+        "allergies": len([x for x in duplicates if x["type"] == "allergy"]),
+    }
+
+    if dry_run:
+        # Zero PHI audit logging: preview counts only
+        append_audit(
+            actor_user_id=user_id,
+            action="record_import_preview",
+            target="patient_record",
+            outcome="ok",
+            detail={"counts": counts},
+        )
+        return {
+            "dry_run": True,
+            "preview": preview,
+            "counts": counts,
+            "imported_counts": imported_counts,
+            "duplicate_counts": dup_counts,
+            "to_add": to_add,
+            "duplicates": duplicates,
+            "invalid": invalid,
+        }
+
+    # Execute commit in one atomic transaction
+    now_ts = _utc_now_iso()
+    add_local_patient_if_missing(patient_id, name=current_user.get("display_name") or "Patient")
+
+    is_mysql = os.environ.get("DB_BACKEND", "").strip().lower() == "mysql" or bool(os.environ.get("CHRONICCARE_MYSQL_URL"))
+    written_items: List[Tuple[str, str]] = []
+
+    if is_mysql:
+        from data_sources.db_config import get_mysql_connection
+        conn = get_mysql_connection()
+        try:
+            with conn.cursor() as cursor:
+                for item in to_add:
+                    itype = item["type"]
+                    if itype == "medication":
+                        add_local_medication(
+                            id=item["id"],
+                            patient_id=patient_id,
+                            medication_name=item["name"],
+                            status=item["status"],
+                            dosage=item["dosage"],
+                            timestamp=now_ts,
+                            source="local",
+                            origin="import",
+                            changed_by_user_id=user_id,
+                            reason="record_import",
+                            cursor=cursor,
+                        )
+                    elif itype == "observation":
+                        add_local_observation(
+                            id=item["id"],
+                            patient_id=patient_id,
+                            observation_type=item["observation_type"],
+                            value=item["value"],
+                            unit=item["unit"],
+                            timestamp=item["measured_at"],
+                            source="local",
+                            origin="import",
+                            changed_by_user_id=user_id,
+                            reason="record_import",
+                            cursor=cursor,
+                        )
+                    elif itype == "allergy":
+                        create_allergy(
+                            allergy_id=item["id"],
+                            user_id=user_id,
+                            substance=item["substance"],
+                            reaction=item["reaction"],
+                            confirmed=item["confirmed"],
+                            created_at=now_ts,
+                            changed_by_user_id=user_id,
+                            origin="import",
+                            cursor=cursor,
+                        )
+                if raw_cond_basis and isinstance(raw_cond_basis, dict):
+                    profile = get_patient_profile(user_id) or {}
+                    conds = set(profile.get("conditions", []))
+                    valid_basis = {k: v for k, v in raw_cond_basis.items() if k in conds and v in ALLOWED_CONDITIONS_BASIS}
+                    if valid_basis:
+                        current_basis = dict(profile.get("conditions_basis", {}))
+                        current_basis.update(valid_basis)
+                        update_patient_conditions_basis(user_id, current_basis, changed_by_user_id=user_id, origin="import", cursor=cursor)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error("Import transaction failed (MySQL): %s", type(e).__name__)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Import transaction failed and was rolled back (error_code: IMPORT_TRANSACTION_FAILED)",
+            )
+        finally:
+            conn.close()
+    else:
+        try:
+            for item in to_add:
+                itype = item["type"]
+                if itype == "medication":
+                    add_local_medication(
+                        id=item["id"],
+                        patient_id=patient_id,
+                        medication_name=item["name"],
+                        status=item["status"],
+                        dosage=item["dosage"],
+                        timestamp=now_ts,
+                        source="local",
+                        origin="import",
+                        changed_by_user_id=user_id,
+                        reason="record_import",
+                    )
+                    written_items.append(("medication", item["id"]))
+                elif itype == "observation":
+                    add_local_observation(
+                        id=item["id"],
+                        patient_id=patient_id,
+                        observation_type=item["observation_type"],
+                        value=item["value"],
+                        unit=item["unit"],
+                        timestamp=item["measured_at"],
+                        source="local",
+                        origin="import",
+                        changed_by_user_id=user_id,
+                        reason="record_import",
+                    )
+                    written_items.append(("observation", item["id"]))
+                elif itype == "allergy":
+                    create_allergy(
+                        allergy_id=item["id"],
+                        user_id=user_id,
+                        substance=item["substance"],
+                        reaction=item["reaction"],
+                        confirmed=item["confirmed"],
+                        created_at=now_ts,
+                        changed_by_user_id=user_id,
+                        origin="import",
+                    )
+                    written_items.append(("allergy", item["id"]))
+
+            if raw_cond_basis and isinstance(raw_cond_basis, dict):
+                profile = get_patient_profile(user_id) or {}
+                conds = set(profile.get("conditions", []))
+                valid_basis = {k: v for k, v in raw_cond_basis.items() if k in conds and v in ALLOWED_CONDITIONS_BASIS}
+                if valid_basis:
+                    current_basis = dict(profile.get("conditions_basis", {}))
+                    current_basis.update(valid_basis)
+                    update_patient_conditions_basis(user_id, current_basis, changed_by_user_id=user_id, origin="import")
+        except Exception as e:
+            logger.error("Import transaction failed (SQLite): %s", type(e).__name__)
+            if not is_mysql:
+                _rollback_sqlite_import(user_id, patient_id, written_items)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Import transaction failed and was rolled back (error_code: IMPORT_TRANSACTION_FAILED)",
+            )
+
+    # Zero PHI audit logging: counts only
+    append_audit(
+        actor_user_id=user_id,
+        action="record_imported",
+        target="patient_record",
+        outcome="ok",
+        detail={"counts": counts},
+    )
+
+    return {
+        "status": "ok",
+        "dry_run": False,
+        "imported": counts["to_add"],
+        "duplicates": counts["duplicates"],
+        "invalid": counts["invalid"],
+        "imported_counts": imported_counts,
+        "duplicate_counts": dup_counts,
+    }
+
+
+
+
+def _is_ocr_enabled() -> bool:
+    if os.environ.get("OCR_ENABLED", "false").strip().lower() not in ("true", "1", "yes"):
+        return False
+    return check_ocr_provider_available()
+
+
+def _validate_medication_entry(
+    name: str,
+    dosage: str,
+    status_val: str = "active",
+    patient_id: Optional[str] = None,
+    current_meds: Optional[List[Dict[str, Any]]] = None,
+    item_index: Optional[int] = None,
+) -> Tuple[str, str, str]:
+    """
+    Shared medication validation logic for both manual entry and OCR confirm.
+    Enforces non-empty string, length limits (name <= 80, dosage <= 100),
+    control character stripping, allowed status values ('active', 'stopped'),
+    maximum 30 active medications limit, and duplicate check.
+    """
+    clean_name = _reject_control_chars(name)
+    if not clean_name or len(clean_name) > 80:
+        if item_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": "medication_name_invalid"},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid medication name")
+
+    clean_dose = _reject_control_chars(dosage)
+    if not clean_dose or len(clean_dose) > 100:
+        if item_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": "medication_dosage_invalid"},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid medication dosage")
+
+    clean_status = str(status_val).strip().lower()
+    if clean_status not in ("active", "stopped"):
+        if item_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": "medication_status_invalid"},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Medication status must be 'active' or 'stopped'")
+
+    if patient_id is not None or current_meds is not None:
+        meds = current_meds if current_meds is not None else get_local_medications(patient_id or "")
+        if len(meds) >= 30:
+            if item_index is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"code": "invalid_item", "item_index": item_index, "reason_code": "maximum_medications_exceeded"},
+                )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="maximum_medications_exceeded",
+            )
+        norm_new = _norm(clean_name)
+        if any(_norm(m.get("medication_name", "")) == norm_new for m in meds):
+            if item_index is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"code": "invalid_item", "item_index": item_index, "reason_code": "duplicate_medication"},
+                )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="duplicate_medication",
+            )
+
+    return clean_name, clean_dose, clean_status
+
+
+def _validate_ocr_allergy(substance: str, reaction: Optional[str] = None, item_index: Optional[int] = None) -> Tuple[str, Optional[str]]:
+    clean_sub = _reject_control_chars(substance)
+    if not clean_sub or len(clean_sub) > 80:
+        if item_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": "allergy_substance_invalid"},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid allergy substance")
+    clean_rx = None
+    if reaction:
+        clean_rx = _reject_control_chars(reaction)
+        if len(clean_rx) > 120:
+            if item_index is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"code": "invalid_item", "item_index": item_index, "reason_code": "allergy_reaction_invalid"},
+                )
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Allergy reaction exceeds 120 characters")
+    return clean_sub, clean_rx
+
+
+def _validate_ocr_observation(obs_type: str, value: Any, measured_at: Optional[str] = None, item_index: Optional[int] = None) -> Tuple[str, float, str, str]:
+    clean_type = str(obs_type).strip().lower()
+    if clean_type not in ("glucose", "blood_pressure_systolic", "blood_pressure_diastolic", "weight", "hba1c"):
+        if item_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": "bad_observation_type"},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unsupported observation type '{obs_type}'")
+    try:
+        val = float(value)
+    except (TypeError, ValueError):
+        if item_index is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": "out_of_range"},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid numeric observation value")
+    try:
+        unit = _validate_observation_value_and_unit(clean_type, val)
+    except HTTPException as e:
+        if item_index is not None:
+            reason = "bad_unit" if "unit" in str(e.detail).lower() else "out_of_range"
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "invalid_item", "item_index": item_index, "reason_code": reason},
+            )
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.detail)
+    ts = _parse_and_validate_measured_at(measured_at)
+    return clean_type, val, unit, ts
+
+
+def _extract_image_from_body(body_bytes: bytes, content_type: str) -> bytes:
+    """Extracts raw file payload from multipart or direct body without preserving client filenames."""
+    if "multipart/form-data" in content_type and "boundary=" in content_type:
+        boundary = content_type.split("boundary=")[-1].strip().split(";")[0].strip('"').encode()
+        parts = body_bytes.split(b"--" + boundary)
+        for part in parts:
+            if b"Content-Disposition" in part and (b"filename=" in part or b'name="file"' in part):
+                header_end = part.find(b"\r\n\r\n")
+                if header_end != -1:
+                    file_bytes = part[header_end + 4 :].rstrip(b"\r\n")
+                    return file_bytes
+    return body_bytes
+
+
+@app.post("/api/me/record/uploads", tags=["Patient Record OCR"])
+async def upload_record_image_endpoint(
+    request: Request,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """
+    Accepts photo of a lab report or prescription for OCR field extraction.
+    Requires isolated mode and OCR_ENABLED=true.
+    Never persists image bytes or client filenames to disk or database.
+    """
+    if os.environ.get("OCR_ENABLED", "false").strip().lower() not in ("true", "1", "yes"):
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "ocr_unavailable", "detail": "OCR feature is currently disabled (error_code: OCR_DISABLED)"},
+        )
+    if not _is_ocr_enabled():
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "ocr_unavailable", "detail": "ocr_unavailable"},
+        )
+
+    patient_id = _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+
+    body_bytes = await request.body()
+    content_type = request.headers.get("content-type", "").lower()
+    raw_bytes = _extract_image_from_body(body_bytes, content_type)
+    if len(raw_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Uploaded image exceeds 5MB limit",
+        )
+    if len(raw_bytes) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Uploaded file is empty",
+        )
+
+    # Magic bytes & Content-Type validation (415 for all unsupported formats)
+    is_jpeg = raw_bytes.startswith(b"\xff\xd8\xff")
+    is_png = raw_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+    is_pdf = raw_bytes.startswith(b"%PDF")
+    is_heic = b"ftyp" in raw_bytes[:16] and any(b in raw_bytes[:16] for b in [b"heic", b"mif1", b"msf1", b"heix"])
+
+    if is_pdf or "pdf" in content_type:
+        return JSONResponse(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            content={
+                "code": "unsupported_media_type",
+                "detail": "Unsupported document format. Please upload JPEG or PNG images (PDF and HEIC are not currently supported).",
+            },
+        )
+    if is_heic or "heic" in content_type:
+        return JSONResponse(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            content={
+                "code": "unsupported_media_type",
+                "detail": "Unsupported document format. Please upload JPEG or PNG images (PDF and HEIC are not currently supported).",
+            },
+        )
+    if not (is_jpeg or is_png):
+        return JSONResponse(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            content={
+                "code": "unsupported_media_type",
+                "detail": "Unsupported file format. Please upload a valid JPEG or PNG image.",
+            },
+        )
+
+    # Pillow availability & decoding check
+    try:
+        from PIL import Image, ImageOps
+    except (ImportError, ModuleNotFoundError):
+        logger.error("Pillow library is not installed")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "ocr_unavailable", "detail": "ocr_unavailable"},
+        )
+
+    try:
+        img = Image.open(io.BytesIO(raw_bytes))
+        img.verify()
+        # Re-open after verify
+        img = Image.open(io.BytesIO(raw_bytes))
+        img = ImageOps.exif_transpose(img)
+        if max(img.width, img.height) > 2000:
+            img.thumbnail((2000, 2000), Image.Resampling.LANCZOS)
+        buf = io.BytesIO()
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        img.save(buf, format="JPEG", quality=90)
+        processed_bytes = buf.getvalue()
+    except Exception as e:
+        logger.warning("Image decoding failed: %s", type(e).__name__)
+        return JSONResponse(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            content={"code": "image_unreadable", "detail": "image_unreadable"},
+        )
+
+    # Run OCR provider with strict error boundary
+    try:
+        provider = get_ocr_provider()
+    except (ImportError, ModuleNotFoundError, RuntimeError) as e:
+        logger.error("OCR provider unavailable: %s", type(e).__name__)
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "ocr_unavailable", "detail": "ocr_unavailable"},
+        )
+
+    try:
+        extracted = provider.extract(processed_bytes)
+    except (ImportError, ModuleNotFoundError) as e:
+        logger.error("OCR provider missing dependency: %s", type(e).__name__)
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "ocr_unavailable", "detail": "ocr_unavailable"},
+        )
+    except Exception as e:
+        logger.error("OCR provider error: %s", type(e).__name__)
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={"code": "ocr_provider_error", "detail": "ocr_provider_error"},
+        )
+
+    # Stage in memory (zero filename / zero raw bytes persistence)
+    upload_id = stage_upload(
+        user_id=user_id,
+        extracted_data=extracted,
+    )
+
+    # Zero PHI audit logging: counts only, no filename, no values
+    append_audit(
+        actor_user_id=user_id,
+        action="record_ocr_upload_processed",
+        target="patient_record",
+        outcome="ok",
+        detail={
+            "upload_id": upload_id,
+            "has_urdu": extracted.get("has_urdu", False),
+            "med_count": len(extracted.get("medications", [])),
+            "obs_count": len(extracted.get("observations", [])),
+            "allergy_count": len(extracted.get("allergies", [])),
+        },
+    )
+
+    return {
+        "upload_id": upload_id,
+        "extracted": {
+            "medications": extracted.get("medications", []),
+            "observations": extracted.get("observations", []),
+            "allergies": extracted.get("allergies", []),
+        },
+        "notice": extracted.get("notice"),
+        "has_urdu": extracted.get("has_urdu", False),
+        "warnings": extracted.get("warnings", []),
+        "created_at": _utc_now_iso(),
+    }
+
+
+@app.post("/api/me/record/uploads/{upload_id}/confirm", tags=["Patient Record OCR"])
+def confirm_ocr_upload_endpoint(
+    upload_id: str,
+    body: OcrConfirmRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """
+    Saves ONLY confirmed values from a staged OCR upload to the patient record with origin 'ocr' (medium trust).
+    Re-validates every confirmed item against clinical boundaries.
+    Writes record_edits rows atomically with provenance tracking.
+    """
+    if not _is_ocr_enabled():
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"code": "ocr_unavailable", "detail": "OCR feature is currently disabled (error_code: OCR_DISABLED)"},
+        )
+
+    patient_id = _require_isolated_mode_patient(current_user)
+    user_id = current_user["user_id"]
+
+    upload = get_staged_upload(upload_id, user_id=user_id)
+    if not upload:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload not found or expired. Please upload the document again.",
+        )
+
+    # Build staged lookup by field ID to detect patient edits vs direct confirmations
+    staged_extracted = upload.get("extracted", {})
+    staged_by_id: Dict[str, Tuple[str, Dict[str, Any]]] = {}
+    for m in staged_extracted.get("medications", []):
+        if "id" in m:
+            staged_by_id[m["id"]] = ("medication", m)
+    for o in staged_extracted.get("observations", []):
+        if "id" in o:
+            staged_by_id[o["id"]] = ("observation", o)
+    for a in staged_extracted.get("allergies", []):
+        if "id" in a:
+            staged_by_id[a["id"]] = ("allergy", a)
+
+    items_to_save = body.get_items()
+    now_ts = _utc_now_iso()
+
+    current_meds = get_local_medications(patient_id)
+
+    # Re-validate all items before any DB writes
+    validated_items = []
+    for idx, item in enumerate(items_to_save):
+        itype = str(item.type).strip().lower()
+        if itype == "medication":
+            try:
+                m_name, m_dose, m_status = _validate_medication_entry(
+                    name=item.name or "",
+                    dosage=item.dosage or "",
+                    status_val=item.status or "active",
+                    patient_id=patient_id,
+                    current_meds=current_meds + [v for v in validated_items if v["type"] == "medication"],
+                    item_index=idx,
+                )
+            except HTTPException as he:
+                if isinstance(he.detail, dict) and he.detail.get("code") == "invalid_item":
+                    return JSONResponse(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        content={
+                            "code": "invalid_item",
+                            "item_index": he.detail.get("item_index"),
+                            "reason_code": he.detail.get("reason_code"),
+                            "detail": he.detail,
+                        },
+                    )
+                raise he
+
+            staged_match = staged_by_id.get(item.id or "") if item.id else None
+            old_val = None
+            reason = "ocr_confirmed"
+            if staged_match and staged_match[0] == "medication":
+                s_med = staged_match[1]
+                s_name = s_med.get("name", "")
+                s_dose = s_med.get("dosage", "")
+                if s_name != m_name or s_dose != m_dose:
+                    old_val = f"{s_name} {s_dose}".strip()
+                    reason = "patient corrected OCR value"
+
+            validated_items.append({
+                "type": "medication",
+                "id": f"local-med-{uuid.uuid4()}",
+                "name": m_name,
+                "dosage": m_dose,
+                "status": m_status,
+                "old_val": old_val,
+                "reason": reason,
+            })
+        elif itype == "observation":
+            try:
+                o_type, val, unit, ts = _validate_ocr_observation(
+                    obs_type=item.observation_type or "",
+                    value=item.value,
+                    measured_at=item.measured_at,
+                    item_index=idx,
+                )
+            except HTTPException as he:
+                if isinstance(he.detail, dict) and he.detail.get("code") == "invalid_item":
+                    return JSONResponse(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        content={
+                            "code": "invalid_item",
+                            "item_index": he.detail.get("item_index"),
+                            "reason_code": he.detail.get("reason_code"),
+                            "detail": he.detail,
+                        },
+                    )
+                raise he
+
+            staged_match = staged_by_id.get(item.id or "") if item.id else None
+            old_val = None
+            reason = "ocr_confirmed"
+            if staged_match and staged_match[0] == "observation":
+                s_obs = staged_match[1]
+                try:
+                    s_val = float(s_obs.get("value", 0))
+                    if abs(s_val - val) > 1e-4:
+                        old_val = s_val
+                        reason = "patient corrected OCR value"
+                except (TypeError, ValueError):
+                    pass
+
+            validated_items.append({
+                "type": "observation",
+                "id": f"local-obs-{uuid.uuid4()}",
+                "observation_type": o_type,
+                "value": val,
+                "unit": unit,
+                "measured_at": ts,
+                "old_val": old_val,
+                "reason": reason,
+            })
+        elif itype == "allergy":
+            try:
+                sub, rx = _validate_ocr_allergy(
+                    substance=item.substance or "",
+                    reaction=item.reaction,
+                    item_index=idx,
+                )
+            except HTTPException as he:
+                if isinstance(he.detail, dict) and he.detail.get("code") == "invalid_item":
+                    return JSONResponse(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        content={
+                            "code": "invalid_item",
+                            "item_index": he.detail.get("item_index"),
+                            "reason_code": he.detail.get("reason_code"),
+                            "detail": he.detail,
+                        },
+                    )
+                raise he
+
+            staged_match = staged_by_id.get(item.id or "") if item.id else None
+            old_val = None
+            reason = "ocr_confirmed"
+            if staged_match and staged_match[0] == "allergy":
+                s_all = staged_match[1]
+                if s_all.get("substance") != sub or s_all.get("reaction") != rx:
+                    old_val = s_all.get("substance")
+                    reason = "patient corrected OCR value"
+
+            validated_items.append({
+                "type": "allergy",
+                "id": f"alg-{uuid.uuid4()}",
+                "substance": sub,
+                "reaction": rx,
+                "confirmed": bool(item.confirmed),
+                "old_val": old_val,
+                "reason": reason,
+            })
+        else:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unsupported item type '{itype}'")
+
+    add_local_patient_if_missing(patient_id, name=current_user.get("display_name") or "Patient")
+
+    is_mysql = (os.environ.get("DB_BACKEND") == "mysql" or os.environ.get("CHRONICCARE_MYSQL_URL"))
+    if is_mysql:
+        from data_sources.db_config import get_mysql_connection
+        conn = get_mysql_connection()
+        cursor = conn.cursor()
+        try:
+            for vitem in validated_items:
+                itype = vitem["type"]
+                if itype == "medication":
+                    add_local_medication(
+                        id=vitem["id"],
+                        patient_id=patient_id,
+                        medication_name=vitem["name"],
+                        status=vitem["status"],
+                        dosage=vitem["dosage"],
+                        timestamp=now_ts,
+                        source="local",
+                        origin="ocr",
+                        changed_by_user_id=user_id,
+                        reason=vitem["reason"],
+                        old_value=vitem["old_val"],
+                        cursor=cursor,
+                    )
+                elif itype == "observation":
+                    add_local_observation(
+                        id=vitem["id"],
+                        patient_id=patient_id,
+                        observation_type=vitem["observation_type"],
+                        value=vitem["value"],
+                        unit=vitem["unit"],
+                        timestamp=vitem["measured_at"],
+                        source="local",
+                        origin="ocr",
+                        changed_by_user_id=user_id,
+                        reason=vitem["reason"],
+                        old_value=vitem["old_val"],
+                        cursor=cursor,
+                    )
+                elif itype == "allergy":
+                    create_allergy(
+                        allergy_id=vitem["id"],
+                        user_id=user_id,
+                        substance=vitem["substance"],
+                        reaction=vitem["reaction"],
+                        confirmed=vitem["confirmed"],
+                        created_at=now_ts,
+                        changed_by_user_id=user_id,
+                        origin="ocr",
+                        reason=vitem["reason"],
+                        old_value=vitem["old_val"],
+                        cursor=cursor,
+                    )
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error("OCR confirm transaction failed (MySQL): %s", type(e).__name__)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save confirmed items to database and was rolled back",
+            )
+        finally:
+            conn.close()
+    else:
+        written_items: List[Tuple[str, str]] = []
+        try:
+            for vitem in validated_items:
+                itype = vitem["type"]
+                if itype == "medication":
+                    add_local_medication(
+                        id=vitem["id"],
+                        patient_id=patient_id,
+                        medication_name=vitem["name"],
+                        status=vitem["status"],
+                        dosage=vitem["dosage"],
+                        timestamp=now_ts,
+                        source="local",
+                        origin="ocr",
+                        changed_by_user_id=user_id,
+                        reason=vitem["reason"],
+                        old_value=vitem["old_val"],
+                    )
+                    written_items.append(("medication", vitem["id"]))
+                elif itype == "observation":
+                    add_local_observation(
+                        id=vitem["id"],
+                        patient_id=patient_id,
+                        observation_type=vitem["observation_type"],
+                        value=vitem["value"],
+                        unit=vitem["unit"],
+                        timestamp=vitem["measured_at"],
+                        source="local",
+                        origin="ocr",
+                        changed_by_user_id=user_id,
+                        reason=vitem["reason"],
+                        old_value=vitem["old_val"],
+                    )
+                    written_items.append(("observation", vitem["id"]))
+                elif itype == "allergy":
+                    create_allergy(
+                        allergy_id=vitem["id"],
+                        user_id=user_id,
+                        substance=vitem["substance"],
+                        reaction=vitem["reaction"],
+                        confirmed=vitem["confirmed"],
+                        created_at=now_ts,
+                        changed_by_user_id=user_id,
+                        origin="ocr",
+                        reason=vitem["reason"],
+                        old_value=vitem["old_val"],
+                    )
+                    written_items.append(("allergy", vitem["id"]))
+        except Exception as e:
+            logger.error("OCR confirm transaction failed (SQLite): %s", type(e).__name__)
+            for wtype, wid in reversed(written_items):
+                try:
+                    if wtype == "medication":
+                        delete_local_medication(wid, patient_id)
+                    elif wtype == "observation":
+                        delete_local_observation(wid, patient_id)
+                    elif wtype == "allergy":
+                        delete_allergy(wid, user_id)
+                except Exception:
+                    pass
+            try:
+                from data_sources.app_store import get_db_cursor
+                with get_db_cursor(backend="sqlite") as (cur, be, ph):
+                    for wtype, wid in written_items:
+                        cur.execute("DELETE FROM record_edits WHERE record_type = ? AND record_id = ?", (wtype, wid))
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save confirmed items to database and was rolled back",
+            )
+
+    remove_staged_upload(upload_id)
+
+    append_audit(
+        actor_user_id=user_id,
+        action="record_ocr_upload_confirmed",
+        target="patient_record",
+        outcome="ok",
+        detail={
+            "upload_id": upload_id,
+            "confirmed_count": len(validated_items),
+        },
+    )
+
+    return {
+        "status": "ok",
+        "upload_id": upload_id,
+        "confirmed_count": len(validated_items),
+        "saved_items": validated_items,
+    }
+
+@app.delete("/api/me/record/uploads/{upload_id}", tags=["Patient Record OCR"])
+def cancel_ocr_upload_endpoint(
+    upload_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Cancels a pending OCR upload and clears its in-memory staged data."""
+    user_id = current_user["user_id"]
+    upload = get_staged_upload(upload_id, user_id=user_id)
+    if not upload:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload not found or expired",
+        )
+    remove_staged_upload(upload_id)
+    return {"status": "ok", "message": "Upload cancelled"}
+
 
 def _compute_record_source_label(mode: str, ehr_system_id: Optional[str] = None) -> str:
     if mode == "isolated":
@@ -1919,19 +3413,17 @@ def _compute_record_source_label(mode: str, ehr_system_id: Optional[str] = None)
     return "Hospital EHR (FHIR test server)"
 
 
+from data_sources.ehr_test_patients import (
+    get_sample_patients_for_system,
+    get_suggested_patient_ids_for_system,
+)
+
 SAMPLE_PATIENTS_LIST = [
-    SamplePatient(id="sim-ayesha", label="Ayesha K. (age 52)", description="Type 2 diabetes & hypertension (BP ~128/82, glucose 140-150, active Metformin & Lisinopril)"),
-    SamplePatient(id="sim-bilal", label="Bilal A. (age 67)", description="Hypertension personal baseline (BP 110-116/70-74, active Amlodipine)"),
-    SamplePatient(id="sim-sana", label="Sana M. (age 45)", description="Type 2 diabetes on insulin (glucose 150-175, active Insulin glargine & Metformin)"),
-    SamplePatient(id="sim-imran", label="Imran Q. (age 71)", description="Type 2 diabetes & hypertension, rising readings (BP 148-156/92-98, glucose 180-210)"),
-    SamplePatient(id="sim-newpatient", label="Nadia R. (age 38)", description="Hypertension, no recent observations (empty record test)"),
+    SamplePatient(id=p["id"], label=p["label"], description=p["description"])
+    for p in get_sample_patients_for_system("demo-hospital")
 ]
 
-SUGGESTED_PATIENT_IDS = [
-    "d48ac962-78c6-46cf-ba33-a24771bfa0e4",
-    "b85d7e00-3690-4e2a-87a0-f3d2dfc908b3",
-    "4551370c-c3eb-4164-a2ff-b528f73a4e0f",
-]
+SUGGESTED_PATIENT_IDS = get_suggested_patient_ids_for_system("smart-sandbox")
 
 
 # =============================================================================
@@ -1945,8 +3437,11 @@ def get_ehr_systems_endpoint():
     res = []
     for s in systems:
         kind = s.get("kind", "public_sandbox")
-        sample_patients = SAMPLE_PATIENTS_LIST if kind == "simulated" else None
-        suggested_ids = SUGGESTED_PATIENT_IDS if kind == "public_sandbox" else None
+        sample_patients = [
+            SamplePatient(id=p["id"], label=p["label"], description=p["description"])
+            for p in get_sample_patients_for_system(s["ehr_system_id"])
+        ] if kind == "simulated" else None
+        suggested_ids = get_suggested_patient_ids_for_system(s["ehr_system_id"]) if kind == "public_sandbox" else None
         res.append(
             EHRSystemResponse(
                 ehr_system_id=s["ehr_system_id"],
@@ -2231,8 +3726,11 @@ def connect_ehr_endpoint(
 
 
 @app.get("/api/ehr/connection", response_model=EHRConnectionResponse, tags=["EHR Connection"])
-def get_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Retrieves current patient EHR connection status and masked identifiers."""
+def get_ehr_connection_endpoint(
+    include_details: bool = Query(False),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Retrieves current patient EHR connection status and masked identifiers. When include_details=True, fetches doctor on record and hospital allergies."""
     active = get_active_ehr_connection(current_user["user_id"])
     if not active:
         return EHRConnectionResponse(mode="isolated", connection=None)
@@ -2241,6 +3739,49 @@ def get_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(get_curre
     sys = get_ehr_system_by_id(active["ehr_system_id"])
     kind = sys.get("kind", "public_sandbox") if sys else "public_sandbox"
     record_label = _compute_record_source_label(mode="connected", ehr_system_id=active["ehr_system_id"])
+
+    doctor_on_record: Optional[DoctorOnRecord] = None
+    ehr_allergies: List[EHRAllergyItem] = []
+    warning = None
+
+    if include_details:
+        base_url = sys.get("fhir_base_url") if sys else None
+        ext_pid = active["external_patient_id"]
+
+        # 1. Doctor on record (3s timeout, cached, never 5xx)
+        try:
+            doc_dict = fhir_client.get_fhir_practitioner_for_patient(patient_id=ext_pid, base_url=base_url, timeout=3.0)
+            if doc_dict and doc_dict.get("name"):
+                doctor_on_record = DoctorOnRecord(
+                    name=doc_dict["name"],
+                    identifier=doc_dict.get("identifier"),
+                    source=doc_dict.get("source", "ehr_general_practitioner"),
+                    as_of=doc_dict.get("as_of"),
+                )
+        except Exception as e:
+            doctor_on_record = None
+            logger.warning("Failed to retrieve doctor on record: %s", type(e).__name__)
+            warning = "Could not load your doctor from the hospital record right now."
+
+        # 2. EHR allergies (3s timeout, cached, entered-in-error excluded, never 5xx)
+        try:
+            raw_allergies = fhir_client.get_fhir_allergies(patient_id=ext_pid, base_url=base_url, timeout=3.0)
+            norm_allergies = fhir_adapter.fhir_to_normalized_allergies(raw_allergies, patient_id=ext_pid)
+            for a in norm_allergies:
+                ehr_allergies.append(
+                    EHRAllergyItem(
+                        substance=a.get("substance", "Allergy"),
+                        criticality=a.get("criticality", "unable-to-assess"),
+                        verification_status=a.get("verification_status", "active"),
+                        origin="ehr",
+                        trust="high",
+                    )
+                )
+        except Exception as e:
+            ehr_allergies = []
+            logger.warning("Failed to retrieve hospital allergies: %s", type(e).__name__)
+            allergy_warn = "Could not load hospital allergies right now."
+            warning = f"{warning}; {allergy_warn}" if warning else allergy_warn
 
     return EHRConnectionResponse(
         mode="connected",
@@ -2254,6 +3795,9 @@ def get_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(get_curre
         system_id=active["ehr_system_id"],
         kind=kind,
         record_source_label=record_label,
+        warning=warning,
+        doctor_on_record=doctor_on_record,
+        ehr_allergies=ehr_allergies,
     )
 
 
@@ -2491,6 +4035,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
             language=v3_state.get("language"),
             can_skip=v3_state.get("can_skip"),
             can_say_unknown=v3_state.get("can_say_unknown"),
+            option_items=v3_state.get("option_items"),
         )
 
     # 7. Initialize InterviewState and run first node (v2 default)
@@ -3020,6 +4565,7 @@ def answer_checkin_endpoint(
             can_say_unknown=next_state.get("can_say_unknown"),
             last_odd_class=next_state.get("last_odd_class"),
             is_probe=next_state.get("is_probe"),
+            option_items=next_state.get("option_items"),
         )
 
     # v2 Interview node path
@@ -3172,404 +4718,90 @@ def complete_checkin_endpoint(
             detail="Check-in session not found",
         )
 
-    # Idempotent check
-    stored_result = get_checkin_result(checkin_id)
     record_label = _compute_record_source_label(checkin["mode"], checkin.get("ehr_system_id"))
-    if stored_result:
-        return CheckinCompleteResponse(
-            emergency=stored_result["emergency"],
-            intakes=stored_result["intakes"],
-            reconciliation=stored_result.get("reconciliation"),
-            verification=stored_result.get("verification"),
-            requires_review=stored_result["requires_review"],
-            max_severity=stored_result.get("max_severity"),
-            triage=stored_result.get("triage"),
-            record_source_label=record_label,
-        )
 
-    raw_state = checkin.get("state") or {}
-    is_v3_session = bool(raw_state.get("engine") == "v3" or raw_state.get("completed") is not None)
+    # 1. Idempotency Check
+    stored = step_check_idempotency(checkin_id, record_label)
+    if stored:
+        return stored
 
-    if is_v3_session:
-        is_completed = bool(raw_state.get("completed"))
-        is_emergency = bool(raw_state.get("stage1_red_flag") or raw_state.get("emergency") or checkin["status"] == "emergency")
-        if not is_completed and not is_emergency:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Interview is not complete",
-            )
-        if is_emergency:
-            emergency_reason = raw_state.get("emergency_reason") or raw_state.get("stage1_reason")
-            intakes = raw_state.get("intakes") or ([{"condition": "general", "emergency": True, "reason": emergency_reason}] if emergency_reason else [])
-            now_iso = _utc_now_iso()
-            create_checkin_result(
-                checkin_id=checkin_id,
-                emergency=True,
-                intakes=intakes,
-                reconciliation=None,
-                verification=None,
-                requires_review=True,
-                max_severity="high",
-                review_status="open",
-                trigger_category=emergency_reason or "emergency",
-                trigger_text=None,
-                escalated_at=now_iso,
-                triage_level="emergency",
-                triage=None,
-            )
-            update_checkin_state(
-                checkin_id=checkin_id,
-                state_dict=raw_state,
-                status="emergency",
-                completed_at=now_iso,
-                med_state_dict=None,
-                protocol_state_dict=None,
-            )
-            return CheckinCompleteResponse(
-                emergency=True,
-                intakes=intakes,
-                reconciliation=None,
-                verification=None,
-                requires_review=True,
-                max_severity="high",
-                triage=None,
-                record_source_label=record_label,
-            )
+    # Dynamic orchestrator path selection
+    orchestrator_mode = os.environ.get("ORCHESTRATOR", ORCHESTRATOR).lower()
+    if orchestrator_mode == "graph":
+        from orchestrator.graph import run_checkin_graph
+        return run_checkin_graph(checkin, current_user, record_label)
 
-        v3_summary = finish_v3_session(raw_state)
-        intakes = v3_summary.get("intakes", [])
-        state = InterviewState(
-            patient_id=checkin["record_patient_id"],
-            conditions_on_file=raw_state.get("conditions_on_file") or ["diabetes"],
-            step=INTERVIEW_COMPLETE,
-            intakes=intakes,
-        )
-        # Construct protocol_state for v3 if readings triggered triage
-        readings_map = {}
-        for intake_item in intakes:
-            for r_item in intake_item.get("readings", []):
-                obs_t = r_item.get("observation_type")
-                if obs_t == "glucose":
-                    readings_map[GLUCOSE] = float(r_item["value"])
-                elif obs_t == "blood_pressure_systolic":
-                    readings_map[SYSTOLIC] = float(r_item["value"])
-                elif obs_t == "blood_pressure_diastolic":
-                    readings_map[DIASTOLIC] = float(r_item["value"])
+    # 2. Intake Validation & Emergency Early Return
+    parsed_context, early_resp = step_parse_and_validate_intake(checkin, current_user, record_label)
+    if early_resp:
+        return early_resp
 
-        triggers = evaluate_triggers(readings_map)
-        if triggers:
-            primary_trig = triggers[0]
-            raw_answers = raw_state.get("raw_answers", {})
-            findings = raw_state.get("findings", [])
-            finding_labels = {f.get("finding_type") for f in findings if isinstance(f, dict)}
+    state = parsed_context["state"]
+    protocol_state = parsed_context["protocol_state"]
+    med_state = parsed_context["med_state"]
 
-            proto_answers = {
-                "dka_symptoms": bool("nausea_or_vomiting" in finding_labels),
-                "can_swallow": True,
-                "neuro": False,
-                "symptoms": bool(finding_labels),
-                "recheck": None,
-                "substances": False,
-                "circumstances": False,
-            }
-            p_state = TriageProtocolState(
-                protocol=primary_trig.protocol,
-                age_band="adult",
-                trigger_reason=primary_trig.reason,
-                readings=readings_map,
-                answers=proto_answers,
-            )
-            p_state.result = _decide(p_state)
-            protocol_state = p_state
-        else:
-            protocol_state = None
-        med_state = None
-    else:
-        state = InterviewState.from_dict(checkin["state"])
-        protocol_state_dict = checkin.get("protocol_state")
-        protocol_state = TriageProtocolState.from_dict(protocol_state_dict) if protocol_state_dict else None
-        med_state_dict = checkin.get("med_state")
-        med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
+    # 3. Fetch Prior Baseline Bundle from EHR / Local Store
+    prior_bundle = step_fetch_prior_bundle(checkin["record_patient_id"], checkin["mode"], current_user["user_id"], get_patient_bundle_fn=get_patient_bundle)
 
-        # Check incomplete checkin
-        if not state.stage1_red_flag and checkin["status"] != "emergency":
-            if state.step != INTERVIEW_COMPLETE:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Interview is not complete",
-                )
-            if protocol_state and not protocol_state.complete:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="triage_incomplete",
-                )
-            if med_state and not med_state.complete:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="medication_check_incomplete",
-                )
-
-        # 1. Emergency Flow
-        if state.stage1_red_flag or checkin["status"] == "emergency":
-            intakes = state.intakes if state.intakes else ([{"condition": state.active_condition or "general", "emergency": True, "reason": state.stage1_reason}] if state.stage1_reason else [])
-            now_iso = _utc_now_iso()
-            triage_dict = protocol_state.result if (protocol_state and protocol_state.complete) else None
-            create_checkin_result(
-                checkin_id=checkin_id,
-                emergency=True,
-                intakes=intakes,
-                reconciliation=None,
-                verification=None,
-                requires_review=True,
-                max_severity="high",
-                review_status="open",
-                trigger_category=state.stage1_reason or (f"triage:{protocol_state.protocol}" if protocol_state else None),
-                trigger_text=triage_dict.get("summary") if triage_dict else None,
-                escalated_at=now_iso,
-                triage_level="emergency" if triage_dict else None,
-                triage=triage_dict,
-            )
-            update_checkin_state(
-                checkin_id=checkin_id,
-                state_dict=state.to_dict(),
-                status="emergency",
-                completed_at=now_iso,
-                med_state_dict=med_state.to_dict() if med_state else None,
-                protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
-            )
-            return CheckinCompleteResponse(
-                emergency=True,
-                intakes=intakes,
-                reconciliation=None,
-                verification=None,
-                requires_review=True,
-                max_severity="high",
-                triage=triage_dict,
-                record_source_label=record_label,
-            )
-
-    # 2. Non-Emergency Flow
-    base_url = None
-    if checkin["mode"] == "connected":
-        active_conn = get_active_ehr_connection(current_user["user_id"])
-        if active_conn:
-            ehr_sys = get_ehr_system_by_id(active_conn["ehr_system_id"])
-            base_url = ehr_sys["fhir_base_url"] if ehr_sys else None
-
-    # Fetch prior baseline
-    try:
-        prior_bundle = get_patient_bundle(checkin["record_patient_id"], mode=checkin["mode"], base_url=base_url)
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Record source unavailable",
-        )
-
-    # Build check-in bundle
-    source = "fhir" if checkin["mode"] == "connected" else "local"
+    # 4. Build Bundles
     patient_name = current_user.get("display_name") or (prior_bundle["patient"].name if prior_bundle.get("patient") else "Patient")
-    now_iso = _utc_now_iso()
-    try:
-        checkin_bundle = build_checkin_bundle(state, source=source, patient_name=patient_name, checkin_timestamp=now_iso)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+    prior_bundle, checkin_bundle = step_build_bundles(state, prior_bundle, checkin["mode"], patient_name, med_state, checkin["record_patient_id"])
 
-    if med_state and med_state.items:
-        checkin_bundle["medications"] = build_medication_bundle_items(
-            med_state,
-            patient_id=checkin["record_patient_id"],
-            source=source,
-            timestamp=now_iso,
-        )
-        prior_bundle["medications"] = restrict_to_asked(prior_bundle.get("medications", []), med_state)
+    # 5. Reconcile Bundles
+    recon_result = step_reconcile(prior_bundle, checkin_bundle)
 
-    # Reconcile bundles
-    try:
-        recon_result = reconcile_bundles(prior_bundle, checkin_bundle)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+    # 6. Verify Reconciliation
+    verif_result = step_verify(recon_result, checkin_bundle, med_state, checkin["mode"], checkin["record_patient_id"])
 
-    # Verify reconciliation with origins
-    checkin_origins = build_checkin_origins(checkin_bundle)
-    if med_state and med_state.items:
-        checkin_origins.update(build_medication_origins(checkin_bundle["medications"]))
+    # 7. Persist Local Observations (Isolated Mode)
+    step_persist_local_observations(checkin_bundle, checkin["record_patient_id"], checkin["mode"])
 
-    if checkin["mode"] == "isolated":
-        local_obs_origins = get_local_observation_origins(checkin["record_patient_id"])
-        local_med_origins = get_local_medication_origins(checkin["record_patient_id"])
-        combined_origins = {**local_obs_origins, **local_med_origins, **checkin_origins}
-    else:
-        combined_origins = checkin_origins
+    # 8. Triage Decision
+    triage_decision = step_decide_triage(verif_result, state, protocol_state, current_user["user_id"], get_patient_profile_fn=get_patient_profile)
 
-    verif_result = verify_reconciliation(recon_result, origins=combined_origins)
+    # 9. Risk Assessment Step
+    risk_result = step_risk(
+        user_id=current_user["user_id"],
+        state=state,
+        triage_decision=triage_decision,
+        get_patient_profile_fn=get_patient_profile,
+    )
 
-    # Isolated Mode: write check-in observations to Local Store tagged self_reported
-    if checkin["mode"] == "isolated":
-        for obs in checkin_bundle["observations"]:
-            add_local_observation(
-                id=obs.source_record_id,
-                patient_id=checkin["record_patient_id"],
-                observation_type=obs.observation_type,
-                value=obs.value,
-                unit=obs.unit,
-                timestamp=obs.timestamp,
-                source="local",
-                origin="self_reported",
-            )
+    # 10. Guideline Explanation Step
+    explain_result = step_explain(
+        user_id=current_user["user_id"],
+        state=state,
+        triage_decision=triage_decision,
+        get_patient_profile_fn=get_patient_profile,
+    )
 
-    # Determine severity and review necessity
-    summary = verif_result.summary
-    verif_requires_review = bool(summary.get("requires_review", 0) > 0)
-    if summary.get("severity_high", 0) > 0:
-        verif_max_severity = "high"
-    elif summary.get("severity_moderate", 0) > 0:
-        verif_max_severity = "moderate"
-    elif summary.get("severity_low", 0) > 0:
-        verif_max_severity = "low"
-    else:
-        verif_max_severity = "none"
+    # 11. Trace Construction (Direct Mode)
+    direct_trace = build_direct_trace(
+        state=state,
+        prior_bundle=prior_bundle,
+        checkin_bundle=checkin_bundle,
+        recon_result=recon_result,
+        verif_result=verif_result,
+        mode=checkin["mode"],
+        triage_decision=triage_decision,
+        risk_res=risk_result,
+        explain_res=explain_result,
+    )
 
-    intake_requires_review = any(it.get("requires_review") for it in (state.intakes or []))
-    if protocol_state and protocol_state.complete:
-        triage_res = dict(protocol_state.result)
-        profile = get_patient_profile(current_user["user_id"]) or {}
-        if not profile.get("date_of_birth"):
-            triage_res["age_assumed"] = True
-
-        proto_level = triage_res.get("level", "routine")
-        if verif_requires_review or intake_requires_review:
-            final_triage_level = _raise_level(proto_level, "review")
-        else:
-            final_triage_level = proto_level
-
-        stroke_eval = None
-        for it in (state.intakes or []):
-            eval_res = evaluate_stroke_extras(it.get("symptoms", {}), patient_profile=profile)
-            if eval_res:
-                stroke_eval = eval_res
-                break
-        if stroke_eval:
-            final_triage_level = _raise_level(final_triage_level, stroke_eval["level"])
-            if stroke_eval.get("advice"):
-                triage_res["advice"] = stroke_eval["advice"]
-                if stroke_eval["level"] == "urgent":
-                    triage_res["guidance"] = stroke_eval["advice"]
-
-        final_requires_review = (final_triage_level in ("review", "urgent", "emergency") or verif_requires_review or intake_requires_review)
-
-        SEV_ORDER = {"none": 0, "low": 1, "moderate": 2, "high": 3}
-        if final_triage_level == "urgent":
-            final_max_sev = "high"
-        elif final_triage_level == "review":
-            if SEV_ORDER.get(verif_max_severity, 0) < SEV_ORDER["moderate"]:
-                final_max_sev = "moderate"
-            else:
-                final_max_sev = verif_max_severity
-        else:
-            final_max_sev = verif_max_severity
-
-        review_status = "open" if final_requires_review else "resolved"
-
-        create_checkin_result(
-            checkin_id=checkin_id,
-            emergency=False,
-            intakes=state.intakes,
-            reconciliation=recon_result.to_dict(),
-            verification=verif_result.to_dict(),
-            requires_review=final_requires_review,
-            max_severity=final_max_sev,
-            review_status=review_status,
-            triage_level=final_triage_level,
-            triage=triage_res,
-        )
-        update_checkin_state(
-            checkin_id=checkin_id,
-            state_dict=state.to_dict(),
-            status="complete",
-            completed_at=_utc_now_iso(),
-            med_state_dict=med_state.to_dict() if med_state else None,
-            protocol_state_dict=protocol_state.to_dict(),
-        )
-
-        return CheckinCompleteResponse(
-            emergency=False,
-            intakes=state.intakes,
-            reconciliation=recon_result.to_dict(),
-            verification=verif_result.to_dict(),
-            requires_review=final_requires_review,
-            max_severity=final_max_sev,
-            triage=triage_res,
-            record_source_label=record_label,
-        )
-    else:
-        profile = get_patient_profile(current_user["user_id"]) or {}
-        stroke_eval = None
-        for it in (state.intakes or []):
-            eval_res = evaluate_stroke_extras(it.get("symptoms", {}), patient_profile=profile)
-            if eval_res:
-                stroke_eval = eval_res
-                break
-
-        final_requires_review = bool(verif_requires_review or intake_requires_review or (stroke_eval is not None))
-        final_triage_level = "review" if final_requires_review else "routine"
-        if stroke_eval:
-            final_triage_level = _raise_level(final_triage_level, stroke_eval["level"])
-
-        review_status = "open" if final_requires_review else "resolved"
-        final_max_sev = "high" if final_triage_level == "urgent" else ("moderate" if (final_requires_review and verif_max_severity == "none") else verif_max_severity)
-        if stroke_eval:
-            triage_dict = {
-                "level": stroke_eval["level"],
-                "guidance": stroke_eval.get("advice", "Check-in flagged for clinician review."),
-                "advice": stroke_eval.get("advice", "Check-in flagged for clinician review."),
-                "summary": stroke_eval.get("advice", "Stroke extras evaluation: clinician review required."),
-            }
-        elif intake_requires_review:
-            triage_dict = {
-                "level": "review",
-                "guidance": "Low blood sugar safety review required. If you feel shaky, sweaty, or confused, consume fast-acting sugar immediately.",
-                "summary": "Check-in flagged for clinician review.",
-            }
-        else:
-            triage_dict = None
-
-        create_checkin_result(
-            checkin_id=checkin_id,
-            emergency=False,
-            intakes=state.intakes,
-            reconciliation=recon_result.to_dict(),
-            verification=verif_result.to_dict(),
-            requires_review=final_requires_review,
-            max_severity=final_max_sev,
-            review_status=review_status,
-            triage_level=final_triage_level,
-            triage=triage_dict,
-        )
-        update_checkin_state(
-            checkin_id=checkin_id,
-            state_dict=state.to_dict(),
-            status="complete",
-            completed_at=_utc_now_iso(),
-            med_state_dict=med_state.to_dict() if med_state else None,
-            protocol_state_dict=None,
-        )
-
-        return CheckinCompleteResponse(
-            emergency=False,
-            intakes=state.intakes,
-            reconciliation=recon_result.to_dict(),
-            verification=verif_result.to_dict(),
-            requires_review=final_requires_review,
-            max_severity=final_max_sev,
-            triage=triage_dict,
-            record_source_label=record_label,
-        )
+    # 12. Persistence & Response
+    return step_persist_and_respond(
+        checkin_id=checkin_id,
+        state=state,
+        recon_result=recon_result,
+        verif_result=verif_result,
+        triage_decision=triage_decision,
+        med_state=med_state,
+        protocol_state=protocol_state,
+        record_label=record_label,
+        risk=risk_result,
+        explanation=explain_result,
+        trace=direct_trace,
+    )
 
 
 
@@ -3625,6 +4857,48 @@ def get_user_checkin_detail_endpoint(
 
 
 # =============================================================================
+def _compute_patient_trends_safe(user_id: str, days: int = 30) -> Optional[TrendsResponse]:
+    """Safely compute patient trends for clinical review; fails gracefully to None."""
+    try:
+        raw_history = get_user_reading_history(user_id, days=days)
+        computed = compute_trends(raw_history, window_days=days)
+        return TrendsResponse(**computed)
+    except Exception as e:
+        logger.warning(f"Trend computation failed: {type(e).__name__}")
+        return None
+
+
+def _compute_patient_risk_safe(user_id: str) -> Optional[Dict[str, Any]]:
+    """Safely compute patient diabetes risk assessment for provider review; fails gracefully to None."""
+    if os.environ.get("RISK_ENABLED", "").strip().lower() != "true":
+        return None
+    try:
+        profile = get_patient_profile(user_id)
+        if not profile:
+            return None
+        conditions = profile.get("conditions", [])
+        from agents.risk_rules import is_risk_applicable
+        if not is_risk_applicable(conditions):
+            return None
+        history = get_user_reading_history(user_id, days=30)
+        from agents.risk_agent import assess as assess_risk
+        return assess_risk(profile=profile, latest_readings=history, conditions=conditions)
+    except Exception as e:
+        logger.warning(f"Risk computation failed: {type(e).__name__}")
+        return None
+
+
+@app.get("/api/me/trends", response_model=TrendsResponse, tags=["Trends"])
+def get_my_trends_endpoint(
+    days: int = Query(30, ge=7, le=90, description="Observation window in days (7-90)"),
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Retrieves longitudinal health trends for authenticated patient."""
+    history = get_user_reading_history(current_user["user_id"], days=days)
+    result = compute_trends(history, window_days=days)
+    return TrendsResponse(**result)
+
+
 # PROVIDER REVIEW QUEUE & ACTION ENDPOINTS
 # =============================================================================
 
@@ -3651,6 +4925,7 @@ def _build_patient_background(user_id: str) -> Optional[Dict[str, Any]]:
     return {
         "height_cm": height_cm,
         "weight_kg": weight_kg,
+        "waist_cm": profile.get("waist_cm"),
         "bmi": bmi,
         "diagnosis_year_diabetes": profile.get("diagnosis_year_diabetes"),
         "diagnosis_year_hypertension": profile.get("diagnosis_year_hypertension"),
@@ -3697,6 +4972,12 @@ def get_provider_review_detail_endpoint(
 
     patient_bg = _build_patient_background(checkin["user_id"])
 
+    answered_by_val = None
+    for it in (result.get("intakes") or []):
+        if it.get("answered_by"):
+            answered_by_val = it["answered_by"]
+            break
+
     return ReviewDetailResponse(
         checkin_id=checkin_id,
         patient_id=checkin["record_patient_id"],
@@ -3718,6 +4999,16 @@ def get_provider_review_detail_endpoint(
         actions=[ReviewActionResponse(**a) for a in actions],
         record_source_label=record_label,
         patient_background=patient_bg,
+        answered_by=answered_by_val,
+        trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
+        risk=_compute_patient_risk_safe(checkin["user_id"]),
+        checkin_risk=result.get("risk"),
+        explanation=result.get("explanation"),
+        trace=result.get("trace"),
+        recent_record_edits=[
+            RecordEditItem(**e)
+            for e in get_recent_edits_for_patient(checkin["user_id"], limit=20)
+        ],
     )
 
 
@@ -3790,6 +5081,15 @@ def post_provider_review_action_endpoint(
         actions=[ReviewActionResponse(**a) for a in actions],
         record_source_label=record_label,
         patient_background=patient_bg,
+        trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
+        risk=_compute_patient_risk_safe(checkin["user_id"]),
+        checkin_risk=result.get("risk"),
+        explanation=result.get("explanation"),
+        trace=result.get("trace"),
+        recent_record_edits=[
+            RecordEditItem(**e)
+            for e in get_recent_edits_for_patient(checkin["user_id"], limit=20)
+        ],
     )
 
 

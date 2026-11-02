@@ -9,15 +9,25 @@
     "template_roman_ur": "Kya aap ne aaj apna blood pressure check kiya hai? Agar haan, toh kya reading thi (maslan 130/85)?",
     "answer_type": "number",
     "choices": null,
-    "valid_range": [60, 260],
-    "unit_options": ["mmHg"],
-    "requires": {"condition": "hypertension"},
+    "valid_range": [
+      60,
+      260
+    ],
+    "unit_options": [
+      "mmHg"
+    ],
+    "requires": {
+      "condition": "hypertension"
+    },
     "priority_class": "open",
     "can_raise_level": true,
     "rule_id": "bp_triage_trigger",
     "source": "aha_acc_2025_hypertension",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "بلڈ پریشر کی ریڈنگ سے ڈاکٹر کو دل اور شریانوں کی صحت کا بروقت اندازہ ہوتا ہے۔",
+    "why_text_roman_ur": "BP ki reading se doctor ko dil aur khoon ki naliyon ki sehat ka barwaqt andaza hota hai.",
+    "needs_native_review": true
   },
   {
     "id": "hypertension_bp_technique",
@@ -28,16 +38,33 @@
     "template_ur": "کیا بلڈ پریشر چیک کرنے سے پہلے آپ نے 5 منٹ پرسکون بیٹھ کر آرام کیا تھا اور کمر اور بازو کو سہارا دیا تھا؟",
     "template_roman_ur": "Kya BP check karne se pehle aap ne 5 minute pursukoon baith kar aaram kiya tha aur kamar aur baazu ko sahara diya tha?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension", "has_bp_reading": true},
+    "requires": {
+      "condition": "hypertension",
+      "has_bp_reading": true
+    },
     "priority_class": "open",
     "can_raise_level": false,
     "rule_id": null,
     "source": "aha_acc_2025_hypertension",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "ٹیسٹ سے پہلے سکون سے بیٹھنے سے درست ریڈنگ آتی ہے، جلد بازی یا بات کرنے سے بی پی وقتی طور پر بڑھ سکتا ہے۔",
+    "why_text_roman_ur": "Test se pehle sukoon se baithne se sahi reading aati hai, jaldbazi ya baat karne se BP barh sakta hai.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "hypertension_associated_symptoms",
@@ -48,16 +75,32 @@
     "template_ur": "کیا آپ کو شدید سر درد، سانس پھولنا، ٹخنوں پر سوجن، یا کھڑے ہونے پر چکر آنا محسوس ہو رہا ہے؟",
     "template_roman_ur": "Kya aap ko shadeed sar dard, saans phoolna, takhno par sojan, ya kharay hone par chakkar aana mehsoos ho raha hai?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension"},
+    "requires": {
+      "condition": "hypertension"
+    },
     "priority_class": "open",
     "can_raise_level": true,
     "rule_id": "associated_symptoms_triage",
     "source": "nice_ng136_hypertension",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "بلڈ پریشر کے ساتھ شدید سر درد یا سانس پھولنے کی علامات میں فوری طبی جانچ ضروری ہے۔",
+    "why_text_roman_ur": "BP ke sath shadeed sar dard ya saans phoolne ki alamaat mein fori tibbi jaanch zaroori hai.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "hypertension_otc_meds_bp",
@@ -68,16 +111,33 @@
     "template_ur": "کیا آپ نے حال ہی میں درد کش دوائیں (جیسے بروفین)، نزلہ زکام کا شربت، یا دیسی جڑی بوٹیاں لی ہیں؟",
     "template_roman_ur": "Kya aap ne haal hi mein dard ki dawaiyan (jaise ibuprofen), nazla zukam ka syrup, ya desi jari bootiyan li hain?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension", "bp_elevated": true},
+    "requires": {
+      "condition": "hypertension",
+      "bp_elevated": true
+    },
     "priority_class": "open",
     "can_raise_level": true,
     "rule_id": "otc_meds_bp_review",
     "source": "aha_acc_2025_hypertension",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "درد یا نزلہ زکام کی بعض عام دوائیں بلڈ پریشر کو اچانک بڑھا سکتی ہیں۔",
+    "why_text_roman_ur": "Dard ya nazla zukam ki baaz aam dawaiyan BP ko achanak barha sakti hain.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "hypertension_adherence",
@@ -88,16 +148,32 @@
     "template_ur": "کیا آپ نے آج اپنے بلڈ پریشر کی دوائیاں لے لی ہیں؟",
     "template_roman_ur": "Kya aap ne aaj apne blood pressure ki dawaiyan le li hain?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension"},
+    "requires": {
+      "condition": "hypertension"
+    },
     "priority_class": "open",
     "can_raise_level": false,
     "rule_id": null,
     "source": "aha_acc_2025_hypertension",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "بلڈ پریشر کی باقاعدہ دوا دل اور شریانوں کو محفوظ رکھتی ہے۔",
+    "why_text_roman_ur": "BP ki baqaida dawai dil aur shariyanon ko mehfooz rakhti hai.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "hypertension_missed_doses_reason",
@@ -111,13 +187,19 @@
     "choices": null,
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension", "adherence_hypertension": false},
+    "requires": {
+      "condition": "hypertension",
+      "adherence_hypertension": false
+    },
     "priority_class": "barrier",
     "can_raise_level": false,
     "rule_id": null,
     "source": "aha_acc_2025_hypertension",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "وجہ جان کر ڈاکٹر آپ کے لیے بی پی کی دوا کا معمول آسان بنا سکتا ہے۔",
+    "why_text_roman_ur": "Wajah jaan kar doctor aap ke liye BP ki dawai ka mamool asaan bana sakta hai.",
+    "needs_native_review": true
   },
   {
     "id": "hypertension_lifestyle",
@@ -131,12 +213,17 @@
     "choices": null,
     "valid_range": null,
     "unit_options": null,
-    "requires": {"condition": "hypertension"},
+    "requires": {
+      "condition": "hypertension"
+    },
     "priority_class": "open",
     "can_raise_level": false,
     "rule_id": null,
     "source": "aha_acc_2025_hypertension",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "نمک کا استعمال، نیند اور روزمرہ کا تناؤ بلڈ پریشر پر گہرا اثر ڈالتے ہیں۔",
+    "why_text_roman_ur": "Namak ka istemal, neend aur rozmarrah ka dabao BP par asar daaltay hain.",
+    "needs_native_review": true
   }
 ]

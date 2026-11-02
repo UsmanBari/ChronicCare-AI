@@ -54,6 +54,7 @@ Stores patient-specific clinical, consent, demographic, and preference informati
 | `voice_enabled` | INTEGER | Boolean-like setting indicating whether the voice feature is enabled. Defaults to `0`. | `0` | Yes |
 | `height_cm` | REAL | Patient's height in centimetres. The API currently validates values from 50 to 250 cm. | `170.5` | Yes |
 | `weight_kg` | REAL | Patient's weight in kilograms. The API currently validates values from 20 to 400 kg. | `72.0` | Yes |
+| `waist_cm` | REAL | Patient's waist circumference in centimetres. The API validates values from 40 to 200 cm (needs doctor review). Added in schema v13. | `85.0` | Yes |
 | `diagnosis_year_diabetes` | INTEGER | Year in which the patient was diagnosed with diabetes, when provided. | `2020` | Yes |
 | `diagnosis_year_hypertension` | INTEGER | Year in which the patient was diagnosed with hypertension, when provided. | `2022` | Yes |
 
@@ -133,6 +134,9 @@ Stores the result, review status, escalation information, and generated clinical
 | `created_at` | TEXT | Timestamp recording when the check-in result was created. | `2026-10-11T09:10:00Z` | Yes |
 | `triage_level` | TEXT | Optional triage level assigned during check-in processing. | `high` | Yes |
 | `triage_json` | TEXT | Optional JSON-encoded detailed triage result/state. | `{"level":"high"}` | Yes |
+| `risk_json` | TEXT | Optional JSON-encoded diabetes risk assessment evaluated at check-in time (`status`, `band`, `probability`, `model_name`, `model_version`, `raised`, `reasons`, `caveats`). Added in schema v15. | `{"status":"ok","band":"low","probability":0.025}` | Yes |
+| `explanation_json` | TEXT | Optional JSON-encoded clinical guideline explanation generated at check-in time (`status`, `mode`, `sentences`, `sources`, `rejected_reasons`). Added in schema v15. | `{"status":"ok","mode":"llm","sentences":[]}` | Yes |
+| `trace_json` | TEXT | Optional JSON-encoded decision audit trace sequence capturing executed pipeline nodes, timestamps, and aggregate counts (sanitized of reading values and PHI). Added in schema v15. | `[{"node":"node_intake","summary":"..."}]` | Yes |
 
 ### Constraints and notes
 
@@ -375,6 +379,115 @@ Stores medication information associated with patients.
 
 ---
 
+## EHR Connection Response Additions (Iteration 2 Day 1 & Correction)
+
+### `doctor_on_record`
+Additive optional object in `EHRConnectionResponse` (connected mode, populated when `?include_details=true`):
+- `name` (TEXT): Display name of practitioner on record (from FHIR `generalPractitioner` or latest `Encounter.participant`).
+- `identifier` (TEXT, optional): Clinical identifier of the practitioner, if available in the EHR record.
+- `source` (TEXT): Provenance indicator, either `"ehr_general_practitioner"` or `"ehr_encounter"`.
+- `as_of` (TEXT, optional): Timestamp associated with the practitioner reference.
+
+### `ehr_allergies` (Connected Mode)
+In connected mode, FHIR `AllergyIntolerance` entries are returned in `EHRConnectionResponse.ehr_allergies` (when `?include_details=true`) as a read-only list:
+- `substance` (TEXT): Substance name or description.
+- `criticality` (TEXT): Clinical criticality level.
+- `verification_status` (TEXT): FHIR verification status (e.g. `confirmed`). Any entries marked `entered-in-error` are excluded at adapter normalisation.
+- `origin` (TEXT): Fixed value `"ehr"`.
+- `trust` (TEXT): Fixed value `"high"` to preserve authoritative hospital provenance.
+
+---
+
+## Record Edits
+
+Table: `record_edits`
+
+Added in schema v14.
+
+> [!IMPORTANT]
+> **PRODUCTION DB MIGRATION**: Run `python scripts/mysql_preflight.py` before and after deploying; expected schema 14.
+
+Stores the granular timeline and audit trail of user-driven and import modifications to clinical health records (medications, observations, allergies, conditions basis).
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `edit_id` | TEXT | Unique identifier for the edit record (UUID). Primary key. | `edit_98f12a` | No |
+| `user_id` | TEXT | Identifier of the patient whose record was edited. | `usr_001` | Yes |
+| `record_type` | TEXT | Type of clinical entity (`medication`, `observation`, `allergy`, `conditions_basis`). | `medication` | No |
+| `record_id` | TEXT | Identifier of the specific record modified. | `med_001` | Yes |
+| `field` | TEXT | Specific field modified (`created`, `deleted`, `dosage`, `status`, `value`, `basis`). | `dosage` | No |
+| `old_value_json` | TEXT | JSON-serialized previous state or value (NULL on creation). | `"500mg daily"` | Yes |
+| `new_value_json` | TEXT | JSON-serialized new state or value (NULL on deletion). | `"1000mg daily"` | Yes |
+| `origin` | TEXT | Source or mode of the modification (`patient`, `clinician`, `import`, `ocr`, `ehr`). | `patient` | No |
+| `changed_by_user_id` | TEXT | User identifier of the actor who enacted the change. | `usr_001` | Yes |
+| `changed_by_role` | TEXT | Role of the actor at the time of modification (`patient`, `provider`, `admin`). | `patient` | No |
+| `changed_at` | TEXT | Subsecond UTC ISO-8601 timestamp of modification. | `2026-10-31T12:00:00.123Z` | No |
+| `reason` | TEXT | Optional user- or system-supplied rationale for the edit. | `Prescription update` | Yes |
+
+### Constraints and notes
+
+- `edit_id` is the primary key.
+- `user_id`, `record_type`, `record_id`, `field`, `origin`, `changed_by_user_id`, and `changed_at` cannot be null.
+- `origin` must be one of `patient`, `clinician`, `import`, `ocr`, or `ehr`.
+- Composite indexes: `idx_record_edits_lookup` on `(user_id, record_type, record_id)` and `idx_record_edits_timeline` on `(user_id, changed_at DESC)`.
+- Enforces atomic writes on the same transaction cursor as the record change.
+
+---
+
+## Guideline Chunks
+
+Table: `guideline_chunks`
+
+Added in schema v15.
+
+> [!IMPORTANT]
+> **PRODUCTION DB MIGRATION**: Run `python scripts/mysql_preflight.py` before and after deploying; expected schema 15.
+
+Stores ingested clinical guideline knowledge chunks for RAG explanations and patient decision support. Populated from source guideline JSONL files using `scripts/rag/load_chunks.py`.
+
+| Column | Type | Meaning | Example | Personal Data? |
+|---|---|---|---|---|
+| `chunk_id` | TEXT | Unique chunk identifier. Primary key. | `chunk_htn_001` | No |
+| `source_id` | TEXT | Source guideline reference code (e.g. `AHA_ACC_2017`, `ADA_2024`, `ISH_2020`). Cannot be null. | `AHA_ACC_2017` | No |
+| `title` | TEXT | Section or guideline title. Cannot be null. | `Blood Pressure Thresholds` | No |
+| `edition` | TEXT | Guideline publication year or edition label. | `2017` | No |
+| `priority` | INTEGER | Priority ranking for retrieval tie-breaking (defaults to 1). | `1` | No |
+| `section_path` | TEXT | Path of the section within the guideline hierarchy. | `Section 4.1` | No |
+| `page_start` | INTEGER | Starting page number in the source guideline document. | `12` | No |
+| `page_end` | INTEGER | Ending page number in the source guideline document. | `15` | No |
+| `grade` | TEXT | Clinical recommendation grade or evidence class. | `Class I, Level A` | No |
+| `condition` | TEXT | Target clinical condition (`hypertension`, `diabetes`, `both`). Indexed. Cannot be null. | `hypertension` | No |
+| `topics_json` | TEXT | JSON-encoded topic slugs for category filtering. | `["bp_targets","lifestyle"]` | No |
+| `text` | TEXT | Full passage text of the guideline chunk. Cannot be null. | `Stage 1 hypertension is defined...` | No |
+| `loaded_at` | TEXT | UTC ISO-8601 timestamp when the chunk was inserted or updated. Cannot be null. | `2026-11-01T12:00:00Z` | No |
+
+### Constraints and notes
+
+- `chunk_id` is the primary key.
+- `source_id`, `title`, `condition`, `text`, and `loaded_at` cannot be null.
+- Secondary indexes: `idx_guideline_chunks_condition` on `condition`, `idx_guideline_chunks_source` on `source_id`.
+- This table contains only medical guideline literature and no patient health information.
+
+---
+
 ## Personal Data Summary
 
 Personal data is stored across several parts of the ChronicCare AI data model. Account identity and access information is stored in `users`; demographic, condition, consent, and other patient-specific information is stored in `patient_profiles`; check-in responses and clinical processing information are stored in `checkins` and `checkin_results`; provider review activity is stored in `review_actions`; allergy information is stored in `allergies`; and external patient identifiers and EHR linkage information are stored in `ehr_connections`. The separate local clinical data store contains patient identity information in `patients`, clinical measurements in `observations`, and medication information in `medications`. `audit_log` may also contain personal data when an event identifies a user or contains user-related details. By contrast, `schema_version` contains database migration metadata and `ehr_systems` primarily contains system configuration rather than patient information.
+---
+
+## OCR Staging Store & Provenance (Iteration 2 Day 7)
+
+### Ephemeral In-Memory Staging Store
+- **Memory-Only Processing**: Document photos uploaded to `POST /api/me/record/uploads` are processed in RAM and staged exclusively in the server's in-memory staging dictionary. Zero image bytes, client filenames, or unconfirmed clinical values are ever written to disk or the database.
+- **TTL (Time to Live)**: 30 minutes from creation. Staged uploads older than 30 minutes are purged automatically.
+- **Per-User Concurrency Limit**: Maximum 3 pending uploads per user. When a fourth upload is initiated by the same patient, the oldest pending upload is dropped (FIFO eviction).
+- **User Isolation**: Staged uploads are keyed by `upload_id` and verified against authenticated `user_id`. Any cross-user access attempts return `404 Not Found`.
+- **Immediate Cleanup**: Upon successful confirmation (`POST /api/me/record/uploads/{upload_id}/confirm`), the staged upload is immediately evicted from memory (`remove_staged_upload`).
+
+### Provenance Tracking (`origin = "ocr"`)
+- **Trust Tier**: Medium trust. Distinct from `self_reported` (manual user input), `clinician` (provider entered), `import` (bulk file upload), and `ehr` (FHIR synched).
+- **Confirmation Requirement**: Nothing is persisted prior to explicit patient review and confirmation.
+- **Edit History Audit Trail**:
+  - Unchanged confirmed values create `record_edits` entries with `old_value = NULL`, `origin = "ocr"`, and `reason = "ocr_confirmed"`.
+  - Values modified by the patient during review create `record_edits` entries with `old_value = <staged_extracted_value>`, `new_value = <confirmed_value>`, `origin = "ocr"`, and `reason = "patient corrected OCR value"`.
+- **Audit Logging**: Upload and confirmation audit events (`record_ocr_upload_processed`, `record_ocr_upload_confirmed`) record discrete counts only (`med_count`, `obs_count`, `allergy_count`, `confirmed_count`), never filenames or clinical values.

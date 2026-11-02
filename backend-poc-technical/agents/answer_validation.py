@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
+from agents.interview_bank.loader import get_message
 
 
 # =============================================================================
@@ -76,29 +77,10 @@ _WORD_TO_NUMBER: Dict[str, int] = {
 
 def _parse_number_words(text: str) -> Optional[float]:
     """Converts phrases like 'one twenty', 'ek sau bees', 'two hundred' into numeric values."""
-    words = re.findall(r"[a-z']+", text.lower())
-    if not words:
-        return None
-
-    # Check for compound verbal expressions: e.g. "ek sau bees" -> 120, "one twenty" -> 120
-    if len(words) == 3 and words[0] in ("ek", "aik", "one") and words[1] in ("sau", "so", "hundred"):
-        base = 100
-        third = _WORD_TO_NUMBER.get(words[2])
-        if third is not None and third < 100:
-            return float(base + third)
-
-    if len(words) == 2 and words[0] in ("one", "ek", "aik") and words[1] in ("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "bees", "tees", "chaalis", "pachaas", "saath", "sattar", "assi", "nabbe"):
-        # "one twenty" -> 120
-        tens_val = _WORD_TO_NUMBER.get(words[1], 0)
-        return float(100 + tens_val)
-
-    if len(words) == 2 and words[0] in ("do", "two") and words[1] in ("sau", "so", "hundred"):
-        return 200.0
-
-    if len(words) == 1 and words[0] in _WORD_TO_NUMBER:
-        return float(_WORD_TO_NUMBER[words[0]])
-
-    return None
+    from agents.answer_understanding import parse_number
+    res = parse_number(text)
+    val = res.get("value")
+    return float(val) if val is not None else None
 
 
 @dataclass
@@ -149,10 +131,10 @@ def validate_glucose_input(text: str, previously_asked_unit: bool = False) -> Va
                 needs_review=True,
                 is_possible_severe_low=True,
                 review_reason="glucose value unit unclear, possible low",
-                safety_guidance="If you feel shaky, sweaty, dizzy, or unwell, please consume fast-acting sugar (fruit juice or sweets) and re-check, or seek medical advice.",
+                safety_guidance=get_message("glucose_unclear_unit_safety_guidance", "en"),
                 confidence="Low",
                 raw_quote=clean,
-                clarification_prompt="Glucose unit unclear. Treated as possible low sugar for safety review."
+                clarification_prompt=get_message("glucose_unit_unclear_prompt", "en")
             )
         return ValidationResult(valid=False, is_unclear=True, needs_review=True, confidence="Low", raw_quote=clean)
 
@@ -200,10 +182,10 @@ def validate_glucose_input(text: str, previously_asked_unit: bool = False) -> Va
                 needs_review=True,
                 is_possible_severe_low=True,
                 review_reason="glucose value unit unclear, possible low",
-                safety_guidance="If you feel shaky, sweaty, dizzy, or unwell, please consume fast-acting sugar (fruit juice or sweets) and re-check, or seek medical advice.",
+                safety_guidance=get_message("glucose_unclear_unit_safety_guidance", "en"),
                 confidence="Low",
                 raw_quote=clean,
-                clarification_prompt="Glucose unit unclear. Treated as possible low sugar for safety review."
+                clarification_prompt=get_message("glucose_unit_unclear_prompt", "en")
             )
         return ValidationResult(
             valid=False,
@@ -211,7 +193,7 @@ def validate_glucose_input(text: str, previously_asked_unit: bool = False) -> Va
             is_ambiguous=True,
             needs_unit_clarification=True,
             raw_quote=clean,
-            clarification_prompt=f"I heard {val:g}. Is that mmol/L or mg/dL?"
+            clarification_prompt=get_message("glucose_unit_clarify_heard", "en", value=f"{val:g}")
         )
 
     if PLAUSIBILITY_RANGES["glucose_mg_dl"]["min"] <= val <= PLAUSIBILITY_RANGES["glucose_mg_dl"]["max"]:
@@ -271,7 +253,7 @@ def detect_cross_checks_and_contradictions(
         return {
             "slot": current_slot,
             "type": "record_mismatch",
-            "message": "Your medical profile lists insulin or sulfonylurea, but you mentioned not taking it. Did your doctor recently change this medication?",
+            "message": get_message("contradiction_insulin_record", "en"),
             "record_value": "on_insulin_or_sulfonylurea=True",
             "reported_value": answer_text,
         }
@@ -282,7 +264,7 @@ def detect_cross_checks_and_contradictions(
             return {
                 "slot": current_slot,
                 "type": "answer_contradiction",
-                "message": "Earlier you mentioned taking all doses, but also mentioned running out of medicine. Would you like to clarify?",
+                "message": get_message("contradiction_adherence_ran_out", "en"),
                 "previous_value": "adherence=True",
                 "reported_value": answer_text,
             }
@@ -293,7 +275,7 @@ def detect_cross_checks_and_contradictions(
             return {
                 "slot": current_slot,
                 "type": "context_mismatch",
-                "message": "We noted this reading as fasting, but you mentioned eating recently. Was this reading taken before or after your meal?",
+                "message": get_message("contradiction_fasting_just_ate", "en"),
                 "previous_value": "fasting",
                 "reported_value": answer_text,
             }

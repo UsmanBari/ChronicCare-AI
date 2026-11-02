@@ -25,6 +25,8 @@ except ImportError:
     pymysql = None
     DictCursor = None
 
+from data_sources.app_store import record_edit
+
 
 DEFAULT_DB_PATH = "local_store.db"
 SOURCE_TAG = "local_synthetic_store"
@@ -33,6 +35,7 @@ LOCAL_STORE_TABLES = {
     "patients",
     "observations",
     "medications",
+    "record_edits",
 }
 
 # =============================================================================
@@ -124,6 +127,24 @@ def _init_sqlite_db(db_path: Optional[str] = None) -> None:
         if "origin" not in cols:
             cursor.execute("ALTER TABLE observations ADD COLUMN origin TEXT")
         
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS record_edits (
+                edit_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                record_type TEXT NOT NULL,
+                record_id TEXT NOT NULL,
+                field TEXT NOT NULL,
+                old_value TEXT DEFAULT NULL,
+                new_value TEXT DEFAULT NULL,
+                origin TEXT NOT NULL,
+                changed_by_user_id TEXT NOT NULL,
+                changed_at TEXT NOT NULL,
+                reason TEXT DEFAULT NULL
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_record_edits_lookup ON record_edits (user_id, record_type, record_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_record_edits_timeline ON record_edits (user_id, changed_at DESC)")
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS medications (
                 id TEXT PRIMARY KEY,
@@ -439,9 +460,69 @@ def add_local_observation(
     origin: Optional[str] = "self_reported",
     db_path: Optional[str] = None,
     backend: Optional[str] = None,
+    changed_by_user_id: Optional[str] = None,
+    reason: Optional[str] = None,
+    old_value: Optional[Any] = None,
+    cursor: Optional[Any] = None,
 ) -> None:
     """Inserts or updates an observation with provenance origin in the active store."""
     b = _resolve_backend(backend)
+    actor_id = changed_by_user_id or (patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id)
+    clean_uid = patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id
+    obs_dict = {
+        "id": id,
+        "patient_id": patient_id,
+        "observation_type": observation_type,
+        "value": value,
+        "unit": unit,
+        "timestamp": timestamp,
+        "source": source,
+        "origin": origin,
+    }
+
+    if cursor is not None:
+        ph = "%s" if b == "mysql" else "?"
+        if b == "mysql":
+            cursor.execute(
+                """
+                INSERT INTO observations (id, patient_id, type, value, unit, timestamp, source, origin)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    value = VALUES(value),
+                    unit = VALUES(unit),
+                    timestamp = VALUES(timestamp),
+                    origin = VALUES(origin);
+                """,
+                (id, patient_id, observation_type, value, unit, timestamp, source, origin)
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO observations (id, patient_id, type, value, unit, timestamp, source, origin)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    value = excluded.value,
+                    unit = excluded.unit,
+                    timestamp = excluded.timestamp,
+                    origin = excluded.origin
+                """,
+                (id, patient_id, observation_type, value, unit, timestamp, source, origin)
+            )
+        record_edit(
+            cursor,
+            ph,
+            user_id=clean_uid,
+            record_type="observation",
+            record_id=id,
+            field="created",
+            old_value=old_value,
+            new_value=obs_dict,
+            origin=origin or "self_reported",
+            changed_by_user_id=actor_id,
+            reason=reason,
+        )
+        return
+
     if b == "mysql":
         conn = get_mysql_connection()
         try:
@@ -457,6 +538,31 @@ def add_local_observation(
                         origin = VALUES(origin);
                     """,
                     (id, patient_id, observation_type, value, unit, timestamp, source, origin)
+                )
+                actor_id = changed_by_user_id or (patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id)
+                clean_uid = patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id
+                obs_dict = {
+                    "id": id,
+                    "patient_id": patient_id,
+                    "observation_type": observation_type,
+                    "value": value,
+                    "unit": unit,
+                    "timestamp": timestamp,
+                    "source": source,
+                    "origin": origin,
+                }
+                record_edit(
+                    cursor,
+                    "%s",
+                    user_id=clean_uid,
+                    record_type="observation",
+                    record_id=id,
+                    field="created",
+                    old_value=old_value,
+                    new_value=obs_dict,
+                    origin=origin or "self_reported",
+                    changed_by_user_id=actor_id,
+                    reason=reason,
                 )
             conn.commit()
         finally:
@@ -478,6 +584,31 @@ def add_local_observation(
                 """,
                 (id, patient_id, observation_type, value, unit, timestamp, source, origin)
             )
+            actor_id = changed_by_user_id or (patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id)
+            clean_uid = patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id
+            obs_dict = {
+                "id": id,
+                "patient_id": patient_id,
+                "observation_type": observation_type,
+                "value": value,
+                "unit": unit,
+                "timestamp": timestamp,
+                "source": source,
+                "origin": origin,
+            }
+            record_edit(
+                cursor,
+                "?",
+                user_id=clean_uid,
+                record_type="observation",
+                record_id=id,
+                field="created",
+                old_value=old_value,
+                new_value=obs_dict,
+                origin=origin or "self_reported",
+                changed_by_user_id=actor_id,
+                reason=reason,
+            )
             conn.commit()
 
 
@@ -486,9 +617,21 @@ def delete_local_observation(
     patient_id: Optional[str] = None,
     db_path: Optional[str] = None,
     backend: Optional[str] = None,
+    changed_by_user_id: Optional[str] = None,
+    origin: str = "self_reported",
+    reason: Optional[str] = None,
 ) -> bool:
-    """Deletes an observation record by id (and patient_id if provided). Returns True if deleted."""
+    """Deletes an observation record and logs record_edits row atomically on the same cursor."""
+    from data_sources.app_store import record_edit
+    existing = get_local_observation_by_id(observation_id, patient_id=patient_id, db_path=db_path, backend=backend)
+    if not existing:
+        return False
+
     b = _resolve_backend(backend)
+    target_pid = patient_id or existing.get("patient_id", "")
+    actor_id = changed_by_user_id or target_pid
+    clean_uid = target_pid.removeprefix("local-") if target_pid.startswith("local-") else target_pid
+
     if b == "mysql":
         conn = get_mysql_connection()
         try:
@@ -498,6 +641,20 @@ def delete_local_observation(
                 else:
                     cursor.execute("DELETE FROM observations WHERE id = %s;", (observation_id,))
                 deleted = cursor.rowcount > 0
+                if deleted:
+                    record_edit(
+                        cursor,
+                        "%s",
+                        user_id=clean_uid,
+                        record_type="observation",
+                        record_id=observation_id,
+                        field="deleted",
+                        old_value={"value": existing.get("value"), "unit": existing.get("unit"), "measured_at": existing.get("timestamp")},
+                        new_value=None,
+                        origin=origin,
+                        changed_by_user_id=actor_id,
+                        reason=reason,
+                    )
             conn.commit()
             return deleted
         finally:
@@ -512,6 +669,20 @@ def delete_local_observation(
             else:
                 cursor.execute("DELETE FROM observations WHERE id = ?", (observation_id,))
             deleted = cursor.rowcount > 0
+            if deleted:
+                record_edit(
+                    cursor,
+                    "?",
+                    user_id=clean_uid,
+                    record_type="observation",
+                    record_id=observation_id,
+                    field="deleted",
+                    old_value={"value": existing.get("value"), "unit": existing.get("unit"), "measured_at": existing.get("timestamp")},
+                    new_value=None,
+                    origin=origin,
+                    changed_by_user_id=actor_id,
+                    reason=reason,
+                )
             conn.commit()
             return deleted
 
@@ -527,9 +698,63 @@ def add_local_medication(
     origin: Optional[str] = "self_reported",
     db_path: Optional[str] = None,
     backend: Optional[str] = None,
+    changed_by_user_id: Optional[str] = None,
+    reason: Optional[str] = None,
+    old_value: Optional[Any] = None,
+    cursor: Optional[Any] = None,
 ) -> None:
-    """Inserts or updates a medication with provenance origin in the active store."""
+    """Inserts a medication and writes record_edits row atomically on the same cursor."""
+    from data_sources.app_store import record_edit
     b = _resolve_backend(backend)
+    actor_id = changed_by_user_id or patient_id
+    effective_origin = origin or "self_reported"
+    clean_uid = patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id
+
+    if cursor is not None:
+        ph = "%s" if b == "mysql" else "?"
+        if b == "mysql":
+            cursor.execute(
+                """
+                INSERT INTO medications (id, patient_id, medication_name, status, dosage, timestamp, source, origin)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    medication_name = VALUES(medication_name),
+                    status = VALUES(status),
+                    dosage = VALUES(dosage),
+                    timestamp = VALUES(timestamp),
+                    origin = VALUES(origin);
+                """,
+                (id, patient_id, medication_name, status, dosage, timestamp, source, effective_origin)
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO medications (id, patient_id, medication_name, status, dosage, timestamp, source, origin)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    medication_name = excluded.medication_name,
+                    status = excluded.status,
+                    dosage = excluded.dosage,
+                    timestamp = excluded.timestamp,
+                    origin = excluded.origin
+                """,
+                (id, patient_id, medication_name, status, dosage, timestamp, source, effective_origin)
+            )
+        record_edit(
+            cursor,
+            ph,
+            user_id=clean_uid,
+            record_type="medication",
+            record_id=id,
+            field="created",
+            old_value=old_value,
+            new_value={"name": medication_name, "status": status, "dosage": dosage},
+            origin=effective_origin,
+            changed_by_user_id=actor_id,
+            reason=reason,
+        )
+        return
+
     if b == "mysql":
         conn = get_mysql_connection()
         try:
@@ -545,7 +770,20 @@ def add_local_medication(
                         timestamp = VALUES(timestamp),
                         origin = VALUES(origin);
                     """,
-                    (id, patient_id, medication_name, status, dosage, timestamp, source, origin)
+                    (id, patient_id, medication_name, status, dosage, timestamp, source, effective_origin)
+                )
+                record_edit(
+                    cursor,
+                    "%s",
+                    user_id=clean_uid,
+                    record_type="medication",
+                    record_id=id,
+                    field="created",
+                    old_value=old_value,
+                    new_value={"name": medication_name, "status": status, "dosage": dosage},
+                    origin=effective_origin,
+                    changed_by_user_id=actor_id,
+                    reason=reason,
                 )
             conn.commit()
         finally:
@@ -566,7 +804,20 @@ def add_local_medication(
                     timestamp = excluded.timestamp,
                     origin = excluded.origin
                 """,
-                (id, patient_id, medication_name, status, dosage, timestamp, source, origin)
+                (id, patient_id, medication_name, status, dosage, timestamp, source, effective_origin)
+            )
+            record_edit(
+                cursor,
+                "?",
+                user_id=clean_uid,
+                record_type="medication",
+                record_id=id,
+                field="created",
+                old_value=old_value,
+                new_value={"name": medication_name, "status": status, "dosage": dosage},
+                origin=effective_origin,
+                changed_by_user_id=actor_id,
+                reason=reason,
             )
             conn.commit()
 
@@ -624,28 +875,75 @@ def update_local_medication(
     status: Optional[str] = None,
     db_path: Optional[str] = None,
     backend: Optional[str] = None,
+    changed_by_user_id: Optional[str] = None,
+    origin: str = "self_reported",
+    reason: Optional[str] = None,
 ) -> bool:
-    """Updates dosage and/or status of a medication for a patient."""
+    """Updates dosage and/or status of a medication and writes record_edits rows per changed field."""
+    from data_sources.app_store import record_edit
     b = _resolve_backend(backend)
+    actor_id = changed_by_user_id or patient_id
+    clean_uid = patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id
+
+    existing = get_local_medication_by_id(medication_id, patient_id=patient_id, db_path=db_path, backend=backend)
+    if not existing:
+        return False
+
+    # Check which fields actually changed
+    dosage_changed = (dosage is not None and str(dosage) != str(existing.get("dosage", "")))
+    status_changed = (status is not None and str(status) != str(existing.get("status", "")))
+
+    if not dosage_changed and not status_changed:
+        # No-op patch -> emit no rows
+        return False
+
     updates = []
     params = []
-    if dosage is not None:
+    if dosage_changed:
         updates.append("dosage = %s" if b == "mysql" else "dosage = ?")
         params.append(dosage)
-    if status is not None:
+    if status_changed:
         updates.append("status = %s" if b == "mysql" else "status = ?")
         params.append(status)
-    if not updates:
-        return False
 
     params.extend([medication_id, patient_id])
     query_set = ", ".join(updates)
+
     if b == "mysql":
         conn = get_mysql_connection()
         try:
             with conn.cursor() as cursor:
                 cursor.execute(f"UPDATE medications SET {query_set} WHERE id = %s AND patient_id = %s", tuple(params))
                 updated = cursor.rowcount > 0
+                if updated:
+                    if dosage_changed:
+                        record_edit(
+                            cursor,
+                            "%s",
+                            user_id=clean_uid,
+                            record_type="medication",
+                            record_id=medication_id,
+                            field="dosage",
+                            old_value=existing.get("dosage"),
+                            new_value=dosage,
+                            origin=origin,
+                            changed_by_user_id=actor_id,
+                            reason=reason,
+                        )
+                    if status_changed:
+                        record_edit(
+                            cursor,
+                            "%s",
+                            user_id=clean_uid,
+                            record_type="medication",
+                            record_id=medication_id,
+                            field="status",
+                            old_value=existing.get("status"),
+                            new_value=status,
+                            origin=origin,
+                            changed_by_user_id=actor_id,
+                            reason=reason,
+                        )
             conn.commit()
             return updated
         finally:
@@ -657,6 +955,35 @@ def update_local_medication(
             cursor = conn.cursor()
             cursor.execute(f"UPDATE medications SET {query_set} WHERE id = ? AND patient_id = ?", tuple(params))
             updated = cursor.rowcount > 0
+            if updated:
+                if dosage_changed:
+                    record_edit(
+                        cursor,
+                        "?",
+                        user_id=clean_uid,
+                        record_type="medication",
+                        record_id=medication_id,
+                        field="dosage",
+                        old_value=existing.get("dosage"),
+                        new_value=dosage,
+                        origin=origin,
+                        changed_by_user_id=actor_id,
+                        reason=reason,
+                    )
+                if status_changed:
+                    record_edit(
+                        cursor,
+                        "?",
+                        user_id=clean_uid,
+                        record_type="medication",
+                        record_id=medication_id,
+                        field="status",
+                        old_value=existing.get("status"),
+                        new_value=status,
+                        origin=origin,
+                        changed_by_user_id=actor_id,
+                        reason=reason,
+                    )
             conn.commit()
             return updated
 
@@ -712,9 +1039,21 @@ def delete_local_medication(
     patient_id: Optional[str] = None,
     db_path: Optional[str] = None,
     backend: Optional[str] = None,
+    changed_by_user_id: Optional[str] = None,
+    origin: str = "self_reported",
+    reason: Optional[str] = None,
 ) -> bool:
-    """Deletes a medication record by id (and patient_id if provided). Returns True if deleted."""
+    """Deletes a medication record and logs record_edits row atomically on the same cursor."""
+    from data_sources.app_store import record_edit
+    existing = get_local_medication_by_id(medication_id, patient_id=patient_id, db_path=db_path, backend=backend)
+    if not existing:
+        return False
+
     b = _resolve_backend(backend)
+    target_pid = patient_id or existing.get("patient_id", "")
+    actor_id = changed_by_user_id or target_pid
+    clean_uid = target_pid.removeprefix("local-") if target_pid.startswith("local-") else target_pid
+
     if b == "mysql":
         conn = get_mysql_connection()
         try:
@@ -724,6 +1063,20 @@ def delete_local_medication(
                 else:
                     cursor.execute("DELETE FROM medications WHERE id = %s;", (medication_id,))
                 deleted = cursor.rowcount > 0
+                if deleted:
+                    record_edit(
+                        cursor,
+                        "%s",
+                        user_id=clean_uid,
+                        record_type="medication",
+                        record_id=medication_id,
+                        field="medication",
+                        old_value={"name": existing.get("medication_name"), "dosage": existing.get("dosage"), "status": existing.get("status")},
+                        new_value=None,
+                        origin=origin,
+                        changed_by_user_id=actor_id,
+                        reason=reason,
+                    )
             conn.commit()
             return deleted
         finally:
@@ -738,6 +1091,20 @@ def delete_local_medication(
             else:
                 cursor.execute("DELETE FROM medications WHERE id = ?", (medication_id,))
             deleted = cursor.rowcount > 0
+            if deleted:
+                record_edit(
+                    cursor,
+                    "?",
+                    user_id=clean_uid,
+                    record_type="medication",
+                    record_id=medication_id,
+                    field="deleted",
+                    old_value={"name": existing.get("medication_name"), "dosage": existing.get("dosage"), "status": existing.get("status")},
+                    new_value=None,
+                    origin=origin,
+                    changed_by_user_id=actor_id,
+                    reason=reason,
+                )
             conn.commit()
             return deleted
 
@@ -807,3 +1174,84 @@ def get_local_medication_origins(
         finally:
             conn.close()
 
+
+
+def get_record_edits(
+    user_id: str,
+    record_type: Optional[str] = None,
+    record_id: Optional[str] = None,
+    limit: int = 50,
+    db_path: Optional[str] = None,
+    backend: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Retrieves record edits stored in local_store (medications/observations)."""
+    import json
+    b = _resolve_backend(backend)
+    clean_uid = user_id.removeprefix("local-") if user_id.startswith("local-") else user_id
+    safe_limit = max(1, min(int(limit), 200))
+    ph = "%s" if b == "mysql" else "?"
+    where_clauses = [f"(user_id = {ph} OR user_id = {ph})"]
+    params: List[Any] = [clean_uid, f"local-{clean_uid}"]
+
+    if record_type:
+        where_clauses.append(f"record_type = {ph}")
+        params.append(record_type)
+    if record_id:
+        where_clauses.append(f"record_id = {ph}")
+        params.append(record_id)
+
+    where_sql = " AND ".join(where_clauses)
+    query = f"""
+        SELECT edit_id, user_id, record_type, record_id, field,
+               old_value, new_value, origin, changed_by_user_id, changed_at, reason
+        FROM record_edits
+        WHERE {where_sql}
+        ORDER BY changed_at DESC
+        LIMIT {ph}
+    """
+    params.append(safe_limit)
+    edits = []
+
+    if b == "mysql":
+        conn = get_mysql_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(query, tuple(params))
+                rows = cursor.fetchall()
+                for r in rows:
+                    d = dict(r)
+                    if d.get("old_value") is not None:
+                        try:
+                            d["old_value"] = json.loads(d["old_value"])
+                        except Exception:
+                            pass
+                    if d.get("new_value") is not None:
+                        try:
+                            d["new_value"] = json.loads(d["new_value"])
+                        except Exception:
+                            pass
+                    edits.append(d)
+        finally:
+            conn.close()
+    else:
+        path = _get_db_path(db_path)
+        _init_sqlite_db(path)
+        with sqlite3.connect(path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(params))
+            for r in cursor.fetchall():
+                d = dict(r)
+                if d.get("old_value") is not None:
+                    try:
+                        d["old_value"] = json.loads(d["old_value"])
+                    except Exception:
+                        pass
+                if d.get("new_value") is not None:
+                    try:
+                        d["new_value"] = json.loads(d["new_value"])
+                    except Exception:
+                        pass
+                edits.append(d)
+
+    return edits

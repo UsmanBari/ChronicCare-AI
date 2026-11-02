@@ -1,0 +1,213 @@
+[
+  {
+    "text": "میرے سینے میں شدید درد ہو رہا ہے جیسے کوئی بوجھ رکھا ہو",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "چھاتی پر شدید دباؤ ہے اور درد بائیں بازو میں جا رہا ہے",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "سینے میں جلن اور شدید گھٹن ہو رہی ہے",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "مجھے سانس لینے میں بہت تنگی ہو رہی ہے، دم گھٹ رہا ہے",
+    "expected_danger": true,
+    "category": "breathing",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "بالکل سانس نہیں آ رہی، بولا بھی نہیں جا رہا",
+    "expected_danger": true,
+    "category": "breathing",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "سانس پھول رہی ہے اور بیٹھا بھی نہیں جا رہا",
+    "expected_danger": true,
+    "category": "breathing",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "مجھے اچانک چکر آیا اور میں بے ہوش ہو کر گر پڑا",
+    "expected_danger": true,
+    "category": "syncope",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "آنکھوں کے آگے اندھیرا آ گیا اور غشی کے دورے پڑ رہے ہیں",
+    "expected_danger": true,
+    "category": "syncope",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "میرا آدھا جسم بالکل سن ہو گیا ہے اور ہلایا نہیں جا رہا",
+    "expected_danger": true,
+    "category": "focal_weakness_stroke",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "میرے بائیں ہاتھ اور پاؤں میں جان نہیں رہی، کمزوری ہو گئی ہے",
+    "expected_danger": true,
+    "category": "focal_weakness_stroke",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "میرا منہ ایک طرف ٹیڑھا ہو گیا ہے اور بولا نہیں جا رہا",
+    "expected_danger": true,
+    "category": "focal_weakness_stroke",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "زبان لڑکھڑا رہی ہے، سمجھ نہیں آ رہا کہ میں کہاں ہوں",
+    "expected_danger": true,
+    "category": "confusion",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "بہت شدید چکر آ رہے ہیں اور سر گھوم رہا ہے، حواس کام نہیں کر رہے",
+    "expected_danger": true,
+    "category": "confusion",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "شوگر 35 آ گئی ہے اور ہاتھ کانپ رہے ہیں، شدید پسینہ آ رہا ہے",
+    "expected_danger": true,
+    "category": "severe_hypoglycemia",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "شوگر بہت گر گئی ہے، بے ہوشی طاری ہو رہی ہے",
+    "expected_danger": true,
+    "category": "severe_hypoglycemia",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "کپکپی طاری ہے، آنکھوں کے آگے اندھیرا ہے اور شوگر 40 سے کم ہے",
+    "expected_danger": true,
+    "category": "severe_hypoglycemia",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "میرے سر میں ایسا شدید درد ہے جیسے پہلے کبھی نہیں ہوا",
+    "expected_danger": true,
+    "category": "severe_headache",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "اچانک ایک آنکھ سے نظر آنا بند ہو گیا ہے",
+    "expected_danger": true,
+    "category": "vision_loss",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "خون کی الٹی آئی ہے اور چکر آ رہے ہیں",
+    "expected_danger": true,
+    "category": "bleeding",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "دل کی دھڑکن بے قابو ہو کر سینے سے باہر آ رہی ہے اور پسینے چھوٹ رہے ہیں",
+    "expected_danger": true,
+    "category": "palpitations_danger",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "کل سینے میں ہلکی سی جلن تھی لیکن اب ٹھیک ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "تیز چلنے پر تھوڑا سا سانس پھولتا ہے ورنہ میں آرام سے ہوں",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "کل رات نیند پوری نہیں ہوئی تو سر میں ہلکا سا بوجھ ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "دوائی وقت پر لے رہا ہوں، بس کبھی کبھار تھکن ہو جاتی ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "میری شوگر 130 ہے اور میں بالکل ٹھیک محسوس کر رہا ہوں",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "صبح سے کچھ نہیں کھایا اس لیے بھوک لگی ہے اور سستی ہو رہی ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "بلڈ پریشر 125/80 ہے، سب ٹھیک چل رہا ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "گذشتہ ہفتے ہلکا چکر آیا تھا مگر پانی پینے کے بعد بالکل ٹھیک ہو گیا",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "کندھے میں پٹھوں کا کھچاؤ ہے، سینے میں کوئی درد نہیں",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "language": "urdu",
+    "author": "hassaan"
+  },
+  {
+    "text": "ڈاکٹر صاحب نے کل چیک کیا تھا، طبیعت اب پہلے سے بہت بہتر ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "language": "urdu",
+    "author": "hassaan"
+  }
+]
+

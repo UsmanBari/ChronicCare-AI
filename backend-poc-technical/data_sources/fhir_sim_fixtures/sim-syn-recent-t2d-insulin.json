@@ -1,0 +1,495 @@
+{
+  "id": "sim-syn-recent-t2d-insulin",
+  "label": "Nasreen Zainab (age 49)",
+  "description": "Simulated (Synthea) recent check-in test patient with active vitals and doctor on record",
+  "ehr_system_id": "demo-hospital",
+  "simulated": true,
+  "patient": {
+    "resourceType": "Patient",
+    "id": "sim-syn-recent-t2d-insulin",
+    "name": [
+      {
+        "family": "Zainab",
+        "given": [
+          "Nasreen"
+        ]
+      }
+    ],
+    "gender": "female",
+    "birthDate": "1977-06-20",
+    "generalPractitioner": [
+      {
+        "reference": "Practitioner/prac-syn-2",
+        "display": "Dr. Naila Qureshi"
+      }
+    ]
+  },
+  "conditions": [
+    {
+      "resourceType": "Condition",
+      "id": "cond-syn-1",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-condition-encounter-diagnosis"
+        ]
+      },
+      "clinicalStatus": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+            "code": "active"
+          }
+        ]
+      },
+      "verificationStatus": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+            "code": "confirmed"
+          }
+        ]
+      },
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+              "code": "encounter-diagnosis",
+              "display": "Encounter Diagnosis"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "coding": [
+          {
+            "system": "http://snomed.info/sct",
+            "code": "714628002",
+            "display": "Prediabetes (finding)"
+          }
+        ],
+        "text": "Prediabetes (finding)"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-insulin"
+      },
+      "encounter": {
+        "reference": "urn:uuid:f34188bb-e60d-4b11-ef31-e54440a27eae"
+      },
+      "onsetDateTime": "2011-10-04T16:14:27+05:00",
+      "recordedDate": "2011-10-04T16:14:27+05:00"
+    }
+  ],
+  "observations": [
+    {
+      "resourceType": "Observation",
+      "id": "obs-syn-1",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab"
+        ]
+      },
+      "status": "final",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+              "code": "laboratory",
+              "display": "Laboratory"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "4548-4",
+            "display": "Hemoglobin A1c/Hemoglobin.total in Blood"
+          }
+        ],
+        "text": "Hemoglobin A1c/Hemoglobin.total in Blood"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-insulin"
+      },
+      "encounter": {
+        "reference": "urn:uuid:f34188bb-e60d-4b11-b08e-0e577ac1245f"
+      },
+      "effectiveDateTime": "2026-10-25T14:02:01Z",
+      "issued": "2025-11-04T16:14:27.500+05:00",
+      "valueQuantity": {
+        "value": 5.86,
+        "unit": "%",
+        "system": "http://unitsofmeasure.org",
+        "code": "%"
+      }
+    },
+    {
+      "resourceType": "Observation",
+      "id": "obs-syn-2",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-blood-pressure"
+        ]
+      },
+      "status": "final",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+              "code": "vital-signs",
+              "display": "Vital signs"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "85354-9",
+            "display": "Blood pressure panel with all children optional"
+          }
+        ],
+        "text": "Blood pressure panel with all children optional"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-insulin"
+      },
+      "encounter": {
+        "reference": "urn:uuid:f34188bb-e60d-4b11-b08e-0e577ac1245f"
+      },
+      "effectiveDateTime": "2026-10-25T14:02:01Z",
+      "issued": "2025-11-04T16:14:27.500+05:00",
+      "component": [
+        {
+          "code": {
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "8462-4",
+                "display": "Diastolic Blood Pressure"
+              }
+            ],
+            "text": "Diastolic Blood Pressure"
+          },
+          "valueQuantity": {
+            "value": 87,
+            "unit": "mm[Hg]",
+            "system": "http://unitsofmeasure.org",
+            "code": "mm[Hg]"
+          }
+        },
+        {
+          "code": {
+            "coding": [
+              {
+                "system": "http://loinc.org",
+                "code": "8480-6",
+                "display": "Systolic Blood Pressure"
+              }
+            ],
+            "text": "Systolic Blood Pressure"
+          },
+          "valueQuantity": {
+            "value": 125,
+            "unit": "mm[Hg]",
+            "system": "http://unitsofmeasure.org",
+            "code": "mm[Hg]"
+          }
+        }
+      ]
+    },
+    {
+      "resourceType": "Observation",
+      "id": "obs-syn-3",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab",
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab"
+        ]
+      },
+      "status": "final",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+              "code": "laboratory",
+              "display": "Laboratory"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "2339-0",
+            "display": "Glucose [Mass/volume] in Blood"
+          }
+        ],
+        "text": "Glucose [Mass/volume] in Blood"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-insulin"
+      },
+      "encounter": {
+        "reference": "urn:uuid:f34188bb-e60d-4b11-b08e-0e577ac1245f"
+      },
+      "effectiveDateTime": "2026-10-25T14:02:01Z",
+      "issued": "2025-11-04T16:14:27.500+05:00",
+      "valueQuantity": {
+        "value": 71.47,
+        "unit": "mg/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "mg/dL"
+      }
+    }
+  ],
+  "medications": [
+    {
+      "resourceType": "MedicationRequest",
+      "id": "med-syn-1",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest"
+        ]
+      },
+      "status": "active",
+      "intent": "order",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+              "code": "outpatient",
+              "display": "Outpatient"
+            }
+          ],
+          "text": "Outpatient"
+        }
+      ],
+      "medicationReference": {
+        "reference": "urn:uuid:0102aed3-329d-0801-92f4-6234ca6c1c60"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-insulin"
+      },
+      "encounter": {
+        "reference": "urn:uuid:f34188bb-e60d-4b11-64b8-90148f3fed31"
+      },
+      "authoredOn": "2018-09-23T17:08:57Z",
+      "requester": {
+        "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999990192",
+        "display": "Dr. Carter549 Ritchie586"
+      },
+      "reasonCode": [
+        {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "103697008",
+              "display": "Patient referral for dental care (procedure)"
+            }
+          ],
+          "text": "Patient referral for dental care (procedure)"
+        }
+      ]
+    },
+    {
+      "resourceType": "MedicationRequest",
+      "id": "med-syn-2",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest"
+        ]
+      },
+      "status": "active",
+      "intent": "order",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+              "code": "outpatient",
+              "display": "Outpatient"
+            }
+          ],
+          "text": "Outpatient"
+        }
+      ],
+      "medicationReference": {
+        "reference": "urn:uuid:4b1bc28a-86d4-bd73-934c-f3566e5f64a2"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-insulin"
+      },
+      "encounter": {
+        "reference": "urn:uuid:f34188bb-e60d-4b11-e32a-b63ad337cfcd"
+      },
+      "authoredOn": "2019-09-29T16:13:56Z",
+      "requester": {
+        "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999990192",
+        "display": "Dr. Carter549 Ritchie586"
+      },
+      "reasonReference": [
+        {
+          "reference": "urn:uuid:f34188bb-e60d-4b11-fdc7-1d390782dfd0",
+          "display": "Gingivitis (disorder)"
+        }
+      ]
+    },
+    {
+      "resourceType": "MedicationRequest",
+      "id": "med-syn-3",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest"
+        ]
+      },
+      "status": "active",
+      "intent": "order",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+              "code": "outpatient",
+              "display": "Outpatient"
+            }
+          ],
+          "text": "Outpatient"
+        }
+      ],
+      "medicationReference": {
+        "reference": "urn:uuid:d0422cd1-547b-73f1-4272-f8b8e10054d1"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-insulin"
+      },
+      "encounter": {
+        "reference": "urn:uuid:f34188bb-e60d-4b11-569d-6f3ad89d80df"
+      },
+      "authoredOn": "2023-10-22T19:39:26Z",
+      "requester": {
+        "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999990192",
+        "display": "Dr. Carter549 Ritchie586"
+      },
+      "reasonCode": [
+        {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "103697008",
+              "display": "Patient referral for dental care (procedure)"
+            }
+          ],
+          "text": "Patient referral for dental care (procedure)"
+        }
+      ]
+    },
+    {
+      "resourceType": "MedicationRequest",
+      "id": "med-syn-4",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest"
+        ]
+      },
+      "status": "active",
+      "intent": "order",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+              "code": "community",
+              "display": "Community"
+            }
+          ],
+          "text": "Community"
+        }
+      ],
+      "medicationCodeableConcept": {
+        "coding": [
+          {
+            "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+            "code": "562251",
+            "display": "Amoxicillin 250 MG / Clavulanate 125 MG Oral Tablet"
+          }
+        ],
+        "text": "Amoxicillin 250 MG / Clavulanate 125 MG Oral Tablet"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-insulin"
+      },
+      "encounter": {
+        "reference": "urn:uuid:f34188bb-e60d-4b11-ecac-1493ff3daf42"
+      },
+      "authoredOn": "2023-10-29T14:02:01Z",
+      "requester": {
+        "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999990192",
+        "display": "Dr. Carter549 Ritchie586"
+      },
+      "reasonReference": [
+        {
+          "reference": "urn:uuid:f34188bb-e60d-4b11-044e-1c50ea02fc8f",
+          "display": "Acute bacterial sinusitis (disorder)"
+        }
+      ]
+    }
+  ],
+  "allergies": [
+    {
+      "resourceType": "AllergyIntolerance",
+      "id": "alg-syn-1",
+      "clinicalStatus": {
+        "coding": [
+          {
+            "code": "active"
+          }
+        ]
+      },
+      "verificationStatus": {
+        "coding": [
+          {
+            "code": "confirmed"
+          }
+        ]
+      },
+      "criticality": "low",
+      "code": {
+        "text": "Latex allergy"
+      },
+      "patient": {
+        "reference": "Patient/sim-syn-recent-t2d-insulin"
+      }
+    }
+  ],
+  "practitioner": {
+    "resourceType": "Practitioner",
+    "id": "prac-syn-2",
+    "identifier": [
+      {
+        "system": "http://hospital.sim/practitioners",
+        "value": "SYN-PRAC-02"
+      }
+    ],
+    "name": [
+      {
+        "family": "Qureshi",
+        "given": [
+          "Naila"
+        ],
+        "prefix": [
+          "Dr."
+        ]
+      }
+    ],
+    "gender": "other"
+  }
+}

@@ -204,6 +204,19 @@ export interface Translations {
   glucoseChartTitle: string;
   bloodPressureChartTitle: string;
   adherenceChartTitle: string;
+  trendRising: string;
+  trendFalling: string;
+  trendStable: string;
+  trendNotEnoughHistory: string;
+  trendNotEnoughExplain: string;
+  trendsErrorTitle: string;
+  trendsErrorRetry: string;
+  trendsReadingsInDays: string;
+  providerTrendsTitle: string;
+  providerLongitudinalWindow: string;
+  trendLongitudinalTrajectory: string;
+  clinicalObservationWindow8Day: string;
+  noTrendsAvailable: string;
   systolicLabel: string;
   diastolicLabel: string;
   targetRangeLabel: string;
@@ -307,6 +320,17 @@ export interface Translations {
   lastVerified: string;
   patientIdMasked: string;
   dontHaveInfoBtn: string;
+  dontKnowBtn: string;
+  skipQuestionBtn: string;
+  someoneElseAnsweringBtn: string;
+  whyAmIAskedThisBtn: string;
+  questionProgressText: string;
+  sendBtnLabel: string;
+  micSpeakLabel: string;
+  micDisabledLabel: string;
+  interviewRetryBtn: string;
+  interviewEmergencyCall: string;
+  interviewNetworkError: string;
   checkinSummaryTitle: string;
   checkinSummarySubtitle: string;
   agreementsCountLabel: string;
@@ -381,6 +405,106 @@ export interface Translations {
   weightErrorKg: string;
   weightErrorLb: string;
   bodyMeasurementsOptional: string;
+  waistLabelIn: string;
+  waistLabelCm: string;
+  waistToggleLabel: string;
+  waistUnitIn: string;
+  waistUnitCm: string;
+  waistUnitInAria: string;
+  waistUnitCmAria: string;
+  waistHelperText: string;
+  waistErrorCm: string;
+  waistErrorIn: string;
+  doctorOnRecordLabel: string;
+  ehrAllergiesTitle: string;
+  noEhrAllergiesRecorded: string;
+  providerRiskTitle: string;
+  providerRiskNotice: string;
+  riskBandLow: string;
+  riskBandMedium: string;
+  riskBandHigh: string;
+  riskReasonsTitle: string;
+  riskCaveatsTitle: string;
+  riskCaveatHomeBp: string;
+  riskCaveatNotValidatedPakistan: string;
+  riskMissingDataTitle: string;
+  riskMissingDataDescription: string;
+  riskMissingBp: string;
+  riskMissingWaist: string;
+  riskMissingSmoking: string;
+  riskMissingHeightWeight: string;
+
+  // Record History, Export & Import (Day 6)
+  recordHistoryTitle: string;
+  recordHistoryBtn: string;
+  viewFullHistory: string;
+  noHistoryRecorded: string;
+  historyField: string;
+  historyOldValue: string;
+  historyNewValue: string;
+  historyChangedAt: string;
+  originSelfReported: string;
+  originOcr: string;
+  originClinician: string;
+  originImport: string;
+  originEhr: string;
+  exportRecordBtn: string;
+  exportJson: string;
+  exportFhir: string;
+  exporting: string;
+  importRecordBtn: string;
+  importTitle: string;
+  importSubtitle: string;
+  importPreviewTitle: string;
+  importToAdd: string;
+  importDuplicates: string;
+  importInvalid: string;
+  confirmImport: string;
+  cancelImport: string;
+  importSuccess: string;
+  importFailed: string;
+  importBaselineNote: string;
+  recentRecordChangesTitle: string;
+  recentRecordChangesSubtitle: string;
+  importBadgeAdd: string;
+  importBadgeSkip: string;
+
+  // OCR v1 (Day 7)
+  uploadDocumentBtn: string;
+  ocrConfirmTitle: string;
+  ocrConfirmSubtitle: string;
+  ocrNoticeUrdu: string;
+  ocrConfirmSaveBtn: string;
+  ocrFixBtn: string;
+  ocrRemoveBtn: string;
+  ocrConfirmedBadge: string;
+  ocrEvidenceLabel: string;
+  ocrBadge: string;
+  ocrObservationsTitle: string;
+  ocrMedicationsTitle: string;
+  ocrAllergiesTitle: string;
+  ocrEmptyExtracted: string;
+  ocrUploading: string;
+  ocrUploadFailed: string;
+  ocrSaveSuccess: string;
+  ocrConfirmItem: string;
+  ocrCancelBtn: string;
+  failedToLoadHistory: string;
+  failedToExportRecord: string;
+  failedToPreviewImport: string;
+  failedToCommitImport: string;
+  reasonDuplicate: string;
+  reasonOutOfRange: string;
+  reasonInvalidType: string;
+  reasonInvalidUnit: string;
+  reasonInvalidDate: string;
+  reasonInvalidMedName: string;
+  reasonInvalidMedDosage: string;
+  reasonInvalidMedStatus: string;
+  reasonInvalidAllergy: string;
+  reasonAllergyTooLong: string;
+  ocrInvalidItemBanner: string;
+  ocrFixOrRemoveHint: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -578,6 +702,19 @@ export const translations: Record<Language, Translations> = {
     glucoseChartTitle: "Blood Glucose (mg/dL)",
     bloodPressureChartTitle: "Blood Pressure (mmHg)",
     adherenceChartTitle: "Medication Adherence (%)",
+    trendRising: "Rising",
+    trendFalling: "Falling",
+    trendStable: "Stable",
+    trendNotEnoughHistory: "Not enough history",
+    trendNotEnoughExplain: "Not enough readings yet. Trends appear after 3 check-ins.",
+    trendsErrorTitle: "Unable to load trends right now.",
+    trendsErrorRetry: "Try Again",
+    trendsReadingsInDays: "{n} readings in {days} days",
+    providerTrendsTitle: "Trends (30 days)",
+    providerLongitudinalWindow: "Longitudinal window: {days} days",
+    trendLongitudinalTrajectory: "Longitudinal Trajectory (30-Day Window)",
+    clinicalObservationWindow8Day: "8-Day Clinical Observation Window",
+    noTrendsAvailable: "No trend data available.",
     systolicLabel: "Systolic",
     diastolicLabel: "Diastolic",
     targetRangeLabel: "Target Range",
@@ -682,6 +819,17 @@ export const translations: Record<Language, Translations> = {
     lastVerified: "Last verified",
     patientIdMasked: "Patient ID",
     dontHaveInfoBtn: "I don't have this information",
+    dontKnowBtn: "I don't know",
+    skipQuestionBtn: "Skip",
+    someoneElseAnsweringBtn: "Someone else is answering",
+    whyAmIAskedThisBtn: "Why am I asked this?",
+    questionProgressText: "Progress",
+    sendBtnLabel: "Send",
+    micSpeakLabel: "Speak your answer",
+    micDisabledLabel: "Voice disabled - enable in Settings",
+    interviewRetryBtn: "Retry",
+    interviewEmergencyCall: "In an emergency, call your local emergency number.",
+    interviewNetworkError: "We could not send your answer. If this is an emergency, call your local emergency number now.",
     checkinSummaryTitle: "Check-in recorded and verified",
     checkinSummarySubtitle: "Your daily health parameters have been processed against your clinical profile.",
     agreementsCountLabel: "Verified In-Range Parameters",
@@ -756,6 +904,106 @@ export const translations: Record<Language, Translations> = {
     weightErrorKg: "Weight must be between 20 and 400 kg.",
     weightErrorLb: "Weight must be between 44 and 882 lb.",
     bodyMeasurementsOptional: "Body Measurements (Optional)",
+    waistLabelIn: "Waist (in)",
+    waistLabelCm: "Waist (cm)",
+    waistToggleLabel: "Waist measurement unit",
+    waistUnitIn: "in",
+    waistUnitCm: "cm",
+    waistUnitInAria: "Waist unit: in",
+    waistUnitCmAria: "Waist unit: cm",
+    waistHelperText: "Measure around your waist at the top of your hip bones, after breathing out.",
+    waistErrorCm: "Waist circumference must be between 40 and 200 cm (needs doctor review).",
+    waistErrorIn: "Waist circumference must be between 15.7 and 78.7 inches (needs doctor review).",
+    doctorOnRecordLabel: "Doctor on record: {name} (from your hospital record)",
+    ehrAllergiesTitle: "Allergies in your hospital record",
+    noEhrAllergiesRecorded: "None recorded",
+    providerRiskTitle: "Diabetes risk (experimental)",
+    providerRiskNotice: "Internal research feature — not for clinical diagnosis without physician evaluation.",
+    riskBandLow: "Low",
+    riskBandMedium: "Moderate",
+    riskBandHigh: "High",
+    riskReasonsTitle: "Top Contributing Factors",
+    riskCaveatsTitle: "Clinical Caveats",
+    riskCaveatHomeBp: "Home blood pressure readings are self-reported and have not been validated against clinic measurements.",
+    riskCaveatNotValidatedPakistan: "This model was developed on US NHANES data and has not been validated on a Pakistani population.",
+    riskMissingDataTitle: "Not Enough Information",
+    riskMissingDataDescription: "Risk assessment requires complete baseline measurements:",
+    riskMissingBp: "Blood pressure reading in the last 30 days",
+    riskMissingWaist: "Waist circumference in patient profile",
+    riskMissingSmoking: "Smoking status in patient profile",
+    riskMissingHeightWeight: "Height and weight in patient profile",
+
+    // Record History, Export & Import (Day 6)
+    recordHistoryTitle: "Record History",
+    recordHistoryBtn: "History",
+    viewFullHistory: "View full record history",
+    noHistoryRecorded: "No changes recorded yet.",
+    historyField: "Field",
+    historyOldValue: "Before",
+    historyNewValue: "After",
+    historyChangedAt: "Date & Time",
+    originSelfReported: "You",
+    originOcr: "OCR Scan",
+    originClinician: "Clinician",
+    originImport: "Imported",
+    originEhr: "Hospital EHR",
+    exportRecordBtn: "Download my record",
+    exportJson: "Download JSON",
+    exportFhir: "Download FHIR",
+    exporting: "Downloading...",
+    importRecordBtn: "Import a record file",
+    importTitle: "Import Health Record",
+    importSubtitle: "Upload a previously exported ChronicCare JSON or standard FHIR Bundle file.",
+    importPreviewTitle: "Import Preview",
+    importToAdd: "Items to add",
+    importDuplicates: "Duplicates (will skip)",
+    importInvalid: "Invalid (cannot import)",
+    confirmImport: "Confirm import",
+    cancelImport: "Cancel",
+    importSuccess: "Record imported successfully",
+    importFailed: "Import failed",
+    importBaselineNote: "Readings older than 14 days will be imported to your history, but will not be used in the 14-day check-in baseline.",
+    recentRecordChangesTitle: "Recent record changes",
+    recentRecordChangesSubtitle: "Recent updates made to patient's clinical baseline record",
+    importBadgeAdd: "Add",
+    importBadgeSkip: "Skip",
+
+    // OCR v1 (Day 7)
+    uploadDocumentBtn: "Upload Lab Report / Prescription",
+    ocrConfirmTitle: "Confirm Extracted Values",
+    ocrConfirmSubtitle: "Review each detected value below. Only confirmed items will be saved to your health record.",
+    ocrNoticeUrdu: "We can only read English reports for now. Please add these values yourself.",
+    ocrConfirmSaveBtn: "Confirm & Save to Record",
+    ocrFixBtn: "Fix",
+    ocrRemoveBtn: "Remove",
+    ocrConfirmedBadge: "Confirmed",
+    ocrEvidenceLabel: "Detected in document:",
+    ocrBadge: "OCR",
+    ocrObservationsTitle: "Observations & Lab Tests",
+    ocrMedicationsTitle: "Medications",
+    ocrAllergiesTitle: "Allergies",
+    ocrEmptyExtracted: "No readable clinical values were detected in this image.",
+    ocrUploading: "Analyzing document...",
+    ocrUploadFailed: "Could not process document. Please ensure it is a clear JPEG or PNG under 5MB.",
+    ocrSaveSuccess: "Confirmed values saved to your health record.",
+    ocrConfirmItem: "Confirm",
+    ocrCancelBtn: "Cancel",
+    failedToLoadHistory: "Failed to load record history",
+    failedToExportRecord: "Failed to export record",
+    failedToPreviewImport: "Failed to preview import file",
+    failedToCommitImport: "Failed to import record",
+    reasonDuplicate: "Duplicate entry",
+    reasonOutOfRange: "Value out of clinical range",
+    reasonInvalidType: "Unsupported observation type",
+    reasonInvalidUnit: "Invalid unit",
+    reasonInvalidDate: "Invalid date or time",
+    reasonInvalidMedName: "Invalid medication name",
+    reasonInvalidMedDosage: "Invalid dosage",
+    reasonInvalidMedStatus: "Invalid medication status",
+    reasonInvalidAllergy: "Invalid allergy substance",
+    reasonAllergyTooLong: "Reaction text too long",
+    ocrInvalidItemBanner: "Please fix or remove the highlighted invalid item before saving.",
+    ocrFixOrRemoveHint: "Value is invalid. Click Fix to correct or Remove to discard.",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -951,6 +1199,19 @@ export const translations: Record<Language, Translations> = {
     glucoseChartTitle: "بلڈ شوگر (mg/dL)",
     bloodPressureChartTitle: "بلڈ پریشر (mmHg)",
     adherenceChartTitle: "ادویات کی پابندی (%)",
+    trendRising: "اوپر کی طرف",
+    trendFalling: "نیچے کی طرف",
+    trendStable: "مستحکم",
+    trendNotEnoughHistory: "ناکافی ریکارڈ",
+    trendNotEnoughExplain: "ابھی ناکافی ریڈنگز ہیں۔ رجحانات 3 چیک ان کے بعد ظاہر ہوتے ہیں۔",
+    trendsErrorTitle: "اس وقت رجحانات لوڈ نہیں ہو سکے",
+    trendsErrorRetry: "دوبارہ کوشش کریں",
+    trendsReadingsInDays: "{days} دن میں {n} ریڈنگ",
+    providerTrendsTitle: "رجحانات (30 دن)",
+    providerLongitudinalWindow: "طویل مدتی دورانیہ: {days} دن",
+    trendLongitudinalTrajectory: "طویل مدتی رجحان (30 دن کا دورانیہ)",
+    clinicalObservationWindow8Day: "8 دن کا کلینیکل مشاہداتی دورانیہ",
+    noTrendsAvailable: "کوئی رجحان کا ڈیٹا دستیاب نہیں ہے۔",
     systolicLabel: "سسٹولک",
     diastolicLabel: "ڈائسٹولک",
     targetRangeLabel: "ہدف کی حد",
@@ -1056,6 +1317,17 @@ export const translations: Record<Language, Translations> = {
     lastVerified: "آخری تصدیق",
     patientIdMasked: "مریض آئی ڈی",
     dontHaveInfoBtn: "میرے پاس یہ معلومات نہیں ہیں",
+    dontKnowBtn: "معلوم نہیں",
+    skipQuestionBtn: "چھوڑ دیں",
+    someoneElseAnsweringBtn: "کوئی اور جواب دے رہا ہے",
+    whyAmIAskedThisBtn: "یہ کیوں پوچھا جا رہا ہے؟",
+    questionProgressText: "پیش رفت",
+    sendBtnLabel: "بھیجیں",
+    micSpeakLabel: "بول کر جواب دیں",
+    micDisabledLabel: "سیٹنگز میں آواز کا فیچر آن کریں",
+    interviewRetryBtn: "دوبارہ کوشش کریں",
+    interviewEmergencyCall: "ہنگامی صورتحال میں اپنے مقامی ایمرجنسی نمبر پر رابطہ کریں۔",
+    interviewNetworkError: "ہم آپ کا جواب نہیں بھیج سکے۔ اگر یہ ہنگامی صورتحال ہے تو فوراً اپنے مقامی ایمرجنسی نمبر پر کال کریں۔",
     checkinSummaryTitle: "چیک ان محفوظ اور تصدیق شدہ",
     checkinSummarySubtitle: "آپ کا روزانہ ڈیٹا آپ کے کلینیکل پروفائل کے مطابق پروسیس کر لیا گیا ہے۔",
     agreementsCountLabel: "تصدیق شدہ درست اشارے",
@@ -1131,5 +1403,105 @@ export const translations: Record<Language, Translations> = {
     weightErrorKg: "وزن ۲۰ سے ۴۰۰ کلوگرام کے درمیان ہونا چاہیے۔",
     weightErrorLb: "وزن ۴۴ سے ۸۸۲ پاؤنڈ کے درمیان ہونا چاہیے۔",
     bodyMeasurementsOptional: "جسمانی پیمائش (اختیاری)",
+    waistLabelIn: "کمر کی پیمائش (انچ)",
+    waistLabelCm: "کمر کی پیمائش (سینٹی میٹر)",
+    waistToggleLabel: "کمر کی پیمائش کی اکائی",
+    waistUnitIn: "انچ",
+    waistUnitCm: "سینٹی میٹر",
+    waistUnitInAria: "کمر کی اکائی: انچ",
+    waistUnitCmAria: "کمر کی اکائی: سینٹی میٹر",
+    waistHelperText: "سانس باہر نکالنے کے بعد کولہے کی ہڈی کے اوپری حصے پر کمر کی پیمائش کریں۔",
+    waistErrorCm: "کمر کی پیمائش ۴۰ سے ۲۰۰ سینٹی میٹر کے درمیان ہونی چاہیے (ڈاکٹر کے جائزے کی ضرورت ہے)۔",
+    waistErrorIn: "کمر کی پیمائش ۱۵.۷ سے ۷۸.۷ انچ کے درمیان ہونی چاہیے (ڈاکٹر کے جائزے کی ضرورت ہے)۔",
+    doctorOnRecordLabel: "ریکارڈ پر ڈاکٹر: {name} (آپ کے ہسپتال کے ریکارڈ سے)",
+    ehrAllergiesTitle: "آپ کے ہسپتال کے ریکارڈ میں الرجیاں",
+    noEhrAllergiesRecorded: "کوئی درج نہیں",
+    providerRiskTitle: "ذیابیطس کا خطرہ (تجرباتی)",
+    providerRiskNotice: "اندرونی تحقیقی فیچر — معالج کے جائزے کے بغیر تشخیصی فیصلے کے لیے نہیں۔",
+    riskBandLow: "کم",
+    riskBandMedium: "درمیانہ",
+    riskBandHigh: "زیادہ",
+    riskReasonsTitle: "بنیادی وجوہات",
+    riskCaveatsTitle: "طبی تنبیہات",
+    riskCaveatHomeBp: "گھر پر لیے گئے بلڈ پریشر کے نتائج مریض کے خود درج کردہ ہیں اور کلینک کے امتحانی بلڈ پریشر سے تصدیق شدہ نہیں ہیں۔",
+    riskCaveatNotValidatedPakistan: "یہ ماڈل امریکی این ایچ اے این ای ایس (NHANES) ڈیٹا پر بنایا گیا ہے اور اس کی پاکستانی آبادی پر توثیق نہیں کی گئی ہے۔",
+    riskMissingDataTitle: "معلومات ناکافی ہیں",
+    riskMissingDataDescription: "خطرے کے جائزے کے لیے درج ذیل مکمل پیمائشیں درکار ہیں:",
+    riskMissingBp: "پچھلے ۳۰ دنوں کے اندر بلڈ پریشر کی ریڈنگ",
+    riskMissingWaist: "مریض کے پروفائل میں کمر کی پیمائش",
+    riskMissingSmoking: "مریض کے پروفائل میں تمباکو نوشی کی تفصیل",
+    riskMissingHeightWeight: "مریض کے پروفائل میں قد اور وزن",
+
+    // Record History, Export & Import (Day 6)
+    recordHistoryTitle: "ریکارڈ کی تاریخ",
+    recordHistoryBtn: "تاریخ",
+    viewFullHistory: "پورے ریکارڈ کی تاریخ دیکھیں",
+    noHistoryRecorded: "ابھی تک کوئی تبدیلی درج نہیں کی گئی۔",
+    historyField: "شعبہ",
+    historyOldValue: "پہلے",
+    historyNewValue: "بعد میں",
+    historyChangedAt: "تاریخ اور وقت",
+    originSelfReported: "آپ خود",
+    originOcr: "او سی آر اسکین",
+    originClinician: "طبی ماہر",
+    originImport: "درآمد شدہ",
+    originEhr: "ہسپتال ریکارڈ",
+    exportRecordBtn: "اپنا ریکارڈ ڈاؤن لوڈ کریں",
+    exportJson: "جے سن (JSON) ڈاؤن لوڈ کریں",
+    exportFhir: "فائر (FHIR) ڈاؤن لوڈ کریں",
+    exporting: "ڈاؤن لوڈ ہو رہا ہے...",
+    importRecordBtn: "ریکارڈ فائل درآمد کریں",
+    importTitle: "صحت کا ریکارڈ درآمد کریں",
+    importSubtitle: "پہلے سے برآمد شدہ کرونک کیئر JSON یا معیاری FHIR بنڈل فائل اپ لوڈ کریں۔",
+    importPreviewTitle: "درآمد کا پیش نظارہ",
+    importToAdd: "شامل ہونے والی چیزیں",
+    importDuplicates: "پہلے سے موجود (چھوڑ دی جائیں گی)",
+    importInvalid: "ناقابل قبول (درآمد نہیں ہو سکتیں)",
+    confirmImport: "درآمد کی تصدیق کریں",
+    cancelImport: "منسوخ کریں",
+    importSuccess: "ریکارڈ کامیابی سے درآمد ہو گیا",
+    importFailed: "درآمد ناکام ہو گئی",
+    importBaselineNote: "۱۴ دن سے پرانی ریڈنگز آپ کی تاریخ میں شامل ہوں گی، لیکن روزانہ کے چیک ان موازنے میں استعمال نہیں ہوں گی۔",
+    recentRecordChangesTitle: "ریکارڈ میں حالیہ تبدیلیاں",
+    recentRecordChangesSubtitle: "مریض کے کلینیکل ریکارڈ میں کی گئی تازہ ترین تبدیلیاں",
+    importBadgeAdd: "شامل کریں",
+    importBadgeSkip: "چھوڑیں",
+
+    // OCR v1 (Day 7)
+    uploadDocumentBtn: "لیب رپورٹ یا نسخہ اپ لوڈ کریں",
+    ocrConfirmTitle: "نکالی گئی اقدار کی تصدیق کریں",
+    ocrConfirmSubtitle: "نیچے دی گئی ہر قدر کا جائزہ لیں۔ صرف تصدیق شدہ اندراجات ہی آپ کے ہیلتھ ریکارڈ میں شامل کیے جائیں گے۔",
+    ocrNoticeUrdu: "ہم فی الحال صرف انگریزی رپورٹس پڑھ سکتے ہیں۔ براہ کرم یہ اقدار خود شامل کریں۔",
+    ocrConfirmSaveBtn: "تصدیق کریں اور محفوظ کریں",
+    ocrFixBtn: "تبدیل کریں",
+    ocrRemoveBtn: "حذف کریں",
+    ocrConfirmedBadge: "تصدیق شدہ",
+    ocrEvidenceLabel: "دستاویز میں پایا گیا:",
+    ocrBadge: "او سی آر",
+    ocrObservationsTitle: "مشاہدات اور لیب ٹیسٹ",
+    ocrMedicationsTitle: "ادویات",
+    ocrAllergiesTitle: "الرجیز",
+    ocrEmptyExtracted: "اس تصویر میں کوئی پڑھنے کے قابل طبی اقدار نہیں ملیں۔",
+    ocrUploading: "دستاویز کا تجزیہ جاری ہے...",
+    ocrUploadFailed: "دستاویز پر کارروائی نہیں ہو سکی۔ براہ کرم یقینی بنائیں کہ تصویر 5MB سے کم اور JPEG یا PNG فارمیٹ میں ہو۔",
+    ocrSaveSuccess: "تصدیق شدہ اقدار آپ کے ہیلتھ ریکارڈ میں محفوظ کر دی گئی ہیں۔",
+    ocrConfirmItem: "تصدیق کریں",
+    ocrCancelBtn: "منسوخ کریں",
+    failedToLoadHistory: "ریکارڈ کی تاریخ لوڈ کرنے میں ناکامی",
+    failedToExportRecord: "ریکارڈ ایکسپورٹ کرنے میں ناکامی",
+    failedToPreviewImport: "فائل کا پیش نظارہ حاصل کرنے میں ناکامی",
+    failedToCommitImport: "ریکارڈ امپورٹ کرنے میں ناکامی",
+    reasonDuplicate: "پہلے سے موجود اندراج",
+    reasonOutOfRange: "طبی حد سے باہر قیمت",
+    reasonInvalidType: "غیر معاون معائنہ کی قسم",
+    reasonInvalidUnit: "غلط اکائی",
+    reasonInvalidDate: "تاریخ یا وقت درست نہیں ہے",
+    reasonInvalidMedName: "دوا کا نام درست نہیں ہے",
+    reasonInvalidMedDosage: "خوراک درست نہیں ہے",
+    reasonInvalidMedStatus: "دوا کی حالت درست نہیں ہے",
+    reasonInvalidAllergy: "الرجی کا مادہ درست نہیں ہے",
+    reasonAllergyTooLong: "ردعمل کی تفصیل بہت طویل ہے",
+    ocrInvalidItemBanner: "براہ کرم محفوظ کرنے سے پہلے نمایاں کیے گئے غلط اندراج کو درست کریں یا ہٹا دیں۔",
+    ocrFixOrRemoveHint: "یہ اندراج درست نہیں ہے۔ درست کرنے کے لیے 'درست کریں' یا خارج کرنے کے لیے 'ہٹائیں' کا بٹن دبائیں۔",
   }
 };

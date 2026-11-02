@@ -19,6 +19,10 @@ import {
   Pill,
   User,
   Activity,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Clock,
 } from "lucide-react";
 import { api, ApiError, ReviewDetailResponse } from "../../lib/api";
 import { describeSide, describeReviewReason, describeMedicationItem } from "../../lib/presentation";
@@ -45,7 +49,118 @@ export const ReconciliationAlertDetail = () => {
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
 
   useEffect(() => {
-    if (!isLiveMode || !selectedPatient) return;
+    if (!isLiveMode || selectedPatient === "Ali Khan") {
+      const isRiskEnabled =
+        process.env.NEXT_PUBLIC_RISK_ENABLED === "true" ||
+        (typeof window !== "undefined" &&
+          (new URLSearchParams(window.location.search).get("risk") === "true" ||
+            new URLSearchParams(window.location.search).get("risk") === "1"));
+
+      setLiveDetail({
+        checkin_id: "demo-chk-ali",
+        patient_id: "PT-04821",
+        patient_display: "Ali Khan (PT-04821)",
+        mode: "isolated",
+        emergency: demoScenario === "emergency",
+        intakes: [],
+        reconciliation: null,
+        verification: null,
+        requires_review: true,
+        max_severity: "moderate",
+        review_status: "open",
+        actions: [],
+        created_at: new Date().toISOString(),
+        patient_background: {
+          height_cm: 172,
+          weight_kg: 82,
+          bmi: 27.7,
+          waist_cm: 98,
+          diagnosis_year_hypertension: 2019,
+          smoking_status: "former",
+          comorbidities: {},
+          disclaimer:
+            "Self-reported background details provided by patient during enrolment. Not clinically verified.",
+        },
+        trends: {
+          generated_at: new Date().toISOString(),
+          advisory: true,
+          window_days: 30,
+          excluded_count: 0,
+          trends: {
+            blood_pressure_systolic: {
+              direction: "rising",
+              n: 4,
+              window_days: 30,
+              few_readings: true,
+              values: [
+                { value: 135, at: new Date().toISOString() },
+                { value: 142, at: new Date().toISOString() },
+                { value: 148, at: new Date().toISOString() },
+              ],
+            },
+            blood_pressure_diastolic: {
+              direction: "stable",
+              n: 4,
+              window_days: 30,
+              few_readings: true,
+              values: [
+                { value: 88, at: new Date().toISOString() },
+                { value: 90, at: new Date().toISOString() },
+                { value: 92, at: new Date().toISOString() },
+              ],
+            },
+          },
+        },
+        risk: isRiskEnabled
+          ? {
+              disease: "diabetes",
+              model_name: "diabetes_full_nhanes",
+              model_version: "1.0.0",
+              status: "ok",
+              band: "moderate",
+              probability: 0.145,
+              label_text: {
+                en: "Estimated 10-year risk of developing type 2 diabetes based on age, sex, BMI, waist, BP, and smoking.",
+                ur: "ذیابیطس کا ۱۰ سالہ تخمینہ شدہ خطرہ۔",
+              },
+              reasons: [
+                {
+                  feature: "waist",
+                  contribution: 0.45,
+                  label: {
+                    en: "Waist circumference",
+                    ur: "کمر کی پیمائش",
+                    roman_ur: "Kamar",
+                  },
+                },
+                {
+                  feature: "systolic",
+                  contribution: 0.38,
+                  label: {
+                    en: "Systolic blood pressure",
+                    ur: "سسٹولک بلڈ پریشر",
+                    roman_ur: "BP",
+                  },
+                },
+                {
+                  feature: "bmi",
+                  contribution: 0.28,
+                  label: {
+                    en: "Body Mass Index (BMI)",
+                    ur: "باڈی ماس انڈیکس (BMI)",
+                    roman_ur: "BMI",
+                  },
+                },
+              ],
+              caveats: ["home_bp_not_exam_bp", "not_validated_pakistan"],
+            }
+          : null,
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (!selectedPatient) return;
     let isMounted = true;
     api
       .getProviderReviewDetail(selectedPatient)
@@ -55,16 +170,15 @@ export const ReconciliationAlertDetail = () => {
           setIsLoading(false);
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (isMounted) {
           setIsLoading(false);
-          // If checkin ID not found directly, keep default display
         }
       });
     return () => {
       isMounted = false;
     };
-  }, [isLiveMode, selectedPatient]);
+  }, [isLiveMode, selectedPatient, demoScenario]);
 
   const isResolved =
     resolvedCases.includes(selectedPatient || "Ali Khan") ||
@@ -305,6 +419,315 @@ export const ReconciliationAlertDetail = () => {
           <p className="text-[10px] text-slate-400 italic pt-1">
             {liveDetail.patient_background.disclaimer || "Self-reported background details provided by patient during enrolment. Not clinically verified."}
           </p>
+        </div>
+      )}
+
+      {/* Provider Longitudinal Trends (30 Days) — Hidden if liveDetail?.trends is null */}
+      {liveDetail?.trends && (
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3" data-testid="provider-trends-section">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-navy-800 flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-teal-700" />
+              <span>{t.providerTrendsTitle}</span>
+            </span>
+            <span className="text-[10px] text-slate-500 font-medium italic">
+              {t.providerLongitudinalWindow.replace("{days}", String(liveDetail.trends.window_days))}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {[
+              { key: "blood_pressure_systolic", label: t.systolicLabel, unit: "mmHg" },
+              { key: "blood_pressure_diastolic", label: t.diastolicLabel, unit: "mmHg" },
+              { key: "glucose", label: t.glucoseChartTitle, unit: "mg/dL" },
+            ].map(({ key, label, unit }) => {
+              const series = liveDetail.trends?.trends?.[key];
+              if (!series) return null;
+
+              const isNotEnough = series.direction === "not_enough_history";
+              const lastThree = (series.values || []).slice(-3).reverse();
+
+              let badgeColor = "bg-slate-100 text-slate-800 border-slate-300";
+              let badgeText = t.trendStable;
+              let badgeIcon = <Minus className="w-3 h-3 text-slate-600" />;
+
+              if (series.direction === "rising") {
+                badgeColor = "bg-amber-50 text-amber-900 border-amber-300";
+                badgeText = t.trendRising;
+                badgeIcon = <TrendingUp className="w-3 h-3 text-amber-700" />;
+              } else if (series.direction === "falling") {
+                badgeColor = "bg-teal-50 text-teal-900 border-teal-300";
+                badgeText = t.trendFalling;
+                badgeIcon = <TrendingDown className="w-3 h-3 text-teal-700" />;
+              } else if (isNotEnough) {
+                badgeColor = "bg-slate-100 text-slate-600 border-slate-200";
+                badgeText = t.trendNotEnoughHistory;
+                badgeIcon = <Clock className="w-3 h-3 text-slate-500" />;
+              }
+
+              return (
+                <div key={key} className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-bold text-navy-900">{label}</span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-bold ${badgeColor}`}>
+                      {badgeIcon}
+                      <span>{badgeText}</span>
+                    </span>
+                  </div>
+
+                  {isNotEnough ? (
+                    <p className="text-[11px] text-slate-500 italic">
+                      {t.trendNotEnoughExplain}
+                    </p>
+                  ) : lastThree.length > 0 ? (
+                    <div className="space-y-1 pt-1">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Recent readings:</span>
+                      <div className="space-y-0.5">
+                        {lastThree.map((v, i) => (
+                          <div key={i} className="text-xs flex items-center justify-between text-slate-700 font-mono">
+                            <bdi className="font-semibold text-navy-800">{v.value} {unit}</bdi>
+                            <span className="text-[10px] text-slate-500 font-sans">
+                              {new Date(v.at).toLocaleDateString(isUrdu ? "ur-PK" : "en-US", { month: "short", day: "numeric" })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic">No readings in window</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Provider Risk Assessment (Experimental) — Hidden if liveDetail?.risk is null */}
+      {liveDetail?.risk && (
+        <div
+          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4"
+          data-testid="provider-risk-panel"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-teal-700" />
+              <span className="text-xs font-bold uppercase tracking-wider text-navy-800">
+                {t.providerRiskTitle}
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-500 font-medium italic">
+              {t.providerRiskNotice}
+            </span>
+          </div>
+
+          {liveDetail.risk.status === "ok" ? (
+            <div className="space-y-4">
+              {/* Risk Band Badge + Model notice */}
+              <div className="flex flex-wrap items-center gap-3">
+                {(() => {
+                  const b = (liveDetail.risk.band || "").toLowerCase();
+                  if (b === "high") {
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-rose-50 text-rose-900 border-rose-300"
+                        data-testid="risk-band-badge"
+                      >
+                        <AlertOctagon className="w-4 h-4 text-rose-700" />
+                        <span>{t.riskBandHigh}</span>
+                      </span>
+                    );
+                  }
+                  if (b === "moderate" || b === "medium") {
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-amber-50 text-amber-900 border-amber-300"
+                        data-testid="risk-band-badge"
+                      >
+                        <AlertTriangle className="w-4 h-4 text-amber-700" />
+                        <span>{t.riskBandMedium}</span>
+                      </span>
+                    );
+                  }
+                  return (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-emerald-50 text-emerald-900 border-emerald-300"
+                      data-testid="risk-band-badge"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                      <span>{t.riskBandLow}</span>
+                    </span>
+                  );
+                })()}
+
+                {liveDetail.risk.label_text && (
+                  <span className="text-xs text-slate-600 font-medium">
+                    {liveDetail.risk.label_text[isUrdu ? "ur" : "en"] || liveDetail.risk.label_text["en"]}
+                  </span>
+                )}
+              </div>
+
+              {/* Top Contributing Factors */}
+              {(liveDetail.risk.reasons || liveDetail.risk.top_reasons) && (liveDetail.risk.reasons || liveDetail.risk.top_reasons)!.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                    {t.riskReasonsTitle}
+                  </span>
+                  <ul className="list-disc list-inside space-y-1 text-xs text-slate-700">
+                    {(liveDetail.risk.reasons || liveDetail.risk.top_reasons)!.map((r, idx) => {
+                      let labelStr = r.feature;
+                      if (typeof r.label === "object" && r.label !== null) {
+                        labelStr = r.label[isUrdu ? "ur" : "en"] || r.label["en"] || r.feature;
+                      } else if (typeof r.label === "string") {
+                        labelStr = r.label;
+                      }
+                      return (
+                        <li key={idx} data-testid="risk-reason-item">
+                          <span className="font-semibold text-navy-800">{labelStr}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              {/* Clinical Caveats */}
+              {liveDetail.risk.caveats && liveDetail.risk.caveats.length > 0 && (
+                <div className="space-y-1.5 p-3 rounded-xl bg-amber-50/60 border border-amber-200">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1">
+                    <Info className="w-3.5 h-3.5 text-amber-700" />
+                    <span>{t.riskCaveatsTitle}</span>
+                  </span>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
+                    {liveDetail.risk.caveats.map((c, idx) => {
+                      let text = c;
+                      if (c === "home_bp_not_exam_bp") text = t.riskCaveatHomeBp;
+                      else if (c === "not_validated_pakistan") text = t.riskCaveatNotValidatedPakistan;
+                      return (
+                        <li key={idx} data-testid="risk-caveat-item">
+                          {text}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : liveDetail.risk.status === "not_enough_information" ? (
+            <div className="space-y-2.5" data-testid="risk-missing-section">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border bg-slate-100 text-slate-700 border-slate-300 text-xs font-semibold" data-testid="risk-missing-badge">
+                <Info className="w-3.5 h-3.5 text-slate-500" />
+                <span>{t.riskMissingDataTitle}</span>
+              </div>
+              <p className="text-xs text-slate-600">
+                {t.riskMissingDataDescription}
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-xs text-slate-600">
+                {(liveDetail.risk.missing || []).map((m, idx) => {
+                  let missingText = m;
+                  if (m === "latest_readings" || m === "bp" || m === "blood_pressure" || m === "sbp" || m === "dbp") missingText = t.riskMissingBp;
+                  else if (m === "waist" || m === "waist_cm") missingText = t.riskMissingWaist;
+                  else if (m === "smoking_status" || m === "ever_smoked_100") missingText = t.riskMissingSmoking;
+                  else if (m === "bmi" || m === "height" || m === "weight" || m === "age" || m === "sex_male") missingText = t.riskMissingHeightWeight;
+                  return (
+                    <li key={idx} data-testid="risk-missing-item">
+                      {missingText}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Provider: Recent Patient Record Changes (Edit History) */}
+      {liveDetail?.recent_record_edits && liveDetail.recent_record_edits.length > 0 && (
+        <div className="surface-card rounded-3xl p-5 sm:p-6 space-y-3.5 border border-slate-200" data-testid="provider-recent-edits-block">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-teal-700" />
+              <div>
+                <h3 className="font-heading font-bold text-base text-navy-900">
+                  {t.recentRecordChangesTitle}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {t.recentRecordChangesSubtitle}
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-mono font-bold text-slate-400">
+              {liveDetail.recent_record_edits.length}
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            {liveDetail.recent_record_edits.map((edit) => {
+              const isOcr = edit.origin === "ocr";
+              return (
+                <div
+                  key={edit.edit_id || edit.id}
+                  data-testid="provider-edit-row"
+                  className={`p-3 rounded-2xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-all ${
+                    isOcr ? "bg-purple-50/50 border-purple-200 shadow-2xs" : "bg-slate-50 border-slate-200"
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-navy-900 capitalize">
+                        {edit.record_type} ({edit.field})
+                      </span>
+                      {isOcr ? (
+                        <span
+                          data-testid="edit-badge-ocr"
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 text-[10px] font-bold uppercase tracking-wider"
+                        >
+                          <Sparkles className="w-3 h-3 text-purple-700" /> OCR
+                        </span>
+                      ) : edit.origin === "import" ? (
+                        <span
+                          data-testid="edit-badge-import"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200 text-[10px] font-bold"
+                        >
+                          Import
+                        </span>
+                      ) : edit.origin === "clinician" ? (
+                        <span
+                          data-testid="edit-badge-clinician"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-200 text-[10px] font-bold"
+                        >
+                          Clinician
+                        </span>
+                      ) : (
+                        <span
+                          data-testid="edit-badge-patient"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-semibold"
+                        >
+                          Patient
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="font-mono text-[11px] text-slate-600">
+                      {edit.field === "created" ? (
+                        <span>Added: <bdi className="font-bold text-teal-900">{JSON.stringify(edit.new_value)}</bdi></span>
+                      ) : edit.field === "deleted" ? (
+                        <span>Removed: <bdi className="text-red-900 line-through">{JSON.stringify(edit.old_value)}</bdi></span>
+                      ) : (
+                        <span>
+                          <bdi className="line-through text-slate-500">{JSON.stringify(edit.old_value)}</bdi> &rarr; <bdi className="font-bold text-teal-900">{JSON.stringify(edit.new_value)}</bdi>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <span className="text-[11px] text-slate-500 font-mono self-end sm:self-center shrink-0">
+                    <bdi>{new Date(edit.changed_at).toLocaleString()}</bdi>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

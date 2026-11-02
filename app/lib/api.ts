@@ -38,6 +38,7 @@ export interface ProfileUpdateRequest {
   voice_enabled?: boolean | null;
   height_cm?: number | null;
   weight_kg?: number | null;
+  waist_cm?: number | null;
   diagnosis_year_diabetes?: number | null;
   diagnosis_year_hypertension?: number | null;
   smoking_status?: "never" | "former" | "current" | "prefer_not_to_say" | string | null;
@@ -59,6 +60,7 @@ export interface ProfileResponse {
   voice_enabled?: boolean | null;
   height_cm?: number | null;
   weight_kg?: number | null;
+  waist_cm?: number | null;
   diagnosis_year_diabetes?: number | null;
   diagnosis_year_hypertension?: number | null;
   smoking_status?: string | null;
@@ -73,6 +75,7 @@ export interface ProfileResponse {
 export interface PatientBackgroundResponse {
   height_cm?: number | null;
   weight_kg?: number | null;
+  waist_cm?: number | null;
   bmi?: number | null;
   smoking_status?: string | null;
   diagnosis_year_diabetes?: number | null;
@@ -95,6 +98,7 @@ export interface RecordMedicationItem {
   name: string;
   dosage: string;
   status: "active" | "stopped" | string;
+  origin?: string | null;
 }
 
 export interface RecordAllergyItem {
@@ -110,14 +114,89 @@ export interface RecordObservationItem {
   value: number;
   unit: string;
   measured_at: string;
+  origin?: string | null;
+}
+
+export interface DoctorOnRecord {
+  name: string;
+  identifier?: string | null;
+  source: "ehr_general_practitioner" | "ehr_encounter";
+  as_of?: string | null;
 }
 
 export interface PatientRecordResponse {
   mode?: string;
+  ocr_enabled?: boolean;
   conditions: RecordConditionItem[];
   medications: RecordMedicationItem[];
   allergies: RecordAllergyItem[];
   baseline_observations: RecordObservationItem[];
+}
+
+export interface OcrExtractedObservation {
+  id?: string;
+  type: string;
+  value: number;
+  unit: string;
+  date?: string | null;
+  evidence?: string | null;
+}
+
+export interface OcrExtractedMedication {
+  id?: string;
+  name: string;
+  dosage: string;
+  status: string;
+  evidence?: string | null;
+}
+
+export interface OcrExtractedAllergy {
+  id?: string;
+  substance: string;
+  reaction?: string | null;
+  severity?: string | null;
+  status?: string | null;
+  evidence?: string | null;
+}
+
+export interface OcrExtractedFields {
+  observations: OcrExtractedObservation[];
+  medications: OcrExtractedMedication[];
+  allergies: OcrExtractedAllergy[];
+  raw_lines?: string[];
+  has_urdu?: boolean;
+}
+
+export interface OcrUploadResponse {
+  upload_id: string;
+  expires_in_seconds: number;
+  extracted: OcrExtractedFields;
+}
+
+export interface ConfirmOcrItem {
+  id?: string;
+  type?: string;
+  name?: string;
+  substance?: string;
+  dosage?: string;
+  value?: number;
+  unit?: string;
+  reaction?: string | null;
+  severity?: string | null;
+  status?: string | null;
+  date?: string | null;
+  evidence?: string | null;
+}
+
+export interface ConfirmOcrUploadResponse {
+  status: string;
+  saved_count: number;
+  saved_items: Array<{
+    type: string;
+    id: string;
+    origin: string;
+  }>;
+  skipped_count: number;
 }
 
 export interface CreateMedicationRequest {
@@ -173,6 +252,14 @@ export interface EHRConnectionInfo {
   last_verified_at: string | null;
 }
 
+export interface EHRAllergyItem {
+  substance: string;
+  criticality: string;
+  verification_status: string;
+  origin: "ehr";
+  trust: "high";
+}
+
 export interface EHRConnectionResponse {
   mode: string;
   connection?: EHRConnectionInfo | null;
@@ -191,6 +278,13 @@ export interface EHRConnectionResponse {
     active_medications: number;
   } | null;
   message?: string | null;
+  doctor_on_record?: DoctorOnRecord | null;
+  ehr_allergies?: EHRAllergyItem[];
+}
+
+export interface OptionItem {
+  value: string;
+  label: string;
 }
 
 export interface CheckinStartResponse {
@@ -201,6 +295,15 @@ export interface CheckinStartResponse {
   step?: string | null;
   version?: number;
   record_source_label?: string | null;
+  why_text?: string | null;
+  options?: string[] | null;
+  option_items?: OptionItem[] | null;
+  system_note?: string | null;
+  progress_hint?: string | null;
+  language?: string | null;
+  can_skip?: boolean | null;
+  can_say_unknown?: boolean | null;
+  engine?: string | null;
 }
 
 export interface CheckinAnswerResponse {
@@ -213,6 +316,15 @@ export interface CheckinAnswerResponse {
   escalation_recorded?: boolean | null;
   phase?: string | null;
   triage?: Record<string, any> | null;
+  why_text?: string | null;
+  options?: string[] | null;
+  option_items?: OptionItem[] | null;
+  system_note?: string | null;
+  progress_hint?: string | null;
+  language?: string | null;
+  can_skip?: boolean | null;
+  can_say_unknown?: boolean | null;
+  engine?: string | null;
 }
 
 export interface CheckinCompleteResponse {
@@ -275,6 +387,60 @@ export interface ReviewActionResponse {
   ts: string;
 }
 
+export interface TrendValue {
+  value: number;
+  at: string;
+}
+
+export interface TrendSeries {
+  direction: "rising" | "falling" | "stable" | "not_enough_history";
+  n: number;
+  window_days: number;
+  few_readings: boolean;
+  first_at?: string | null;
+  last_at?: string | null;
+  median_earlier?: number | null;
+  median_recent?: number | null;
+  change?: number | null;
+  slope_per_week?: number | null;
+  values: TrendValue[];
+  contexts_seen?: string[];
+  mixed_contexts?: boolean;
+}
+
+export interface TrendsResponse {
+  generated_at: string;
+  advisory: boolean;
+  window_days: number;
+  excluded_count: number;
+  trends: Record<string, TrendSeries>;
+}
+
+export interface RiskReason {
+  feature: string;
+  weight?: number;
+  contribution?: number;
+  label: string | Record<string, string>;
+}
+
+export interface RiskAssessmentResponse {
+  model_name?: string;
+  model_version?: string;
+  model?: string;
+  version?: string;
+  disease?: string;
+  status: "ok" | "not_enough_information" | "error";
+  band?: "low" | "moderate" | "medium" | "high" | null;
+  probability?: number | null;
+  label_text?: Record<string, string> | null;
+  reasons?: RiskReason[] | null;
+  top_reasons?: RiskReason[] | null;
+  caveats?: string[] | null;
+  missing?: string[] | null;
+  error?: string | null;
+  audience?: string;
+}
+
 export interface ReviewDetailResponse {
   checkin_id: string;
   patient_id: string;
@@ -294,7 +460,66 @@ export interface ReviewDetailResponse {
   trigger_reading?: Record<string, any> | string | null;
   escalated_at?: string | null;
   patient_background?: PatientBackgroundResponse | null;
+  trends?: TrendsResponse | null;
+  risk?: RiskAssessmentResponse | null;
+  recent_record_edits?: RecordEditItem[] | null;
 }
+export interface RecordEditItem {
+  edit_id: string;
+  id?: string;
+  user_id?: string;
+  record_type: string;
+  record_id: string;
+  field: string;
+  old_value: any;
+  new_value: any;
+  origin: string;
+  changed_by_user_id: string;
+  changed_by_role?: string | null;
+  changed_at: string;
+  reason?: string | null;
+}
+
+export interface RecordHistoryResponse {
+  edits: RecordEditItem[];
+  count: number;
+}
+
+export interface ImportPreviewItem {
+  name?: string;
+  dosage?: string;
+  status?: string;
+  type?: string;
+  observation_type?: string;
+  value?: number;
+  unit?: string;
+  measured_at?: string;
+  substance?: string;
+  reaction?: string | null;
+  confirmed?: boolean;
+  condition?: string;
+  basis?: string;
+  will_import: boolean;
+  reason?: string | null;
+}
+
+export interface RecordImportResponse {
+  status?: string;
+  dry_run: boolean;
+  imported?: number;
+  duplicates?: number;
+  invalid?: number;
+  counts?: { to_add: number; duplicates: number; invalid: number };
+  imported_counts?: { medications: number; observations: number; allergies: number };
+  duplicate_counts?: { medications: number; observations: number; allergies: number };
+  preview?: {
+    medications: ImportPreviewItem[];
+    observations: ImportPreviewItem[];
+    allergies: ImportPreviewItem[];
+    conditions_basis: ImportPreviewItem[];
+  };
+}
+
 
 export interface AuditLogRow {
   id: number;
@@ -607,6 +832,32 @@ export const api = {
     });
   },
 
+  uploadOcrImage: async (file: File): Promise<OcrUploadResponse> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request<OcrUploadResponse>("/api/me/record/uploads", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  confirmOcrUpload: async (
+    uploadId: string,
+    confirmedItems: ConfirmOcrItem[]
+  ): Promise<ConfirmOcrUploadResponse> => {
+    return request<ConfirmOcrUploadResponse>(`/api/me/record/uploads/${uploadId}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmed_items: confirmedItems }),
+    });
+  },
+
+  cancelOcrUpload: async (uploadId: string): Promise<{ status: string }> => {
+    return request<{ status: string }>(`/api/me/record/uploads/${uploadId}`, {
+      method: "DELETE",
+    });
+  },
+
   updateConditionsBasis: async (
     basisMap: Record<string, string | null>
   ): Promise<{ status: string; conditions_basis: Record<string, string> }> => {
@@ -710,8 +961,9 @@ export const api = {
     });
   },
 
-  getEHRConnection: async (): Promise<EHRConnectionResponse> => {
-    return request<EHRConnectionResponse>("/api/ehr/connection", {
+  getEHRConnection: async (includeDetails: boolean = false): Promise<EHRConnectionResponse> => {
+    const query = includeDetails ? "?include_details=true" : "";
+    return request<EHRConnectionResponse>(`/api/ehr/connection${query}`, {
       method: "GET",
     });
   },
@@ -769,6 +1021,12 @@ export const api = {
     checkin_id: string
   ): Promise<UserCheckinDetailResponse> => {
     return request<UserCheckinDetailResponse>(`/api/checkins/${encodeURIComponent(checkin_id)}`, {
+      method: "GET",
+    });
+  },
+
+  getMyTrends: async (days = 30): Promise<TrendsResponse> => {
+    return request<TrendsResponse>(`/api/me/trends?days=${encodeURIComponent(days)}`, {
       method: "GET",
     });
   },
@@ -834,6 +1092,37 @@ export const api = {
         "Content-Type": contentType,
       },
       body: file,
+    });
+  },
+
+  // 8. Record Edit History, Export, and Import
+  getRecordHistory: async (recordType?: string, recordId?: string, limit: number = 50): Promise<RecordHistoryResponse> => {
+    const params = new URLSearchParams();
+    if (recordType) params.set("record_type", recordType);
+    if (recordId) params.set("record_id", recordId);
+    params.set("limit", limit.toString());
+    return request<RecordHistoryResponse>(`/api/me/record/history?${params.toString()}`);
+  },
+
+  exportRecord: async (format: "json" | "fhir" = "json"): Promise<Blob> => {
+    const baseUrl = getBaseUrl();
+    const headers = await getAuthHeaders();
+    delete headers["Content-Type"];
+    const res = await fetch(`${baseUrl}/api/me/record/export?format=${format}`, {
+      headers,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Export failed" }));
+      throw new ApiError(res.status, err.detail || "Export failed");
+    }
+    return res.blob();
+  },
+
+  importRecord: async (payload: any, isFhir: boolean = false, dryRun: boolean = true): Promise<RecordImportResponse> => {
+    return request<RecordImportResponse>(`/api/me/record/import?dry_run=${dryRun}`, {
+      method: "POST",
+      headers: isFhir ? { "Content-Type": "application/fhir+json" } : { "Content-Type": "application/json" },
+      body: typeof payload === "string" ? payload : JSON.stringify(payload),
     });
   },
 };

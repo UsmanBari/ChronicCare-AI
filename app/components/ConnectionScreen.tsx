@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { api, ApiError, EHRSystemResponse, EHRConnectionResponse, EHRTestResponse } from "../lib/api";
 import { describeEhrSystem, mapEhrError, mapApiError } from "../lib/presentation";
+import { FhirSourceBadge } from "./FhirSourceBadge";
 
 export const ConnectionScreen = () => {
   const {
@@ -66,7 +67,7 @@ export const ConnectionScreen = () => {
 
       // Load existing connection
       api
-        .getEHRConnection()
+        .getEHRConnection(true)
         .then((conn) => {
           setLiveEhrConnection(conn);
           if (conn.mode === "fhir" || conn.mode === "connected") {
@@ -127,8 +128,9 @@ export const ConnectionScreen = () => {
 
       setConnectingFhir(true);
       try {
-        const res = await api.connectEHR(selectedSystemId, cleanPatientId);
-        setLiveEhrConnection(res);
+        await api.connectEHR(selectedSystemId, cleanPatientId);
+        const fullConn = await api.getEHRConnection(true);
+        setLiveEhrConnection(fullConn);
         setConnectionMode("fhir");
         setFhirSuccess(true);
         setTimeout(() => {
@@ -259,6 +261,47 @@ export const ConnectionScreen = () => {
                     minute: "2-digit",
                   })}
                 </span>
+              )}
+            </div>
+
+            {liveEhrConnection.doctor_on_record?.name && (
+              <div
+                data-testid="doctor-on-record"
+                className="pt-1 text-xs text-teal-950 font-medium flex items-center gap-1.5"
+              >
+                <span>
+                  {t.doctorOnRecordLabel
+                    ? t.doctorOnRecordLabel.replace("{name}", liveEhrConnection.doctor_on_record.name)
+                    : `Doctor on record: ${liveEhrConnection.doctor_on_record.name} (from your hospital record)`}
+                </span>
+              </div>
+            )}
+
+            <div data-testid="ehr-allergies-section" className="mt-2.5 pt-2 border-t border-teal-200/70 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-navy-800">
+                  {t.ehrAllergiesTitle || "Allergies in your hospital record"}
+                </span>
+                <FhirSourceBadge />
+              </div>
+              {liveEhrConnection.ehr_allergies && liveEhrConnection.ehr_allergies.length > 0 ? (
+                <ul className="space-y-1 text-xs text-slate-700">
+                  {liveEhrConnection.ehr_allergies.map((allergy, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-center justify-between py-1 px-2.5 rounded-lg bg-white/80 border border-teal-100"
+                    >
+                      <span className="font-semibold text-slate-800">{allergy.substance}</span>
+                      <span className="text-[11px] text-slate-500 capitalize">
+                        {allergy.criticality || allergy.verification_status}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-slate-500 italic">
+                  {t.noEhrAllergiesRecorded || "None recorded"}
+                </p>
               )}
             </div>
 

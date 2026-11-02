@@ -51,7 +51,7 @@ MUTATIONS = [
         "id": "MUT-4",
         "name": "Planner Never Re-asks Filled Slot",
         "file": BACKEND_DIR / "agents" / "interview_planner.py",
-        "target": "        asked_slots = set(asked_slots) | set(known_slots.keys())",
+        "target": "        asked_slots = set(asked_slots) | clean_known",
         "replacement": "        asked_slots = set()",
         "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_4_planner_never_reasks_filled_slot",
     },
@@ -209,7 +209,175 @@ MUTATIONS = [
         "replacement": "        # \"cannot keep fluids down\",",
         "test_node": "backend-poc-technical/test_vomiting_fluids_red_flags.py::test_mutation_proof_vomiting_fluids",
     },
+    # --- Day 2 Mutations (M-H2-1 to M-H2-5) ---
+    {
+        "id": "M-H2-1",
+        "name": "'pata nahi' mapped to 'no'",
+        "file": BACKEND_DIR / "agents" / "answer_understanding.py",
+        "target": "    for unk_phrase in _UNKNOWN_PHRASES:\n        if _contains_subsequence(tokens, unk_phrase):",
+        "replacement": "    for unk_phrase in []:\n        if False:",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h2_1_pata_nahi_not_no",
+    },
+    {
+        "id": "M-H2-2",
+        "name": "'unknown' satisfies requires:true",
+        "file": BACKEND_DIR / "agents" / "interview_planner.py",
+        "target": "            if req.get(\"is_fasting_today\") is True and known_slots.get(\"is_fasting_today\") is not True:",
+        "replacement": "            if req.get(\"is_fasting_today\") and not known_slots.get(\"is_fasting_today\"): ",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h2_2_unknown_does_not_satisfy_requires_true",
+    },
+    {
+        "id": "M-H2-3",
+        "name": "parse_bp accepts systolic <= diastolic",
+        "file": BACKEND_DIR / "agents" / "answer_understanding.py",
+        "target": "            if sys_val <= dia_val:\n                return {\"value\": None, \"evidence\": evidence}",
+        "replacement": "            if False and sys_val <= dia_val:\n                return {\"value\": None, \"evidence\": evidence}",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h2_3_parse_bp_rejects_sys_le_dia",
+    },
+    {
+        "id": "M-H2-4",
+        "name": "Unit clarification skipped for bare '7'",
+        "file": BACKEND_DIR / "agents" / "interview_v3_runner.py",
+        "target": "        if val_res.needs_unit_clarification:\n            session_state[\"awaiting_glucose_unit\"] = True",
+        "replacement": "        if False and val_res.needs_unit_clarification:\n            session_state[\"awaiting_glucose_unit\"] = True",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h2_4_unit_clarification_bare_7",
+    },
+    {
+        "id": "M-H2-5",
+        "name": "Tag-question 'na' read as 'no'",
+        "file": BACKEND_DIR / "agents" / "answer_understanding.py",
+        "target": "            if len(tokens) == 1 or i == 0:\n                return {",
+        "replacement": "            if True:\n                return {",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h2_5_tag_question_na_not_no",
+    },
+        # --- Day 3 Mutations (M-H3-1 to M-H3-3) ---
+    {
+        "id": "M-H3-1",
+        "name": "Dual patient asked symptoms before readings are done",
+        "file": BACKEND_DIR / "agents" / "interview_planner.py",
+        "target": "    if is_dual_diagnosis and \"greeting\" in asked_slots:\n        dual_order = get_dual_readings_order(recent_checkins, patient_record)",
+        "replacement": "    if is_dual_diagnosis and \"greeting\" in asked_slots:\n        return PlanDecision(action=\"ask_bank_item\", item=bank.get_by_id(\"diabetes_hyperglycemia_symptoms\"), reason=\"mutant_symptoms_first\", question_count=current_count + 1, max_budget=effective_budget, target_slot=\"hyperglycemia_symptoms\")",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h3_1_readings_before_symptoms",
+    },
+    {
+        "id": "M-H3-2",
+        "name": "Same slot asked twice in dual flow",
+        "file": BACKEND_DIR / "agents" / "interview_planner.py",
+        "target": "        if is_slot_already_satisfied(item.slot, asked_slots, known_slots, bank):",
+        "replacement": "        if False and is_slot_already_satisfied(item.slot, asked_slots, known_slots, bank):",
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h3_2_slot_never_asked_twice",
+    },
+    {
+        "id": "M-H3-3",
+        "name": "also_fills re-added between hyperglycemia_symptoms and associated_symptoms",
+        "file": BACKEND_DIR / "agents" / "interview_bank" / "diabetes.json",
+        "target": '    "id": "diabetes_hyperglycemia_symptoms",\n    "module": "diabetes",\n    "slot": "hyperglycemia_symptoms",\n    "why_text": "High blood sugar can cause thirst, frequent urination, and blurry vision.",',
+        "replacement": '    "id": "diabetes_hyperglycemia_symptoms",\n    "module": "diabetes",\n    "slot": "hyperglycemia_symptoms",\n    "also_fills": ["associated_symptoms"],\n    "why_text": "High blood sugar can cause thirst, frequent urination, and blurry vision.",',
+        "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_m_h3_3_symptoms_not_also_filled",
+    },
+    # --- Day 4 Mutation (M-S4-1: Trend Agent Dual Agreement Rule) ---
+    {
+        "id": "M-S4-1",
+        "name": "Trend Agent: Median-and-Slope Agreement Required (Dual Agreement)",
+        "file": BACKEND_DIR / "agents" / "trend_agent.py",
+        "target": "        if change >= threshold and slope_per_week > 0:\n            direction = DIRECTION_RISING\n        elif change <= -threshold and slope_per_week < 0:\n            direction = DIRECTION_FALLING",
+        "replacement": "        if change >= threshold:\n            direction = DIRECTION_RISING\n        elif change <= -threshold:\n            direction = DIRECTION_FALLING",
+        "test_node": "backend-poc-technical/test_trend_agent.py::test_conflict_median_positive_slope_non_positive_yields_stable",
+    },
+    # --- Day 5 Mutations (M-U5-1 to M-U5-3: Risk Agent & Can-Only-Raise Invariants) ---
+    {
+        "id": "M-U5-1",
+        "name": "Can-Only-Raise Invariant: apply_risk_to_level lowers a triage level",
+        "file": BACKEND_DIR / "agents" / "risk_rules.py",
+        "target": "    if level == \"routine\":\n        target = \"review\"\n        if LEVEL_RANK[target] > LEVEL_RANK[level]:\n            return target, True",
+        "replacement": "    if level == \"emergency\":\n        return \"routine\", True",
+        "test_node": "backend-poc-technical/test_risk_rules.py::test_apply_risk_to_level_matrix[emergency-high-True-True]",
+    },
+    {
+        "id": "M-U5-2",
+        "name": "Can-Only-Raise Invariant: RISK_CAN_RAISE flag ignored",
+        "file": BACKEND_DIR / "agents" / "risk_rules.py",
+        "target": "    if not (risk_enabled and risk_can_raise):\n        return level, False",
+        "replacement": "    if not risk_enabled:\n        return level, False",
+        "test_node": "backend-poc-technical/test_risk_rules.py::test_apply_risk_to_level_matrix[routine-high-True-False]",
+    },
+    {
+        "id": "M-U5-3",
+        "name": "Risk Agent: Fall back to basic when waist is missing",
+        "file": BACKEND_DIR / "agents" / "risk_agent.py",
+        "target": "        # 4. Check Missing Features (No Basic Fallback per D8/D12)\n        if missing:\n            return {\n                \"status\": \"not_enough_information\",\n                \"missing\": sorted(list(set(missing))),\n                \"audience\": \"provider_only\",\n            }",
+        "replacement": "        # 4. Check Missing Features (No Basic Fallback per D8/D12)\n        if missing and missing != [\"waist_cm\"]:\n            return {\n                \"status\": \"not_enough_information\",\n                \"missing\": sorted(list(set(missing))),\n                \"audience\": \"provider_only\",\n            }\n        if missing == [\"waist_cm\"]:\n            raw_features[\"waist_cm\"] = 85.0",
+        "test_node": "backend-poc-technical/test_risk_agent.py::test_missing_waist_yields_not_enough_info",
+    },
+    # --- Day 6 Mutations (M-H6-1 to M-H6-2: Edit History & Import Validation) ---
+    {
+        "id": "M-H6-1",
+        "name": "Record edit call removed from update_local_medication",
+        "file": BACKEND_DIR / "data_sources" / "local_store.py",
+        "target": "                if dosage_changed:\n                    record_edit(\n                        cursor,\n                        \"?\",",
+        "replacement": "                if False and dosage_changed:\n                    record_edit(\n                        cursor,\n                        \"?\",",
+        "test_node": "backend-poc-technical/test_record_edits.py::test_medication_edit_history",
+    },
+    {
+        "id": "M-H6-2",
+        "name": "Validation skipped on record import",
+        "file": BACKEND_DIR / "main.py",
+        "target": "            clean_unit = _validate_observation_value_and_unit(obs_type, val_float)",
+        "replacement": "            clean_unit = \"mg/dL\"",
+        "test_node": "backend-poc-technical/test_record_export_import.py::test_import_validation_rejects_out_of_range_and_invalid_type",
+    },
+    {
+        "id": "M-H6-3",
+        "name": "Compensating rollback removed from import endpoint",
+        "file": BACKEND_DIR / "main.py",
+        "target": "            if not is_mysql:\n                _rollback_sqlite_import(user_id, patient_id, written_items)",
+        "replacement": "            if False and not is_mysql:\n                _rollback_sqlite_import(user_id, patient_id, written_items)",
+        "test_node": "backend-poc-technical/test_record_export_import.py::test_import_all_or_nothing_rollback_on_failure",
+    },
+    {
+        "id": "M-H7-1",
+        "name": "Server-side re-validation removed in OCR confirm endpoint",
+        "file": BACKEND_DIR / "main.py",
+        "target": '                o_type, val, unit, ts = _validate_ocr_observation(\n                    obs_type=item.observation_type or "",\n                    value=item.value,\n                    measured_at=item.measured_at,\n                    item_index=idx,\n                )',
+        "replacement": '                o_type, val, unit, ts = (item.observation_type or "glucose", float(item.value or 0), "mg/dL", _utc_now_iso())',
+        "test_node": "backend-poc-technical/test_ocr_upload.py::test_confirm_revalidation_rejects_out_of_range_values",
+    },
+    {
+        "id": "M-H7-2",
+        "name": "Unconfirmed OCR items saved before explicit user confirmation",
+        "file": BACKEND_DIR / "main.py",
+        "target": "    upload_id = stage_upload(\n        user_id=user_id,\n        extracted_data=extracted,\n    )",
+        "replacement": '    upload_id = stage_upload(\n        user_id=user_id,\n        extracted_data=extracted,\n    )\n    add_local_observation(f"premature-{upload_id}", patient_id, "glucose", 118.0, "mg/dL", _utc_now_iso(), "local", "ocr")',
+        "test_node": "backend-poc-technical/test_ocr_upload.py::test_upload_does_not_save_items_before_confirm",
+    },
+    {
+        "id": "M-H7-3",
+        "name": "Provider exception handler removed from OCR upload endpoint",
+        "file": BACKEND_DIR / "main.py",
+        "target": '    try:\n        extracted = provider.extract(processed_bytes)\n    except (ImportError, ModuleNotFoundError) as e:\n        logger.error("OCR provider missing dependency: %s", type(e).__name__)\n        return JSONResponse(\n            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,\n            content={"code": "ocr_unavailable", "detail": "ocr_unavailable"},\n        )\n    except Exception as e:\n        logger.error("OCR provider error: %s", type(e).__name__)\n        return JSONResponse(\n            status_code=status.HTTP_502_BAD_GATEWAY,\n            content={"code": "ocr_provider_error", "detail": "ocr_provider_error"},\n        )',
+        "replacement": "    extracted = provider.extract(processed_bytes)",
+        "test_node": "backend-poc-technical/test_ocr_upload.py::test_provider_exception_returns_502_and_logs_type_only",
+    },
+    # --- Day 7 P0 Safety Mutation (M-U7-1: Re-add 'no': 9 to Roman Urdu numbers) ---
+    {
+        "id": "M-U7-1",
+        "name": "P0 Safety: Re-introduce 'no': 9 into _ROMAN_URDU_NUMBERS",
+        "file": BACKEND_DIR / "agents" / "answer_understanding.py",
+        "target": '    "nau": 9,',
+        "replacement": '    "nau": 9, "no": 9,',
+        "test_node": "backend-poc-technical/test_no_is_not_a_number.py::test_no_not_in_roman_urdu_numbers",
+    },
+    # --- Day 7 Explain Isolation Mutation (M-U7-2: Explain step writes into triage decision) ---
+    {
+        "id": "M-U7-2",
+        "name": "Explain step mutates clinical triage decision",
+        "file": BACKEND_DIR / "orchestrator" / "steps.py",
+        "target": '        explain_res = explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n        )\n        return explain_res',
+        "replacement": '        explain_res = explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n        )\n        triage_decision["final_triage_level"] = "routine"\n        return explain_res',
+        "test_node": "backend-poc-technical/test_checkin_risk_explain.py::test_mutation_proof_m_u7_2_explain_never_modifies_triage",
+    },
 ]
+
 
 
 def run_mutation(mut: dict) -> dict:
@@ -268,13 +436,15 @@ def run_mutation(mut: dict) -> dict:
     try:
         # Run pytest subprocess on exact test node with -B and PYTHONDONTWRITEBYTECODE
         cmd = [sys.executable, "-B", "-m", "pytest", mut["test_node"], "-x", "--tb=line", "-q"]
-        sub_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        sub_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
         proc = subprocess.run(
             cmd,
             cwd=str(REPO_ROOT),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
             env=sub_env,
         )
@@ -293,7 +463,7 @@ def run_mutation(mut: dict) -> dict:
                     pass
 
     failing_line = ""
-    for line in proc.stdout.splitlines():
+    for line in (proc.stdout or "").splitlines():
         if "FAILED" in line or "AssertionError" in line or "assert " in line:
             failing_line = line.strip()
             if "FAILED" in line:
@@ -332,10 +502,12 @@ def main():
 
         print(f"\n[{res['id']}] {res['name']} -> {status}")
         print(f"  File: {res['file']}:{res['line_no']} (SHA256: {res['sha_before'][:12]}...)")
-        print(f"  Unified Diff:\n{res['diff'].strip()}")
+        safe_diff = res['diff'].strip().encode('ascii', 'backslashreplace').decode('ascii')
+        print(f"  Unified Diff:\n{safe_diff}")
         print(f"  Pytest Subprocess: {res['test_node']}")
         print(f"  Exit Code: {res['return_code']}")
-        print(f"  Real Failure Output: {res['failing_output']}")
+        safe_out = res['failing_output'].encode('ascii', 'backslashreplace').decode('ascii')
+        print(f"  Real Failure Output: {safe_out}")
         print(f"  Byte Integrity Verified: SHA matches ({res['sha_after'][:12]}...)")
 
     # Diagnostic proof that missing target exits non-zero

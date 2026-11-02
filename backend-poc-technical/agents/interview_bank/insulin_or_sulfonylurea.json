@@ -8,16 +8,32 @@
     "template_ur": "گزشتہ 7 دنوں میں، کیا آپ کی شوگر کم (لو) ہوئی تھی (جیسے کپکپاہٹ، ٹھنڈے پسینے، شدید بھوک، یا غشی)؟",
     "template_roman_ur": "Pichle 7 dino mein, kya aap ki sugar kam (low) hui thi (jaise kapkapahat, thanday paseenay, shadeed bhook, ya ghashi)?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"on_insulin_or_sulfonylurea": true},
+    "requires": {
+      "on_insulin_or_sulfonylurea": true
+    },
     "priority_class": "safety",
     "can_raise_level": true,
     "rule_id": "hypo_events_past_week_triage",
     "source": "ada_2026_soc_sec6",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "انسولین یا شوگر کی گولیوں والے مریضوں میں شوگر کم ہونے کا خطرہ زیادہ ہوتا ہے، تاکہ ڈاکٹر دوا کی مقدار دیکھ سکے۔",
+    "why_text_roman_ur": "Insulin ya sugar ki goliyan lene walon mein sugar kam hone ka khatra zyada hota hai, taakay doctor miqdaar dekh sakay.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "insulin_hypo_symptoms_acute",
@@ -28,15 +44,31 @@
     "template_ur": "کیا آپ اس وقت کپکپاہٹ، پسینہ، چکر، یا الجھن محسوس کر رہے ہیں جو میٹھا کھانے سے بہتر ہوتی ہو؟",
     "template_roman_ur": "Kya aap is waqt kapkapahat, paseena, chakkar, ya uljhan mehsoos kar rahe hain jo meetha khanay se theek hoti ho?",
     "answer_type": "yes_no",
-    "choices": ["yes", "no"],
+    "choices": [
+      "yes",
+      "no"
+    ],
     "valid_range": null,
     "unit_options": null,
-    "requires": {"on_insulin_or_sulfonylurea": true},
+    "requires": {
+      "on_insulin_or_sulfonylurea": true
+    },
     "priority_class": "safety",
     "can_raise_level": true,
     "rule_id": "hypoglycemia_symptoms_triage",
     "source": "ada_2026_soc_sec6",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "یہ دیکھنے کے لیے کہ کیا ابھی آپ شوگر کی کمی محسوس کر رہے ہیں تاکہ بروقت مدد دی جا سکے۔",
+    "why_text_roman_ur": "Yeh dekhne ke liye ke kya abhi aap sugar ki kami mehsoos kar rahe hain taakay fori madad di ja sakay.",
+    "choices_ur": [
+      "ہاں",
+      "نہیں"
+    ],
+    "choices_roman_ur": [
+      "haan",
+      "nahi"
+    ],
+    "needs_native_review": true
   }
 ]

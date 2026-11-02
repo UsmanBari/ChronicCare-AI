@@ -5,10 +5,35 @@ Provides synthetic FHIR R4 resources with deterministic, dynamic timestamps rela
 No real patient data. Never represents itself as a real hospital.
 """
 
+import os
+import json
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Tuple, Optional, List
 import copy
 
+SAMPLE_PRACTITIONERS: Dict[str, Dict[str, Any]] = {
+    "prac-sim-tahir": {
+        "resourceType": "Practitioner",
+        "id": "prac-sim-tahir",
+        "identifier": [{"system": "http://hospital.sim/practitioners", "value": "SIM-MD-101"}],
+        "name": [{"family": "Mansoor", "given": ["Dr. Tahir"], "prefix": ["Dr."]}],
+        "gender": "male",
+    },
+    "prac-sim-fatima": {
+        "resourceType": "Practitioner",
+        "id": "prac-sim-fatima",
+        "identifier": [{"system": "http://hospital.sim/practitioners", "value": "SIM-MD-102"}],
+        "name": [{"family": "Tariq", "given": ["Dr. Fatima"], "prefix": ["Dr."]}],
+        "gender": "female",
+    },
+    "prac-sim-zubair": {
+        "resourceType": "Practitioner",
+        "id": "prac-sim-zubair",
+        "identifier": [{"system": "http://hospital.sim/practitioners", "value": "SIM-MD-103"}],
+        "name": [{"family": "Farooq", "given": ["Dr. Zubair"], "prefix": ["Dr."]}],
+        "gender": "male",
+    },
+}
 
 SAMPLE_PATIENTS: Dict[str, Dict[str, Any]] = {
     "sim-ayesha": {
@@ -174,6 +199,28 @@ def _build_synthetic_dataset(now: datetime) -> Dict[str, Dict[str, Any]]:
             "subject": {"reference": "Patient/sim-ayesha"},
             "authoredOn": _iso_offset(now, days_ago=90),
             "dosageInstruction": [{"text": "5 mg once daily (Discontinued)"}]
+        }
+    ]
+
+    ayesha_allergies = [
+        {
+            "resourceType": "AllergyIntolerance",
+            "id": "alg-ayesha-1",
+            "clinicalStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical", "code": "active"}]},
+            "verificationStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification", "code": "confirmed"}]},
+            "criticality": "high",
+            "code": {"coding": [{"system": "http://snomed.info/sct", "code": "373270004", "display": "Penicillin G"}], "text": "Penicillin G"},
+            "patient": {"reference": "Patient/sim-ayesha"},
+            "reaction": [{"manifestation": [{"coding": [{"system": "http://snomed.info/sct", "code": "247472004", "display": "Urticaria"}], "text": "Hives and facial swelling"}]}]
+        },
+        {
+            "resourceType": "AllergyIntolerance",
+            "id": "alg-ayesha-2",
+            "clinicalStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical", "code": "active"}]},
+            "verificationStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification", "code": "entered-in-error"}]},
+            "criticality": "low",
+            "code": {"coding": [{"system": "http://snomed.info/sct", "code": "387458008", "display": "Aspirin"}], "text": "Aspirin"},
+            "patient": {"reference": "Patient/sim-ayesha"}
         }
     ]
 
@@ -366,7 +413,19 @@ def _build_synthetic_dataset(now: datetime) -> Dict[str, Dict[str, Any]]:
             },
             "subject": {"reference": "Patient/sim-imran"},
             "authoredOn": _iso_offset(now, days_ago=120),
-            "dosageInstruction": [{"text": "81 mg once daily (Stopped)"}]
+        }
+    ]
+
+    imran_allergies = [
+        {
+            "resourceType": "AllergyIntolerance",
+            "id": "alg-imran-1",
+            "clinicalStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical", "code": "active"}]},
+            "verificationStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification", "code": "confirmed"}]},
+            "criticality": "high",
+            "code": {"coding": [{"system": "http://snomed.info/sct", "code": "91936005", "display": "Sulfonamide allergy"}], "text": "Sulfa antibiotics"},
+            "patient": {"reference": "Patient/sim-imran"},
+            "reaction": [{"manifestation": [{"text": "Cutaneous rash"}]}]
         }
     ]
 
@@ -391,14 +450,15 @@ def _build_synthetic_dataset(now: datetime) -> Dict[str, Dict[str, Any]]:
     # 6. sim-child: 12yo for under-18 testing
     child_dob = _dob_for_age(now, 12)
 
-    return {
+    dataset: Dict[str, Dict[str, Any]] = {
         "sim-ayesha": {
             "patient": {
                 "resourceType": "Patient",
                 "id": "sim-ayesha",
                 "name": [{"family": "K.", "given": ["Ayesha"]}],
                 "gender": "female",
-                "birthDate": ayesha_dob
+                "birthDate": ayesha_dob,
+                "generalPractitioner": [{"reference": "Practitioner/prac-sim-fatima", "display": "Dr. Fatima Tariq"}]
             },
             "conditions": [
                 {
@@ -417,7 +477,8 @@ def _build_synthetic_dataset(now: datetime) -> Dict[str, Dict[str, Any]]:
                 }
             ],
             "observations": ayesha_obs,
-            "medications": ayesha_meds
+            "medications": ayesha_meds,
+            "allergies": ayesha_allergies,
         },
         "sim-bilal": {
             "patient": {
@@ -425,7 +486,8 @@ def _build_synthetic_dataset(now: datetime) -> Dict[str, Dict[str, Any]]:
                 "id": "sim-bilal",
                 "name": [{"family": "A.", "given": ["Bilal"]}],
                 "gender": "male",
-                "birthDate": bilal_dob
+                "birthDate": bilal_dob,
+                "generalPractitioner": [{"reference": "Practitioner/prac-sim-tahir", "display": "Dr. Tahir Mansoor"}]
             },
             "conditions": [
                 {
@@ -437,7 +499,8 @@ def _build_synthetic_dataset(now: datetime) -> Dict[str, Dict[str, Any]]:
                 }
             ],
             "observations": bilal_obs,
-            "medications": bilal_meds
+            "medications": bilal_meds,
+            "allergies": [],
         },
         "sim-sana": {
             "patient": {
@@ -445,7 +508,8 @@ def _build_synthetic_dataset(now: datetime) -> Dict[str, Dict[str, Any]]:
                 "id": "sim-sana",
                 "name": [{"family": "M.", "given": ["Sana"]}],
                 "gender": "female",
-                "birthDate": sana_dob
+                "birthDate": sana_dob,
+                "generalPractitioner": [{"reference": "Practitioner/prac-sim-fatima", "display": "Dr. Fatima Tariq"}]
             },
             "conditions": [
                 {
@@ -457,7 +521,8 @@ def _build_synthetic_dataset(now: datetime) -> Dict[str, Dict[str, Any]]:
                 }
             ],
             "observations": sana_obs,
-            "medications": sana_meds
+            "medications": sana_meds,
+            "allergies": [],
         },
         "sim-imran": {
             "patient": {
@@ -465,7 +530,8 @@ def _build_synthetic_dataset(now: datetime) -> Dict[str, Dict[str, Any]]:
                 "id": "sim-imran",
                 "name": [{"family": "Q.", "given": ["Imran"]}],
                 "gender": "male",
-                "birthDate": imran_dob
+                "birthDate": imran_dob,
+                "generalPractitioner": [{"reference": "Practitioner/prac-sim-zubair", "display": "Dr. Zubair Farooq"}]
             },
             "conditions": [
                 {
@@ -484,7 +550,8 @@ def _build_synthetic_dataset(now: datetime) -> Dict[str, Dict[str, Any]]:
                 }
             ],
             "observations": imran_obs,
-            "medications": imran_meds
+            "medications": imran_meds,
+            "allergies": imran_allergies,
         },
         "sim-newpatient": {
             "patient": {
@@ -504,7 +571,8 @@ def _build_synthetic_dataset(now: datetime) -> Dict[str, Dict[str, Any]]:
                 }
             ],
             "observations": [],
-            "medications": newpat_meds
+            "medications": newpat_meds,
+            "allergies": [],
         },
         "sim-child": {
             "patient": {
@@ -512,13 +580,53 @@ def _build_synthetic_dataset(now: datetime) -> Dict[str, Dict[str, Any]]:
                 "id": "sim-child",
                 "name": [{"family": "Patient", "given": ["Child"]}],
                 "gender": "other",
-                "birthDate": child_dob
+                "birthDate": child_dob,
+                "generalPractitioner": [{"reference": "Practitioner/prac-sim-fatima", "display": "Dr. Fatima Tariq"}]
             },
             "conditions": [],
             "observations": [],
-            "medications": []
+            "medications": [],
+            "allergies": [],
         }
     }
+
+    fixtures = _load_fixtures_from_disk(now)
+    dataset.update(fixtures)
+    return dataset
+
+
+def _load_fixtures_from_disk(now: datetime) -> Dict[str, Dict[str, Any]]:
+    """Loads external fixtures from fhir_sim_fixtures directory."""
+    fixtures_dir = os.path.join(os.path.dirname(__file__), "fhir_sim_fixtures")
+    if not os.path.isdir(fixtures_dir):
+        return {}
+    results = {}
+    for fname in sorted(os.listdir(fixtures_dir)):
+        if fname.startswith("sim-syn-") and fname.endswith(".json"):
+            fpath = os.path.join(fixtures_dir, fname)
+            try:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                pid = data.get("patient", {}).get("id")
+                if pid:
+                    results[pid] = data
+                    # Register practitioner if present
+                    prac = data.get("practitioner")
+                    if prac and isinstance(prac, dict) and prac.get("id"):
+                        SAMPLE_PRACTITIONERS[prac["id"]] = prac
+                    # Also register in SAMPLE_PATIENTS for backwards-compatibility
+                    if pid not in SAMPLE_PATIENTS:
+                        SAMPLE_PATIENTS[pid] = {
+                            "id": pid,
+                            "name": " ".join(data.get("patient", {}).get("name", [{}])[0].get("given", [])) + " " + data.get("patient", {}).get("name", [{}])[0].get("family", ""),
+                            "age": now.year - int(data.get("patient", {}).get("birthDate", "1970")[:4]),
+                            "gender": data.get("patient", {}).get("gender", "unknown"),
+                            "conditions": [c.get("code", {}).get("text", "Condition") for c in data.get("conditions", [])],
+                            "description": data.get("description", "Simulated (Synthea) patient"),
+                        }
+            except Exception:
+                pass
+    return results
 
 
 def _make_bundle(resources: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -568,6 +676,16 @@ def handle(path: str, params: Optional[Dict[str, Any]] = None, now: Optional[dat
         resources = [data["patient"] for data in dataset.values()][:count]
         return 200, _make_bundle(copy.deepcopy(resources))
 
+    # 2b. Practitioner read
+    if clean_path.startswith("Practitioner/"):
+        prac_id = clean_path.split("/", 1)[1].strip()
+        if prac_id in SAMPLE_PRACTITIONERS:
+            return 200, copy.deepcopy(SAMPLE_PRACTITIONERS[prac_id])
+        return 404, {
+            "resourceType": "OperationOutcome",
+            "issue": [{"severity": "error", "code": "not-found", "diagnostics": f"Practitioner '{prac_id}' not found in simulator"}]
+        }
+
     # 3. Observation search
     if clean_path == "Observation":
         patient_id = params.get("patient") or params.get("subject")
@@ -616,6 +734,22 @@ def handle(path: str, params: Optional[Dict[str, Any]] = None, now: Optional[dat
         conds_list = copy.deepcopy(dataset[patient_id]["conditions"])
         count = int(params.get("_count", 100))
         return 200, _make_bundle(conds_list[:count])
+
+    # 6. AllergyIntolerance search
+    if clean_path == "AllergyIntolerance":
+        patient_id = params.get("patient") or params.get("subject")
+        if not patient_id:
+            return 400, {
+                "resourceType": "OperationOutcome",
+                "issue": [{"severity": "error", "code": "invalid", "diagnostics": "Missing patient search parameter"}]
+            }
+        patient_id = patient_id.replace("Patient/", "")
+        if patient_id not in dataset:
+            return 200, _make_bundle([])
+        
+        alg_list = copy.deepcopy(dataset[patient_id].get("allergies", []))
+        count = int(params.get("_count", 100))
+        return 200, _make_bundle(alg_list[:count])
 
     return 404, {
         "resourceType": "OperationOutcome",

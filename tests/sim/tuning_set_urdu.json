@@ -1,0 +1,282 @@
+[
+  {
+    "id": 1,
+    "text": "چھاتی کے بیچ میں سخت گھٹن ہو رہی ہے اور سانس رک رہا ہے",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "author": "hassaan"
+  },
+  {
+    "id": 2,
+    "text": "میرے سینے میں شدید چبھن ہے جو گردن اور بائیں کندھے تک جا رہی ہے",
+    "expected_danger": true,
+    "category": "chest_pain",
+    "author": "hassaan"
+  },
+  {
+    "id": 3,
+    "text": "اچانک بولنے میں مشکل ہو رہی ہے اور ایک طرف کا ہاتھ کمزور ہے",
+    "expected_danger": true,
+    "category": "focal_weakness_stroke",
+    "author": "usman"
+  },
+  {
+    "id": 4,
+    "text": "ایک طرف کا بازو سن ہو گیا ہے اور ہاتھ سے چیزیں گر رہی ہیں",
+    "expected_danger": true,
+    "category": "focal_weakness_stroke",
+    "author": "hassaan"
+  },
+  {
+    "id": 5,
+    "text": "شوگر ۴۵ ہے اور چکر آ رہے ہیں",
+    "expected_danger": true,
+    "category": "severe_hypoglycemia",
+    "author": "usman"
+  },
+  {
+    "id": 6,
+    "text": "شوگر ۳۸ رہ گئی ہے اور شدید الجھن اور بے چینی ہو رہی ہے",
+    "expected_danger": true,
+    "category": "severe_hypoglycemia",
+    "author": "hassaan"
+  },
+  {
+    "id": 7,
+    "text": "گلوکومیٹر پر شوگر 42 آئی ہے اور غشی آ رہی ہے",
+    "expected_danger": true,
+    "category": "severe_hypoglycemia",
+    "author": "hassaan"
+  },
+  {
+    "id": 8,
+    "text": "سانس لینے میں شدید تکلیف ہے اور لیٹنے پر دم گھٹتا ہے",
+    "expected_danger": true,
+    "category": "breathing",
+    "author": "hassaan"
+  },
+  {
+    "id": 9,
+    "text": "میرا سانس بالکل رکنے لگا ہے اور کھانسی میں جھاگ آ رہی ہے",
+    "expected_danger": true,
+    "category": "breathing",
+    "author": "hassaan"
+  },
+  {
+    "id": 10,
+    "text": "اچانک سر گھوم گیا اور زمین پر بے سدھ ہو کر گر پڑا",
+    "expected_danger": true,
+    "category": "syncope",
+    "author": "hassaan"
+  },
+  {
+    "id": 11,
+    "text": "کھڑے ہوتے ہی آنکھوں کے آگے اندھیرا چھا گیا اور بے ہوش ہو گئی",
+    "expected_danger": true,
+    "category": "syncope",
+    "author": "hassaan"
+  },
+  {
+    "id": 12,
+    "text": "میرے چہرے کا دایاں حصہ ڈھلک گیا ہے اور پانی پیتے ہوئے منہ سے نکل رہا ہے",
+    "expected_danger": true,
+    "category": "focal_weakness_stroke",
+    "author": "hassaan"
+  },
+  {
+    "id": 13,
+    "text": "سر میں اچانک بجلی کا جھٹکا سا لگا اور شدید ترین درد شروع ہو گیا",
+    "expected_danger": true,
+    "category": "severe_headache",
+    "author": "hassaan"
+  },
+  {
+    "id": 14,
+    "text": "سر کا درد اتنا شدید ہے کہ الٹی آنے لگی ہے اور برداشت سے باہر ہے",
+    "expected_danger": true,
+    "category": "severe_headache",
+    "author": "hassaan"
+  },
+  {
+    "id": 15,
+    "text": "دائیں آنکھ سے اچانک دھندلاہٹ ہو کر بالکل نظر آنا بند ہو گیا",
+    "expected_danger": true,
+    "category": "vision_loss",
+    "author": "hassaan"
+  },
+  {
+    "id": 16,
+    "text": "اچانک دونوں آنکھوں کے سامنے کالی پٹی آ گئی اور کچھ سجھائی نہیں دے رہا",
+    "expected_danger": true,
+    "category": "vision_loss",
+    "author": "hassaan"
+  },
+  {
+    "id": 17,
+    "text": "الٹی میں لال خون آیا ہے اور کمزوری سے ٹانگیں کانپ رہی ہیں",
+    "expected_danger": true,
+    "category": "bleeding",
+    "author": "hassaan"
+  },
+  {
+    "id": 18,
+    "text": "پاخانے کا رنگ کالا سیاہ ہو گیا ہے اور چکر آ رہے ہیں",
+    "expected_danger": true,
+    "category": "bleeding",
+    "author": "hassaan"
+  },
+  {
+    "id": 19,
+    "text": "دل بہت تیز دھڑک رہا ہے جیسے سینے سے باہر نکل جائے گا اور چکر آ رہے ہیں",
+    "expected_danger": true,
+    "category": "palpitations_danger",
+    "author": "hassaan"
+  },
+  {
+    "id": 20,
+    "text": "مریض کو یہ نہیں پتہ کہ وہ کون سے ہسپتال میں ہے اور باتیں بہکی بہکی کر رہا ہے",
+    "expected_danger": true,
+    "category": "confusion",
+    "author": "hassaan"
+  },
+  {
+    "id": 21,
+    "text": "کل رات مرچوں والا کھانا کھایا تھا تو سینے میں ہلکی سی جلن ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 22,
+    "text": "تیز دوڑنے کی وجہ سے دل کی دھڑکن تیز ہو گئی تھی مگر بیٹھنے سے نارمل ہو گئی",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 23,
+    "text": "شوگر 125 آئی ہے اور مجھے کوئی چکر یا تکلیف نہیں ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 24,
+    "text": "سردیوں میں کبھی کبھار ہاتھ کی انگلیاں ٹھنڈی ہو جاتی ہیں",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 25,
+    "text": "سر میں ہلکا سا درد ہے جو چائے پینے کے بعد کم ہو گیا ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 26,
+    "text": "دائیں بازو کے پٹھے میں کھچاؤ ہے کیونکہ کل بھاری وزن اٹھایا تھا",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 27,
+    "text": "ڈاکٹر صاحب نے کہا تھا کہ اگر شوگر 140 سے نیچے رہے تو تسلی رکھیں",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 28,
+    "text": "گلا بیٹھ گیا ہے اس لیے آواز کم نکل رہی ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 29,
+    "text": "کل عصر کے بعد تھوڑا سا چکر آیا تھا مگر شربت پینے سے آرام آ گیا",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 30,
+    "text": "بلڈ پریشر 120 بٹا 80 آیا ہے اور طبیعت بالکل ٹھیک ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 31,
+    "text": "شوگر 110 ہے اور ناشتہ دل بھر کے کیا ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 32,
+    "text": "کمرے کا پنکھا بند کیا تو اندھیرا محسوس ہوا لیکن آنکھیں ٹھیک ہیں",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 33,
+    "text": "دانت کا علاج کروایا تھا جس کی وجہ سے منہ میں سن پن ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 34,
+    "text": "صبح کی چہل قدمی کے دوران تھوڑی سی سانس پھولی جو کہ عام بات ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 35,
+    "text": "دوائی کی خوراک وقت پر لے رہا ہوں اور پرہیز جاری ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 36,
+    "text": "ہاتھوں پر لوشن لگایا ہے تاکہ خشکی ختم ہو سکے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 37,
+    "text": "پچھلے اتوار کو ہلکی سی متلی ہوئی تھی مگر اب سب ٹھیک ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 38,
+    "text": "شوگر 135 ہے اور میں بالکل معمول کے کام کر رہا ہوں",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "usman"
+  },
+  {
+    "id": 39,
+    "text": "کل شام تھکن بہت زیادہ تھی مگر رات کو سونے کے بعد اب ہشاش بشاش ہوں",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  },
+  {
+    "id": 40,
+    "text": "آنکھوں کا نمبر چیک کروایا ہے، ڈاکٹر نے نظر کا چشمہ تبدیل کرنے کو کہا ہے",
+    "expected_danger": false,
+    "category": "safe_lookalike",
+    "author": "hassaan"
+  }
+]

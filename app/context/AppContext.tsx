@@ -13,6 +13,7 @@ import {
   EHRConnectionResponse,
   CheckinStartResponse,
   CheckinCompleteResponse,
+  OcrUploadResponse,
 } from "../lib/api";
 
 export type PortalType = "landing" | "patient" | "provider" | "admin";
@@ -34,7 +35,8 @@ export type PatientScreenType =
   | "conflict_detail"
   | "conflict_review"
   | "emergency"
-  | "appointments";
+  | "appointments"
+  | "ocr_confirm";
 
 export type ProviderScreenType =
   | "login"
@@ -165,6 +167,10 @@ interface AppContextType {
   sessionNotice: string | null;
   setSessionNotice: (notice: string | null) => void;
 
+  // Staged OCR Upload (Day 7)
+  stagedOcrUpload: OcrUploadResponse | null;
+  setStagedOcrUpload: React.Dispatch<React.SetStateAction<OcrUploadResponse | null>>;
+
   // Clean navigation helpers
   returnToHomeAndClearRun: () => void;
   resetDemo: () => void;
@@ -247,6 +253,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Presenter controls
   const [demoScenario, setDemoScenario] = useState<DemoScenario>("normal");
+  const [stagedOcrUpload, setStagedOcrUpload] = useState<OcrUploadResponse | null>(null);
 
   // Patient Baseline Profile (Mock mode fallback)
   const [profile, setProfile] = useState<HealthProfile>({
@@ -714,6 +721,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setDemoScenario,
         sessionNotice,
         setSessionNotice,
+        stagedOcrUpload,
+        setStagedOcrUpload,
         returnToHomeAndClearRun,
         resetDemo,
         signOutUser,

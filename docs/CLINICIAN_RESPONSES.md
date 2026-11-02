@@ -108,3 +108,11 @@ Source: replies relayed by Usman. Title, hospital and permission to be named: no
 - Item 5 (confusion): ask one clarifying question first. This matches the implementation.
 - Item 6 left blank. Item 7 marked yes.
 - Items 1 and 2: confirmed from the paper sheet, no objection recorded.
+
+---
+
+## Update 2 Nov 2026: Week 2 doctor pack sent
+- Sent docs/clinical/ChronicCare_Doctor_Review_Pack_2026-11-02.pdf by WhatsApp on 2 Nov 2026 to Dr Shaiza Jabbar, Capt Dr Talha Yasin and Dr Anam Zafar.
+- 11 decisions: the 9 in DOCTOR_REVIEW_PACK_W2.md plus (10) v2 bare sugar number 2-40 with unclear unit and (11) a check-in with no readings.
+- Replies: none yet.
+

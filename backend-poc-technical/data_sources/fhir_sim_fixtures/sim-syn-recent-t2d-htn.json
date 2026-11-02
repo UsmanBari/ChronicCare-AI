@@ -1,0 +1,634 @@
+{
+  "id": "sim-syn-recent-t2d-htn",
+  "label": "Tariq Farhan (age 54)",
+  "description": "Simulated (Synthea) recent check-in test patient with active vitals and doctor on record",
+  "ehr_system_id": "demo-hospital",
+  "simulated": true,
+  "patient": {
+    "resourceType": "Patient",
+    "id": "sim-syn-recent-t2d-htn",
+    "name": [
+      {
+        "family": "Farhan",
+        "given": [
+          "Tariq"
+        ]
+      }
+    ],
+    "gender": "male",
+    "birthDate": "1972-06-20",
+    "generalPractitioner": [
+      {
+        "reference": "Practitioner/prac-syn-1",
+        "display": "Dr. S. K. Lodhi"
+      }
+    ]
+  },
+  "conditions": [
+    {
+      "resourceType": "Condition",
+      "id": "cond-syn-1",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-condition-encounter-diagnosis"
+        ]
+      },
+      "clinicalStatus": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+            "code": "active"
+          }
+        ]
+      },
+      "verificationStatus": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+            "code": "confirmed"
+          }
+        ]
+      },
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-category",
+              "code": "encounter-diagnosis",
+              "display": "Encounter Diagnosis"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "coding": [
+          {
+            "system": "http://snomed.info/sct",
+            "code": "59621000",
+            "display": "Essential hypertension (disorder)"
+          }
+        ],
+        "text": "Essential hypertension (disorder)"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-htn"
+      },
+      "encounter": {
+        "reference": "urn:uuid:860802b7-cb6b-89e8-cd35-6a905d43fd1a"
+      },
+      "onsetDateTime": "1989-04-20T16:31:32+05:00",
+      "recordedDate": "1989-04-20T16:31:32+05:00"
+    }
+  ],
+  "observations": [
+    {
+      "resourceType": "Observation",
+      "id": "obs-syn-1",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab",
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab"
+        ]
+      },
+      "status": "final",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+              "code": "laboratory",
+              "display": "Laboratory"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "2345-7",
+            "display": "Glucose [Mass/volume] in Serum or Plasma"
+          }
+        ],
+        "text": "Glucose [Mass/volume] in Serum or Plasma"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-htn"
+      },
+      "encounter": {
+        "reference": "urn:uuid:860802b7-cb6b-89e8-93df-127caf7e1e31"
+      },
+      "effectiveDateTime": "2026-10-25T14:02:01Z",
+      "issued": "2000-09-24T05:46:00.272+05:00",
+      "valueQuantity": {
+        "value": 90.99,
+        "unit": "mg/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "mg/dL"
+      }
+    },
+    {
+      "resourceType": "Observation",
+      "id": "obs-syn-2",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab"
+        ]
+      },
+      "status": "final",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+              "code": "laboratory",
+              "display": "Laboratory"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "4548-4",
+            "display": "Hemoglobin A1c/Hemoglobin.total in Blood"
+          }
+        ],
+        "text": "Hemoglobin A1c/Hemoglobin.total in Blood"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-htn"
+      },
+      "encounter": {
+        "reference": "urn:uuid:860802b7-cb6b-89e8-93df-127caf7e1e31"
+      },
+      "effectiveDateTime": "2026-10-25T14:02:01Z",
+      "issued": "2000-09-24T05:46:00.272+05:00",
+      "valueQuantity": {
+        "value": 5.61,
+        "unit": "%",
+        "system": "http://unitsofmeasure.org",
+        "code": "%"
+      }
+    },
+    {
+      "resourceType": "Observation",
+      "id": "obs-syn-3",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab",
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab"
+        ]
+      },
+      "status": "final",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+              "code": "laboratory",
+              "display": "Laboratory"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "2345-7",
+            "display": "Glucose [Mass/volume] in Serum or Plasma"
+          }
+        ],
+        "text": "Glucose [Mass/volume] in Serum or Plasma"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-htn"
+      },
+      "encounter": {
+        "reference": "urn:uuid:860802b7-cb6b-89e8-9ec8-2c48adb27c0c"
+      },
+      "effectiveDateTime": "2026-10-25T01:56:21Z",
+      "issued": "2000-09-23T17:40:20.272+05:00",
+      "valueQuantity": {
+        "value": 90.99,
+        "unit": "mg/dL",
+        "system": "http://unitsofmeasure.org",
+        "code": "mg/dL"
+      }
+    },
+    {
+      "resourceType": "Observation",
+      "id": "obs-syn-4",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-observation-lab"
+        ]
+      },
+      "status": "final",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+              "code": "laboratory",
+              "display": "Laboratory"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "coding": [
+          {
+            "system": "http://loinc.org",
+            "code": "4548-4",
+            "display": "Hemoglobin A1c/Hemoglobin.total in Blood"
+          }
+        ],
+        "text": "Hemoglobin A1c/Hemoglobin.total in Blood"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-htn"
+      },
+      "encounter": {
+        "reference": "urn:uuid:860802b7-cb6b-89e8-9ec8-2c48adb27c0c"
+      },
+      "effectiveDateTime": "2026-10-25T01:56:21Z",
+      "issued": "2000-09-23T17:40:20.272+05:00",
+      "valueQuantity": {
+        "value": 5.61,
+        "unit": "%",
+        "system": "http://unitsofmeasure.org",
+        "code": "%"
+      }
+    }
+  ],
+  "medications": [
+    {
+      "resourceType": "MedicationRequest",
+      "id": "med-syn-1",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest"
+        ]
+      },
+      "status": "active",
+      "intent": "order",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+              "code": "community",
+              "display": "Community"
+            }
+          ],
+          "text": "Community"
+        }
+      ],
+      "medicationCodeableConcept": {
+        "coding": [
+          {
+            "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+            "code": "310798",
+            "display": "Hydrochlorothiazide 25 MG Oral Tablet"
+          }
+        ],
+        "text": "Hydrochlorothiazide 25 MG Oral Tablet"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-htn"
+      },
+      "encounter": {
+        "reference": "urn:uuid:860802b7-cb6b-89e8-e16b-03dc91df673f"
+      },
+      "authoredOn": "2016-05-27T00:47:33Z",
+      "requester": {
+        "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999976696",
+        "display": "Dr. Lorena247 Ocampo729"
+      },
+      "reasonReference": [
+        {
+          "reference": "urn:uuid:860802b7-cb6b-89e8-1fb3-d1e5eb3d4619",
+          "display": "Essential hypertension (disorder)"
+        }
+      ],
+      "dosageInstruction": [
+        {
+          "sequence": 1,
+          "timing": {
+            "repeat": {
+              "frequency": 1,
+              "period": 1.0,
+              "periodUnit": "d"
+            }
+          },
+          "asNeededBoolean": false,
+          "doseAndRate": [
+            {
+              "type": {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/dose-rate-type",
+                    "code": "ordered",
+                    "display": "Ordered"
+                  }
+                ]
+              },
+              "doseQuantity": {
+                "value": 1.0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resourceType": "MedicationRequest",
+      "id": "med-syn-2",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest"
+        ]
+      },
+      "status": "active",
+      "intent": "order",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+              "code": "community",
+              "display": "Community"
+            }
+          ],
+          "text": "Community"
+        }
+      ],
+      "medicationCodeableConcept": {
+        "coding": [
+          {
+            "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+            "code": "314076",
+            "display": "lisinopril 10 MG Oral Tablet"
+          }
+        ],
+        "text": "lisinopril 10 MG Oral Tablet"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-htn"
+      },
+      "encounter": {
+        "reference": "urn:uuid:860802b7-cb6b-89e8-e16b-03dc91df673f"
+      },
+      "authoredOn": "2016-05-27T00:47:33Z",
+      "requester": {
+        "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999976696",
+        "display": "Dr. Lorena247 Ocampo729"
+      },
+      "reasonReference": [
+        {
+          "reference": "urn:uuid:860802b7-cb6b-89e8-1fb3-d1e5eb3d4619",
+          "display": "Essential hypertension (disorder)"
+        }
+      ],
+      "dosageInstruction": [
+        {
+          "sequence": 1,
+          "timing": {
+            "repeat": {
+              "frequency": 1,
+              "period": 1.0,
+              "periodUnit": "d"
+            }
+          },
+          "asNeededBoolean": false,
+          "doseAndRate": [
+            {
+              "type": {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/dose-rate-type",
+                    "code": "ordered",
+                    "display": "Ordered"
+                  }
+                ]
+              },
+              "doseQuantity": {
+                "value": 1.0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resourceType": "MedicationRequest",
+      "id": "med-syn-3",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest"
+        ]
+      },
+      "status": "active",
+      "intent": "order",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+              "code": "community",
+              "display": "Community"
+            }
+          ],
+          "text": "Community"
+        }
+      ],
+      "medicationCodeableConcept": {
+        "coding": [
+          {
+            "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+            "code": "308136",
+            "display": "amLODIPine 2.5 MG Oral Tablet"
+          }
+        ],
+        "text": "amLODIPine 2.5 MG Oral Tablet"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-htn"
+      },
+      "encounter": {
+        "reference": "urn:uuid:860802b7-cb6b-89e8-e16b-03dc91df673f"
+      },
+      "authoredOn": "2016-05-27T00:47:33Z",
+      "requester": {
+        "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999976696",
+        "display": "Dr. Lorena247 Ocampo729"
+      },
+      "reasonReference": [
+        {
+          "reference": "urn:uuid:860802b7-cb6b-89e8-1fb3-d1e5eb3d4619",
+          "display": "Essential hypertension (disorder)"
+        }
+      ],
+      "dosageInstruction": [
+        {
+          "sequence": 1,
+          "timing": {
+            "repeat": {
+              "frequency": 1,
+              "period": 1.0,
+              "periodUnit": "d"
+            }
+          },
+          "asNeededBoolean": false,
+          "doseAndRate": [
+            {
+              "type": {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/dose-rate-type",
+                    "code": "ordered",
+                    "display": "Ordered"
+                  }
+                ]
+              },
+              "doseQuantity": {
+                "value": 1.0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resourceType": "MedicationRequest",
+      "id": "med-syn-4",
+      "meta": {
+        "profile": [
+          "http://hl7.org/fhir/us/core/StructureDefinition/us-core-medicationrequest"
+        ]
+      },
+      "status": "active",
+      "intent": "order",
+      "category": [
+        {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/medicationrequest-category",
+              "code": "community",
+              "display": "Community"
+            }
+          ],
+          "text": "Community"
+        }
+      ],
+      "medicationCodeableConcept": {
+        "coding": [
+          {
+            "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+            "code": "310798",
+            "display": "Hydrochlorothiazide 25 MG Oral Tablet"
+          }
+        ],
+        "text": "Hydrochlorothiazide 25 MG Oral Tablet"
+      },
+      "subject": {
+        "reference": "Patient/sim-syn-recent-t2d-htn"
+      },
+      "encounter": {
+        "reference": "urn:uuid:860802b7-cb6b-89e8-3d6d-e459eb92fdf0"
+      },
+      "authoredOn": "2017-06-02T00:47:33Z",
+      "requester": {
+        "reference": "Practitioner?identifier=http://hl7.org/fhir/sid/us-npi|9999976696",
+        "display": "Dr. Lorena247 Ocampo729"
+      },
+      "reasonReference": [
+        {
+          "reference": "urn:uuid:860802b7-cb6b-89e8-1fb3-d1e5eb3d4619",
+          "display": "Essential hypertension (disorder)"
+        }
+      ],
+      "dosageInstruction": [
+        {
+          "sequence": 1,
+          "timing": {
+            "repeat": {
+              "frequency": 1,
+              "period": 1.0,
+              "periodUnit": "d"
+            }
+          },
+          "asNeededBoolean": false,
+          "doseAndRate": [
+            {
+              "type": {
+                "coding": [
+                  {
+                    "system": "http://terminology.hl7.org/CodeSystem/dose-rate-type",
+                    "code": "ordered",
+                    "display": "Ordered"
+                  }
+                ]
+              },
+              "doseQuantity": {
+                "value": 1.0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "allergies": [
+    {
+      "resourceType": "AllergyIntolerance",
+      "id": "alg-syn-1",
+      "clinicalStatus": {
+        "coding": [
+          {
+            "code": "active"
+          }
+        ]
+      },
+      "verificationStatus": {
+        "coding": [
+          {
+            "code": "confirmed"
+          }
+        ]
+      },
+      "criticality": "low",
+      "code": {
+        "text": "Latex allergy"
+      },
+      "patient": {
+        "reference": "Patient/sim-syn-recent-t2d-htn"
+      }
+    }
+  ],
+  "practitioner": {
+    "resourceType": "Practitioner",
+    "id": "prac-syn-1",
+    "identifier": [
+      {
+        "system": "http://hospital.sim/practitioners",
+        "value": "SYN-PRAC-01"
+      }
+    ],
+    "name": [
+      {
+        "family": "Lodhi",
+        "given": [
+          "S. K."
+        ],
+        "prefix": [
+          "Dr."
+        ]
+      }
+    ],
+    "gender": "other"
+  }
+}

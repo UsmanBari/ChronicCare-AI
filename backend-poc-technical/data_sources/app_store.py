@@ -11,6 +11,7 @@ Guarantees:
 
 import os
 import json
+import uuid
 import sqlite3
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any, Optional
@@ -44,10 +45,98 @@ APP_STORE_TABLES = {
     "checkin_results",
     "review_actions",
     "allergies",
+    "record_edits",
+    "guideline_chunks",
     "schema_version",
 }
 
-LATEST_SCHEMA_VERSION = 12
+LATEST_SCHEMA_VERSION = 15
+
+SQLITE_RECORD_EDITS_DDL = """
+CREATE TABLE IF NOT EXISTS record_edits (
+    edit_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    record_type TEXT NOT NULL,
+    record_id TEXT NOT NULL,
+    field TEXT NOT NULL,
+    old_value TEXT DEFAULT NULL,
+    new_value TEXT DEFAULT NULL,
+    origin TEXT NOT NULL,
+    changed_by_user_id TEXT NOT NULL,
+    changed_at TEXT NOT NULL,
+    reason TEXT DEFAULT NULL
+);
+"""
+SQLITE_RECORD_EDITS_LOOKUP_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_record_edits_lookup 
+    ON record_edits (user_id, record_type, record_id);
+"""
+SQLITE_RECORD_EDITS_TIMELINE_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_record_edits_timeline 
+    ON record_edits (user_id, changed_at DESC);
+"""
+
+MYSQL_RECORD_EDITS_DDL = """
+CREATE TABLE IF NOT EXISTS record_edits (
+    edit_id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL,
+    record_type VARCHAR(32) NOT NULL,
+    record_id VARCHAR(64) NOT NULL,
+    field VARCHAR(64) NOT NULL,
+    old_value TEXT DEFAULT NULL,
+    new_value TEXT DEFAULT NULL,
+    origin VARCHAR(32) NOT NULL,
+    changed_by_user_id VARCHAR(64) NOT NULL,
+    changed_at VARCHAR(64) NOT NULL,
+    reason TEXT DEFAULT NULL,
+    INDEX idx_record_edits_lookup (user_id, record_type, record_id),
+    INDEX idx_record_edits_timeline (user_id, changed_at DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+SQLITE_GUIDELINE_CHUNKS_DDL = """
+CREATE TABLE IF NOT EXISTS guideline_chunks (
+    chunk_id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    edition TEXT,
+    priority INTEGER DEFAULT 1,
+    section_path TEXT,
+    page_start INTEGER,
+    page_end INTEGER,
+    grade TEXT,
+    condition TEXT NOT NULL,
+    topics_json TEXT,
+    text TEXT NOT NULL,
+    loaded_at TEXT NOT NULL
+);
+"""
+SQLITE_GUIDELINE_CHUNKS_CONDITION_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_guideline_chunks_condition ON guideline_chunks(condition);
+"""
+SQLITE_GUIDELINE_CHUNKS_SOURCE_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_guideline_chunks_source ON guideline_chunks(source_id);
+"""
+
+MYSQL_GUIDELINE_CHUNKS_DDL = """
+CREATE TABLE IF NOT EXISTS guideline_chunks (
+    chunk_id VARCHAR(128) PRIMARY KEY,
+    source_id VARCHAR(64) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    edition VARCHAR(64) NULL,
+    priority INT NOT NULL DEFAULT 1,
+    section_path VARCHAR(255) NULL,
+    page_start INT NULL,
+    page_end INT NULL,
+    grade VARCHAR(32) NULL,
+    `condition` VARCHAR(64) NOT NULL,
+    topics_json TEXT NULL,
+    text MEDIUMTEXT NOT NULL,
+    loaded_at VARCHAR(64) NOT NULL,
+    INDEX idx_guideline_chunks_condition (`condition`),
+    INDEX idx_guideline_chunks_source (source_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
 
 
 def _utc_now_iso() -> str:
@@ -396,6 +485,37 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     cursor.execute("ALTER TABLE patient_profiles ADD COLUMN comorbidities_json TEXT DEFAULT NULL")
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (12, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 13")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(patient_profiles)")
+                pp_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "waist_cm" not in pp_cols:
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN waist_cm REAL DEFAULT NULL")
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (13, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 14")
+            if not cursor.fetchone():
+                cursor.execute(SQLITE_RECORD_EDITS_DDL)
+                cursor.execute(SQLITE_RECORD_EDITS_LOOKUP_INDEX)
+                cursor.execute(SQLITE_RECORD_EDITS_TIMELINE_INDEX)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (14, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 15")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(checkin_results)")
+                cr_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "risk_json" not in cr_cols:
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN risk_json TEXT")
+                if "explanation_json" not in cr_cols:
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN explanation_json TEXT")
+                if "trace_json" not in cr_cols:
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN trace_json TEXT")
+
+                cursor.execute(SQLITE_GUIDELINE_CHUNKS_DDL)
+                cursor.execute(SQLITE_GUIDELINE_CHUNKS_CONDITION_INDEX)
+                cursor.execute(SQLITE_GUIDELINE_CHUNKS_SOURCE_INDEX)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (15, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -746,6 +866,34 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
 
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (12, %s)", (now,))
 
+            cursor.execute("SELECT version FROM schema_version WHERE version = 13")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'patient_profiles' AND COLUMN_NAME = 'waist_cm'
+                """)
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE patient_profiles ADD COLUMN waist_cm FLOAT NULL")
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (13, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 14")
+            if not cursor.fetchone():
+                cursor.execute(MYSQL_RECORD_EDITS_DDL)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (14, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 15")
+            if not cursor.fetchone():
+                for col_name in ["risk_json", "explanation_json", "trace_json"]:
+                    cursor.execute(f"""
+                        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkin_results' AND COLUMN_NAME = '{col_name}'
+                    """)
+                    if not cursor.fetchone():
+                        cursor.execute(f"ALTER TABLE checkin_results ADD COLUMN {col_name} MEDIUMTEXT NULL")
+
+                cursor.execute(MYSQL_GUIDELINE_CHUNKS_DDL)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (15, %s)", (now,))
+
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
                    mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -905,7 +1053,7 @@ def get_patient_profile(user_id: str, backend: Optional[str] = None, db_path: Op
             SELECT user_id, conditions_json, on_insulin_or_sulfonylurea, language,
                    date_of_birth, inclusion_confirmed_at,
                    sex_at_birth, pregnancy_status,
-                   voice_enabled, height_cm, weight_kg,
+                   voice_enabled, height_cm, weight_kg, waist_cm,
                    diagnosis_year_diabetes, diagnosis_year_hypertension,
                    smoking_status, comorbidities_json,
                    consent_granted_at, consent_revoked_at,
@@ -937,6 +1085,7 @@ def get_patient_profile(user_id: str, backend: Optional[str] = None, db_path: Op
         d["voice_enabled"] = bool(d.get("voice_enabled", 0))
         d["height_cm"] = float(d["height_cm"]) if d.get("height_cm") is not None else None
         d["weight_kg"] = float(d["weight_kg"]) if d.get("weight_kg") is not None else None
+        d["waist_cm"] = float(d["waist_cm"]) if d.get("waist_cm") is not None else None
         d["diagnosis_year_diabetes"] = d.get("diagnosis_year_diabetes")
         d["diagnosis_year_hypertension"] = d.get("diagnosis_year_hypertension")
         d["smoking_status"] = d.get("smoking_status")
@@ -952,6 +1101,7 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                            voice_enabled: Optional[bool] = None,
                            height_cm: Optional[float] = None,
                            weight_kg: Optional[float] = None,
+                           waist_cm: Optional[float] = None,
                            diagnosis_year_diabetes: Optional[int] = None,
                            diagnosis_year_hypertension: Optional[int] = None,
                            smoking_status: Optional[str] = None,
@@ -992,6 +1142,7 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
     final_voice = (1 if voice_enabled else 0) if voice_enabled is not None else (1 if (existing and existing.get("voice_enabled")) else 0)
     final_height = height_cm if height_cm is not None else (existing.get("height_cm") if existing else None)
     final_weight = weight_kg if weight_kg is not None else (existing.get("weight_kg") if existing else None)
+    final_waist = waist_cm if waist_cm is not None else (existing.get("waist_cm") if existing else None)
     final_diag_dia = diagnosis_year_diabetes if diagnosis_year_diabetes is not None else (existing.get("diagnosis_year_diabetes") if existing else None)
     final_diag_hyp = diagnosis_year_hypertension if diagnosis_year_hypertension is not None else (existing.get("diagnosis_year_hypertension") if existing else None)
     final_smoking = smoking_status if smoking_status is not None else (existing.get("smoking_status") if existing else None)
@@ -1008,9 +1159,9 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                 f"""
                 INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language,
                                               date_of_birth, inclusion_confirmed_at, sex_at_birth, pregnancy_status,
-                                              voice_enabled, height_cm, weight_kg, diagnosis_year_diabetes, diagnosis_year_hypertension,
+                                              voice_enabled, height_cm, weight_kg, waist_cm, diagnosis_year_diabetes, diagnosis_year_hypertension,
                                               smoking_status, comorbidities_json, updated_at)
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON CONFLICT(user_id) DO UPDATE SET
                     conditions_json = excluded.conditions_json,
                     on_insulin_or_sulfonylurea = excluded.on_insulin_or_sulfonylurea,
@@ -1022,6 +1173,7 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                     voice_enabled = excluded.voice_enabled,
                     height_cm = excluded.height_cm,
                     weight_kg = excluded.weight_kg,
+                    waist_cm = excluded.waist_cm,
                     diagnosis_year_diabetes = excluded.diagnosis_year_diabetes,
                     diagnosis_year_hypertension = excluded.diagnosis_year_hypertension,
                     smoking_status = excluded.smoking_status,
@@ -1029,16 +1181,16 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                     updated_at = excluded.updated_at
                 """,
                 (user_id, cond_json, insulin_val, clean_lang, final_dob, final_inc_at, final_sex, final_preg,
-                 final_voice, final_height, final_weight, final_diag_dia, final_diag_hyp, final_smoking, final_comorb, now)
+                 final_voice, final_height, final_weight, final_waist, final_diag_dia, final_diag_hyp, final_smoking, final_comorb, now)
             )
         else:
             cursor.execute(
                 f"""
                 INSERT INTO patient_profiles (user_id, conditions_json, on_insulin_or_sulfonylurea, language,
                                               date_of_birth, inclusion_confirmed_at, sex_at_birth, pregnancy_status,
-                                              voice_enabled, height_cm, weight_kg, diagnosis_year_diabetes, diagnosis_year_hypertension,
+                                              voice_enabled, height_cm, weight_kg, waist_cm, diagnosis_year_diabetes, diagnosis_year_hypertension,
                                               smoking_status, comorbidities_json, updated_at)
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON DUPLICATE KEY UPDATE
                     conditions_json = VALUES(conditions_json),
                     on_insulin_or_sulfonylurea = VALUES(on_insulin_or_sulfonylurea),
@@ -1050,6 +1202,7 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                     voice_enabled = VALUES(voice_enabled),
                     height_cm = VALUES(height_cm),
                     weight_kg = VALUES(weight_kg),
+                    waist_cm = VALUES(waist_cm),
                     diagnosis_year_diabetes = VALUES(diagnosis_year_diabetes),
                     diagnosis_year_hypertension = VALUES(diagnosis_year_hypertension),
                     smoking_status = VALUES(smoking_status),
@@ -1057,22 +1210,72 @@ def upsert_patient_profile(user_id: str, conditions: Optional[List[str]] = None,
                     updated_at = VALUES(updated_at)
                 """,
                 (user_id, cond_json, insulin_val, clean_lang, final_dob, final_inc_at, final_sex, final_preg,
-                 final_voice, final_height, final_weight, final_diag_dia, final_diag_hyp, final_smoking, final_comorb, now)
+                 final_voice, final_height, final_weight, final_waist, final_diag_dia, final_diag_hyp, final_smoking, final_comorb, now)
             )
     return get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
 
 def update_patient_conditions_basis(user_id: str, conditions_basis: Dict[str, Optional[str]],
                                    backend: Optional[str] = None, db_path: Optional[str] = None,
-                                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
-    """Updates conditions basis mapping in patient profile."""
+                                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None,
+                                   changed_by_user_id: Optional[str] = None, origin: str = "self_reported",
+                                   cursor: Optional[Any] = None) -> Dict[str, Any]:
+    """Updates conditions basis mapping in patient profile and logs record_edits per changed basis."""
+    existing_prof = get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) or {}
+    old_basis_dict = existing_prof.get("conditions_basis", {})
     basis_json = json.dumps(conditions_basis)
     now = _utc_now_iso()
+    actor_id = changed_by_user_id or user_id
+
+    if cursor is not None:
+        b = backend or ("mysql" if os.environ.get("DB_BACKEND") == "mysql" or os.environ.get("CHRONICCARE_MYSQL_URL") else "sqlite")
+        ph = "%s" if b == "mysql" else "?"
+        cursor.execute(
+            f"UPDATE patient_profiles SET conditions_basis_json = {ph}, updated_at = {ph} WHERE user_id = {ph}",
+            (basis_json, now, user_id)
+        )
+        for cond_name, new_val in conditions_basis.items():
+            old_val = old_basis_dict.get(cond_name)
+            if new_val != old_val:
+                record_edit(
+                    cursor,
+                    ph,
+                    user_id=user_id,
+                    record_type="condition",
+                    record_id=cond_name,
+                    field="basis",
+                    old_value=old_val,
+                    new_value=new_val,
+                    origin=origin,
+                    changed_by_user_id=actor_id,
+                    reason=None,
+                )
+        updated_prof = dict(existing_prof)
+        updated_prof["conditions_basis"] = conditions_basis
+        updated_prof["updated_at"] = now
+        return updated_prof
+
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
             f"UPDATE patient_profiles SET conditions_basis_json = {ph}, updated_at = {ph} WHERE user_id = {ph}",
             (basis_json, now, user_id)
         )
+        for cond_name, new_val in conditions_basis.items():
+            old_val = old_basis_dict.get(cond_name)
+            if new_val != old_val:
+                record_edit(
+                    cursor,
+                    ph,
+                    user_id=user_id,
+                    record_type="condition",
+                    record_id=cond_name,
+                    field="basis",
+                    old_value=old_val,
+                    new_value=new_val,
+                    origin=origin,
+                    changed_by_user_id=actor_id,
+                    reason=None,
+                )
     return get_patient_profile(user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
 
@@ -1164,7 +1367,10 @@ def set_patient_provider_notification_consent(user_id: str, granted: bool, backe
 def create_allergy(allergy_id: str, user_id: str, substance: str, reaction: Optional[str],
                    confirmed: bool, created_at: Optional[str] = None,
                    backend: Optional[str] = None, db_path: Optional[str] = None,
-                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
+                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None,
+                   changed_by_user_id: Optional[str] = None, origin: str = "self_reported",
+                   reason: Optional[str] = None, old_value: Optional[Any] = None,
+                   cursor: Optional[Any] = None) -> Dict[str, Any]:
     """Inserts a new allergy record for a patient."""
     clean_id = str(allergy_id).strip()
     clean_uid = str(user_id).strip()
@@ -1172,11 +1378,54 @@ def create_allergy(allergy_id: str, user_id: str, substance: str, reaction: Opti
     clean_rx = str(reaction).strip() if reaction else None
     conf_val = 1 if confirmed else 0
     now = created_at or _utc_now_iso()
+    actor_id = changed_by_user_id or clean_uid
+
+    if cursor is not None:
+        b = backend or ("mysql" if os.environ.get("DB_BACKEND") == "mysql" or os.environ.get("CHRONICCARE_MYSQL_URL") else "sqlite")
+        ph = "%s" if b == "mysql" else "?"
+        cursor.execute(
+            f"INSERT INTO allergies (allergy_id, user_id, substance, reaction, confirmed, created_at) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+            (clean_id, clean_uid, clean_sub, clean_rx, conf_val, now)
+        )
+        record_edit(
+            cursor,
+            ph,
+            user_id=clean_uid,
+            record_type="allergy",
+            record_id=clean_id,
+            field="created",
+            old_value=old_value,
+            new_value={"substance": clean_sub, "reaction": clean_rx, "confirmed": bool(conf_val)},
+            origin=origin,
+            changed_by_user_id=actor_id,
+            reason=reason,
+        )
+        return {
+            "allergy_id": clean_id,
+            "user_id": clean_uid,
+            "substance": clean_sub,
+            "reaction": clean_rx,
+            "confirmed": bool(conf_val),
+            "created_at": now,
+        }
 
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
             f"INSERT INTO allergies (allergy_id, user_id, substance, reaction, confirmed, created_at) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
             (clean_id, clean_uid, clean_sub, clean_rx, conf_val, now)
+        )
+        record_edit(
+            cursor,
+            ph,
+            user_id=clean_uid,
+            record_type="allergy",
+            record_id=clean_id,
+            field="created",
+            old_value=old_value,
+            new_value={"substance": clean_sub, "reaction": clean_rx, "confirmed": bool(confirmed)},
+            origin=origin,
+            changed_by_user_id=actor_id,
+            reason=reason,
         )
     return {
         "allergy_id": clean_id,
@@ -1230,8 +1479,15 @@ def get_allergy_by_id(allergy_id: str, user_id: Optional[str] = None,
 
 def delete_allergy(allergy_id: str, user_id: Optional[str] = None,
                    backend: Optional[str] = None, db_path: Optional[str] = None,
-                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> bool:
-    """Deletes an allergy record. Returns True if deleted."""
+                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None,
+                   changed_by_user_id: Optional[str] = None, origin: str = "self_reported") -> bool:
+    """Deletes an allergy record and writes a deletion record_edit row on the same cursor."""
+    existing = get_allergy_by_id(allergy_id, user_id=user_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+    if not existing:
+        return False
+    actor_id = changed_by_user_id or (user_id or existing["user_id"])
+    target_uid = user_id or existing["user_id"]
+
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         if user_id:
             cursor.execute(
@@ -1243,46 +1499,32 @@ def delete_allergy(allergy_id: str, user_id: Optional[str] = None,
                 f"DELETE FROM allergies WHERE allergy_id = {ph}",
                 (allergy_id,)
             )
-        return (cursor.rowcount or 0) > 0
+        deleted = (cursor.rowcount or 0) > 0
+        if deleted:
+            record_edit(
+                cursor,
+                ph,
+                user_id=target_uid,
+                record_type="allergy",
+                record_id=allergy_id,
+                field="deleted",
+                old_value={"substance": existing["substance"], "reaction": existing["reaction"], "confirmed": existing["confirmed"]},
+                new_value=None,
+                origin=origin,
+                changed_by_user_id=actor_id,
+                reason=None,
+            )
+        return deleted
 
 
 # =============================================================================
 # EHR REGISTRY & CONNECTION HELPERS
 # =============================================================================
 
-SIMULATED_SAMPLE_PATIENTS = [
-    {
-        "id": "sim-ayesha",
-        "label": "Ayesha K. (Age 52)",
-        "description": "Type 2 diabetes & hypertension. Daily BP ~128/82 and fasting glucose 140-150 mg/dL for 7 days. Active Metformin & Lisinopril."
-    },
-    {
-        "id": "sim-bilal",
-        "label": "Bilal A. (Age 67)",
-        "description": "Hypertension. Low, stable personal baseline BP 110-116/70-74 for 10 days. Active Amlodipine."
-    },
-    {
-        "id": "sim-sana",
-        "label": "Sana M. (Age 45)",
-        "description": "Type 2 diabetes on insulin. Fasting glucose 150-175 mg/dL for 7 days. Active Insulin glargine & Metformin."
-    },
-    {
-        "id": "sim-imran",
-        "label": "Imran Q. (Age 71)",
-        "description": "Type 2 diabetes & hypertension. Rising BP 148-156/92-98 and elevated glucose 180-210 mg/dL. Active Metformin, Lisinopril, Atorvastatin."
-    },
-    {
-        "id": "sim-newpatient",
-        "label": "Nadia R. (Age 38)",
-        "description": "Hypertension. No recent observations in EHR (empty record test). Active Lisinopril."
-    }
-]
-
-PUBLIC_SANDBOX_SUGGESTED_PATIENT_IDS = [
-    "d48ac962-78c6-46cf-ba33-a24771bfa0e4",
-    "b85d7e00-3690-4e2a-87a0-f3d2dfc908b3",
-    "4551370c-c3eb-4164-a2ff-b528f73a4e0f",
-]
+from data_sources.ehr_test_patients import (
+    SIMULATED_SAMPLE_PATIENTS,
+    PUBLIC_SANDBOX_SUGGESTED_PATIENT_IDS,
+)
 
 
 def get_enabled_ehr_systems(backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -1608,6 +1850,9 @@ def create_checkin_result(
     triage_level: Optional[str] = None,
     triage: Optional[Dict[str, Any]] = None,
     created_at: Optional[str] = None,
+    risk: Optional[Dict[str, Any]] = None,
+    explanation: Optional[Dict[str, Any]] = None,
+    trace: Optional[List[Dict[str, Any]]] = None,
     backend: Optional[str] = None,
     db_path: Optional[str] = None,
     mysql_url: Optional[str] = None,
@@ -1619,6 +1864,9 @@ def create_checkin_result(
     recon_str = json.dumps(reconciliation) if reconciliation else None
     verif_str = json.dumps(verification) if verification else None
     triage_str = json.dumps(triage) if triage else None
+    risk_str = json.dumps(risk) if risk else None
+    explanation_str = json.dumps(explanation) if explanation else None
+    trace_str = json.dumps(trace) if trace else None
     emg_val = 1 if emergency else 0
     req_rev_val = 1 if requires_review else 0
     clean_trigger_text = trigger_text[:500] if trigger_text else None
@@ -1630,9 +1878,9 @@ def create_checkin_result(
                 INSERT INTO checkin_results (
                     checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                     requires_review, max_severity, review_status, trigger_category, trigger_text,
-                    escalated_at, triage_level, triage_json, created_at
+                    escalated_at, triage_level, triage_json, risk_json, explanation_json, trace_json, created_at
                 )
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON CONFLICT(checkin_id) DO UPDATE SET
                     emergency = excluded.emergency,
                     intakes_json = excluded.intakes_json,
@@ -1645,9 +1893,12 @@ def create_checkin_result(
                     trigger_text = excluded.trigger_text,
                     escalated_at = excluded.escalated_at,
                     triage_level = excluded.triage_level,
-                    triage_json = excluded.triage_json
+                    triage_json = excluded.triage_json,
+                    risk_json = excluded.risk_json,
+                    explanation_json = excluded.explanation_json,
+                    trace_json = excluded.trace_json
                 """,
-                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, now)
+                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, risk_str, explanation_str, trace_str, now)
             )
         else:
             cursor.execute(
@@ -1655,9 +1906,9 @@ def create_checkin_result(
                 INSERT INTO checkin_results (
                     checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                     requires_review, max_severity, review_status, trigger_category, trigger_text,
-                    escalated_at, triage_level, triage_json, created_at
+                    escalated_at, triage_level, triage_json, risk_json, explanation_json, trace_json, created_at
                 )
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON DUPLICATE KEY UPDATE
                     emergency = VALUES(emergency),
                     intakes_json = VALUES(intakes_json),
@@ -1670,9 +1921,12 @@ def create_checkin_result(
                     trigger_text = VALUES(trigger_text),
                     escalated_at = VALUES(escalated_at),
                     triage_level = VALUES(triage_level),
-                    triage_json = VALUES(triage_json)
+                    triage_json = VALUES(triage_json),
+                    risk_json = VALUES(risk_json),
+                    explanation_json = VALUES(explanation_json),
+                    trace_json = VALUES(trace_json)
                 """,
-                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, now)
+                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, risk_str, explanation_str, trace_str, now)
             )
     return get_checkin_result(checkin_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
@@ -1685,7 +1939,7 @@ def get_checkin_result(checkin_id: str, backend: Optional[str] = None, db_path: 
             f"""
             SELECT checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                    requires_review, max_severity, review_status, trigger_category, trigger_text,
-                   escalated_at, triage_level, triage_json, created_at
+                   escalated_at, triage_level, triage_json, risk_json, explanation_json, trace_json, created_at
             FROM checkin_results
             WHERE checkin_id = {ph}
             """,
@@ -1704,6 +1958,12 @@ def get_checkin_result(checkin_id: str, backend: Optional[str] = None, db_path: 
         d["verification"] = json.loads(verif_raw) if verif_raw else None
         raw_triage = d.pop("triage_json", None)
         d["triage"] = json.loads(raw_triage) if raw_triage else None
+        raw_risk = d.pop("risk_json", None)
+        d["risk"] = json.loads(raw_risk) if raw_risk else None
+        raw_explanation = d.pop("explanation_json", None)
+        d["explanation"] = json.loads(raw_explanation) if raw_explanation else None
+        raw_trace = d.pop("trace_json", None)
+        d["trace"] = json.loads(raw_trace) if raw_trace else None
         return d
 
 
@@ -2004,3 +2264,269 @@ def get_user_baseline_history(user_id: str, exclude_checkin_id: Optional[str] = 
     return history
 
 
+def get_user_reading_history(
+    user_id: str,
+    days: int = 30,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Returns the signed-in patient's reading history over a configurable window (default 30 days)
+    for trend analysis, including check-in readings (completed, non-emergency) and isolated-mode
+    Local Store observations (excluding CHECKIN- copies).
+    Scoped strictly to user_id.
+
+    Returns:
+        List of dicts with keys:
+        {"observation_type", "value", "timestamp", "source", "checkin_id", "glucose_context"}
+    """
+    now_dt = datetime.now(timezone.utc)
+    window_cutoff = now_dt - timedelta(days=days)
+    cutoff_iso = window_cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    history: List[Dict[str, Any]] = []
+
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        query = f"""
+            SELECT c.checkin_id, c.completed_at, r.intakes_json, r.emergency
+            FROM checkins c
+            INNER JOIN checkin_results r ON c.checkin_id = r.checkin_id
+            WHERE c.user_id = {ph}
+              AND c.status = 'complete'
+              AND r.emergency = 0
+              AND c.completed_at >= {ph}
+            ORDER BY c.completed_at DESC
+        """
+        cursor.execute(query, (user_id, cutoff_iso))
+        rows = cursor.fetchall()
+        for row in rows:
+            d = dict(row)
+            checkin_id = d.get("checkin_id")
+            raw_intakes = d.get("intakes_json")
+            completed_at = d.get("completed_at")
+            if not raw_intakes or not completed_at:
+                continue
+            try:
+                intakes = json.loads(raw_intakes)
+            except Exception:
+                intakes = []
+            for intake in intakes:
+                # Check for context in intake or intake answers/slots
+                intake_ctx = (
+                    intake.get("glucose_context")
+                    or (intake.get("answers", {}) or {}).get("glucose_context")
+                    or (intake.get("slots", {}) or {}).get("glucose_context")
+                )
+                for reading in intake.get("readings", []):
+                    obs_type = reading.get("observation_type")
+                    val = reading.get("value")
+                    ctx = reading.get("glucose_context") or intake_ctx
+                    if obs_type in ("blood_pressure_systolic", "blood_pressure_diastolic", "glucose") and val is not None:
+                        try:
+                            history.append({
+                                "observation_type": obs_type,
+                                "value": float(val),
+                                "timestamp": completed_at,
+                                "source": "checkin",
+                                "checkin_id": checkin_id,
+                                "glucose_context": ctx,
+                            })
+                        except (ValueError, TypeError):
+                            pass
+
+    # In isolated mode, include observations from local_store (excluding checkin copies)
+    try:
+        from data_sources import local_store
+        local_obs = local_store.get_local_observations(f"local-{user_id}")
+        for obs in local_obs:
+            source_rec_id = str(obs.get("id") or obs.get("source_record_id") or "")
+            if source_rec_id.startswith("CHECKIN-"):
+                continue
+            obs_type = obs.get("type") or obs.get("observation_type")
+            val = obs.get("value")
+            measured_at = obs.get("measured_at") or obs.get("timestamp")
+            ctx = obs.get("glucose_context") or obs.get("context")
+            if obs_type in ("blood_pressure_systolic", "blood_pressure_diastolic", "glucose") and val is not None and measured_at:
+                try:
+                    obs_dt = datetime.fromisoformat(measured_at.replace("Z", "+00:00"))
+                    if obs_dt.tzinfo is None:
+                        obs_dt = obs_dt.replace(tzinfo=timezone.utc)
+                    if obs_dt >= window_cutoff:
+                        history.append({
+                            "observation_type": obs_type,
+                            "value": float(val),
+                            "timestamp": measured_at,
+                            "source": "local_store",
+                            "checkin_id": None,
+                            "glucose_context": ctx,
+                        })
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    return history
+
+
+
+
+
+# =============================================================================
+# RECORD EDIT HISTORY (SCHEMA V13)
+# =============================================================================
+
+def record_edit(
+    cursor: Any,
+    ph: str,
+    *,
+    user_id: str,
+    record_type: str,
+    record_id: str,
+    field: str,
+    old_value: Any,
+    new_value: Any,
+    origin: str,
+    changed_by_user_id: str,
+    reason: Optional[str] = None,
+) -> str:
+    """
+    Inserts a row into record_edits using the active caller's cursor.
+    Values are JSON-encoded (None represents null).
+    changed_at is UTC ISO-8601 ending in 'Z'.
+    """
+    edit_id = str(uuid.uuid4())
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    old_json = json.dumps(old_value) if old_value is not None else None
+    new_json = json.dumps(new_value) if new_value is not None else None
+
+    query = f"""
+        INSERT INTO record_edits (
+            edit_id, user_id, record_type, record_id, field,
+            old_value, new_value, origin, changed_by_user_id, changed_at, reason
+        ) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+    """
+    cursor.execute(
+        query,
+        (
+            edit_id,
+            str(user_id),
+            str(record_type),
+            str(record_id),
+            str(field),
+            old_json,
+            new_json,
+            str(origin),
+            str(changed_by_user_id),
+            ts,
+            reason,
+        ),
+    )
+    return edit_id
+
+
+def get_record_edits(
+    user_id: str,
+    record_type: Optional[str] = None,
+    record_id: Optional[str] = None,
+    limit: int = 50,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Retrieves record edit history for a user, newest first.
+    Filters by record_type and/or record_id if provided.
+    In SQLite isolated dev mode, merges edits from app_store and local_store.
+    """
+    safe_limit = max(1, min(int(limit), 200))
+    edits: List[Dict[str, Any]] = []
+
+    # 1. Fetch from app_store.record_edits
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        where_clauses = [f"(user_id = {ph} OR user_id = {ph})"]
+        params: List[Any] = [user_id, f"local-{user_id}"]
+
+        if record_type:
+            where_clauses.append(f"record_type = {ph}")
+            params.append(record_type)
+        if record_id:
+            where_clauses.append(f"record_id = {ph}")
+            params.append(record_id)
+
+        where_sql = " AND ".join(where_clauses)
+        query = f"""
+            SELECT edit_id, user_id, record_type, record_id, field,
+                   old_value, new_value, origin, changed_by_user_id, changed_at, reason
+            FROM record_edits
+            WHERE {where_sql}
+            ORDER BY changed_at DESC, edit_id DESC
+            LIMIT {ph}
+        """
+        params.append(safe_limit)
+        cursor.execute(query, tuple(params))
+        for r in cursor.fetchall():
+            d = dict(r)
+            if d.get("old_value") is not None:
+                try:
+                    d["old_value"] = json.loads(d["old_value"])
+                except Exception:
+                    pass
+            if d.get("new_value") is not None:
+                try:
+                    d["new_value"] = json.loads(d["new_value"])
+                except Exception:
+                    pass
+            edits.append(d)
+
+    # 2. In SQLite dev/CI mode, local_store.db has separate record_edits for meds/obs
+    selected_be = (backend or get_db_backend()).lower()
+    if selected_be != "mysql":
+        try:
+            from data_sources import local_store
+            local_edits = local_store.get_record_edits(
+                user_id=user_id,
+                record_type=record_type,
+                record_id=record_id,
+                limit=safe_limit,
+            )
+            edits.extend(local_edits)
+        except Exception:
+            pass
+
+    # Deduplicate by edit id across stores if paths point to the same database
+    seen = set()
+    unique_edits = []
+    for e in edits:
+        eid = e.get("id") or e.get("edit_id")
+        if eid and eid in seen:
+            continue
+        if eid:
+            seen.add(eid)
+        unique_edits.append(e)
+
+    # Sort merged results newest first and slice by limit
+    unique_edits.sort(key=lambda x: str(x.get("changed_at", "")), reverse=True)
+    return unique_edits[:safe_limit]
+
+
+def get_recent_edits_for_patient(
+    patient_id: str,
+    limit: int = 20,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Retrieves the last N edits for a patient across all record types."""
+    clean_uid = patient_id.removeprefix("local-") if patient_id.startswith("local-") else patient_id
+    return get_record_edits(
+        user_id=clean_uid,
+        limit=limit,
+        backend=backend,
+        db_path=db_path,
+        mysql_url=mysql_url,
+        ssl_ca=ssl_ca,
+    )

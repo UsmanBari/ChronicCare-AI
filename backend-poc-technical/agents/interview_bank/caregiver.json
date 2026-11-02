@@ -8,7 +8,11 @@
     "template_ur": "آج ان سوالات کے جوابات کون دے رہا ہے؟",
     "template_roman_ur": "Aaj in sawalaat ke jawabaat kaun de raha hai?",
     "answer_type": "choice",
-    "choices": ["patient", "caregiver", "family_member"],
+    "choices": [
+      "patient",
+      "caregiver",
+      "family_member"
+    ],
     "valid_range": null,
     "unit_options": null,
     "requires": {},
@@ -17,7 +21,20 @@
     "rule_id": null,
     "source": "nice_cg138_patient_experience",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "یہ ریکارڈ کرنے کے لیے کہ آیا جواب مریض خود دے رہا ہے یا ان کی دیکھ بھال کرنے والا کوئی فرد۔",
+    "why_text_roman_ur": "Yeh record karne ke liye ke aaya jawab mareez khud de raha hai ya un ki dekh bhaal karne wala koi fard.",
+    "choices_ur": [
+      "مریض خود",
+      "دیکھ بھال کرنے والا",
+      "خاندان کا فرد"
+    ],
+    "choices_roman_ur": [
+      "Mareez khud",
+      "Caregiver",
+      "Khandan ka fard"
+    ],
+    "needs_native_review": true
   },
   {
     "id": "caregiver_relationship",
@@ -31,12 +48,17 @@
     "choices": null,
     "valid_range": null,
     "unit_options": null,
-    "requires": {"answered_by": "caregiver"},
+    "requires": {
+      "answered_by": "caregiver"
+    },
     "priority_class": "open",
     "can_raise_level": false,
     "rule_id": null,
     "source": "nice_cg138_patient_experience",
     "review_status": "proposed, not reviewed by a clinician",
-    "bank_version": "3.0"
+    "bank_version": "3.0",
+    "why_text_ur": "ڈاکٹر کے ریکارڈ کے لیے مریض کے ساتھ دیکھ بھال کرنے والے کا رشتہ درج کرنے کے لیے۔",
+    "why_text_roman_ur": "Doctor ke record ke liye mareez ke sath dekh bhaal karne walay ka rishta darj karne ke liye.",
+    "needs_native_review": true
   }
 ]
