@@ -46,10 +46,11 @@ APP_STORE_TABLES = {
     "review_actions",
     "allergies",
     "record_edits",
+    "guideline_chunks",
     "schema_version",
 }
 
-LATEST_SCHEMA_VERSION = 14
+LATEST_SCHEMA_VERSION = 15
 
 SQLITE_RECORD_EDITS_DDL = """
 CREATE TABLE IF NOT EXISTS record_edits (
@@ -90,6 +91,50 @@ CREATE TABLE IF NOT EXISTS record_edits (
     reason TEXT DEFAULT NULL,
     INDEX idx_record_edits_lookup (user_id, record_type, record_id),
     INDEX idx_record_edits_timeline (user_id, changed_at DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+SQLITE_GUIDELINE_CHUNKS_DDL = """
+CREATE TABLE IF NOT EXISTS guideline_chunks (
+    chunk_id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    edition TEXT,
+    priority INTEGER DEFAULT 1,
+    section_path TEXT,
+    page_start INTEGER,
+    page_end INTEGER,
+    grade TEXT,
+    condition TEXT NOT NULL,
+    topics_json TEXT,
+    text TEXT NOT NULL,
+    loaded_at TEXT NOT NULL
+);
+"""
+SQLITE_GUIDELINE_CHUNKS_CONDITION_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_guideline_chunks_condition ON guideline_chunks(condition);
+"""
+SQLITE_GUIDELINE_CHUNKS_SOURCE_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_guideline_chunks_source ON guideline_chunks(source_id);
+"""
+
+MYSQL_GUIDELINE_CHUNKS_DDL = """
+CREATE TABLE IF NOT EXISTS guideline_chunks (
+    chunk_id VARCHAR(128) PRIMARY KEY,
+    source_id VARCHAR(64) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    edition VARCHAR(64) NULL,
+    priority INT NOT NULL DEFAULT 1,
+    section_path VARCHAR(255) NULL,
+    page_start INT NULL,
+    page_end INT NULL,
+    grade VARCHAR(32) NULL,
+    `condition` VARCHAR(64) NOT NULL,
+    topics_json TEXT NULL,
+    text MEDIUMTEXT NOT NULL,
+    loaded_at VARCHAR(64) NOT NULL,
+    INDEX idx_guideline_chunks_condition (`condition`),
+    INDEX idx_guideline_chunks_source (source_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
@@ -455,6 +500,22 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 cursor.execute(SQLITE_RECORD_EDITS_LOOKUP_INDEX)
                 cursor.execute(SQLITE_RECORD_EDITS_TIMELINE_INDEX)
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (14, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 15")
+            if not cursor.fetchone():
+                cursor.execute("PRAGMA table_info(checkin_results)")
+                cr_cols = [row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in cursor.fetchall()]
+                if "risk_json" not in cr_cols:
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN risk_json TEXT")
+                if "explanation_json" not in cr_cols:
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN explanation_json TEXT")
+                if "trace_json" not in cr_cols:
+                    cursor.execute("ALTER TABLE checkin_results ADD COLUMN trace_json TEXT")
+
+                cursor.execute(SQLITE_GUIDELINE_CHUNKS_DDL)
+                cursor.execute(SQLITE_GUIDELINE_CHUNKS_CONDITION_INDEX)
+                cursor.execute(SQLITE_GUIDELINE_CHUNKS_SOURCE_INDEX)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (15, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -819,6 +880,19 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
             if not cursor.fetchone():
                 cursor.execute(MYSQL_RECORD_EDITS_DDL)
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (14, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 15")
+            if not cursor.fetchone():
+                for col_name in ["risk_json", "explanation_json", "trace_json"]:
+                    cursor.execute(f"""
+                        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkin_results' AND COLUMN_NAME = '{col_name}'
+                    """)
+                    if not cursor.fetchone():
+                        cursor.execute(f"ALTER TABLE checkin_results ADD COLUMN {col_name} MEDIUMTEXT NULL")
+
+                cursor.execute(MYSQL_GUIDELINE_CHUNKS_DDL)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (15, %s)", (now,))
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -1745,6 +1819,9 @@ def create_checkin_result(
     triage_level: Optional[str] = None,
     triage: Optional[Dict[str, Any]] = None,
     created_at: Optional[str] = None,
+    risk: Optional[Dict[str, Any]] = None,
+    explanation: Optional[Dict[str, Any]] = None,
+    trace: Optional[List[Dict[str, Any]]] = None,
     backend: Optional[str] = None,
     db_path: Optional[str] = None,
     mysql_url: Optional[str] = None,
@@ -1756,6 +1833,9 @@ def create_checkin_result(
     recon_str = json.dumps(reconciliation) if reconciliation else None
     verif_str = json.dumps(verification) if verification else None
     triage_str = json.dumps(triage) if triage else None
+    risk_str = json.dumps(risk) if risk else None
+    explanation_str = json.dumps(explanation) if explanation else None
+    trace_str = json.dumps(trace) if trace else None
     emg_val = 1 if emergency else 0
     req_rev_val = 1 if requires_review else 0
     clean_trigger_text = trigger_text[:500] if trigger_text else None
@@ -1767,9 +1847,9 @@ def create_checkin_result(
                 INSERT INTO checkin_results (
                     checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                     requires_review, max_severity, review_status, trigger_category, trigger_text,
-                    escalated_at, triage_level, triage_json, created_at
+                    escalated_at, triage_level, triage_json, risk_json, explanation_json, trace_json, created_at
                 )
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON CONFLICT(checkin_id) DO UPDATE SET
                     emergency = excluded.emergency,
                     intakes_json = excluded.intakes_json,
@@ -1782,9 +1862,12 @@ def create_checkin_result(
                     trigger_text = excluded.trigger_text,
                     escalated_at = excluded.escalated_at,
                     triage_level = excluded.triage_level,
-                    triage_json = excluded.triage_json
+                    triage_json = excluded.triage_json,
+                    risk_json = excluded.risk_json,
+                    explanation_json = excluded.explanation_json,
+                    trace_json = excluded.trace_json
                 """,
-                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, now)
+                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, risk_str, explanation_str, trace_str, now)
             )
         else:
             cursor.execute(
@@ -1792,9 +1875,9 @@ def create_checkin_result(
                 INSERT INTO checkin_results (
                     checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                     requires_review, max_severity, review_status, trigger_category, trigger_text,
-                    escalated_at, triage_level, triage_json, created_at
+                    escalated_at, triage_level, triage_json, risk_json, explanation_json, trace_json, created_at
                 )
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON DUPLICATE KEY UPDATE
                     emergency = VALUES(emergency),
                     intakes_json = VALUES(intakes_json),
@@ -1807,9 +1890,12 @@ def create_checkin_result(
                     trigger_text = VALUES(trigger_text),
                     escalated_at = VALUES(escalated_at),
                     triage_level = VALUES(triage_level),
-                    triage_json = VALUES(triage_json)
+                    triage_json = VALUES(triage_json),
+                    risk_json = VALUES(risk_json),
+                    explanation_json = VALUES(explanation_json),
+                    trace_json = VALUES(trace_json)
                 """,
-                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, now)
+                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, risk_str, explanation_str, trace_str, now)
             )
     return get_checkin_result(checkin_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
@@ -1822,7 +1908,7 @@ def get_checkin_result(checkin_id: str, backend: Optional[str] = None, db_path: 
             f"""
             SELECT checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                    requires_review, max_severity, review_status, trigger_category, trigger_text,
-                   escalated_at, triage_level, triage_json, created_at
+                   escalated_at, triage_level, triage_json, risk_json, explanation_json, trace_json, created_at
             FROM checkin_results
             WHERE checkin_id = {ph}
             """,
@@ -1841,6 +1927,12 @@ def get_checkin_result(checkin_id: str, backend: Optional[str] = None, db_path: 
         d["verification"] = json.loads(verif_raw) if verif_raw else None
         raw_triage = d.pop("triage_json", None)
         d["triage"] = json.loads(raw_triage) if raw_triage else None
+        raw_risk = d.pop("risk_json", None)
+        d["risk"] = json.loads(raw_risk) if raw_risk else None
+        raw_explanation = d.pop("explanation_json", None)
+        d["explanation"] = json.loads(raw_explanation) if raw_explanation else None
+        raw_trace = d.pop("trace_json", None)
+        d["trace"] = json.loads(raw_trace) if raw_trace else None
         return d
 
 

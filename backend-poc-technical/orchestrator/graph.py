@@ -16,6 +16,8 @@ from orchestrator.steps import (
     step_verify,
     step_persist_local_observations,
     step_decide_triage,
+    step_risk,
+    step_explain,
     step_persist_and_respond,
 )
 
@@ -279,6 +281,71 @@ def node_decide_triage(state: CheckinState) -> Dict[str, Any]:
     }
 
 
+def node_risk(state: CheckinState) -> Dict[str, Any]:
+    t0 = time.perf_counter()
+    start_iso = _utc_now_iso()
+    user = state["user"]
+    parsed_context = state["parsed_context"]
+    interview_st = parsed_context["state"]
+    triage_dec = state["triage_decision"]
+    trace = list(state.get("trace") or [])
+
+    risk_res = step_risk(
+        user_id=user["user_id"],
+        state=interview_st,
+        triage_decision=triage_dec,
+        trace=trace,
+    )
+
+    band_str = risk_res.get("band") if risk_res else "none"
+    raised_bool = risk_res.get("raised", False) if risk_res else False
+    status_str = risk_res.get("status", "skipped") if risk_res else "skipped"
+    trace.append(_make_trace_step(
+        node="node_risk",
+        start_iso=start_iso,
+        start_time=t0,
+        summary=f"risk assessed; status={status_str}, band={band_str}, raised={raised_bool}",
+    ))
+
+    return {
+        "risk": risk_res,
+        "triage_decision": triage_dec,
+        "triage": triage_dec.get("triage_dict"),
+        "trace": trace,
+    }
+
+
+def node_explain(state: CheckinState) -> Dict[str, Any]:
+    t0 = time.perf_counter()
+    start_iso = _utc_now_iso()
+    user = state["user"]
+    parsed_context = state["parsed_context"]
+    interview_st = parsed_context["state"]
+    triage_dec = state["triage_decision"]
+    trace = list(state.get("trace") or [])
+
+    explain_res = step_explain(
+        user_id=user["user_id"],
+        state=interview_st,
+        triage_decision=triage_dec,
+        trace=trace,
+    )
+
+    mode_str = explain_res.get("mode") if explain_res else "skipped"
+    status_str = explain_res.get("status", "ok") if explain_res else "skipped"
+    trace.append(_make_trace_step(
+        node="node_explain",
+        start_iso=start_iso,
+        start_time=t0,
+        summary=f"explanation generated; status={status_str}, mode={mode_str}",
+    ))
+
+    return {
+        "explanation": explain_res,
+        "trace": trace,
+    }
+
+
 def node_persist(state: CheckinState) -> Dict[str, Any]:
     t0 = time.perf_counter()
     start_iso = _utc_now_iso()
@@ -298,6 +365,14 @@ def node_persist(state: CheckinState) -> Dict[str, Any]:
             "trace": trace,
         }
 
+    final_lvl = state["triage_decision"]["final_triage_level"]
+    trace.append(_make_trace_step(
+        node="node_persist",
+        start_iso=start_iso,
+        start_time=t0,
+        summary=f"persisted checkin result; level={final_lvl}, status=complete",
+    ))
+
     parsed_context = state["parsed_context"]
     resp = step_persist_and_respond(
         checkin_id=checkin_id,
@@ -308,15 +383,10 @@ def node_persist(state: CheckinState) -> Dict[str, Any]:
         med_state=parsed_context.get("med_state"),
         protocol_state=parsed_context.get("protocol_state"),
         record_label=record_label,
+        risk=state.get("risk"),
+        explanation=state.get("explanation"),
+        trace=trace,
     )
-
-    final_lvl = state["triage_decision"]["final_triage_level"]
-    trace.append(_make_trace_step(
-        node="node_persist",
-        start_iso=start_iso,
-        start_time=t0,
-        summary=f"persisted checkin result; level={final_lvl}, status=complete",
-    ))
 
     return {
         "result": resp,
@@ -338,6 +408,8 @@ def build_checkin_completion_graph():
     builder.add_node("verify", node_verify)
     builder.add_node("persist_local", node_persist_local)
     builder.add_node("decide_triage", node_decide_triage)
+    builder.add_node("risk", node_risk)
+    builder.add_node("explain", node_explain)
     builder.add_node("persist", node_persist)
 
     builder.add_edge(START, "intake")
@@ -361,7 +433,9 @@ def build_checkin_completion_graph():
         },
     )
     builder.add_edge("persist_local", "decide_triage")
-    builder.add_edge("decide_triage", "persist")
+    builder.add_edge("decide_triage", "risk")
+    builder.add_edge("risk", "explain")
+    builder.add_edge("explain", "persist")
     builder.add_edge("persist", END)
 
     return builder.compile()

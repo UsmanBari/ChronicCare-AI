@@ -62,3 +62,16 @@ def apply_risk_to_level(
             return target, True
 
     return level, False
+
+
+def is_risk_applicable(conditions: Optional[Any]) -> bool:
+    """
+    Checks if diabetes risk assessment applies:
+    Patient must have hypertension and NOT have diabetes.
+    """
+    if not conditions:
+        return False
+    conds_lower = [str(c).strip().lower() for c in conditions]
+    has_htn = any("hyper" in c for c in conds_lower)
+    has_diabetes = any("diabet" in c for c in conds_lower)
+    return bool(has_htn and not has_diabetes)

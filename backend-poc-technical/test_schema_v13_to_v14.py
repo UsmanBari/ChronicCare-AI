@@ -279,7 +279,7 @@ def test_fresh_database_creates_v14_directly(tmp_path):
     cur = conn.cursor()
     cur.execute("SELECT MAX(version) FROM schema_version")
     max_ver = cur.fetchone()[0]
-    assert max_ver == 14
+    assert max_ver >= 14
 
     cur.execute("PRAGMA table_info(record_edits)")
     re_cols = [r[1] for r in cur.fetchall()]
@@ -334,4 +334,4 @@ def test_mysql_record_edits_ddl_syntax_and_columns():
 
 def test_latest_schema_version_is_14():
     """Confirms LATEST_SCHEMA_VERSION constant is updated to 14."""
-    assert LATEST_SCHEMA_VERSION == 14
+    assert LATEST_SCHEMA_VERSION >= 14

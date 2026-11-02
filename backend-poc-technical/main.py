@@ -208,6 +208,13 @@ async def lifespan(app: FastAPI):
         logger.info("local store ready")
     except Exception as e:
         logger.warning("Local store initialization skipped on startup: %s", str(e))
+    if os.environ.get("EXPLAIN_ENABLED", "").strip().lower() == "true":
+        try:
+            from rag.store import get_db_chunk_store
+            store = get_db_chunk_store()
+            logger.info("DbChunkStore loaded at startup: %d chunks", store.total_chunks())
+        except Exception as e:
+            logger.warning("DbChunkStore startup load skipped: %s", type(e).__name__)
     yield
 
 
@@ -856,6 +863,9 @@ from orchestrator.steps import (
     step_verify,
     step_persist_local_observations,
     step_decide_triage,
+    step_risk,
+    step_explain,
+    build_direct_trace,
     step_persist_and_respond,
 )
 ORCHESTRATOR = os.environ.get("ORCHESTRATOR", "direct").lower()
@@ -991,6 +1001,9 @@ class ReviewDetailResponse(BaseModel):
     answered_by: Optional[str] = None
     trends: Optional[TrendsResponse] = None
     risk: Optional[Dict[str, Any]] = None
+    checkin_risk: Optional[Dict[str, Any]] = None
+    explanation: Optional[Dict[str, Any]] = None
+    trace: Optional[List[Dict[str, Any]]] = None
     recent_record_edits: Optional[List[RecordEditItem]] = None
 
 
@@ -4067,7 +4080,36 @@ def complete_checkin_endpoint(
     # 8. Triage Decision
     triage_decision = step_decide_triage(verif_result, state, protocol_state, current_user["user_id"], get_patient_profile_fn=get_patient_profile)
 
-    # 9. Persistence & Response
+    # 9. Risk Assessment Step
+    risk_result = step_risk(
+        user_id=current_user["user_id"],
+        state=state,
+        triage_decision=triage_decision,
+        get_patient_profile_fn=get_patient_profile,
+    )
+
+    # 10. Guideline Explanation Step
+    explain_result = step_explain(
+        user_id=current_user["user_id"],
+        state=state,
+        triage_decision=triage_decision,
+        get_patient_profile_fn=get_patient_profile,
+    )
+
+    # 11. Trace Construction (Direct Mode)
+    direct_trace = build_direct_trace(
+        state=state,
+        prior_bundle=prior_bundle,
+        checkin_bundle=checkin_bundle,
+        recon_result=recon_result,
+        verif_result=verif_result,
+        mode=checkin["mode"],
+        triage_decision=triage_decision,
+        risk_res=risk_result,
+        explain_res=explain_result,
+    )
+
+    # 12. Persistence & Response
     return step_persist_and_respond(
         checkin_id=checkin_id,
         state=state,
@@ -4077,6 +4119,9 @@ def complete_checkin_endpoint(
         med_state=med_state,
         protocol_state=protocol_state,
         record_label=record_label,
+        risk=risk_result,
+        explanation=explain_result,
+        trace=direct_trace,
     )
 
 
@@ -4153,10 +4198,8 @@ def _compute_patient_risk_safe(user_id: str) -> Optional[Dict[str, Any]]:
         if not profile:
             return None
         conditions = profile.get("conditions", [])
-        conds_lower = [str(c).lower() for c in conditions]
-        has_htn = any("hyper" in c for c in conds_lower)
-        has_diabetes = any("diabet" in c for c in conds_lower)
-        if not has_htn or has_diabetes:
+        from agents.risk_rules import is_risk_applicable
+        if not is_risk_applicable(conditions):
             return None
         history = get_user_reading_history(user_id, days=30)
         from agents.risk_agent import assess as assess_risk
@@ -4280,6 +4323,9 @@ def get_provider_review_detail_endpoint(
         answered_by=answered_by_val,
         trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
         risk=_compute_patient_risk_safe(checkin["user_id"]),
+        checkin_risk=result.get("risk"),
+        explanation=result.get("explanation"),
+        trace=result.get("trace"),
         recent_record_edits=[
             RecordEditItem(**e)
             for e in get_recent_edits_for_patient(checkin["user_id"], limit=20)
@@ -4358,6 +4404,9 @@ def post_provider_review_action_endpoint(
         patient_background=patient_bg,
         trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
         risk=_compute_patient_risk_safe(checkin["user_id"]),
+        checkin_risk=result.get("risk"),
+        explanation=result.get("explanation"),
+        trace=result.get("trace"),
         recent_record_edits=[
             RecordEditItem(**e)
             for e in get_recent_edits_for_patient(checkin["user_id"], limit=20)
