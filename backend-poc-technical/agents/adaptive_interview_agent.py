@@ -459,10 +459,10 @@ def _process_glucose_input(answer: str, previously_asked: bool = False) -> Tuple
             guidance = None
             reason = None
             if conv_mg < 54.0:
-                guidance = "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume 15g fast-acting sugar immediately."
+                guidance = "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
                 reason = "glucose_very_low"
             elif conv_mg < 70.0:
-                guidance = "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume fast-acting sugar."
+                guidance = "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
                 reason = "glucose_low"
             return conv_mg, "mg/dL", False, guidance, reason
 
@@ -478,7 +478,7 @@ def _process_glucose_input(answer: str, previously_asked: bool = False) -> Tuple
                 return None, None, True, None, None
             else:
                 val = float(num_val)
-                guidance = "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume 15g fast-acting sugar immediately."
+                guidance = "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
                 reason = "glucose value unit unclear, possible low"
                 return val, "unclear", False, guidance, reason
 
@@ -497,7 +497,7 @@ def _process_glucose_input(answer: str, previously_asked: bool = False) -> Tuple
 
     if v_res.is_possible_severe_low or (previously_asked and v_res.value is not None and float(v_res.value) <= 54):
         val = float(v_res.value) if v_res.value is not None else 35.0
-        guidance = v_res.safety_guidance or "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume 15g fast-acting sugar immediately."
+        guidance = v_res.safety_guidance or "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
         reason = v_res.review_reason or "glucose value unit unclear, possible low"
         return val, "unclear", False, guidance, reason
 

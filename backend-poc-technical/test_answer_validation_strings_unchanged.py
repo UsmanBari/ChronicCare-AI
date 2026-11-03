@@ -19,8 +19,7 @@ def test_glucose_unclear_safety_guidance_exact_pre_pr():
     # 1. Unknown / skip input with previously_asked_unit=True
     res_skip = validate_glucose_input("don't know", previously_asked_unit=True)
     assert res_skip.safety_guidance == (
-        "If you feel shaky, sweaty, dizzy, or unwell, please consume fast-acting sugar "
-        "(fruit juice or sweets) and re-check, or seek medical advice."
+        "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
     )
     assert res_skip.clarification_prompt == (
         "Glucose unit unclear. Treated as possible low sugar for safety review."
@@ -29,8 +28,7 @@ def test_glucose_unclear_safety_guidance_exact_pre_pr():
     # 2. Ambiguous glucose in 2.0-40.0 with previously_asked_unit=True
     res_ambig_2nd = validate_glucose_input("7", previously_asked_unit=True)
     assert res_ambig_2nd.safety_guidance == (
-        "If you feel shaky, sweaty, dizzy, or unwell, please consume fast-acting sugar "
-        "(fruit juice or sweets) and re-check, or seek medical advice."
+        "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
     )
     assert res_ambig_2nd.clarification_prompt == (
         "Glucose unit unclear. Treated as possible low sugar for safety review."

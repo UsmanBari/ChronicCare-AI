@@ -1,5 +1,4 @@
 {
-  "_comment_clinical_safety": "NOTE: v3_possible_low_guidance contains specific therapeutic dosage advice ('15g fast-acting sugar'). It is preserved verbatim per G-06 until a supervising physician formally signs off on neutral emergency referral phrasing.",
   "emergency_red_flag_note": {
     "en": "Emergency red flag detected. Please seek emergency medical care immediately.",
     "ur": "ہنگامی علامت سامنے آئی ہے۔ براہ کرم فوراً قریبی ایمرجنسی یا ہسپتال سے رجوع کریں۔",
@@ -43,21 +42,30 @@
     "needs_native_review": false
   },
   "unit_clarification_options": {
-    "en": ["mmol/L", "mg/dL"],
-    "ur": ["mmol/L", "mg/dL"],
-    "roman_ur": ["mmol/L", "mg/dL"],
+    "en": [
+      "mmol/L",
+      "mg/dL"
+    ],
+    "ur": [
+      "mmol/L",
+      "mg/dL"
+    ],
+    "roman_ur": [
+      "mmol/L",
+      "mg/dL"
+    ],
     "needs_native_review": false
   },
   "glucose_unclear_unit_safety_guidance": {
-    "en": "If you feel shaky, sweaty, dizzy, or unwell, please consume fast-acting sugar (fruit juice or sweets) and re-check, or seek medical advice.",
-    "ur": "اگر آپ کپکپاہٹ، پسینہ، چکر، یا طبیعت خراب محسوس کریں، تو براہ کرم جلدی اثر کرنے والی شوگر (پھلوں کا رس یا میٹھا) لیں اور دوبارہ چیک کریں، یا ڈاکٹر سے مشورہ کریں۔",
-    "roman_ur": "Agar aap kapkapahat, paseena, chakkar, ya tabiyat kharab mehsoos karein, to barah-e-karam jaldi asar karne wali sugar (fruit juice ya meetha) lein aur dobara check karein, ya doctor se mashwara karein.",
+    "en": "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist.",
+    "ur": "فوراً جلدی اثر کرنے والی میٹھی چیز لیں، جیسے پھلوں کا جوس یا گلوکوز، اور اگر علامات برقرار رہیں تو فوراً طبی مدد حاصل کریں۔",
+    "roman_ur": "Foran jaldi asar karne wali meethi cheez lein, jaise phalon ka juice ya glucose, aur agar alamaat barqarar rahein to foran doctor se rabta karein.",
     "needs_native_review": false
   },
   "v3_possible_low_guidance": {
-    "en": "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume 15g fast-acting sugar (half cup juice or 3-4 glucose tablets) immediately.",
-    "ur": "کم شوگر کی اطلاع: اگر آپ کپکپاہٹ، پسینہ، الجھن، یا چکر محسوس کریں تو فوراً 15 گرام جلدی اثر کرنے والی شوگر (آدھا کپ رس یا 3 سے 4 گلوکوز کی گولیاں) لیں۔",
-    "roman_ur": "Kam sugar ki itla: Agar aap kapkapahat, paseena, uljhan ya chakkar mehsoos karein, to foran 15g jaldi asar karne wali sugar (adha cup juice ya 3-4 glucose tablets) lein.",
+    "en": "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist.",
+    "ur": "فوراً جلدی اثر کرنے والی میٹھی چیز لیں، جیسے پھلوں کا جوس یا گلوکوز، اور اگر علامات برقرار رہیں تو فوراً طبی مدد حاصل کریں۔",
+    "roman_ur": "Foran jaldi asar karne wali meethi cheez lein, jaise phalon ka juice ya glucose, aur agar alamaat barqarar rahein to foran doctor se rabta karein.",
     "needs_native_review": false
   },
   "glucose_unit_unclear_prompt": {

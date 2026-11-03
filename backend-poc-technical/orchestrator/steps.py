@@ -601,7 +601,7 @@ def step_decide_triage(
         elif intake_requires_review:
             triage_dict = {
                 "level": "review",
-                "guidance": "Low blood sugar safety review required. If you feel shaky, sweaty, or confused, consume fast-acting sugar immediately.",
+                "guidance": "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist.",
                 "summary": "Check-in flagged for clinician review.",
             }
         else:
