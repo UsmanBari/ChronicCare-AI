@@ -1041,7 +1041,7 @@ def get_audit_logs(limit: int = 50, backend: Optional[str] = None, db_path: Opti
 # =============================================================================
 
 ALLOWED_CONDITIONS = {"diabetes", "hypertension"}
-ALLOWED_LANGUAGES = {"en", "ur"}
+ALLOWED_LANGUAGES = {"en", "ur", "roman_ur"}
 
 
 def get_patient_profile(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
