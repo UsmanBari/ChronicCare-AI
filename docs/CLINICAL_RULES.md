@@ -18,7 +18,7 @@ A single number never decides an emergency. A numeric trigger starts the confirm
 
 | Priority | Protocol | Starts when | Constants | Source |
 |---|---|---|---|---|
-| 1 | bp_severe | systolic >= 180 or diastolic >= 120 | `DANGEROUS_BP_SYSTOLIC_MMHG`, `DANGEROUS_BP_DIASTOLIC_MMHG` | ACC/AHA 2017 blood-pressure guideline; Project Proposal Section 27 |
+| 1 | bp_severe | systolic >= 180 or diastolic >= 120 | `DANGEROUS_BP_SYSTOLIC_MMHG`, `DANGEROUS_BP_DIASTOLIC_MMHG` | 2025 AHA/ACC Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults (replaces 2017; thresholds unchanged: Stage 2 from 140/90, crisis at 180/120); Project Proposal Section 27 |
 | 2 | glucose_high | glucose >= 250 mg/dL | `GLUCOSE_HIGH_MG_DL` | Project Proposal Section 15 |
 | 3 | glucose_low | glucose < 70 mg/dL | `GLUCOSE_LOW_MG_DL` | ADA Standards of Care (current edition) |
 | 4 | bp_low | systolic < 90 or diastolic < 60 | `BP_LOW_SYSTOLIC_MMHG`, `BP_LOW_DIASTOLIC_MMHG` | Project team, illustrative (no guideline cited) |
@@ -136,7 +136,7 @@ The system gives **no treatment advice** in any protocol. The only advice it sho
 ## 4. Age, inclusion and exclusions
 
 - Adults only: age below `MIN_ADULT_AGE` (18) is refused at onboarding; above `MAX_PLAUSIBLE_AGE` (120) is treated as an invalid date of birth.
-- For adults the ACC/AHA categories and the crisis limits do not change with age. Age band changes the questions only: from `OLDER_ADULT_AGE` (65) the bp_change and bp_low protocols add one question each (dizziness on standing, falls).
+- For adults the 2025 AHA/ACC categories and the crisis limits do not change with age (thresholds identical to 2017). Age band changes the questions only: from `OLDER_ADULT_AGE` (65) the bp_change and bp_low protocols add one question each (dizziness on standing, falls).
 - The patient confirms at onboarding that they are 18 or older and not pregnant. Pregnancy has different blood-pressure limits and is **out of scope**.
 - Not for children, pregnancy, anyone who cannot answer for themselves, or any emergency. The system does not consider kidney disease, heart failure or other conditions that change the targets.
 
@@ -186,8 +186,8 @@ After the interview (and the protocol, if one was needed) the patient is asked a
 | `SYSTOLIC_RANGE_MMHG` | `60, 260` | adaptive_interview_agent.py | Project team, illustrative (no guideline cited) | A systolic outside this range is treated as a missing reading. |
 | `DIASTOLIC_RANGE_MMHG` | `30, 160` | adaptive_interview_agent.py | Project team, illustrative (no guideline cited) | A diastolic outside this range is treated as a missing reading. |
 | `NEGATION_WINDOW_WORDS` | `3` | adaptive_interview_agent.py | Project team, illustrative (no guideline cited) | A negation within this many words before a danger phrase cancels it. |
-| `DANGEROUS_BP_SYSTOLIC_MMHG` | `180` | adaptive_interview_agent.py | ACC/AHA 2017 blood-pressure guideline (hypertensive crisis); Project Proposal Section 27 | Crisis-range limit; starts the confirmation protocol, never an emergency by itself. |
-| `DANGEROUS_BP_DIASTOLIC_MMHG` | `120` | adaptive_interview_agent.py | ACC/AHA 2017 blood-pressure guideline (hypertensive crisis); Project Proposal Section 27 | Same as above, diastolic limit. |
+| `DANGEROUS_BP_SYSTOLIC_MMHG` | `180` | adaptive_interview_agent.py | 2025 AHA/ACC Guideline (hypertensive crisis, replaces 2017, thresholds unchanged); Project Proposal Section 27 | Crisis-range limit; starts the confirmation protocol, never an emergency by itself. |
+| `DANGEROUS_BP_DIASTOLIC_MMHG` | `120` | adaptive_interview_agent.py | 2025 AHA/ACC Guideline (hypertensive crisis, replaces 2017, thresholds unchanged); Project Proposal Section 27 | Same as above, diastolic limit. |
 | `RED_FLAG_PATTERNS` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
 | `RED_FLAG_LEVELS` | `unable_to_keep_fluids=urgent; dka_vomiting_high_glucose=urgent` | adaptive_interview_agent.py | Clinician review decision (13 Oct 2026) | Maps red-flag categories to urgent or emergency. |
 | `_NEGATION_CUES` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
@@ -204,8 +204,8 @@ After the interview (and the protocol, if one was needed) the patient is asked a
 | `MIN_ADULT_AGE` | `18` | triage_protocol.py | Scope decision (adults only) | Younger patients are refused: paediatric blood pressure is judged against age, sex and height percentiles. |
 | `OLDER_ADULT_AGE` | `65` | triage_protocol.py | Project team, illustrative (no guideline cited) | From this age two extra questions are asked (standing dizziness, falls). |
 | `MAX_PLAUSIBLE_AGE` | `120` | triage_protocol.py | Project team, illustrative (no guideline cited) | Upper limit for a plausible age. |
-| `BP_STAGE2_SYSTOLIC_MMHG` | `140` | triage_protocol.py | ACC/AHA 2017 blood-pressure guideline (stage 2 hypertension) | After a re-measure, at or above this the first reading is judged 'improved but still high'. |
-| `BP_STAGE2_DIASTOLIC_MMHG` | `90` | triage_protocol.py | ACC/AHA 2017 blood-pressure guideline (stage 2 hypertension) | Same as above, diastolic limit. |
+| `BP_STAGE2_SYSTOLIC_MMHG` | `140` | triage_protocol.py | 2025 AHA/ACC Guideline (stage 2 hypertension, replaces 2017, thresholds unchanged: 140/90) | After a re-measure, at or above this the first reading is judged 'improved but still high'. |
+| `BP_STAGE2_DIASTOLIC_MMHG` | `90` | triage_protocol.py | 2025 AHA/ACC Guideline (stage 2 hypertension, replaces 2017, thresholds unchanged: 140/90) | Same as above, diastolic limit. |
 | `BP_LOW_SYSTOLIC_MMHG` | `90` | triage_protocol.py | Project team, illustrative (no guideline cited) | Common clinical convention for low blood pressure; starts the low-pressure questions. |
 | `BP_LOW_DIASTOLIC_MMHG` | `60` | triage_protocol.py | Project team, illustrative (no guideline cited) | Same as above, diastolic limit. |
 | `BP_CHANGE_NOTABLE_MMHG` | `20` | triage_protocol.py | Project team, illustrative (no guideline cited); supervisor feedback, October 2026 | Rise over the patient's own median that starts the change questions. |
