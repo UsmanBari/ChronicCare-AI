@@ -59,7 +59,6 @@ export interface HealthProfile {
   date_of_birth?: string | null;
   sex_at_birth?: string | null;
   pregnancy_status?: string | null;
-  glucose_unit?: string | null;
 }
 
 export interface CheckInData {

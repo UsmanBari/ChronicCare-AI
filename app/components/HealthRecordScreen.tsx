@@ -123,8 +123,8 @@ export const HealthRecordScreen = () => {
     new Date().toISOString().slice(0, 16)
   );
   const [isAddingObs, setIsAddingObs] = useState(false);
-  const glucoseUnitPref = ((isLiveMode ? liveProfile?.glucose_unit : profile?.glucose_unit) || profile?.glucose_unit || "mg/dL").toLowerCase();
-  const isGlucoseMmol = glucoseUnitPref.includes("mmol");
+  const [glucoseUnit, setGlucoseUnit] = useState<"mg/dL" | "mmol/L">("mg/dL");
+  const isGlucoseMmol = obsType === "glucose" && glucoseUnit === "mmol/L";
 
   useEffect(() => {
     const flags = getConditionFlags(
@@ -507,22 +507,18 @@ export const HealthRecordScreen = () => {
 
     // Client-side range validation mirroring server
     if (obsType === "glucose") {
-      if (isGlucoseMmol) {
-        if (val < 2.2 || val > 33.3) {
-          setError(
-            t.obsGlucoseRangeErrorMmol ||
-              (isUrdu
-                ? "بلڈ شوگر کی پیمائش 2.2 اور 33.3 mmol/L کے درمیان ہونی چاہیے۔"
-                : "Glucose reading must be between 2.2 and 33.3 mmol/L.")
-          );
-          return;
-        }
-      } else if (val < 20 || val > 600) {
+      const convertedMgdl = isGlucoseMmol ? convertGlucoseMmolToMgDl(val) : Math.round(val);
+      if (convertedMgdl < 20 || convertedMgdl > 600) {
         setError(
-          t.obsGlucoseRangeErrorMgdl ||
-            (isUrdu
-              ? "بلڈ شوگر کی پیمائش 20 اور 600 mg/dL کے درمیان ہونی چاہیے۔"
-              : "Glucose reading must be between 20 and 600 mg/dL.")
+          isGlucoseMmol
+            ? t.obsGlucoseRangeErrorMmol ||
+              (isUrdu
+                ? "بلڈ گلوکوز کی ریڈنگ 1.1 اور 33.3 mmol/L کے درمیان ہونی چاہیے۔"
+                : "Glucose reading must be between 1.1 and 33.3 mmol/L.")
+            : t.obsGlucoseRangeErrorMgdl ||
+              (isUrdu
+                ? "بلڈ شوگر کی پیمائش 20 اور 600 mg/dL کے درمیان ہونی چاہیے۔"
+                : "Glucose reading must be between 20 and 600 mg/dL.")
         );
         return;
       }
@@ -839,7 +835,7 @@ export const HealthRecordScreen = () => {
                           {t.ocrBadge}
                         </span>
                       )}
-                      {(med.origin === "ehr" || (recordMode === "connected" && med.origin !== "ocr")) && (
+                      {med.origin === "ehr" && (
                         <span
                           data-testid="ehr-badge"
                           className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-200 flex items-center gap-1"
@@ -1112,7 +1108,7 @@ export const HealthRecordScreen = () => {
                         {t.ocrBadge}
                       </span>
                     )}
-                    {(obs.origin === "ehr" || (recordMode === "connected" && obs.origin !== "ocr")) && (
+                    {obs.origin === "ehr" && (
                       <span
                         data-testid="ehr-badge"
                         className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-200 flex items-center gap-1"
@@ -1191,7 +1187,43 @@ export const HealthRecordScreen = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Value</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600">
+                  {obsType === "glucose"
+                    ? isGlucoseMmol
+                      ? t.obsOptionGlucoseMmol || (isUrdu ? "بلڈ گلوکوز (mmol/L)" : "Blood Glucose (mmol/L)")
+                      : t.obsOptionGlucoseMgdl || (isUrdu ? "بلڈ گلوکوز (mg/dL)" : "Blood Glucose (mg/dL)")
+                    : isUrdu ? "قدر" : "Value"}
+                </label>
+                {obsType === "glucose" && (
+                  <div className="inline-flex items-center rounded-lg border border-slate-200 p-0.5 bg-slate-50 text-[10px] font-semibold" role="group" aria-label="Glucose Unit Selector">
+                    <button
+                      type="button"
+                      id="glucose-unit-mgdl-btn"
+                      onClick={() => setGlucoseUnit("mg/dL")}
+                      className={`px-2 py-0.5 rounded-md transition-all ${
+                        glucoseUnit === "mg/dL"
+                          ? "bg-navy-800 text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {isUrdu ? "mg/dL (ملی گرام)" : "mg/dL"}
+                    </button>
+                    <button
+                      type="button"
+                      id="glucose-unit-mmol-btn"
+                      onClick={() => setGlucoseUnit("mmol/L")}
+                      className={`px-2 py-0.5 rounded-md transition-all ${
+                        glucoseUnit === "mmol/L"
+                          ? "bg-navy-800 text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {isUrdu ? "mmol/L (ملی مول)" : "mmol/L"}
+                    </button>
+                  </div>
+                )}
+              </div>
               <input
                 type="number"
                 step="any"

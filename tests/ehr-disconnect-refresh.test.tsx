@@ -187,5 +187,53 @@ describe("Bug Bash #88: EHR Disconnection Refetches Record and Clears Stale Badg
     // Stale EHR badges must be completely gone without manual reload
     expect(screen.queryByTestId("ehr-badge")).toBeNull();
   });
+
+  it("connected mode with one ehr item and one self_reported item -> exactly one EHR badge, on the ehr item", async () => {
+    mockRecordResponse = {
+      mode: "connected",
+      conditions: [],
+      medications: [
+        {
+          id: "med-ehr-1",
+          name: "Metformin 500mg",
+          dosage: "1 tablet daily",
+          status: "active",
+          origin: "ehr",
+          trust_level: "high",
+        },
+        {
+          id: "med-self-1",
+          name: "Aspirin 81mg",
+          dosage: "1 tablet daily",
+          status: "active",
+          origin: "self_reported",
+          trust_level: "low",
+        },
+      ],
+      observations: [],
+      allergies: [],
+      ocr_enabled: false,
+    };
+
+    setupContext("connected");
+    render(<HealthRecordScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Connected EHR Mode (High Trust)")).toBeTruthy();
+    });
+
+    // Exactly one EHR badge exists across the entire screen
+    const badges = screen.getAllByTestId("ehr-badge");
+    expect(badges.length).toBe(1);
+
+    // The badge is rendered on the Metformin (EHR) item, NOT on the Aspirin (self_reported) item
+    const metfText = screen.getByText("Metformin 500mg");
+    const metfContainer = metfText.closest("div")?.parentElement;
+    expect(metfContainer?.querySelector('[data-testid="ehr-badge"]')).toBeTruthy();
+
+    const aspText = screen.getByText("Aspirin 81mg");
+    const aspContainer = aspText.closest("div")?.parentElement;
+    expect(aspContainer?.querySelector('[data-testid="ehr-badge"]')).toBeNull();
+  });
 });
 

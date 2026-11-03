@@ -39,9 +39,6 @@ export interface MedicationItemDescription {
 }
 
 /**
- * Calculates exact chronological age from DOB in YYYY-MM-DD format.
- */
-/**
  * Standard clinical blood glucose conversion factor (mmol/L to mg/dL).
  * Single authoritative source of truth for frontend glucose calculations.
  */
@@ -55,6 +52,9 @@ export function convertGlucoseMgDlToMmol(mgdlVal: number): number {
   return Math.round((mgdlVal / GLUCOSE_MMOL_TO_MGDL_FACTOR) * 10) / 10;
 }
 
+/**
+ * Calculates exact chronological age from DOB in YYYY-MM-DD format.
+ */
 export function calculateAgeFromDob(dobString?: string | null, asOfDateStr?: string): number | null {
   if (!dobString || !/^\d{4}-\d{2}-\d{2}$/.test(dobString.trim())) return null;
   const parts = dobString.trim().split("-").map(Number);
