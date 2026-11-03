@@ -20,7 +20,9 @@ from agents.adaptive_interview_agent import INTERVIEW_COMPLETE, InterviewState
 from agents.danger_wordgroups import (
     WordGroupResult,
     detect,
+    get_safety_note,
 )
+from test_checkin_api import setup_test_environment, rsa_key_pair, x509_cert_pem
 from agents.verification_agent import VerificationResult
 from fastapi.testclient import TestClient
 from main import app
@@ -81,10 +83,9 @@ def test_c1_all_five_groups_detected(text: str, expected_group: str):
     res: WordGroupResult = detect(text)
     assert res.is_danger is True
     assert res.group == expected_group
-    assert res.safety_note is not None
-    assert res.safety_note["en"] == "If this is an emergency, call 1122 now."
-    assert res.safety_note["ur"] == "اگر یہ ایمرجنسی ہے تو ابھی 1122 پر کال کریں۔"
-    assert res.safety_note["roman_ur"] == "Agar yeh emergency hai to abhi 1122 par call karein."
+    assert get_safety_note("en") == "If this is an emergency, call 1122 now."
+    assert get_safety_note("ur") == "اگر یہ ایمرجنسی ہے تو ابھی 1122 پر کال کریں۔"
+    assert get_safety_note("roman_ur") == "Agar yeh emergency hai to abhi 1122 par call karein."
 
 
 # =============================================================================
@@ -421,3 +422,65 @@ def test_c6_provider_review_detail_returns_danger_wordgroups(monkeypatch, rsa_ke
     assert rev_data["danger_wordgroups"] is not None
     assert "vomiting_blood" in rev_data["danger_wordgroups"]
 
+
+
+# =============================================================================
+# C7: CODE REVIEW CASES & FIVE CATEGORIES (Dev Regression Protection)
+# =============================================================================
+
+@pytest.mark.parametrize(
+    "text,expected_danger,expected_group",
+    [
+        ("ابھی سانس نہیں آ رہی", True, "breathing_distress"),
+        ("اب سانس نہیں آ رہی", True, "breathing_distress"),
+        ("طبیعت خراب ہے سانس نہیں آ رہی", True, "breathing_distress"),
+        ("ab saans nahi aa rahi", True, "breathing_distress"),
+        ("since yesterday I cannot breathe", True, "breathing_distress"),
+        ("pichle saal sugar zyada thi, aaj seene mein shadeed dabao hai", True, "cardiac_chest_pain"),
+        ("last year I had a cold. Now my face is drooping", True, "stroke_fast_cue"),
+        ("bazu kamzor ho gaya hai uthaya nahi ja raha", True, "stroke_fast_cue"),
+        ("ٹانگ پر چوٹ ہے اس لیے سنبھل کر چلتا ہوں", False, None),
+        ("دوائی بدل دی ہے تو سر میں درد ہے", False, None),
+    ],
+)
+def test_code_review_ten_cases(text: str, expected_danger: bool, expected_group: str | None):
+    res = detect(text)
+    assert res.is_danger is expected_danger
+    if expected_danger:
+        assert res.group == expected_group
+
+
+@pytest.mark.parametrize(
+    "category,text,expected_danger,expected_group",
+    [
+        # Category a: cross-clause past isolation
+        ("a", "two months ago I had fever, but today my chest feels heavy and crushing", True, "cardiac_chest_pain"),
+        ("a", "pichle hafte seene mein dard tha, ab koi takleef nahi", False, None),
+        # Category b: resolved cues
+        ("b", "ابھی دل میں شدید درد ہو رہا ہے", True, "cardiac_chest_pain"),
+        ("b", "pichle do ghante se takleef thi lekin ab theek hai", False, None),
+        # Category c: ongoing vs past
+        ("c", "kal se seene mein shadeed dabao mehsoos ho raha hai", True, "cardiac_chest_pain"),
+        ("c", "kal seene mein dard tha par dawai le li thi", False, None),
+        # Category d: Urdu script boundaries
+        ("d", "دل کی دھڑکن تیز ہے اور سینے میں شدید دباؤ ہے", True, "cardiac_chest_pain"),
+        ("d", "کل پاؤں پھسل گیا تھا لیکن سنبھل گیا", False, None),
+        # Category e: inability vs trailing negation
+        ("e", "haath bilkul kamzor hai hilaya nahi ja raha", True, "stroke_fast_cue"),
+        ("e", "bazu mein koi dard nahi hai", False, None),
+    ],
+)
+def test_five_categories_danger_and_traps(category: str, text: str, expected_danger: bool, expected_group: str | None):
+    res = detect(text)
+    assert res.is_danger is expected_danger
+    if expected_danger:
+        assert res.group == expected_group
+
+
+def test_wordgroup_result_schema():
+    res = detect("seene mein shadeed dard hai")
+    d = res.to_dict()
+    assert set(d.keys()) == {"is_danger", "group", "suppressed_by"}
+    assert "matched_phrase" not in d
+    assert "cues" not in d
+    assert "safety_note" not in d

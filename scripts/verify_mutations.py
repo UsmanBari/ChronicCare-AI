@@ -397,8 +397,8 @@ MUTATIONS = [
         "id": "M-U-WG-3",
         "name": "Danger Word Groups: Disable Urdu trailing negation guard",
         "file": BACKEND_DIR / "agents" / "danger_wordgroups.py",
-        "target": '    first_6_trailing = " ".join(trailing_tokens[:6])\n    for pat in _TRAILING_NEGATION_PATTERNS:\n        if re.search(pat, first_6_trailing):\n            return True',
-        "replacement": '    first_6_trailing = " ".join(trailing_tokens[:6])\n    for pat in _TRAILING_NEGATION_PATTERNS:\n        if False and re.search(pat, first_6_trailing):\n            return True',
+        "target": '    trailing_text = clause[match_end:].strip().lower()\n    cleaned_trailing = _INABILITY_RE.sub("", trailing_text)\n    if _TRAILING_NEGATION_RE.search(cleaned_trailing):\n        return True',
+        "replacement": '    trailing_text = clause[match_end:].strip().lower()\n    cleaned_trailing = _INABILITY_RE.sub("", trailing_text)\n    if False and _TRAILING_NEGATION_RE.search(cleaned_trailing):\n        return True',
         "test_node": "backend-poc-technical/test_danger_wordgroups.py::test_c2_negation_and_resolved_guards[seenay mein dard nahi hai bilkul theek hoon]",
     },
     {

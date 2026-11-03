@@ -366,7 +366,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     if is_danger_wordgroups_enabled() and clean_answer:
         wg_hit = detect_wordgroups(clean_answer)
         if wg_hit.is_danger:
-            session_state.setdefault("wordgroup_hits", []).append(wg_hit.to_dict())
+            session_state.setdefault("wordgroup_hits", []).append({"group": wg_hit.group, "step": current_slot})
             session_state["safety_note"] = get_safety_note(lang)
 
     if triage_res.category == "odd_input":

@@ -4350,7 +4350,7 @@ def answer_checkin_endpoint(
                 med_safety_note = get_safety_note(lang)
                 if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
                     current_state.answers = {}
-                current_state.answers.setdefault("_wordgroup_hits", []).append(wg_hit.to_dict())
+                current_state.answers.setdefault("_wordgroup_hits", []).append({"group": wg_hit.group, "step": getattr(current_state, "step", "medication")})
                 append_audit(
                     actor_user_id=current_user["user_id"],
                     action="danger_wordgroup_hit",
@@ -4623,14 +4623,14 @@ def answer_checkin_endpoint(
 
     v2_safety_note = None
     from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note
-    if is_danger_wordgroups_enabled() and body.answer:
+    if not next_state.stage1_red_flag and is_danger_wordgroups_enabled() and body.answer:
         wg_hit = detect_wordgroups(body.answer)
         if wg_hit.is_danger:
             lang = getattr(next_state, "language", None) or "en"
             v2_safety_note = get_safety_note(lang)
             if not hasattr(next_state, "answers") or not isinstance(next_state.answers, dict):
                 next_state.answers = {}
-            next_state.answers.setdefault("_wordgroup_hits", []).append(wg_hit.to_dict())
+            next_state.answers.setdefault("_wordgroup_hits", []).append({"group": wg_hit.group, "step": getattr(current_state, "step", "")})
             append_audit(
                 actor_user_id=current_user["user_id"],
                 action="danger_wordgroup_hit",
