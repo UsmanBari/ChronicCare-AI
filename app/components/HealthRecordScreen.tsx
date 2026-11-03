@@ -38,7 +38,7 @@ import { mapApiError, convertGlucoseMmolToMgDl } from "../lib/presentation";
 import { getConditionFlags } from "../lib/conditions";
 
 export const HealthRecordScreen = () => {
-  const { setScreen, setStagedOcrUpload, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
+  const { setScreen, setStagedOcrUpload, profile, liveProfile, liveEhrConnection, isLiveMode, t, isUrdu } = useApp();
 
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
   const [recordMode, setRecordMode] = useState<string>("isolated");
@@ -146,7 +146,7 @@ export const HealthRecordScreen = () => {
       return;
     }
     loadRecord();
-  }, [isLiveMode]);
+  }, [isLiveMode, liveEhrConnection?.mode, liveEhrConnection?.connection?.ehr_system_id]);
 
   const loadRecord = async () => {
     setIsLoading(true);
@@ -615,7 +615,11 @@ export const HealthRecordScreen = () => {
         <div className="flex items-center justify-between gap-2 mb-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-teal-500/25 text-teal-200 text-xs font-bold uppercase tracking-wider">
             <FileText className="w-3.5 h-3.5" />
-            <span>{isUrdu ? "آئسولیٹڈ موڈ کلینیکل ریکارڈ" : "Isolated Mode Clinical Record"}</span>
+            <span>
+              {recordMode === "connected"
+                ? (isUrdu ? "منسلک EHR موڈ (اعلیٰ اعتماد)" : "Connected EHR Mode (High Trust)")
+                : (isUrdu ? "آئسولیٹڈ موڈ کلینیکل ریکارڈ" : "Isolated Mode Clinical Record")}
+            </span>
           </div>
         </div>
         <h1 className="font-heading text-2xl sm:text-3xl font-bold mb-1.5">
@@ -833,6 +837,15 @@ export const HealthRecordScreen = () => {
                       {med.origin === "ocr" && (
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
                           {t.ocrBadge}
+                        </span>
+                      )}
+                      {(med.origin === "ehr" || (recordMode === "connected" && med.origin !== "ocr")) && (
+                        <span
+                          data-testid="ehr-badge"
+                          className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-200 flex items-center gap-1"
+                        >
+                          <ShieldCheck className="w-3 h-3 text-teal-700" />
+                          <span>{isUrdu ? "ہسپتال ریکارڈ (EHR)" : "EHR"}</span>
                         </span>
                       )}
                       <span
@@ -1097,6 +1110,15 @@ export const HealthRecordScreen = () => {
                     {obs.origin === "ocr" && (
                       <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
                         {t.ocrBadge}
+                      </span>
+                    )}
+                    {(obs.origin === "ehr" || (recordMode === "connected" && obs.origin !== "ocr")) && (
+                      <span
+                        data-testid="ehr-badge"
+                        className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-200 flex items-center gap-1"
+                      >
+                        <ShieldCheck className="w-3 h-3 text-teal-700" />
+                        <span>{isUrdu ? "ہسپتال ریکارڈ (EHR)" : "EHR"}</span>
                       </span>
                     )}
                   </div>
