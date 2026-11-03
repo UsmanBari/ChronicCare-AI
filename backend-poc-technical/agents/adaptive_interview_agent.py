@@ -972,36 +972,44 @@ def _finalize_intake(state: InterviewState) -> InterviewState:
         narrative_review = False
         symptom_reported = False
 
-        # Rule R8: check all symptom question answers in answers dict
-        symptom_slot_keys = (
-            "hyperglycemia_symptoms",
-            "hypoglycemia_symptoms",
-            "hypo_events_past_week",
-            "sick_day_flags",
-            "associated_symptoms",
-            "foot_problems",
-        )
-        for sk in symptom_slot_keys:
-            val = answers.get(sk)
-            if val is not None and _looks_affirmative(str(val)) is True:
-                symptom_reported = True
-                break
+        if missing:
+            # Rule R8: check-in with no readings - symptom reported evaluation
+            symptom_slot_keys = (
+                "hyperglycemia_symptoms",
+                "hypoglycemia_symptoms",
+                "hypo_events_past_week",
+                "sick_day_flags",
+                "associated_symptoms",
+                "foot_problems",
+            )
+            for sk in symptom_slot_keys:
+                val = answers.get(sk)
+                if val is not None and _looks_affirmative(str(val)) is True:
+                    symptom_reported = True
+                    break
 
-        if answers.get("symptom_only_note"):
-            from agents.interview_findings import extract_findings_from_answer
-            note = str(answers["symptom_only_note"]).strip()
-            if extract_findings_from_answer(note) or (_looks_affirmative(note) is True):
-                symptom_reported = True
+            if answers.get("symptom_only_note"):
+                from agents.interview_findings import extract_findings_from_answer
+                note = str(answers["symptom_only_note"]).strip()
+                if extract_findings_from_answer(note) or (_looks_affirmative(note) is True):
+                    symptom_reported = True
 
-        greeting = answers.get("greeting_response")
-        if greeting:
-            from agents.interview_findings import extract_findings_from_answer
-            fnds = extract_findings_from_answer(greeting)
-            if fnds:
-                symptom_reported = True
+            greeting = answers.get("greeting_response")
+            if greeting:
+                from agents.interview_findings import extract_findings_from_answer
+                fnds = extract_findings_from_answer(greeting)
+                if fnds:
+                    symptom_reported = True
 
-        if symptom_reported:
-            narrative_review = True
+            if symptom_reported:
+                narrative_review = True
+        else:
+            hypo_week = answers.get("hypo_events_past_week")
+            if hypo_week is not None and _looks_affirmative(str(hypo_week)) is True:
+                narrative_review = True
+            assoc_symp = answers.get("associated_symptoms")
+            if assoc_symp is not None and _looks_affirmative(str(assoc_symp)) is True:
+                narrative_review = True
 
         requires_review = bool(answers.get("possible_severe_low") or narrative_review)
         intake = {

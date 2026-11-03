@@ -74,7 +74,7 @@ def test_glucose_unanswered_unit_possible_severe_low():
         assert res.needs_review is True
         assert res.confidence == "Low"
         assert res.review_reason == "glucose value unit unclear, possible low"
-        assert "fast-acting sugar" in res.safety_guidance.lower()
+        assert "quick sugar" in res.safety_guidance.lower()
 
 
 def test_glucose_urdu_eastern_digits():

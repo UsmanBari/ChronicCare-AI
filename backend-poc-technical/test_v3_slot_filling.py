@@ -108,7 +108,7 @@ def test_bare_7_triggers_unit_clarification():
     session["step"] = "glucose_reading"
     session = next_turn(session, "7")
     assert session.get("awaiting_glucose_unit") is True
-    assert "mmol/L or 7 mg/dL" in session.get("current_question", "")
+    assert "Is that number in mg/dL (most meters) or mmol/L?" in session.get("current_question", "")
 
 
 def test_requires_true_satisfied_only_by_boolean_true():
