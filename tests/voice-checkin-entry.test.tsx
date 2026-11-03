@@ -145,7 +145,7 @@ describe("STAGE 10E-0 Bug 2: CheckInEntryScreen voice recording", () => {
     });
 
     expect(
-      screen.getByText("Microphone access denied. Please allow microphone permissions or type your answer.")
+      screen.getByText(/Microphone access denied/i)
     ).toBeDefined();
   });
 

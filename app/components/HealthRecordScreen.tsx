@@ -34,11 +34,11 @@ import {
   RecordEditItem,
   RecordImportResponse,
 } from "../lib/api";
-import { mapApiError } from "../lib/presentation";
+import { mapApiError, convertGlucoseMmolToMgDl } from "../lib/presentation";
 import { getConditionFlags } from "../lib/conditions";
 
 export const HealthRecordScreen = () => {
-  const { setScreen, setStagedOcrUpload, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
+  const { setScreen, setStagedOcrUpload, profile, liveProfile, liveEhrConnection, isLiveMode, t, isUrdu } = useApp();
 
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
   const [recordMode, setRecordMode] = useState<string>("isolated");
@@ -123,6 +123,8 @@ export const HealthRecordScreen = () => {
     new Date().toISOString().slice(0, 16)
   );
   const [isAddingObs, setIsAddingObs] = useState(false);
+  const [glucoseUnit, setGlucoseUnit] = useState<"mg/dL" | "mmol/L">("mg/dL");
+  const isGlucoseMmol = obsType === "glucose" && glucoseUnit === "mmol/L";
 
   useEffect(() => {
     const flags = getConditionFlags(
@@ -144,7 +146,7 @@ export const HealthRecordScreen = () => {
       return;
     }
     loadRecord();
-  }, [isLiveMode]);
+  }, [isLiveMode, liveEhrConnection?.mode, liveEhrConnection?.connection?.ehr_system_id]);
 
   const loadRecord = async () => {
     setIsLoading(true);
@@ -504,9 +506,22 @@ export const HealthRecordScreen = () => {
     }
 
     // Client-side range validation mirroring server
-    if (obsType === "glucose" && (val < 20 || val > 600)) {
-      setError("Glucose reading must be between 20 and 600 mg/dL.");
-      return;
+    if (obsType === "glucose") {
+      const convertedMgdl = isGlucoseMmol ? convertGlucoseMmolToMgDl(val) : Math.round(val);
+      if (convertedMgdl < 20 || convertedMgdl > 600) {
+        setError(
+          isGlucoseMmol
+            ? t.obsGlucoseRangeErrorMmol ||
+              (isUrdu
+                ? "بلڈ گلوکوز کی ریڈنگ 1.1 اور 33.3 mmol/L کے درمیان ہونی چاہیے۔"
+                : "Glucose reading must be between 1.1 and 33.3 mmol/L.")
+            : t.obsGlucoseRangeErrorMgdl ||
+              (isUrdu
+                ? "بلڈ شوگر کی پیمائش 20 اور 600 mg/dL کے درمیان ہونی چاہیے۔"
+                : "Glucose reading must be between 20 and 600 mg/dL.")
+        );
+        return;
+      }
     }
     if (obsType === "blood_pressure_systolic" && (val < 60 || val > 260)) {
       setError("Systolic blood pressure must be between 60 and 260 mmHg.");
@@ -541,9 +556,10 @@ export const HealthRecordScreen = () => {
 
     setIsAddingObs(true);
     try {
+      const apiObsValue = (obsType === "glucose" && isGlucoseMmol) ? convertGlucoseMmolToMgDl(val) : val;
       const added = await api.createRecordObservation({
         observation_type: obsType,
-        value: val,
+        value: apiObsValue,
         measured_at: isoTimestamp,
       });
       setObservations((prev) => [...prev, added]);
@@ -595,7 +611,11 @@ export const HealthRecordScreen = () => {
         <div className="flex items-center justify-between gap-2 mb-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-teal-500/25 text-teal-200 text-xs font-bold uppercase tracking-wider">
             <FileText className="w-3.5 h-3.5" />
-            <span>{isUrdu ? "آئسولیٹڈ موڈ کلینیکل ریکارڈ" : "Isolated Mode Clinical Record"}</span>
+            <span>
+              {recordMode === "connected"
+                ? (isUrdu ? "منسلک EHR موڈ (اعلیٰ اعتماد)" : "Connected EHR Mode (High Trust)")
+                : (isUrdu ? "آئسولیٹڈ موڈ کلینیکل ریکارڈ" : "Isolated Mode Clinical Record")}
+            </span>
           </div>
         </div>
         <h1 className="font-heading text-2xl sm:text-3xl font-bold mb-1.5">
@@ -813,6 +833,15 @@ export const HealthRecordScreen = () => {
                       {med.origin === "ocr" && (
                         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
                           {t.ocrBadge}
+                        </span>
+                      )}
+                      {med.origin === "ehr" && (
+                        <span
+                          data-testid="ehr-badge"
+                          className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-200 flex items-center gap-1"
+                        >
+                          <ShieldCheck className="w-3 h-3 text-teal-700" />
+                          <span>{isUrdu ? "ہسپتال ریکارڈ (EHR)" : "EHR"}</span>
                         </span>
                       )}
                       <span
@@ -1079,6 +1108,15 @@ export const HealthRecordScreen = () => {
                         {t.ocrBadge}
                       </span>
                     )}
+                    {obs.origin === "ehr" && (
+                      <span
+                        data-testid="ehr-badge"
+                        className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-200 flex items-center gap-1"
+                      >
+                        <ShieldCheck className="w-3 h-3 text-teal-700" />
+                        <span>{isUrdu ? "ہسپتال ریکارڈ (EHR)" : "EHR"}</span>
+                      </span>
+                    )}
                   </div>
                   <span className="text-[11px] text-slate-400">
                     Measured: {new Date(obs.measured_at).toLocaleString()}
@@ -1126,11 +1164,19 @@ export const HealthRecordScreen = () => {
                   <>
                     <option value="blood_pressure_systolic">Systolic BP (mmHg)</option>
                     <option value="blood_pressure_diastolic">Diastolic BP (mmHg)</option>
-                    <option value="glucose">Blood Glucose (mg/dL)</option>
+                    <option value="glucose">
+                      {isGlucoseMmol
+                        ? t.obsOptionGlucoseMmol || "Blood Glucose (mmol/L)"
+                        : t.obsOptionGlucoseMgdl || "Blood Glucose (mg/dL)"}
+                    </option>
                   </>
                 ) : (
                   <>
-                    <option value="glucose">Blood Glucose (mg/dL)</option>
+                    <option value="glucose">
+                      {isGlucoseMmol
+                        ? t.obsOptionGlucoseMmol || "Blood Glucose (mmol/L)"
+                        : t.obsOptionGlucoseMgdl || "Blood Glucose (mg/dL)"}
+                    </option>
                     <option value="blood_pressure_systolic">Systolic BP (mmHg)</option>
                     <option value="blood_pressure_diastolic">Diastolic BP (mmHg)</option>
                   </>
@@ -1141,7 +1187,43 @@ export const HealthRecordScreen = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Value</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-semibold text-slate-600">
+                  {obsType === "glucose"
+                    ? isGlucoseMmol
+                      ? t.obsOptionGlucoseMmol || (isUrdu ? "بلڈ گلوکوز (mmol/L)" : "Blood Glucose (mmol/L)")
+                      : t.obsOptionGlucoseMgdl || (isUrdu ? "بلڈ گلوکوز (mg/dL)" : "Blood Glucose (mg/dL)")
+                    : isUrdu ? "قدر" : "Value"}
+                </label>
+                {obsType === "glucose" && (
+                  <div className="inline-flex items-center rounded-lg border border-slate-200 p-0.5 bg-slate-50 text-[10px] font-semibold" role="group" aria-label="Glucose Unit Selector">
+                    <button
+                      type="button"
+                      id="glucose-unit-mgdl-btn"
+                      onClick={() => setGlucoseUnit("mg/dL")}
+                      className={`px-2 py-0.5 rounded-md transition-all ${
+                        glucoseUnit === "mg/dL"
+                          ? "bg-navy-800 text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {isUrdu ? "mg/dL (ملی گرام)" : "mg/dL"}
+                    </button>
+                    <button
+                      type="button"
+                      id="glucose-unit-mmol-btn"
+                      onClick={() => setGlucoseUnit("mmol/L")}
+                      className={`px-2 py-0.5 rounded-md transition-all ${
+                        glucoseUnit === "mmol/L"
+                          ? "bg-navy-800 text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {isUrdu ? "mmol/L (ملی مول)" : "mmol/L"}
+                    </button>
+                  </div>
+                )}
+              </div>
               <input
                 type="number"
                 step="any"
@@ -1153,7 +1235,9 @@ export const HealthRecordScreen = () => {
                     : obsType === "blood_pressure_diastolic"
                     ? t.obsPlaceholderDiastolic || "e.g. 85"
                     : obsType === "glucose"
-                    ? t.obsPlaceholderGlucose || "e.g. 140"
+                    ? isGlucoseMmol
+                      ? t.obsPlaceholderGlucoseMmol || (isUrdu ? "مثلاً 7.0" : "e.g. 7.0")
+                      : t.obsPlaceholderGlucose || (isUrdu ? "مثلاً 140" : "e.g. 140")
                     : obsType === "weight"
                     ? (isUrdu ? "مثلاً 70" : "e.g. 70")
                     : (isUrdu ? "مثلاً 6.5" : "e.g. 6.5")
