@@ -68,6 +68,32 @@ class WordGroupResult:
 
 
 # =============================================================================
+# APOSTROPHE NORMALIZATION & CONTRACTION EXPANSION
+# =============================================================================
+
+_CONTRACTIONS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\b(?:can't|cant)\b", re.IGNORECASE), "cannot"),
+    (re.compile(r"\b(?:couldn't|couldnt)\b", re.IGNORECASE), "could not"),
+    (re.compile(r"\b(?:don't|dont)\b", re.IGNORECASE), "do not"),
+    (re.compile(r"\b(?:doesn't|doesnt)\b", re.IGNORECASE), "does not"),
+    (re.compile(r"\b(?:didn't|didnt)\b", re.IGNORECASE), "did not"),
+    (re.compile(r"\b(?:haven't|havent)\b", re.IGNORECASE), "have not"),
+    (re.compile(r"\b(?:hasn't|hasnt)\b", re.IGNORECASE), "has not"),
+    (re.compile(r"\b(?:isn't|isnt)\b", re.IGNORECASE), "is not"),
+    (re.compile(r"\b(?:wasn't|wasnt)\b", re.IGNORECASE), "was not"),
+    (re.compile(r"\b(?:won't|wont)\b", re.IGNORECASE), "will not"),
+]
+
+
+def _normalize_text(text: str) -> str:
+    """Normalizes curly apostrophes, backticks, and expands English contractions."""
+    t = text.replace("’", "'").replace("‘", "'").replace("`", "'")
+    for pattern, replacement in _CONTRACTIONS:
+        t = pattern.sub(replacement, t)
+    return t
+
+
+# =============================================================================
 # URDU SCRIPT WORD BOUNDARIES & GUARDS
 # =============================================================================
 # Python \b is ASCII-only. In Urdu script, (?<![\u0600-\u06FF]) and (?![\u0600-\u06FF])
@@ -83,13 +109,13 @@ _PRECEDING_NEGATION_WORDS: set[str] = {
     "نہیں", "نہ", "مت", "بغیر", "کوئی نہیں", "کچھ نہیں",
 }
 
-# Inability constructions in Roman Urdu & Urdu script.
+# Inability constructions in Roman Urdu, English & Urdu script.
 # Idioms expressing functional deficits (paralysis, aphasia, dyspnea) confirming danger,
 # NOT symptom negations: 'uthaya nahi ja raha', 'bol nahi pa raha', 'saans nahi aa rahi',
-# 'jaan nahi rahi', 'جان نہیں رہی'.
+# 'could not move his arm', 'jaan nahi rahi', 'جان نہیں رہی'.
 _INABILITY_PATTERNS: list[str] = [
     r"\b(?:nahi|nahin)\s+(?:ja\s+rah[aiye]|pa\s+rah[aiye]|aa\s+rah[aiye]|hua\s+ja\s+raha)\b",
-    r"\b(?:cant|cannot|unable\s+to)\s+(?:lift|move|speak|walk|stand|breathe)\b",
+    r"\b(?:cant|cannot|could\s+not|unable\s+to)\s+(?:lift|move|speak|walk|stand|breathe)\b",
     r"\bjaan\s*(?:nahi|nahin)\b",
     U_PRE + r"(?:نہیں|نہ)\s+(?:جا\s+رہ[ایہے]|پا\s+رہ[ایہے]|آ\s+رہ[ایہے]|ہو\s+پا\s+رہ)" + U_POST,
     U_PRE + r"جان\s*(?:نہیں\s*رہی|نہیں\s*ہے|نکل\s*گئی)" + U_POST,
@@ -135,9 +161,11 @@ _PAST_PATTERNS: list[str] = [
     r"\b(?:pehle\s+(?:tha|thi|the)|(?:tha|thi|the)\s+pehle)\b",
     r"\b(?:kal|pichle\s+(?:saal|mahine|hafte|haftay|din)|pichlay\s+(?:saal|mahine|hafte|haftay|din)|saal\s+pehle|mahine\s+pehle|haftay\s+pehle)\b.*?\b(?:tha|thi|the)\b",
     r"\b(?:hua\s+tha|hui\s+thi|hue\s+the|aaya\s+tha|aayi\s+thi|dard\s+tha|dard\s+thi)\b",
+    r"\b(?:hota\s+tha|hoti\s+thi|hote\s+the|hotay\s+the)\b",
     U_PRE + r"(?:پہلے\s+(?:تھا|تھی|تھے)|(?:تھا|تھی|تھے)\s+پہلے)" + U_POST,
     U_PRE + r"(?:کل|پچھلے\s+(?:سال|مہینے|ہفتے|دن)|سال\s+پہلے|مہینے\s+پہلے|ہفتے\s+پہلے).*?(?:تھا|تھی|تھے)" + U_POST,
     U_PRE + r"(?:ہوا\s+تھا|ہوئی\s+تھی|ہوئے\s+تھے|آیا\s+تھا|آئی\s+تھی|درد\s+تھا|درد\s+تھی)" + U_POST,
+    U_PRE + r"(?:ہوتا\s+تھا|ہوتی\s+تھی|ہوتے\s+تھے)" + U_POST,
 ]
 _PAST_RE = re.compile("|".join(_PAST_PATTERNS), re.IGNORECASE)
 
@@ -174,7 +202,7 @@ _MILD_QUALIFIER_RE = re.compile(
     re.IGNORECASE,
 )
 _SEVERE_QUALIFIER_RE = re.compile(
-    r"\b(?:crushing|severe|shadeed|pressure|tightness|heavy|squeezing|sakht|dabao|bojh|cant\s+breathe|gasping)\b|"
+    r"\b(?:crushing|severe|shadeed|pressure|tightness|heavy|squeezing|sakht|dabao|bojh|cant\s+breathe|cannot\s+breathe|gasping)\b|"
     + U_PRE + r"(?:شدید|سخت|دباؤ|دباو|بوجھ|پھٹ|دم\s+گھٹ)" + U_POST,
     re.IGNORECASE,
 )
@@ -196,10 +224,10 @@ _STROKE_FAST_PATTERNS: list[re.Pattern] = [
         + U_PRE + r"(?:ٹیڑھا|سن|فالج|ڈھلک\w*)" + U_POST + r".*?" + U_PRE + r"(?:منہ|چہرہ|چہرے)" + U_POST,
         re.IGNORECASE,
     ),
-    # Arm / Leg / Unilateral weakness or numbness
+    # Arm / Leg / Unilateral weakness, numbness or motor inability
     re.compile(
-        r"\b(?:arm|hand|leg|foot|feet|bazu|baazu|haath|hath|taang|tang|paon|pair)\b.*?\b(?:weak(?:ness)?|numb(?:ness)?|paralyz(?:ed|is)?|sunn|kamzor|kamzori|jaan\s*(?:nahi|nahin))\b|"
-        r"\b(?:weak(?:ness)?|numb(?:ness)?|paralyz(?:ed|is)?|sunn|kamzor|kamzori|jaan\s*(?:nahi|nahin))\b.*?\b(?:arm|hand|leg|foot|feet|bazu|baazu|haath|hath|taang|tang|paon|pair)\b|"
+        r"\b(?:arm|hand|leg|foot|feet|bazu|baazu|haath|hath|taang|tang|paon|pair)\b.*?\b(?:weak(?:ness)?|numb(?:ness)?|paralyz(?:ed|is)?|sunn|kamzor|kamzori|jaan\s*(?:nahi|nahin)|(?:could\s+not|cannot|cant|unable\s+to)\s+(?:move|lift))\b|"
+        r"\b(?:weak(?:ness)?|numb(?:ness)?|paralyz(?:ed|is)?|sunn|kamzor|kamzori|jaan\s*(?:nahi|nahin)|(?:could\s+not|cannot|cant|unable\s+to)\s+(?:move|lift))\b.*?\b(?:arm|hand|leg|foot|feet|bazu|baazu|haath|hath|taang|tang|paon|pair)\b|"
         r"\b(?:one\s+side|aik\s+taraf|ek\s+taraf|aadha\s+jism|adha\s+jism)\b.*?\b(?:weak(?:ness)?|numb(?:ness)?|paralyz(?:ed|is)?|falij|faalij|kamzor|kamzori|sunn|jaan\s*(?:nahi|nahin))\b|"
         r"\b(?:falij|faalij|hemiparesis|facial\s+droop)\b|"
         + U_PRE + r"(?:بازو|ہاتھ|ٹانگ|پاؤں|پاوں|ایک\s+طرف|آدھا\s+جسم)" + U_POST + r".*?" + U_PRE + r"(?:کمزور|کمزوری|سن|فالج|جان\s*(?:نہیں\s*رہی|نہیں\s*ہے|نکل\s*گئی))" + U_POST + r"|"
@@ -275,7 +303,7 @@ def _is_negated_clause(clause: str, match_start: int, match_end: int) -> bool:
     Checks bidirectional and internal negation strictly within the clause:
     1. Preceding window (up to 4 tokens before match_start).
     2. Trailing window after match_end. Inability constructions ('uthaya nahi ja raha',
-       'نہیں جا رہا', 'jaan nahi rahi') confirm deficits and do NOT count as symptom negation.
+       'نہیں جا رہا', 'could not move', 'jaan nahi rahi') confirm deficits and do NOT count as symptom negation.
     3. Internal tokens within the matched span itself, unless the span is an inability symptom.
     """
     matched_span = clause[match_start:match_end].strip().lower()
@@ -324,7 +352,7 @@ def detect(text: str | None) -> WordGroupResult:
     if not text or not isinstance(text, str):
         return WordGroupResult(is_danger=False)
 
-    clean_text = text.strip()
+    clean_text = _normalize_text(text.strip())
     if not clean_text:
         return WordGroupResult(is_danger=False)
 

@@ -694,5 +694,83 @@
     "expected_danger": false,
     "group": null,
     "lang": "roman_ur"
+  },
+  {
+    "text": "I can't breathe",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "en"
+  },
+  {
+    "text": "I can’t breathe",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "en"
+  },
+  {
+    "text": "I can't breathe properly since this morning",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "en"
+  },
+  {
+    "text": "she can't speak",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "he couldn't move his arm",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "I don't have chest pain",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "I haven't fainted",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "she doesn't have face drooping",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "I didn't vomit blood",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "pehle chest pain hota tha, ab nahi hota",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
+  },
+  {
+    "text": "پہلے سینے میں درد ہوتا تھا",
+    "expected_danger": false,
+    "group": null,
+    "lang": "ur"
+  },
+  {
+    "text": "kal se seene mein dard ho raha hai",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "seene mein dard ho raha hai",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "roman_ur"
   }
 ]

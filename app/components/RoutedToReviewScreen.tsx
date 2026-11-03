@@ -75,7 +75,19 @@ export const RoutedToReviewScreen = () => {
         {liveCheckinResult?.safety_note && (
           <div data-testid="danger-wordgroup-review-banner" className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-600 text-amber-950 text-sm font-bold flex items-center gap-3 animate-fadeIn shadow-xs text-left">
             <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0" />
-            <span>{liveCheckinResult.safety_note}</span>
+            <span dir="auto">
+              {liveCheckinResult.safety_note.includes("1122") ? (
+                <>
+                  {liveCheckinResult.safety_note.split("1122")[0]}
+                  <a href="tel:1122" className="underline font-extrabold hover:text-amber-900">
+                    1122
+                  </a>
+                  {liveCheckinResult.safety_note.split("1122")[1]}
+                </>
+              ) : (
+                liveCheckinResult.safety_note
+              )}
+            </span>
           </div>
         )}
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-700 leading-relaxed text-left flex items-start gap-3.5">

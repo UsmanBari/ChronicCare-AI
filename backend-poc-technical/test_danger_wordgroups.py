@@ -484,3 +484,36 @@ def test_wordgroup_result_schema():
     assert "matched_phrase" not in d
     assert "cues" not in d
     assert "safety_note" not in d
+
+
+# =============================================================================
+# C8: APOSTROPHE EXPANSION & HABITUAL PAST
+# =============================================================================
+
+@pytest.mark.parametrize(
+    "text,expected_danger,expected_group",
+    [
+        # Apostrophes & Contractions (Must Hit)
+        ("I can't breathe", True, "breathing_distress"),
+        ("I can’t breathe", True, "breathing_distress"),
+        ("I can't breathe properly since this morning", True, "breathing_distress"),
+        ("she can't speak", True, "stroke_fast_cue"),
+        ("he couldn't move his arm", True, "stroke_fast_cue"),
+        # Negated Contractions (Must Not Hit)
+        ("I don't have chest pain", False, None),
+        ("I haven't fainted", False, None),
+        ("she doesn't have face drooping", False, None),
+        ("I didn't vomit blood", False, None),
+        # Habitual Past (Must Not Hit)
+        ("pehle chest pain hota tha, ab nahi hota", False, None),
+        ("پہلے سینے میں درد ہوتا تھا", False, None),
+        # Active / Ongoing (Must Still Hit)
+        ("kal se seene mein dard ho raha hai", True, "cardiac_chest_pain"),
+        ("seene mein dard ho raha hai", True, "cardiac_chest_pain"),
+    ],
+)
+def test_apostrophe_and_habitual_past(text: str, expected_danger: bool, expected_group: str | None):
+    res = detect(text)
+    assert res.is_danger is expected_danger
+    if expected_danger:
+        assert res.group == expected_group

@@ -563,7 +563,19 @@ export const AdaptiveInterviewScreen = () => {
             <div data-testid="danger-wordgroup-banner" className="p-3.5 rounded-xl bg-amber-50 border-2 border-amber-600 text-amber-950 text-sm font-bold flex items-center justify-between gap-3 animate-fadeIn shadow-xs">
               <div className="flex items-center gap-2.5">
                 <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0" />
-                <span>{safetyNoteBanner}</span>
+                <span dir="auto">
+                  {safetyNoteBanner.includes("1122") ? (
+                    <>
+                      {safetyNoteBanner.split("1122")[0]}
+                      <a href="tel:1122" className="underline font-extrabold hover:text-amber-900">
+                        1122
+                      </a>
+                      {safetyNoteBanner.split("1122")[1]}
+                    </>
+                  ) : (
+                    safetyNoteBanner
+                  )}
+                </span>
               </div>
               <button
                 type="button"
