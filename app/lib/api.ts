@@ -326,6 +326,7 @@ export interface CheckinAnswerResponse {
   can_skip?: boolean | null;
   can_say_unknown?: boolean | null;
   engine?: string | null;
+  safety_note?: string | null;
 }
 
 export interface CheckinCompleteResponse {
