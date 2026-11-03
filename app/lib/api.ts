@@ -70,6 +70,7 @@ export interface ProfileResponse {
   provider_notification_consent_at?: string | null;
   provider_notification_revoked_at?: string | null;
   updated_at?: string | null;
+  glucose_unit?: string | null;
 }
 
 export interface PatientBackgroundResponse {
