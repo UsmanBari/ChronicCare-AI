@@ -67,7 +67,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from data_sources.models import NormalizedObservation, NormalizedPatient
-from agents.answer_validation import validate_glucose_input
+from agents.answer_validation import validate_glucose_input, detect_meter_lo_hi
+from agents.interview_bank.loader import get_message
 
 # -----------------------------------------------------------------------------
 # Configuration
@@ -160,6 +161,8 @@ class InterviewState:
 RED_FLAG_LEVELS: Dict[str, str] = {
     "unable_to_keep_fluids": "urgent",
     "dka_vomiting_high_glucose": "urgent",
+    "meter_lo": "emergency",
+    "meter_hi": "emergency",
 }
 
 
@@ -408,6 +411,9 @@ def get_current_question(state: InterviewState) -> Optional[str]:
     """The question the UI should show now, or None if not started / finished."""
     if not state.step or state.step == INTERVIEW_COMPLETE:
         return None
+    if state.answers.get("_pending_meter_lo_hi"):
+        lang = state.answers.get("language") or "en"
+        return get_message("meter_lo_hi_confirmation", lang)
     if state.active_condition == "diabetes":
         return _diabetes_next_question(DiabetesStep(state.step))
     return _hypertension_next_question(HypertensionStep(state.step))
@@ -506,6 +512,31 @@ def _diabetes_advance_v2_3(state: InterviewState, answer: str) -> InterviewState
         answers["greeting_response"] = answer
         state.step = DiabetesStep.GLUCOSE_READING.value
     elif step == DiabetesStep.GLUCOSE_READING:
+        if state.answers.get("_pending_meter_lo_hi"):
+            token = state.answers.pop("_pending_meter_lo_hi")
+            lang = state.answers.get("language") or "en"
+            if _looks_affirmative(answer) is True:
+                reason = "meter_lo" if token == "LO" else "meter_hi"
+                state.stage1_red_flag = True
+                state.stage1_reason = reason
+                if token == "LO":
+                    state.answers["possible_severe_low"] = True
+                    state.answers["safety_guidance"] = get_message("glucose_unclear_unit_safety_guidance", lang)
+                    state.answers["review_reason"] = "meter_lo"
+                else:
+                    state.answers["review_reason"] = "meter_hi"
+                state.step = DiabetesStep.COMPLETE.value
+                return state
+            else:
+                state.missing_data_asked_once = True
+                state.step = DiabetesStep.MISSING_DATA_CHECKPOINT.value
+                return state
+
+        meter_token = detect_meter_lo_hi(answer)
+        if meter_token:
+            state.answers["_pending_meter_lo_hi"] = meter_token
+            return state
+
         reading, unit, needs_clarify, guidance, rev_reason = _process_glucose_input(answer, previously_asked=False)
         if needs_clarify and not state.missing_data_asked_once:
             state.missing_data_asked_once = True
@@ -678,6 +709,31 @@ def _diabetes_advance(state: InterviewState, answer: str) -> InterviewState:
         answers["greeting_response"] = answer
         state.step = DiabetesStep.GLUCOSE_READING.value
     elif step == DiabetesStep.GLUCOSE_READING:
+        if state.answers.get("_pending_meter_lo_hi"):
+            token = state.answers.pop("_pending_meter_lo_hi")
+            lang = state.answers.get("language") or "en"
+            if _looks_affirmative(answer) is True:
+                reason = "meter_lo" if token == "LO" else "meter_hi"
+                state.stage1_red_flag = True
+                state.stage1_reason = reason
+                if token == "LO":
+                    state.answers["possible_severe_low"] = True
+                    state.answers["safety_guidance"] = get_message("glucose_unclear_unit_safety_guidance", lang)
+                    state.answers["review_reason"] = "meter_lo"
+                else:
+                    state.answers["review_reason"] = "meter_hi"
+                state.step = DiabetesStep.COMPLETE.value
+                return state
+            else:
+                state.missing_data_asked_once = True
+                state.step = DiabetesStep.MISSING_DATA_CHECKPOINT.value
+                return state
+
+        meter_token = detect_meter_lo_hi(answer)
+        if meter_token:
+            state.answers["_pending_meter_lo_hi"] = meter_token
+            return state
+
         reading, unit, needs_clarify, guidance, rev_reason = _process_glucose_input(answer, previously_asked=False)
         if needs_clarify and not state.missing_data_asked_once:
             state.missing_data_asked_once = True

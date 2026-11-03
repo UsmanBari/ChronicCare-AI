@@ -4614,6 +4614,9 @@ def answer_checkin_endpoint(
             )
 
     try:
+        if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
+            current_state.answers = {}
+        current_state.answers["language"] = lang
         next_state = adaptive_interview_node(current_state, patient_response=body.answer)
     except ValueError as e:
         raise HTTPException(
@@ -4644,6 +4647,8 @@ def answer_checkin_endpoint(
         (next_state.stage1_red_flag and rf_level == "emergency")
         or (next_state.intake and next_state.intake.get("emergency"))
     )
+    if is_emergency and not v2_safety_note:
+        v2_safety_note = get_safety_note(lang)
     is_urgent_stage1 = bool(next_state.stage1_red_flag and rf_level == "urgent")
 
     if is_emergency or is_urgent_stage1:

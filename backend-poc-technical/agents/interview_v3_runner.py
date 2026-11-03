@@ -35,6 +35,7 @@ from agents.answer_understanding import (
 from agents.answer_validation import (
     ValidationResult,
     check_contradiction,
+    detect_meter_lo_hi,
     validate_bp_input,
     validate_glucose_input,
 )
@@ -455,6 +456,44 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             session_state["needs_clinician_flag"] = True
 
     elif "glucose_reading" in current_slot or current_slot == "diabetes_glucose_reading":
+        if session_state.get("awaiting_meter_lo_hi_confirmation"):
+            token = session_state.pop("awaiting_meter_lo_hi_confirmation")
+            yn_res = parse_yes_no(clean_answer, lang=lang)
+            if yn_res["value"] == "yes":
+                reason = "meter_lo" if token == "LO" else "meter_hi"
+                session_state["emergency"] = True
+                session_state["emergency_reason"] = reason
+                session_state["completed"] = True
+                session_state["step"] = "COMPLETE"
+                session_state["current_question"] = None
+                session_state["system_note"] = get_message("emergency_red_flag_note", lang)
+                from agents.danger_wordgroups import get_safety_note
+                session_state["safety_note"] = get_safety_note(lang)
+                if token == "LO":
+                    session_state["possible_severe_low"] = True
+                    session_state["possible_severe_low_guidance"] = get_message("glucose_unclear_unit_safety_guidance", lang)
+                return session_state
+            else:
+                session_state["current_question"] = (
+                    "براہ کرم شوگر کی ریڈنگ نمبر میں بتائیں (mg/dL یا mmol/L)۔" if lang == "ur"
+                    else ("Barah-e-karam sugar ki reading number mein batayein (mg/dL ya mmol/L)." if lang == "roman_ur"
+                    else "Please enter your numeric blood sugar reading in mg/dL (or mmol/L).")
+                )
+                session_state["options"] = None
+                session_state["option_items"] = None
+                return session_state
+
+        meter_token = detect_meter_lo_hi(clean_answer)
+        if meter_token:
+            session_state["awaiting_meter_lo_hi_confirmation"] = meter_token
+            session_state["current_question"] = get_message("meter_lo_hi_confirmation", lang)
+            session_state["options"] = ["yes", "no"]
+            session_state["option_items"] = [
+                {"value": "yes", "label": "ہاں" if lang == "ur" else ("haan" if lang == "roman_ur" else "yes")},
+                {"value": "no", "label": "نہیں" if lang == "ur" else ("nahi" if lang == "roman_ur" else "no")},
+            ]
+            return session_state
+
         p_num = parse_number(clean_answer)
         cleaned_for_val = clean_answer
         if p_num["value"] is not None and p_num["kind"] == "words":

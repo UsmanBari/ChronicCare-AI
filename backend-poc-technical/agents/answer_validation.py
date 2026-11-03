@@ -101,6 +101,53 @@ class ValidationResult:
     clarification_prompt: Optional[str] = None
 
 
+def detect_meter_lo_hi(text: str) -> Optional[str]:
+    """
+    Detects digital glucose meter 'LO' or 'HI' display codes.
+    Universal digital meters show English LO or HI when glucose is outside readable range.
+    Matches:
+    - English/Roman-Urdu: 'LO', 'Lo', 'HI', 'Hi', 'meter says LO', 'screen shows HI',
+      'meter par LO likha hai', 'screen pe HI hai'
+    - Urdu: 'میٹر پر LO', 'اسکرین پر HI'
+    Excludes plain subjective statements:
+    - 'sugar low hai', 'sugar high hai', 'bohot low lag raha hai', 'sugar lo hai', 'sugar hi hai'
+    """
+    if not text:
+        return None
+    raw = text.strip()
+    norm = raw.lower()
+
+    # Exclude common greetings like "Hi doctor", "Hi team"
+    if re.search(r"\bhi\s+(?:doctor|doc|team|everyone|there|dr)\b", norm, re.IGNORECASE):
+        return None
+
+    # Check for presence of meter/screen cues
+    has_meter_screen = bool(re.search(r"\b(meter|screen|display|meeter|mitar)\b|میٹر|اسکرین", norm, re.IGNORECASE))
+
+    # If no meter/screen cue, exclude plain subjective statements about sugar or feeling low/high
+    if not has_meter_screen:
+        if re.search(r"\b(sugar|shuger|feel|feeling|bohot|lag\s+raha)\b|شوگر", norm, re.IGNORECASE):
+            return None
+
+    # Match standalone tokens LO / HI
+    # (?<![a-zA-Z]) ensures LO is not part of blow/slow and HI is not part of this/ship
+    lo_match = bool(re.search(r"(?<![a-zA-Z])lo(?![a-zA-Z])", norm, re.IGNORECASE))
+    hi_match = bool(re.search(r"(?<![a-zA-Z])hi(?![a-zA-Z])", norm, re.IGNORECASE))
+
+    if has_meter_screen:
+        # If meter or screen is explicitly mentioned, also accept "low" or "high"
+        if not lo_match and re.search(r"\b(low)\b", norm, re.IGNORECASE):
+            lo_match = True
+        if not hi_match and re.search(r"\b(high)\b", norm, re.IGNORECASE):
+            hi_match = True
+
+    if lo_match and not hi_match:
+        return "LO"
+    if hi_match and not lo_match:
+        return "HI"
+    return None
+
+
 def validate_glucose_input(text: str, previously_asked_unit: bool = False) -> ValidationResult:
     """
     Parses and validates glucose input:

@@ -132,6 +132,12 @@
     "roman_ur": "Pehle aap ne tamam khorakein lene ka bataya lekin phir kaha ke dawai khatam ho gayi thi. Kya aap is ki wazahat kar sakte hain?",
     "needs_native_review": false
   },
+  "meter_lo_hi_confirmation": {
+    "en": "Does your meter screen show the letters LO (or HI) instead of a number?",
+    "ur": "کیا آپ کے میٹر کی اسکرین پر کسی نمبر کی جگہ LO (یا HI) لکھا آ رہا ہے؟",
+    "roman_ur": "Kya aap ke meter ki screen par kisi number ki jagah LO (ya HI) likha aa raha hai?",
+    "needs_native_review": false
+  },
   "contradiction_fasting_just_ate": {
     "en": "We noted this reading as fasting, but you mentioned eating recently. Was this reading taken before or after your meal?",
     "ur": "ہم نے یہ ریڈنگ نہار منہ لکھی ہے مگر آپ نے کھانا کھانے کا ذکر کیا۔ کیا یہ ٹیسٹ کھانے سے پہلے کا تھا یا بعد کا؟",

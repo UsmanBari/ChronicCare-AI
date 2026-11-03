@@ -197,6 +197,7 @@ def step_parse_and_validate_intake(
                     answered_by_val = it["answered_by"]
                     break
             # Emergency early return for v3 (reproducing main.py:3373-3383)
+            from agents.danger_wordgroups import get_safety_note
             return {}, CheckinCompleteResponse(
                 emergency=True,
                 intakes=intakes,
@@ -207,6 +208,7 @@ def step_parse_and_validate_intake(
                 triage=None,
                 record_source_label=record_label,
                 answered_by=answered_by_val,
+                safety_note=get_safety_note(raw_state.get("language") or "en"),
             )
 
         v3_summary = finish_v3_session(raw_state)
@@ -315,6 +317,7 @@ def step_parse_and_validate_intake(
                     answered_by_val = it["answered_by"]
                     break
             # Emergency early return for v2 (reproducing main.py:3491-3501)
+            from agents.danger_wordgroups import get_safety_note
             return {}, CheckinCompleteResponse(
                 emergency=True,
                 intakes=intakes,
@@ -325,6 +328,7 @@ def step_parse_and_validate_intake(
                 triage=triage_dict,
                 record_source_label=record_label,
                 answered_by=answered_by_val,
+                safety_note=get_safety_note(state.answers.get("language") or "en"),
             )
 
     return {
