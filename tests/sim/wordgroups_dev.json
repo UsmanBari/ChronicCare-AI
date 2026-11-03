@@ -772,5 +772,41 @@
     "expected_danger": true,
     "group": "cardiac_chest_pain",
     "lang": "roman_ur"
+  },
+  {
+    "text": "dard ho raha hai aur seena bhaari hai",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "seena bhaari nahi hai",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
+  },
+  {
+    "text": "I can't feel my left arm",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "I can feel my arm fine",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "I couldn't speak properly for the last hour",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "I couldn't speak to the doctor yesterday because he was busy",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
   }
 ]

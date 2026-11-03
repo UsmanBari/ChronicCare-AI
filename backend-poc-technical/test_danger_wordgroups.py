@@ -517,3 +517,33 @@ def test_apostrophe_and_habitual_past(text: str, expected_danger: bool, expected
     assert res.is_danger is expected_danger
     if expected_danger:
         assert res.group == expected_group
+
+# =============================================================================
+# C9: VOCABULARY GAPS & TRAPS (REVIEW 3)
+# =============================================================================
+
+@pytest.mark.parametrize(
+    "text,expected_danger,expected_group",
+    [
+        # Roman Urdu severity bhaari/bhari/bhaary in chest group
+        ("dard ho raha hai aur seena bhaari hai", True, "cardiac_chest_pain"),
+        ("seena bhaari nahi hai", False, None),
+        ("seena bhari hai", True, "cardiac_chest_pain"),
+        ("seena bhari nahi hai", False, None),
+        # cannot feel / could not feel + limb in stroke group
+        ("I can't feel my left arm", True, "stroke_fast_cue"),
+        ("I couldn't feel my right hand", True, "stroke_fast_cue"),
+        ("I can feel my arm fine", False, None),
+        ("I can feel my leg fine", False, None),
+        # could not speak / unable to talk / can't talk in speech pattern
+        ("I couldn't speak properly for the last hour", True, "stroke_fast_cue"),
+        ("unable to talk", True, "stroke_fast_cue"),
+        ("can't talk right now", True, "stroke_fast_cue"),
+        ("I couldn't speak to the doctor yesterday because he was busy", False, None),
+    ],
+)
+def test_review3_vocabulary_gaps_and_traps(text: str, expected_danger: bool, expected_group: str | None):
+    res = detect(text)
+    assert res.is_danger is expected_danger
+    if expected_danger:
+        assert res.group == expected_group

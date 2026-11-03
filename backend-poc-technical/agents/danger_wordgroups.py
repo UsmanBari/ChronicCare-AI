@@ -115,7 +115,7 @@ _PRECEDING_NEGATION_WORDS: set[str] = {
 # 'could not move his arm', 'jaan nahi rahi', 'جان نہیں رہی'.
 _INABILITY_PATTERNS: list[str] = [
     r"\b(?:nahi|nahin)\s+(?:ja\s+rah[aiye]|pa\s+rah[aiye]|aa\s+rah[aiye]|hua\s+ja\s+raha)\b",
-    r"\b(?:cant|cannot|could\s+not|unable\s+to)\s+(?:lift|move|speak|walk|stand|breathe)\b",
+    r"\b(?:cant|cannot|could\s+not|unable\s+to)\s+(?:lift|move|speak|talk|walk|stand|breathe|feel)\b",
     r"\bjaan\s*(?:nahi|nahin)\b",
     U_PRE + r"(?:نہیں|نہ)\s+(?:جا\s+رہ[ایہے]|پا\s+رہ[ایہے]|آ\s+رہ[ایہے]|ہو\s+پا\s+رہ)" + U_POST,
     U_PRE + r"جان\s*(?:نہیں\s*رہی|نہیں\s*ہے|نکل\s*گئی)" + U_POST,
@@ -157,6 +157,7 @@ _ONGOING_TIME_RE = re.compile("|".join(_ONGOING_TIME_PATTERNS), re.IGNORECASE)
 _PAST_PATTERNS: list[str] = [
     r"\b(?:history\s+of|used\s+to|previously|in\s+the\s+past)\b",
     r"\bhad\b.*?\b(?:ago|last\s+year|last\s+month|yesterday)\b",
+    r"\byesterday\b",
     r"\b(?:last\s+(?:year|month|week)|(?:months|weeks|days|years|\d+\s+days?|\d+\s+weeks?|\d+\s+months?|\d+\s+years?)\s+ago)\b",
     r"\b(?:pehle\s+(?:tha|thi|the)|(?:tha|thi|the)\s+pehle)\b",
     r"\b(?:kal|pichle\s+(?:saal|mahine|hafte|haftay|din)|pichlay\s+(?:saal|mahine|hafte|haftay|din)|saal\s+pehle|mahine\s+pehle|haftay\s+pehle)\b.*?\b(?:tha|thi|the)\b",
@@ -184,14 +185,14 @@ _CHEST_BODY_RE = re.compile(
 
 _CHEST_SEVERITY_RE = re.compile(
     r"\b(?:crushing|pressure|tightness|squeezing|heavy|heaviness|burning|severe\s+ache|stabbing|radiating|intense\s+pain)\b|"
-    r"\b(?:shadeed\s+dard|sakht\s+dard|bojh|dabao|jalan|sakht|khichao|phat\s+raha)\b|"
-    + U_PRE + r"(?:شدید\s+درد|سخت\s+درد|دباؤ|دباو|بوجھ|جلن|کھچاؤ|پھٹ\s+رہا)" + U_POST,
+    r"\b(?:shadeed\s+dard|sakht\s+dard|bojh|dabao|bhaari|bhari|bhaary|jalan|sakht|khichao|phat\s+raha)\b|"
+    + U_PRE + r"(?:شدید\s+درد|سخت\s+درد|دباؤ|دباو|بوجھ|بھاری|جلن|کھچاؤ|پھٹ\s+رہا)" + U_POST,
     re.IGNORECASE,
 )
 
 _CHEST_PAIN_COOCCUR_RE = re.compile(
-    r"\b(?:pain|severe|crushing|pressure|tightness|heavy|squeezing|bojh|dabao|shadeed|sakht|dard)\b|"
-    + U_PRE + r"(?:درد|شدید|بوجھ|دباؤ|دباو|سخت)" + U_POST,
+    r"\b(?:pain|severe|crushing|pressure|tightness|heavy|squeezing|bojh|dabao|bhaari|bhari|bhaary|shadeed|sakht|dard)\b|"
+    + U_PRE + r"(?:درد|شدید|بوجھ|بھاری|دباؤ|دباو|سخت)" + U_POST,
     re.IGNORECASE,
 )
 
@@ -202,8 +203,8 @@ _MILD_QUALIFIER_RE = re.compile(
     re.IGNORECASE,
 )
 _SEVERE_QUALIFIER_RE = re.compile(
-    r"\b(?:crushing|severe|shadeed|pressure|tightness|heavy|squeezing|sakht|dabao|bojh|cant\s+breathe|cannot\s+breathe|gasping)\b|"
-    + U_PRE + r"(?:شدید|سخت|دباؤ|دباو|بوجھ|پھٹ|دم\s+گھٹ)" + U_POST,
+    r"\b(?:crushing|severe|shadeed|pressure|tightness|heavy|squeezing|sakht|dabao|bojh|bhaari|bhari|bhaary|cant\s+breathe|cannot\s+breathe|gasping)\b|"
+    + U_PRE + r"(?:شدید|سخت|دباؤ|دباو|بوجھ|بھاری|پھٹ|دم\s+گھٹ)" + U_POST,
     re.IGNORECASE,
 )
 
@@ -226,8 +227,8 @@ _STROKE_FAST_PATTERNS: list[re.Pattern] = [
     ),
     # Arm / Leg / Unilateral weakness, numbness or motor inability
     re.compile(
-        r"\b(?:arm|hand|leg|foot|feet|bazu|baazu|haath|hath|taang|tang|paon|pair)\b.*?\b(?:weak(?:ness)?|numb(?:ness)?|paralyz(?:ed|is)?|sunn|kamzor|kamzori|jaan\s*(?:nahi|nahin)|(?:could\s+not|cannot|cant|unable\s+to)\s+(?:move|lift))\b|"
-        r"\b(?:weak(?:ness)?|numb(?:ness)?|paralyz(?:ed|is)?|sunn|kamzor|kamzori|jaan\s*(?:nahi|nahin)|(?:could\s+not|cannot|cant|unable\s+to)\s+(?:move|lift))\b.*?\b(?:arm|hand|leg|foot|feet|bazu|baazu|haath|hath|taang|tang|paon|pair)\b|"
+        r"\b(?:arm|hand|leg|foot|feet|bazu|baazu|haath|hath|taang|tang|paon|pair)\b.*?\b(?:weak(?:ness)?|numb(?:ness)?|paralyz(?:ed|is)?|sunn|kamzor|kamzori|jaan\s*(?:nahi|nahin)|(?:could\s+not|cannot|cant|unable\s+to)\s+(?:move|lift|feel))\b|"
+        r"\b(?:weak(?:ness)?|numb(?:ness)?|paralyz(?:ed|is)?|sunn|kamzor|kamzori|jaan\s*(?:nahi|nahin)|(?:could\s+not|cannot|cant|unable\s+to)\s+(?:move|lift|feel))\b.*?\b(?:arm|hand|leg|foot|feet|bazu|baazu|haath|hath|taang|tang|paon|pair)\b|"
         r"\b(?:one\s+side|aik\s+taraf|ek\s+taraf|aadha\s+jism|adha\s+jism)\b.*?\b(?:weak(?:ness)?|numb(?:ness)?|paralyz(?:ed|is)?|falij|faalij|kamzor|kamzori|sunn|jaan\s*(?:nahi|nahin))\b|"
         r"\b(?:falij|faalij|hemiparesis|facial\s+droop)\b|"
         + U_PRE + r"(?:بازو|ہاتھ|ٹانگ|پاؤں|پاوں|ایک\s+طرف|آدھا\s+جسم)" + U_POST + r".*?" + U_PRE + r"(?:کمزور|کمزوری|سن|فالج|جان\s*(?:نہیں\s*رہی|نہیں\s*ہے|نکل\s*گئی))" + U_POST + r"|"
@@ -236,7 +237,8 @@ _STROKE_FAST_PATTERNS: list[re.Pattern] = [
     ),
     # Speech impairment / dysarthria
     re.compile(
-        r"\b(?:slurr(?:ed)?\s+speech|cant\s+speak|cannot\s+speak|unable\s+to\s+speak|lost\s+speech)\b|"
+        r"\b(?:slurr(?:ed)?\s+speech|lost\s+speech)\b|"
+        r"\b(?:cant|cannot|could\s+not|unable\s+to)\s+(?:speak|talk)(?!\s+(?:to|with)\s+(?:the\s+)?(?:doctor|dr|nurse|physician|clinic|hospital|someone|anybody|anyone|him|her|them)\b)\b|"
         r"\b(?:bol\s+nahi\s+pa\s+rah(?:a|i|e|y)?|awaz\s+ladkhada|zuban\s+ladkhada|awaz\s+band)\b|"
         + U_PRE + r"(?:بول\s+نہیں\s+پا\s+رہ(?:ا|ی|ے)?|آواز\s+لڑکھڑا\w*|زبان\s+لڑکھڑا\w*|آواز\s+بند)" + U_POST,
         re.IGNORECASE,
