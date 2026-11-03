@@ -132,15 +132,17 @@ _TRAILING_NEGATION_PATTERNS: list[str] = [
 _TRAILING_NEGATION_RE = re.compile("|".join(_TRAILING_NEGATION_PATTERNS), re.IGNORECASE)
 
 # Explicitly resolved cues:
-# 'ab / اب' only resolves if followed by 'theek / behtar / achha / ٹھیک / بہتر / اچھا' (within 3 words)
-# or 'theek ho gaya / ٹھیک ہو گیا'.
-# 'nahi / nahin / نہیں' and 'ابھی' are strictly excluded from resolved patterns.
+# Matches explicit recovery in English, Roman Urdu, and Urdu script.
+# Cues include: 'ab theek', 'theek ho gaya', 'ab nahi hai', 'now fine', 'اب ٹھیک'.
 _RESOLVED_CUES: list[str] = [
-    r"\b(?:ab|abb)\b(?:\s+\w+){0,3}\s+(?:theek|thik|behtar|achha|acha)\b",
+    r"\b(?:ab|abb)\b(?:\s+\w+){0,3}\s+(?:theek|thik|behtar|achha|acha|sahi)\b",
     r"\b(?:theek|thik|behtar)\s+ho\s+(?:gaya|gaye|gayi|gya)\b",
-    r"\b(?:now|currently)\s+(?:\w+\s+){0,3}(?:fine|better|resolved|okay|ok|gone)\b",
+    r"\b(?:ab|abb)\s+(?:koi|kuch)?\s*(?:takleef|dard|masla|problem)?\s*(?:nahi|nahin)\s*(?:hai|raha|hota|hoti)?\b(?!\s+(?:aa\s+rah|pa\s+rah|ja\s+rah))",
+    r"\b(?:now|currently)\s+(?:\w+\s+){0,3}(?:fine|better|resolved|okay|ok|gone|normal)\b",
+    r"\b(?:completely\s+gone|went\s+away|feeling\s+okay|feeling\s+fine|no\s+pain\s+now)\b",
     U_PRE + r"اب(?:\s+[\u0600-\u06FF]+){0,3}\s+(?:ٹھیک|بہتر|اچھا)" + U_POST,
     U_PRE + r"(?:ٹھیک|بہتر)\s*ہو\s*(?:گیا|گئی|گئے)" + U_POST,
+    U_PRE + r"اب\s+(?:کوئی|کچھ)?\s*(?:تکلیف|درد|مسئلہ)?\s*(?:نہیں|نہ)\s*(?:ہے|رہا|ہوتا|ہوتی)?" + U_POST + r"(?!\s*(?:آ\s+رہ|پا\s+رہ|جا\s+رہ))",
 ]
 _RESOLVED_RE = re.compile("|".join(_RESOLVED_CUES), re.IGNORECASE)
 
@@ -153,22 +155,30 @@ _ONGOING_TIME_PATTERNS: list[str] = [
 ]
 _ONGOING_TIME_RE = re.compile("|".join(_ONGOING_TIME_PATTERNS), re.IGNORECASE)
 
-# Historical / Past temporal cues (must be strictly historical with explicit past verbs)
-_PAST_PATTERNS: list[str] = [
+# Remote past temporal cues (>1 month ago or explicit habitual past):
+# Only remote history suppresses acute review. Recent events (yesterday, last night,
+# this morning, kal, kal raat, last week, pichle hafte, days/weeks ago) describe
+# recent acute clinical episodes that MUST raise to review.
+_REMOTE_PAST_PATTERNS: list[str] = [
     r"\b(?:history\s+of|used\s+to|previously|in\s+the\s+past)\b",
-    r"\bhad\b.*?\b(?:ago|last\s+year|last\s+month|yesterday)\b",
-    r"\byesterday\b",
-    r"\b(?:last\s+(?:year|month|week)|(?:months|weeks|days|years|\d+\s+days?|\d+\s+weeks?|\d+\s+months?|\d+\s+years?)\s+ago)\b",
-    r"\b(?:pehle\s+(?:tha|thi|the)|(?:tha|thi|the)\s+pehle)\b",
-    r"\b(?:kal|pichle\s+(?:saal|mahine|hafte|haftay|din)|pichlay\s+(?:saal|mahine|hafte|haftay|din)|saal\s+pehle|mahine\s+pehle|haftay\s+pehle)\b.*?\b(?:tha|thi|the)\b",
-    r"\b(?:hua\s+tha|hui\s+thi|hue\s+the|aaya\s+tha|aayi\s+thi|dard\s+tha|dard\s+thi)\b",
+    r"\bhad\b.*?\b(?:ago|last\s+year|last\s+month|months\s+ago|years\s+ago)\b",
+    r"\b(?:last\s+(?:year|month)|(?:months|years|\d+\s+months?|\d+\s+years?)\s+ago)\b",
+    r"\b(?:pichle\s+(?:saal|mahine)|pichlay\s+(?:saal|mahine)|saal\s+pehle|mahine\s+pehle)\b",
     r"\b(?:hota\s+tha|hoti\s+thi|hote\s+the|hotay\s+the)\b",
-    U_PRE + r"(?:پہلے\s+(?:تھا|تھی|تھے)|(?:تھا|تھی|تھے)\s+پہلے)" + U_POST,
-    U_PRE + r"(?:کل|پچھلے\s+(?:سال|مہینے|ہفتے|دن)|سال\s+پہلے|مہینے\s+پہلے|ہفتے\s+پہلے).*?(?:تھا|تھی|تھے)" + U_POST,
-    U_PRE + r"(?:ہوا\s+تھا|ہوئی\s+تھی|ہوئے\s+تھے|آیا\s+تھا|آئی\s+تھی|درد\s+تھا|درد\s+تھی)" + U_POST,
+    U_PRE + r"(?:پچھلے\s+(?:سال|مہینے)|سال\s+پہلے|مہینے\s+پہلے)" + U_POST,
     U_PRE + r"(?:ہوتا\s+تھا|ہوتی\s+تھی|ہوتے\s+تھے)" + U_POST,
 ]
-_PAST_RE = re.compile("|".join(_PAST_PATTERNS), re.IGNORECASE)
+_REMOTE_PAST_RE = re.compile("|".join(_REMOTE_PAST_PATTERNS), re.IGNORECASE)
+
+# General past tense cues in a clause (used to verify if a preceding clause was in past tense
+# when a resolved cue occurs in the subsequent clause):
+_PAST_TENSE_PATTERNS: list[str] = [
+    r"\b(?:had|was|were|fainted|passed\s+out|collapsed|vomited|threw\s+up|started|stopped|felt|happened|occurred)\b",
+    r"\b(?:tha|thi|the|thay|hua\s+tha|hui\s+thi|hue\s+the|aaya\s+tha|aayi\s+thi|aaye\s+the|gaya\s+tha|gayi\s+thi|gaye\s+the|pehle)\b",
+    r"\b(?:yesterday|last\s+night|this\s+morning|last\s+week|earlier|previously|ago|kal|pichle|pichlay)\b",
+    U_PRE + r"(?:تھا|تھی|تھے|ہوا\s*تھا|ہوئی\s*تھی|ہوئے\s*تھے|آیا\s*تھا|آئی\s*تھی|گیا\s*تھا|گئی\s*تھی|گئے\s*تھے|پہلے|کل|گزشتہ)" + U_POST,
+]
+_PAST_TENSE_RE = re.compile("|".join(_PAST_TENSE_PATTERNS), re.IGNORECASE)
 
 
 # =============================================================================
@@ -269,8 +279,8 @@ _SYNCOPE_PATTERNS: list[re.Pattern] = [
 # Group 5: Acute GI Hemorrhage (Hematemesis / Melena)
 _GI_BLEED_PATTERNS: list[re.Pattern] = [
     re.compile(
-        r"\b(?:vomit(?:ing)?\s+blood|blood\s+in\s+vomit|coffee\s+ground\s+emesis)\b|"
-        r"\b(?:throw(?:ing)?\s+up|vomit(?:ing)?|threw\s+up)\b.*?\bblood\b|"
+        r"\b(?:vomit(?:ing|ed)?\s+blood|blood\s+in\s+vomit|coffee\s+ground\s+emesis)\b|"
+        r"\b(?:throw(?:ing)?\s+up|vomit(?:ing|ed)?|threw\s+up)\b.*?\bblood\b|"
         r"\b(?:khoon\s+ki\s+ulti|ulti\s+mein\s+khoon|khoon\s+ke\s+dast)\b|"
         r"\b(?:black\s+tarry\s+stool|melena)\b|"
         r"\b(?:pakhana\w*.*?(?:kala|siyah)|(?:kala|siyah).*?pakhana\w*)\b|"
@@ -328,14 +338,21 @@ def _is_negated_clause(clause: str, match_start: int, match_end: int) -> bool:
     return False
 
 
-def _is_past_clause(clause: str) -> bool:
+def _is_remote_past_clause(clause: str) -> bool:
     """
-    Evaluates whether the clause describes historical events.
+    Evaluates whether the clause describes remote historical events (>1 month ago).
     Ongoing time indicators ('since', 'kal se', 'صبح سے') immediately disqualify past.
     """
     if _ONGOING_TIME_RE.search(clause):
         return False
-    return bool(_PAST_RE.search(clause))
+    return bool(_REMOTE_PAST_RE.search(clause))
+
+
+def _is_past_tense_clause(clause: str) -> bool:
+    """Evaluates whether the clause is expressed in past tense."""
+    if _ONGOING_TIME_RE.search(clause):
+        return False
+    return bool(_PAST_TENSE_RE.search(clause))
 
 
 def _is_resolved_clause(clause: str) -> bool:
@@ -361,7 +378,9 @@ def detect(text: str | None) -> WordGroupResult:
     clauses = _split_into_clauses(clean_text)
     suppressed_info: tuple[str, str] | None = None
 
-    for clause in clauses:
+    for idx, clause in enumerate(clauses):
+        next_clause = clauses[idx + 1] if idx + 1 < len(clauses) else None
+
         # Check Stroke FAST patterns
         for pat in _STROKE_FAST_PATTERNS:
             m = pat.search(clause)
@@ -374,10 +393,13 @@ def detect(text: str | None) -> WordGroupResult:
                 if _is_negated_clause(clause, m.start(), m.end()):
                     suppressed_info = ("negation", "stroke_fast_cue")
                     continue
-                if _is_past_clause(clause):
+                if _is_remote_past_clause(clause):
                     suppressed_info = ("past", "stroke_fast_cue")
                     continue
                 if _is_resolved_clause(clause):
+                    suppressed_info = ("resolved", "stroke_fast_cue")
+                    continue
+                if next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
                     suppressed_info = ("resolved", "stroke_fast_cue")
                     continue
                 return WordGroupResult(is_danger=True, group="stroke_fast_cue")
@@ -394,10 +416,13 @@ def detect(text: str | None) -> WordGroupResult:
                 if _is_negated_clause(clause, m.start(), m.end()):
                     suppressed_info = ("negation", "breathing_distress")
                     continue
-                if _is_past_clause(clause):
+                if _is_remote_past_clause(clause):
                     suppressed_info = ("past", "breathing_distress")
                     continue
                 if _is_resolved_clause(clause):
+                    suppressed_info = ("resolved", "breathing_distress")
+                    continue
+                if next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
                     suppressed_info = ("resolved", "breathing_distress")
                     continue
                 return WordGroupResult(is_danger=True, group="breathing_distress")
@@ -409,10 +434,13 @@ def detect(text: str | None) -> WordGroupResult:
                 if _is_negated_clause(clause, m.start(), m.end()):
                     suppressed_info = ("negation", "unresponsive_faint")
                     continue
-                if _is_past_clause(clause):
+                if _is_remote_past_clause(clause):
                     suppressed_info = ("past", "unresponsive_faint")
                     continue
                 if _is_resolved_clause(clause):
+                    suppressed_info = ("resolved", "unresponsive_faint")
+                    continue
+                if next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
                     suppressed_info = ("resolved", "unresponsive_faint")
                     continue
                 return WordGroupResult(is_danger=True, group="unresponsive_faint")
@@ -424,10 +452,13 @@ def detect(text: str | None) -> WordGroupResult:
                 if _is_negated_clause(clause, m.start(), m.end()):
                     suppressed_info = ("negation", "vomiting_blood")
                     continue
-                if _is_past_clause(clause):
+                if _is_remote_past_clause(clause):
                     suppressed_info = ("past", "vomiting_blood")
                     continue
                 if _is_resolved_clause(clause):
+                    suppressed_info = ("resolved", "vomiting_blood")
+                    continue
+                if next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
                     suppressed_info = ("resolved", "vomiting_blood")
                     continue
                 return WordGroupResult(is_danger=True, group="vomiting_blood")
@@ -446,9 +477,11 @@ def detect(text: str | None) -> WordGroupResult:
                     pass
                 elif _is_negated_clause(clause, start_pos, end_pos):
                     suppressed_info = ("negation", "cardiac_chest_pain")
-                elif _is_past_clause(clause):
+                elif _is_remote_past_clause(clause):
                     suppressed_info = ("past", "cardiac_chest_pain")
                 elif _is_resolved_clause(clause):
+                    suppressed_info = ("resolved", "cardiac_chest_pain")
+                elif next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
                     suppressed_info = ("resolved", "cardiac_chest_pain")
                 else:
                     return WordGroupResult(is_danger=True, group="cardiac_chest_pain")

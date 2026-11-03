@@ -461,7 +461,7 @@ def test_code_review_ten_cases(text: str, expected_danger: bool, expected_group:
         ("b", "pichle do ghante se takleef thi lekin ab theek hai", False, None),
         # Category c: ongoing vs past
         ("c", "kal se seene mein shadeed dabao mehsoos ho raha hai", True, "cardiac_chest_pain"),
-        ("c", "kal seene mein dard tha par dawai le li thi", False, None),
+        ("c", "kal seene mein dard tha par dawai le li thi", True, "cardiac_chest_pain"),
         # Category d: Urdu script boundaries
         ("d", "دل کی دھڑکن تیز ہے اور سینے میں شدید دباؤ ہے", True, "cardiac_chest_pain"),
         ("d", "کل پاؤں پھسل گیا تھا لیکن سنبھل گیا", False, None),
@@ -547,3 +547,34 @@ def test_review3_vocabulary_gaps_and_traps(text: str, expected_danger: bool, exp
     assert res.is_danger is expected_danger
     if expected_danger:
         assert res.group == expected_group
+
+# =============================================================================
+# C10: V1.1 REMOTE PAST VS RECENT EPISODES & CROSS-CLAUSE RESOLVED
+# =============================================================================
+
+@pytest.mark.parametrize(
+    "text,expected_danger,expected_group",
+    [
+        # Recent Time Episodes (Must Hit: Recent danger must NOT be suppressed by recent past cues)
+        ("I fainted yesterday", True, "unresponsive_faint"),
+        ("yesterday evening my face started drooping and it is still drooping", True, "stroke_fast_cue"),
+        ("kal raat behosh ho gaya tha", True, "unresponsive_faint"),
+        ("pichle hafte do dafa behosh hua", True, "unresponsive_faint"),
+        ("this morning I vomited blood", True, "vomiting_blood"),
+        ("since yesterday I cannot breathe", True, "breathing_distress"),
+        # Remote Past & Habitual Past (Must Not Hit: >1 month ago or habitual past suppresses)
+        ("pichle saal behosh hua tha", False, None),
+        ("years ago I had chest pressure", False, None),
+        ("pehle seene mein dard hota tha", False, None),
+        # Cross-Clause Resolved (Must Not Hit: Resolved cue in adjacent clause suppresses past-tense hit)
+        ("seene mein dard tha, ab theek hoon", False, None),
+        # Conversational Guard Retained
+        ("I couldn't speak to the doctor yesterday because he was busy", False, None),
+    ],
+)
+def test_v1_1_remote_past_vs_recent_episodes(text: str, expected_danger: bool, expected_group: str | None):
+    res = detect(text)
+    assert res.is_danger is expected_danger
+    if expected_danger:
+        assert res.group == expected_group
+

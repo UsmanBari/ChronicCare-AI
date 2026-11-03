@@ -667,8 +667,8 @@
   },
   {
     "text": "kal seene mein dard tha par dawai le li thi",
-    "expected_danger": false,
-    "group": null,
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
     "lang": "roman_ur"
   },
   {
@@ -808,5 +808,59 @@
     "expected_danger": false,
     "group": null,
     "lang": "en"
+  },
+  {
+    "text": "I fainted yesterday",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "en"
+  },
+  {
+    "text": "yesterday evening my face started drooping and it is still drooping",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "kal raat behosh ho gaya tha",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "pichle hafte do dafa behosh hua",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "this morning I vomited blood",
+    "expected_danger": true,
+    "group": "vomiting_blood",
+    "lang": "en"
+  },
+  {
+    "text": "pichle saal behosh hua tha",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
+  },
+  {
+    "text": "years ago I had chest pressure",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "pehle seene mein dard hota tha",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
+  },
+  {
+    "text": "seene mein dard tha, ab theek hoon",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
   }
 ]

@@ -170,7 +170,7 @@ PHRASE_FILES = [
         "heldout": False,
     },
     {
-        "name": "Wordgroups Dev (96 balanced)",
+        "name": "Wordgroups Dev (144 balanced)",
         "path": REPO_ROOT / "tests" / "sim" / "wordgroups_dev.json",
         "format": "gold_list",
         "heldout": False,

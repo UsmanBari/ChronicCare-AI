@@ -1,14 +1,15 @@
-# Danger Word Groups v1: Clinical Safety Specification
+# Danger Word Groups v1 & v1.1: Clinical Safety Specification
 
-**Document Version:** 1.0  
-**Status:** Frozen for Blind Set Evaluation  
+**Document Version:** 1.1  
+**Status:** Frozen (`wordgroups-v1-frozen` for v1.0, `wordgroups-v1.1-frozen` for v1.1)  
 **Author:** Usman Bari (Lead Backend & Safety Architecture)  
 **Date:** November 2026  
-**Git Tag:** `wordgroups-v1-frozen`  
-**Related Pull Request:** feat/i3-danger-wordgroups  
+**Git Tags:** `wordgroups-v1-frozen` (v1.0), `wordgroups-v1.1-frozen` (v1.1)  
+**Related Pull Request:** feat/i3-danger-wordgroups (PR #103)  
 **Detector Module:** `backend-poc-technical/agents/danger_wordgroups.py`  
-**Detector SHA-256:** `e00ef0e7e82747421c4835b64e081e8ff3b7614a17bf6f1aa4963275a9b1b676`  
-**Benchmark Results:** [DANGER_WORDGROUPS_V1_RESULTS.md](DANGER_WORDGROUPS_V1_RESULTS.md)  
+**Detector SHA-256 (v1.0):** `e00ef0e7e82747421c4835b64e081e8ff3b7614a17bf6f1aa4963275a9b1b676`  
+**Detector SHA-256 (v1.1):** `6f6b6d8055c07e95e681f6277c624e9aa6f8b50a982b3a7a09e1dafc10fddf63`  
+**Benchmark Results:** [v1.0 Results](DANGER_WORDGROUPS_V1_RESULTS.md) | [v1.1 Results](DANGER_WORDGROUPS_V1_1_RESULTS.md)  
 
 ---
 
@@ -83,13 +84,15 @@ To prevent false alarms without compromising sensitivity, comprehensive clinical
 - **Exclusion of "nahi":** `"nahi"` is strictly removed from resolved patterns to prevent confusion with active inability (*"ab saans nahi aa rahi"* is active danger, not resolved).
 - **Exclusion of "abhi":** `"abhi"` (*ابھی*) means "right now" (acute onset) and is strictly excluded from resolved patterns.
 
-### e. Habitual Past & Historical Temporal Cues
-- Habitual symptom accounts (*"pehle chest pain hota tha, ab nahi hota"*, *"پہلے سینے میں درد ہوتا تھا"*) are recognized as past history through habitual verb markers (`hota tha / hoti thi / hote the` and `ہوتا تھا / ہوتی تھی`).
-- Ongoing temporal phrases (*"since yesterday"*, *"kal se"*, *"subah se"*, *"do din se"*, *"کل سے"*, *"صبح سے"*) describe active complaints and immediately disqualify past-tense suppression.
-- Historical past requires explicit past-only markers in the same clause:
-  - English: `"history of"`, `"used to"`, `"previously"`, `"in the past"`, `"months ago"`, `"had [event] ago"`, standalone `"yesterday"`.
-  - Roman Urdu: Explicit past verbs `tha / thi / the` combined with historical markers (*"pehle tha"*, *"pichle saal ... tha"*, *"kal tha"*).
-  - Urdu Script: `پہلے تھا`, `کل تھا`, `پچھلے سال ... تھا`.
+### e. Habitual Past, Remote Past & Recent Episodes Guard (v1.1)
+- **Clinical Policy:** In a remote chronic care decision-support setting, acute episodes occurring *recently* (today, yesterday, last night, this morning, past few days, last week) must **NOT** be suppressed. An episode of chest pressure, syncope, or facial droop that occurred yesterday or last night still urgently requires clinical provider review.
+- **Suppression Criteria:** Past-tense suppression fires **ONLY** when a **remote-past cue** is present in the same clause:
+  - English: `"last year"`, `"last month"`, `"months ago"`, `"years ago"`, `"in the past"`, `"history of"`, `"used to"`.
+  - Roman Urdu: `"pichle saal"`, `"pichle mahine"`, `"saal pehle"`, `"mahine pehle"`.
+  - Urdu Script: `پچھلے سال`, `سال پہلے`, `مہینے پہلے`.
+  - **Habitual Past:** Repeated/habitual symptom constructions (`hota tha / hoti thi / hote the / ہوتا تھا / ہوتی تھی`) in the same clause indicate chronic baseline symptoms and suppress the match (*"pehle chest pain hota tha, ab nahi hota"*, *"پہلے سینے میں درد ہوتا تھا"*).
+- **Recent Time Non-Suppression:** Bare past auxiliary verbs (`tha / thi / the / تھا / تھی`) and recent time markers (`yesterday`, `last night`, `this morning`, `today`, `kal`, `kal raat`, `aaj`, `subah`, `last week`, `pichle hafte`, `days ago`, `weeks ago`) do **NOT** suppress the acute symptom.
+- **Cross-Clause Resolved Checking:** If a candidate clause is in the past tense (e.g. Clause 0: *"seene mein dard tha"*), the detector inspects the candidate clause AND the immediately following clause (`next_clause`, e.g. Clause 1: *"ab theek hoon"* / *"ab nahi hai"*). If an explicit recovery cue is present in either clause, the hit is properly suppressed as resolved.
 
 ### f. Conversational vs. Pathological Speech Exclusion
 - Conversational inability (*"couldn't speak to the doctor yesterday because he was busy"*) is strictly excluded from neurological dysarthria via lookahead guards (`speak to / talk to doctor/clinic`) and past-tense guards.
@@ -140,10 +143,10 @@ Frontend presentations:
 
 ## 7. Benchmark Results
 
-Comprehensive benchmarking results across all evaluation corpora (Gold Standard, Tuning Set Urdu, Hassaan Urdu Independent, Wordgroups Dev, and held-out sets) are documented in [DANGER_WORDGROUPS_V1_RESULTS.md](DANGER_WORDGROUPS_V1_RESULTS.md).
+Comprehensive benchmarking results across all evaluation corpora (Gold Standard, Tuning Set Urdu, Hassaan Urdu Independent, Wordgroups Dev, and held-out sets) are documented in [DANGER_WORDGROUPS_V1_RESULTS.md](DANGER_WORDGROUPS_V1_RESULTS.md) (v1.0) and [DANGER_WORDGROUPS_V1_1_RESULTS.md](DANGER_WORDGROUPS_V1_1_RESULTS.md) (v1.1).
 
 Key highlights:
-- **Wordgroups Dev (135 items):** 71/71 (100.0%) danger caught, 0/64 (0.0%) false alarms.
+- **Wordgroups Dev (144 items):** 77/77 (100.0%) danger caught, 0/67 (0.0%) false alarms.
 - **Gold Standard Danger:** 0/56 (0.0%) false alarms.
 - **Hassaan Benign Urdu:** 0/40 (0.0%) false alarms.
 - **Saad Independent R2:** 9/15 (60.0%) danger caught, 0/15 (0.0%) false alarms.
@@ -152,8 +155,55 @@ Key highlights:
 
 ## 8. Verification & Mutation Proofs
 
-The safety invariants are guarded by 106 hermetic tests in `backend-poc-technical/test_danger_wordgroups.py` and 4 targeted mutation proofs in `scripts/verify_mutations.py`:
+The safety invariants are guarded by 117 hermetic tests in `backend-poc-technical/test_danger_wordgroups.py` and 4 targeted mutation proofs in `scripts/verify_mutations.py`:
 - `M-U-WG-1`: Removing `_raise_level(..., "review")` fails `test_c3_unit_routine_plus_hit_raises_to_review` -> **KILLED**
 - `M-U-WG-2`: Setting `emergency` instead of `review` fails `test_c4_wordgroup_hit_never_yields_urgent_or_emergency` -> **KILLED**
 - `M-U-WG-3`: Disabling trailing negation guard fails `test_c2_negation_and_resolved_guards` -> **KILLED**
 - `M-U-WG-4`: Forcing flag check to always true fails `test_c5_flag_off_invariant_behavior_identical_to_baseline` -> **KILLED**
+
+---
+
+## 9. Version 1.1 Specification & Evaluation (3 Nov 2026)
+
+### a. Clinical Rationale & Code Review Findings
+Following the initial release and tagging of `wordgroups-v1-frozen`, a dedicated clinical code review conducted by Usman identified an unacceptable safety suppression in v1.0:
+- **The Bug:** In v1.0, standalone `"yesterday"` (and any bare `tha/thi`) was categorized as past tense and suppressed acute danger phrases:
+  - *"I fainted yesterday"* $\rightarrow$ was suppressed by `past` (unsafe).
+  - *"yesterday evening my face started drooping and it is still drooping"* $\rightarrow$ was suppressed by `past` (unsafe).
+  - *"this morning I vomited blood"* $\rightarrow$ missed due to strict regex expecting bare `vomit blood`.
+- **The v1.1 Fix:**
+  1. **Remote Past vs. Recent Episodes:** Split temporal logic so only *remote* historical cues (>1 month, years ago, or habitual `hota tha`) suppress. Recent events (`yesterday`, `last night`, `this morning`, `today`, `kal`, `kal raat`, `aaj`, `subah`, `last week`, `pichle hafte`, `days ago`, `weeks ago`, bare `tha/thi`) do NOT suppress danger.
+  2. **Cross-Clause Resolution:** In compound sentences (*"seene mein dard tha, ab theek hoon"*), when clause 0 is in the past tense, resolution cues in `next_clause` (*"ab theek hoon"*, *"theek ho gaya"*, *"ab nahi hai"*) suppress the hit.
+  3. **GI Bleed Regex:** Broadened to `vomit(?:ing|ed)?\s+blood`.
+  4. **Strict Isolation from Held-Out Data:** This improvement was driven strictly by clinical code review of acute episode safety, not by held-out evaluation numbers.
+
+### b. Frozen Tags & Hashes
+Both versions are preserved as immutable git tags:
+- **v1.0 Frozen Tag:** `wordgroups-v1-frozen` (Commit `28dfe82`)  
+  `danger_wordgroups.py` SHA-256: `e00ef0e7e82747421c4835b64e081e8ff3b7614a17bf6f1aa4963275a9b1b676`
+- **v1.1 Frozen Tag:** `wordgroups-v1.1-frozen`  
+  `danger_wordgroups.py` SHA-256: `6f6b6d8055c07e95e681f6277c624e9aa6f8b50a982b3a7a09e1dafc10fddf63`
+
+### c. Side-by-Side Held-Out & Dev Results (v1.0 vs v1.1)
+
+All counts below reflect pure wordgroup detector performance (`WG_V1`) running with `--heldout-counts-only`:
+
+| Dataset | Total Sentences | v1.0 Danger Caught | v1.0 Safe FA | v1.1 Danger Caught | v1.1 Safe FA | Delta / Outcome |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Wordgroups Dev (144 balanced)** | 135 (v1.0) / 144 (v1.1) | 71 / 71 (100.0%) | 0 / 64 (0.0%) | 77 / 77 (100.0%) | 0 / 67 (0.0%) | +9 v1.1 dev sentences verified; 100% sensitivity & specificity |
+| **Gold Standard Danger** | 139 (83 danger / 56 safe) | 42 / 83 (50.6%) | 0 / 56 (0.0%) | 42 / 83 (50.6%) | 0 / 56 (0.0%) | Preserved identical performance; 0% false alarms |
+| **Tuning Set Urdu** | 40 (20 danger / 20 safe) | 10 / 20 (50.0%) | 0 / 20 (0.0%) | 10 / 20 (50.0%) | 0 / 20 (0.0%) | Out-of-scope non-cardiac/hypoglycemic misses deferred to other rules |
+| **Hassaan Urdu Indep.** | 30 (20 danger / 10 safe) | 13 / 20 (65.0%) | 0 / 10 (0.0%) | 13 / 20 (65.0%) | 0 / 10 (0.0%) | High Urdu script recall; 0% false alarms |
+| **Hassaan Benign Urdu** | 40 (0 danger / 40 safe) | N/A | 0 / 40 (0.0%) | N/A | 0 / 40 (0.0%) | 100% specificity on colloquial non-danger Urdu |
+| **Saad Independent** | 30 (15 danger / 15 safe) | 6 / 15 (40.0%) | 1 / 15 (6.7%) | 6 / 15 (40.0%) | 1 / 15 (6.7%) | Held-out set; performance stable |
+| **Saad Independent R2** | 30 (15 danger / 15 safe) | 9 / 15 (60.0%) | 0 / 15 (0.0%) | 9 / 15 (60.0%) | 0 / 15 (0.0%) | Held-out set; 0% false alarms |
+| **Saad Blind Urdu** | 40 (20 danger / 20 safe) | 7 / 20 (35.0%) | 2 / 20 (10.0%) | 7 / 20 (35.0%) | 1 / 20 (5.0%) | **False alarms halved** (1/20 vs 2/20) due to cross-clause resolution |
+
+### d. Blind Urdu Evaluation Analysis
+
+The blind Urdu evaluation target was set to achieve **clearly above 6/20** sensitivity on unseen Pakistani Urdu phrasing.
+- **Sensitivity Result:** The detector achieved **7/20 (35.0%)**, which technically exceeds the 6/20 threshold, but only by a single sentence. This target was therefore **partly met**.
+- **Miss Analysis:** The 13 unflagged sentences in Saad Blind Urdu represent:
+  - Regional idioms and dialectal spellings not in the core 5 groups.
+  - Vague somatic complaints (e.g. generalized malaise, joint aches, or blood glucose swings) that fall under standard clinical interview questions rather than acute red-flag groups.
+- **Specificity & False Alarm Reduction:** Specificity on Saad Blind Urdu improved notably in v1.1: false alarms dropped from **2/20 (10.0%) to 1/20 (5.0%)** because the cross-clause resolved guard correctly recognized multi-clause past resolution. On all other sets (Gold Standard, Hassaan Benign, Wordgroups Dev, Hassaan Indep, Saad R2), false alarms remain at **0.0%**.
