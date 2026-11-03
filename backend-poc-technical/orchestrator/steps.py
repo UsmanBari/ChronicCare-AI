@@ -65,6 +65,7 @@ class CheckinCompleteResponse(BaseModel):
     answered_by: Optional[str] = None
     risk: Optional[Dict[str, Any]] = None
     explanation: Optional[Dict[str, Any]] = None
+    safety_note: Optional[str] = None
 
 
 def _build_patient_risk_view(risk: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -216,6 +217,8 @@ def step_parse_and_validate_intake(
             step=INTERVIEW_COMPLETE,
             intakes=intakes,
         )
+        if raw_state.get("wordgroup_hits"):
+            state.answers["_wordgroup_hits"] = list(raw_state["wordgroup_hits"])
         readings_map = {}
         for intake_item in intakes:
             for r_item in intake_item.get("readings", []):
@@ -542,6 +545,26 @@ def step_decide_triage(
 
         review_status = "open" if final_requires_review else "resolved"
 
+        from agents.danger_wordgroups import is_danger_wordgroups_enabled
+        if is_danger_wordgroups_enabled():
+            wordgroup_hits = []
+            if hasattr(state, "answers") and isinstance(state.answers, dict) and state.answers.get("_wordgroup_hits"):
+                wordgroup_hits.extend(state.answers["_wordgroup_hits"])
+            if hasattr(state, "wordgroup_hits") and state.wordgroup_hits:
+                wordgroup_hits.extend(state.wordgroup_hits)
+            for it in (getattr(state, "intakes", None) or []):
+                if isinstance(it, dict) and it.get("wordgroup_hits"):
+                    wordgroup_hits.extend(it["wordgroup_hits"])
+
+            if wordgroup_hits:
+                final_triage_level = _raise_level(final_triage_level, "review")
+                final_requires_review = True
+                review_status = "open"
+                if final_max_sev == "none":
+                    final_max_sev = "moderate"
+                groups_seen = sorted(list({h.get("group") for h in wordgroup_hits if isinstance(h, dict) and h.get("group")}))
+                triage_res["wordgroups"] = groups_seen
+
         return {
             "final_triage_level": final_triage_level,
             "final_requires_review": final_requires_review,
@@ -579,6 +602,34 @@ def step_decide_triage(
             }
         else:
             triage_dict = None
+
+        from agents.danger_wordgroups import is_danger_wordgroups_enabled
+        if is_danger_wordgroups_enabled():
+            wordgroup_hits = []
+            if hasattr(state, "answers") and isinstance(state.answers, dict) and state.answers.get("_wordgroup_hits"):
+                wordgroup_hits.extend(state.answers["_wordgroup_hits"])
+            if hasattr(state, "wordgroup_hits") and state.wordgroup_hits:
+                wordgroup_hits.extend(state.wordgroup_hits)
+            for it in (getattr(state, "intakes", None) or []):
+                if isinstance(it, dict) and it.get("wordgroup_hits"):
+                    wordgroup_hits.extend(it["wordgroup_hits"])
+
+            if wordgroup_hits:
+                final_triage_level = _raise_level(final_triage_level, "review")
+                final_requires_review = True
+                review_status = "open"
+                if final_max_sev == "none":
+                    final_max_sev = "moderate"
+                groups_seen = sorted(list({h.get("group") for h in wordgroup_hits if isinstance(h, dict) and h.get("group")}))
+                if triage_dict is None:
+                    triage_dict = {
+                        "level": final_triage_level,
+                        "guidance": "Check-in flagged for clinician review.",
+                        "summary": "Danger word-group detected: clinician review required.",
+                        "wordgroups": groups_seen,
+                    }
+                else:
+                    triage_dict["wordgroups"] = groups_seen
 
         return {
             "final_triage_level": final_triage_level,
@@ -876,6 +927,12 @@ def step_persist_and_respond(
             answered_by_val = it["answered_by"]
             break
 
+    safety_note_val = None
+    from agents.danger_wordgroups import is_danger_wordgroups_enabled, get_safety_note
+    if is_danger_wordgroups_enabled() and triage_dict and triage_dict.get("wordgroups"):
+        lang = getattr(state, "language", None) or "en"
+        safety_note_val = get_safety_note(lang)
+
     return CheckinCompleteResponse(
         emergency=False,
         intakes=state.intakes,
@@ -888,4 +945,5 @@ def step_persist_and_respond(
         answered_by=answered_by_val,
         risk=_build_patient_risk_view(risk),
         explanation=_build_patient_explain_view(explanation),
+        safety_note=safety_note_val,
     )

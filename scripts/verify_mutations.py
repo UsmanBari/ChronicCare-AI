@@ -376,6 +376,39 @@ MUTATIONS = [
         "replacement": '        explain_res = explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n        )\n        triage_decision["final_triage_level"] = "routine"\n        return explain_res',
         "test_node": "backend-poc-technical/test_checkin_risk_explain.py::test_mutation_proof_m_u7_2_explain_never_modifies_triage",
     },
+    # --- Day 2 Danger Word Groups Mutations (M-U-WG-1 to M-U-WG-4) ---
+    {
+        "id": "M-U-WG-1",
+        "name": "Danger Word Groups: Remove raise in step_decide_triage",
+        "file": BACKEND_DIR / "orchestrator" / "steps.py",
+        "target": '                final_triage_level = _raise_level(final_triage_level, "review")\n                final_requires_review = True\n                review_status = "open"\n                if final_max_sev == "none":\n                    final_max_sev = "moderate"\n                groups_seen = sorted(list({h.get("group") for h in wordgroup_hits if isinstance(h, dict) and h.get("group")}))\n                if triage_dict is None:',
+        "replacement": '                # final_triage_level = _raise_level(final_triage_level, "review")\n                final_requires_review = True\n                review_status = "open"\n                if final_max_sev == "none":\n                    final_max_sev = "moderate"\n                groups_seen = sorted(list({h.get("group") for h in wordgroup_hits if isinstance(h, dict) and h.get("group")}))\n                if triage_dict is None:',
+        "test_node": "backend-poc-technical/test_danger_wordgroups.py::test_c3_unit_routine_plus_hit_raises_to_review",
+    },
+    {
+        "id": "M-U-WG-2",
+        "name": "Danger Word Groups: Raise to emergency instead of review",
+        "file": BACKEND_DIR / "orchestrator" / "steps.py",
+        "target": '                final_triage_level = _raise_level(final_triage_level, "review")\n                final_requires_review = True\n                review_status = "open"\n                if final_max_sev == "none":\n                    final_max_sev = "moderate"\n                groups_seen = sorted(list({h.get("group") for h in wordgroup_hits if isinstance(h, dict) and h.get("group")}))\n                if triage_dict is None:',
+        "replacement": '                final_triage_level = "emergency"\n                final_requires_review = True\n                review_status = "open"\n                if final_max_sev == "none":\n                    final_max_sev = "moderate"\n                groups_seen = sorted(list({h.get("group") for h in wordgroup_hits if isinstance(h, dict) and h.get("group")}))\n                if triage_dict is None:',
+        "test_node": "backend-poc-technical/test_danger_wordgroups.py::test_c4_wordgroup_hit_never_yields_urgent_or_emergency",
+    },
+    {
+        "id": "M-U-WG-3",
+        "name": "Danger Word Groups: Disable Urdu trailing negation guard",
+        "file": BACKEND_DIR / "agents" / "danger_wordgroups.py",
+        "target": '    trailing_text = clause[match_end:].strip().lower()\n    cleaned_trailing = _INABILITY_RE.sub("", trailing_text)\n    if _TRAILING_NEGATION_RE.search(cleaned_trailing):\n        return True',
+        "replacement": '    trailing_text = clause[match_end:].strip().lower()\n    cleaned_trailing = _INABILITY_RE.sub("", trailing_text)\n    if False and _TRAILING_NEGATION_RE.search(cleaned_trailing):\n        return True',
+        "test_node": "backend-poc-technical/test_danger_wordgroups.py::test_c2_negation_and_resolved_guards[seenay mein dard nahi hai bilkul theek hoon]",
+    },
+    {
+        "id": "M-U-WG-4",
+        "name": "Danger Word Groups: Force flag check always true",
+        "file": BACKEND_DIR / "agents" / "danger_wordgroups.py",
+        "target": 'def is_danger_wordgroups_enabled() -> bool:\n    """Flag guard: DANGER_WORDGROUPS_ENABLED=\'true\' (case-insensitive). OFF by default."""\n    return os.getenv("DANGER_WORDGROUPS_ENABLED", "").strip().lower() == "true"',
+        "replacement": 'def is_danger_wordgroups_enabled() -> bool:\n    """Flag guard: DANGER_WORDGROUPS_ENABLED=\'true\' (case-insensitive). OFF by default."""\n    return True',
+        "test_node": "backend-poc-technical/test_danger_wordgroups.py::test_c5_flag_off_invariant_behavior_identical_to_baseline",
+    },
 ]
 
 

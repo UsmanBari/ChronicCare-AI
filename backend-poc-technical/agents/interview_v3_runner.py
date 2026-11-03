@@ -361,6 +361,14 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         session_state["current_question"] = None
         return session_state
 
+    # 1b. DANGER WORD GROUPS SCREEN (behind DANGER_WORDGROUPS_ENABLED flag)
+    from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note
+    if is_danger_wordgroups_enabled() and clean_answer:
+        wg_hit = detect_wordgroups(clean_answer)
+        if wg_hit.is_danger:
+            session_state.setdefault("wordgroup_hits", []).append({"group": wg_hit.group, "step": current_slot})
+            session_state["safety_note"] = get_safety_note(lang)
+
     if triage_res.category == "odd_input":
         odd_count = session_state.get("consecutive_odd_count", 0) + 1
         session_state["consecutive_odd_count"] = odd_count
