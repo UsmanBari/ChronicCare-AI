@@ -39,6 +39,20 @@ export interface MedicationItemDescription {
 }
 
 /**
+ * Standard clinical blood glucose conversion factor (mmol/L to mg/dL).
+ * Single authoritative source of truth for frontend glucose calculations.
+ */
+export const GLUCOSE_MMOL_TO_MGDL_FACTOR = 18.0;
+
+export function convertGlucoseMmolToMgDl(mmolVal: number): number {
+  return Math.round(mmolVal * GLUCOSE_MMOL_TO_MGDL_FACTOR * 10) / 10;
+}
+
+export function convertGlucoseMgDlToMmol(mgdlVal: number): number {
+  return Math.round((mgdlVal / GLUCOSE_MMOL_TO_MGDL_FACTOR) * 10) / 10;
+}
+
+/**
  * Calculates exact chronological age from DOB in YYYY-MM-DD format.
  */
 export function calculateAgeFromDob(dobString?: string | null, asOfDateStr?: string): number | null {

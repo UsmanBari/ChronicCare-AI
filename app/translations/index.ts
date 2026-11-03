@@ -157,6 +157,11 @@ export interface Translations {
   obsPlaceholderSystolic: string;
   obsPlaceholderDiastolic: string;
   obsPlaceholderGlucose: string;
+  obsPlaceholderGlucoseMmol: string;
+  obsGlucoseRangeErrorMmol: string;
+  obsGlucoseRangeErrorMgdl: string;
+  obsOptionGlucoseMgdl: string;
+  obsOptionGlucoseMmol: string;
   landingHtnDemoPatient: string;
   landingHtnDemoCondition: string;
   landingHtnDemoReading: string;
@@ -288,6 +293,7 @@ export interface Translations {
   unifiedSettingsTitle: string;
   unifiedSettingsSubtitle: string;
   languageSettingLabel: string;
+  langRomanUrdu: string;
   connectionModeSettingLabel: string;
   activeProfileLabel: string;
 
@@ -655,6 +661,11 @@ export const translations: Record<Language, Translations> = {
     obsPlaceholderSystolic: "e.g. 130",
     obsPlaceholderDiastolic: "e.g. 85",
     obsPlaceholderGlucose: "e.g. 140",
+    obsPlaceholderGlucoseMmol: "e.g. 7.0",
+    obsGlucoseRangeErrorMmol: "Glucose reading must be between 1.1 and 33.3 mmol/L.",
+    obsGlucoseRangeErrorMgdl: "Glucose reading must be between 20 and 600 mg/dL.",
+    obsOptionGlucoseMgdl: "Blood Glucose (mg/dL)",
+    obsOptionGlucoseMmol: "Blood Glucose (mmol/L)",
     landingHtnDemoPatient: "Bilal Ahmed (62y M)",
     landingHtnDemoCondition: "HTN",
     landingHtnDemoReading: "Blood Pressure",
@@ -787,6 +798,7 @@ export const translations: Record<Language, Translations> = {
     unifiedSettingsTitle: "Application Settings",
     unifiedSettingsSubtitle: "Manage language preferences, clinical connection mode, and profile parameters.",
     languageSettingLabel: "Display Language",
+    langRomanUrdu: "Roman Urdu",
     connectionModeSettingLabel: "Clinical Data Synchronizer",
     activeProfileLabel: "Active Profile",
 
@@ -1152,6 +1164,11 @@ export const translations: Record<Language, Translations> = {
     obsPlaceholderSystolic: "مثلاً 130",
     obsPlaceholderDiastolic: "مثلاً 85",
     obsPlaceholderGlucose: "مثلاً 140",
+    obsPlaceholderGlucoseMmol: "مثلاً 7.0",
+    obsGlucoseRangeErrorMmol: "بلڈ گلوکوز کی ریڈنگ 1.1 اور 33.3 mmol/L کے درمیان ہونی چاہیے۔",
+    obsGlucoseRangeErrorMgdl: "بلڈ شوگر کی پیمائش 20 اور 600 mg/dL کے درمیان ہونی چاہیے۔",
+    obsOptionGlucoseMgdl: "بلڈ شوگر (mg/dL)",
+    obsOptionGlucoseMmol: "بلڈ شوگر (mmol/L)",
     landingHtnDemoPatient: "بلال احمد (62 سال، مرد)",
     landingHtnDemoCondition: "ہائی بلڈ پریشر",
     landingHtnDemoReading: "بلڈ پریشر",
@@ -1284,6 +1301,7 @@ export const translations: Record<Language, Translations> = {
     unifiedSettingsTitle: "ایپلیکیشن ترتیبات",
     unifiedSettingsSubtitle: "زبان، کلینیکل کنکشن موڈ اور پروفائل کی ترتیبات۔",
     languageSettingLabel: "زبان کا انتخاب",
+    langRomanUrdu: "رومن اردو",
     connectionModeSettingLabel: "کلینیکل ڈیٹا سنکرونائزر",
     activeProfileLabel: "فعال پروفائل",
 

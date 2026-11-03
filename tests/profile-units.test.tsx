@@ -356,5 +356,30 @@ describe("Health Profile Unit Conversions & Toggles (Task 1)", () => {
 
       expect(await screen.findByText(translations.ur.weightErrorLb)).toBeTruthy();
     });
+
+    it("allows selecting Roman Urdu in language settings and sends roman_ur to updateProfile (closes G-12)", async () => {
+      setContext("en", { isLiveMode: true });
+      const updateProfileSpy = vi.spyOn(api, "updateProfile").mockResolvedValue({
+        conditions: ["diabetes"],
+        language: "roman_ur",
+      } as any);
+
+      render(<HealthProfileScreen />);
+      const romanUrBtn = document.getElementById("lang-roman-ur-btn");
+      expect(romanUrBtn).toBeTruthy();
+      fireEvent.click(romanUrBtn!);
+
+      const continueBtn = screen.getByRole("button", { name: translations.en.continue });
+      fireEvent.click(continueBtn);
+
+      await waitFor(() => {
+        expect(updateProfileSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            language: "roman_ur",
+          })
+        );
+      });
+      updateProfileSpy.mockRestore();
+    });
   });
 });
