@@ -151,5 +151,11 @@
     "ur": "ہم نے یہ ریڈنگ نہار منہ لکھی ہے مگر آپ نے کھانا کھانے کا ذکر کیا۔ کیا یہ ٹیسٹ کھانے سے پہلے کا تھا یا بعد کا؟",
     "roman_ur": "Hum ne yeh reading nihar munh likhi hai magar aap ne khana khanay ka zikr kiya. Kya yeh test khanay se pehle ka tha ya baad ka?",
     "needs_native_review": false
+  },
+  "vomiting_followup_question": {
+    "en": "Are you vomiting blood or dark material, feeling confused or very dizzy, or have you been unable to keep fluids down for more than 24 hours?",
+    "ur": "کیا آپ کو الٹی میں خون یا گہرے رنگ کا مواد آ رہا ہے، چکر یا الجھن ہے، یا 24 گھنٹے سے پانی بھی نہیں رک رہا؟",
+    "roman_ur": "Kya aap ko ulti mein khoon ya gehre rang ka mawad aa raha hai, chakkar ya uljhan hai, ya 24 ghante se paani bhi nahi ruk raha?",
+    "needs_native_review": false
   }
 }

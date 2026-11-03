@@ -159,7 +159,8 @@ class InterviewState:
 # The Urdu phrases are UNREVIEWED: they need a native-speaker / clinical check before
 # anyone relies on them. Urdu negation is NOT handled, so an Urdu match always flags.
 RED_FLAG_LEVELS: Dict[str, str] = {
-    "unable_to_keep_fluids": "urgent",
+    "unable_to_keep_fluids": "emergency",
+    "non_stop_vomiting": "urgent",
     "dka_vomiting_high_glucose": "urgent",
     "meter_lo": "emergency",
     "meter_hi": "emergency",
@@ -210,13 +211,24 @@ RED_FLAG_PATTERNS: Dict[str, List[str]] = {
         "unable to keep fluids down", "not able to keep fluids down",
         "can't keep water down", "cant keep water down",
         "cannot keep water down", "can not keep water down",
+        "unable to keep water down", "not able to keep water down",
+        "can't keep medicines down", "cant keep medicines down",
+        "can't keep my medicines down", "cant keep my medicines down",
+        "cannot keep medicines down", "can not keep medicines down",
+        "unable to keep medicines down", "not able to keep medicines down",
         "won't stay down", "wont stay down",
         "throwing up everything",
         "keep nothing down",
+        "paani bhi nahi rukta", "paani bhi nahi ruk raha",
+        "dawa nahi ruk rahi", "dawa ulti mein nikal jati hai", "dawai nahi ruk rahi",
+        "پانی بھی نہیں رک رہا", "پانی بھی نہیں رکتا",
+        "دوائی نہیں رک رہی", "دوا نہیں رک رہی",
+    ],
+    "non_stop_vomiting": [
         "vomiting all day",
         "vomiting nonstop", "vomiting non-stop", "vomiting with high sugar",
-        "musalsal ultiyan", "ulti ruk nahi rahi", "paani bhi nahi rukta",
-        "مسلسل الٹیاں", "الٹی رک نہیں رہی", "پانی بھی نہیں رک رہا",
+        "musalsal ultiyan", "ulti ruk nahi rahi",
+        "مسلسل الٹیاں", "الٹی رک نہیں رہی",
     ],
     "severe_headache": ["worst headache", "severe headache", "thunderclap headache", "worst headache of my life", "sudden severe headache"],
     "vision_loss": ["sudden vision loss", "lost my vision", "went blind",
@@ -252,6 +264,7 @@ def _is_past_event(clause: str) -> bool:
 
 def run_stage1_red_flag_screen(free_text: str) -> Tuple[bool, Optional[str]]:
     """Returns (triggered, category). Runs before any other processing of an answer."""
+    candidates = []
     for clause in _CLAUSE_BREAK.split(_normalize(free_text)):
         if not clause.strip():
             continue
@@ -261,8 +274,14 @@ def run_stage1_red_flag_screen(free_text: str) -> Tuple[bool, Optional[str]]:
             for pattern in patterns:
                 for match in re.finditer(re.escape(pattern), clause):
                     if not _is_negated(clause, match.start()):
-                        return True, category
-    return False, None
+                        candidates.append(category)
+                        break
+    if not candidates:
+        return False, None
+    for cat in candidates:
+        if get_red_flag_level(cat) == "emergency":
+            return True, cat
+    return True, candidates[0]
 
 
 # -----------------------------------------------------------------------------
@@ -414,6 +433,9 @@ def get_current_question(state: InterviewState) -> Optional[str]:
     if state.answers.get("_pending_meter_lo_hi"):
         lang = state.answers.get("language") or "en"
         return get_message("meter_lo_hi_confirmation", lang)
+    if state.answers.get("_pending_vomiting_followup"):
+        lang = state.answers.get("language") or "en"
+        return get_message("vomiting_followup_question", lang)
     if state.active_condition == "diabetes":
         return _diabetes_next_question(DiabetesStep(state.step))
     return _hypertension_next_question(HypertensionStep(state.step))
@@ -505,6 +527,16 @@ def _process_glucose_input(answer: str, previously_asked: bool = False) -> Tuple
 
 
 def _diabetes_advance_v2_3(state: InterviewState, answer: str) -> InterviewState:
+    if state.answers.get("_pending_vomiting_followup"):
+        state.answers.pop("_pending_vomiting_followup", None)
+        state.stage1_red_flag = True
+        if _looks_affirmative(answer) is True:
+            state.stage1_reason = "unable_to_keep_fluids"
+        else:
+            state.stage1_reason = "non_stop_vomiting"
+        state.step = DiabetesStep.COMPLETE.value
+        return state
+
     step = DiabetesStep(state.step)
     answers = state.answers
 
@@ -693,8 +725,21 @@ def _hypertension_advance_v2_3(state: InterviewState, answer: str) -> InterviewS
 
 
 def _diabetes_advance(state: InterviewState, answer: str) -> InterviewState:
+    if state.answers.get("_pending_vomiting_followup"):
+        state.answers.pop("_pending_vomiting_followup", None)
+        state.stage1_red_flag = True
+        if _looks_affirmative(answer) is True:
+            state.stage1_reason = "unable_to_keep_fluids"
+        else:
+            state.stage1_reason = "non_stop_vomiting"
+        state.step = DiabetesStep.COMPLETE.value
+        return state
+
     triggered, reason = run_stage1_red_flag_screen(answer)
     if triggered:
+        if reason == "non_stop_vomiting":
+            state.answers["_pending_vomiting_followup"] = True
+            return state
         state.stage1_red_flag = True
         state.stage1_reason = reason
         state.step = DiabetesStep.COMPLETE.value
@@ -788,8 +833,21 @@ def _diabetes_advance(state: InterviewState, answer: str) -> InterviewState:
 
 
 def _hypertension_advance(state: InterviewState, answer: str) -> InterviewState:
+    if state.answers.get("_pending_vomiting_followup"):
+        state.answers.pop("_pending_vomiting_followup", None)
+        state.stage1_red_flag = True
+        if _looks_affirmative(answer) is True:
+            state.stage1_reason = "unable_to_keep_fluids"
+        else:
+            state.stage1_reason = "non_stop_vomiting"
+        state.step = HypertensionStep.COMPLETE.value
+        return state
+
     triggered, reason = run_stage1_red_flag_screen(answer)
     if triggered:
+        if reason == "non_stop_vomiting":
+            state.answers["_pending_vomiting_followup"] = True
+            return state
         state.stage1_red_flag = True
         state.stage1_reason = reason
         state.step = HypertensionStep.COMPLETE.value

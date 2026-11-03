@@ -151,7 +151,8 @@ The system gives **no treatment advice** in any protocol. The only advice it sho
 | confusion | slurred speech; can't speak clearly; cant speak clearly; don't know where i am; do not know where i am; samajh nahi aa raha main kahan hoon; main kahan hoon; disoriented; سمجھ نہیں آ رہا میں کہاں ہوں; کہاں ہوں | emergency | Word "confused" alone removed ("confused by my morning pills" not emergency); acute disorientation wording triggers emergency. |
 | loss_of_consciousness | fainted; passed out; lost consciousness; blacked out; بے ہوش | emergency | |
 | one_sided_weakness | one side weak; one-sided weakness; can't move one side; cant move one side; face drooping | emergency | |
-| unable_to_keep_fluids | can't keep anything down; cant keep anything down; can't keep fluids down; vomiting nonstop; vomiting non-stop; musalsal ultiyan; ulti ruk nahi rahi; paani bhi nahi rukta; مسلسل الٹیاں; الٹی رک نہیں رہی; پانی بھی نہیں رک رہا | urgent | Moved from emergency to urgent by clinician review. |
+| unable_to_keep_fluids | can't keep anything down; can't keep fluids down; can't keep water down; can't keep medicines down; dawa nahi ruk rahi; dawa ulti mein nikal jati hai; paani bhi nahi rukta; پانی بھی نہیں رک رہا; دوائی نہیں رک رہی | emergency | Elevated from urgent to emergency by clinician consensus (3 Nov 2026). Acute dehydration, AKI, and DKA risk. |
+| non_stop_vomiting | vomiting nonstop; vomiting non-stop; vomiting all day; musalsal ultiyan; ulti ruk nahi rahi; مسلسل الٹیاں; الٹی رک نہیں رہی | urgent | Stays urgent by default; prompts one follow-up question regarding severe warning signs (blood/dark material, confusion, dizziness, >24h) which elevates to emergency if positive. |
 | severe_headache | worst headache; severe headache; thunderclap headache | emergency | |
 | vision_loss | sudden vision loss; lost my vision; went blind; can't see at all; cannot see at all | emergency | |
 
@@ -160,6 +161,18 @@ The Urdu phrases have been reviewed; Urdu negation is handled for danger screeni
 **Readings.** A glucose must be one number from 20 to 600 mg/dL (`GLUCOSE_RANGE_MG_DL`); a blood pressure one pair with systolic 60 to 260 (`SYSTOLIC_RANGE_MMHG`), diastolic 30 to 160 (`DIASTOLIC_RANGE_MMHG`) and systolic greater than diastolic. Several plausible numbers, a negative number, a value in mmol/L or an out-of-range value count as **missing**; the patient is asked one clarifying question and the intake is tagged Low confidence. A meter that shows 'HI' is not understood (known limitation).
 
 **Hand-off.** `check_dangerous_bp` reports a crisis-range pair; the interview keeps the reading and the protocol in section 3 decides.
+
+### Update 3 Nov 2026: Vomiting and Unable to Keep Fluids / Medicines (Rule R4)
+
+- **Consensus decision (all 3 doctors):** 'Unable to keep fluids down' or 'unable to keep medicines down' in adult chronic disease patients is elevated from URGENT to **EMERGENCY** (`unable_to_keep_fluids` -> `level: emergency`). This covers phrases like:
+  - 'can't keep fluids down', 'can't keep anything down', 'can't keep medicines down', 'cannot keep water down', 'dawa nahi ruk rahi', 'paani bhi nahi ruk raha', 'dawa ulti mein nikal jati hai', 'پانی بھی نہیں رک رہا', 'دوائی نہیں رک رہی'.
+  - Clinical rationale: Acute dehydration, electrolyte derangements, acute kidney injury risk, inability to retain essential diabetes/hypertension medications, and rapid progression to diabetic ketoacidosis (DKA) or hyperosmolar state.
+- **Other non-stop vomiting (Rule R4 Part 2):** Non-stop vomiting without stated fluid/medication inability remains **URGENT** by default (`non_stop_vomiting` -> `level: urgent`), but prompts ONE follow-up question:
+  - English: *"Are you vomiting blood or dark material, feeling confused or very dizzy, or have you been unable to keep fluids down for more than 24 hours?"*
+  - Urdu: *"کیا آپ کو الٹی میں خون یا گہرے رنگ کا مواد آ رہا ہے، چکر یا الجھن ہے، یا 24 گھنٹے سے پانی بھی نہیں رک رہا؟"*
+  - Roman Urdu: *"Kya aap ko ulti mein khoon ya gehre rang ka mawad aa raha hai, chakkar ya uljhan hai, ya 24 ghante se paani bhi nahi ruk raha?"*
+  - An affirmative answer elevates triage to **EMERGENCY**. A negative answer maintains **URGENT**.
+- **Age consideration (Dr Shaiza suggestion):** Dr Shaiza suggested considering age (more aggressive elevation in older adults). **Status: Suggested, not adopted** (no specific age cut-off provided; all adult patients elevated per consensus on severe warning signs).
 
 ## 6. Medication confirmation
 

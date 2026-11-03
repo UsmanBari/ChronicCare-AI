@@ -334,6 +334,51 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     # =========================================================================
     # 1. INPUT TRIAGE & RED-FLAG SCREEN FIRST (Authoritative Deterministic Safety)
     # =========================================================================
+    if session_state.get("awaiting_vomiting_followup"):
+        session_state.pop("awaiting_vomiting_followup", None)
+        yn_res = parse_yes_no(clean_answer, lang=lang)
+        if yn_res["value"] == "yes":
+            session_state["emergency"] = True
+            session_state["emergency_reason"] = "unable_to_keep_fluids"
+            session_state["completed"] = True
+            session_state["step"] = "COMPLETE"
+            session_state["current_question"] = None
+            session_state["system_note"] = get_message("emergency_red_flag_note", lang)
+            from agents.danger_wordgroups import get_safety_note
+            session_state["safety_note"] = get_safety_note(lang)
+            return session_state
+        else:
+            session_state["needs_clinician_flag"] = True
+            session_state["urgent"] = True
+            session_state["completed"] = True
+            session_state["step"] = "COMPLETE"
+            session_state["current_question"] = None
+            session_state["system_note"] = "Check-in flagged for urgent clinician review."
+            return session_state
+
+    from agents.adaptive_interview_agent import run_stage1_red_flag_screen
+    rf_screen_flagged, rf_screen_reason = run_stage1_red_flag_screen(clean_answer)
+    if rf_screen_flagged:
+        if rf_screen_reason == "non_stop_vomiting":
+            session_state["awaiting_vomiting_followup"] = True
+            session_state["current_question"] = get_message("vomiting_followup_question", lang)
+            session_state["options"] = ["yes", "no"]
+            session_state["option_items"] = [
+                {"value": "yes", "label": "ہاں" if lang == "ur" else ("haan" if lang == "roman_ur" else "yes")},
+                {"value": "no", "label": "نہیں" if lang == "ur" else ("nahi" if lang == "roman_ur" else "no")},
+            ]
+            return session_state
+        elif rf_screen_reason == "unable_to_keep_fluids":
+            session_state["emergency"] = True
+            session_state["emergency_reason"] = "unable_to_keep_fluids"
+            session_state["completed"] = True
+            session_state["step"] = "COMPLETE"
+            session_state["current_question"] = None
+            session_state["system_note"] = get_message("emergency_red_flag_note", lang)
+            from agents.danger_wordgroups import get_safety_note
+            session_state["safety_note"] = get_safety_note(lang)
+            return session_state
+
     triage_res: TriageInputResult = classify_input(
         clean_answer,
         consecutive_odd_count=session_state.get("consecutive_odd_count", 0),
