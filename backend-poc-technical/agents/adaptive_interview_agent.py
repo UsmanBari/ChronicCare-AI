@@ -436,6 +436,9 @@ def get_current_question(state: InterviewState) -> Optional[str]:
     if state.answers.get("_pending_vomiting_followup"):
         lang = state.answers.get("language") or "en"
         return get_message("vomiting_followup_question", lang)
+    if state.step == DiabetesStep.MISSING_DATA_CHECKPOINT.value and state.answers.get("_glucose_pending_raw"):
+        lang = state.answers.get("language") or "en"
+        return get_message("unit_clarification_question", lang)
     if state.active_condition == "diabetes":
         return _diabetes_next_question(DiabetesStep(state.step))
     return _hypertension_next_question(HypertensionStep(state.step))
@@ -505,7 +508,7 @@ def _process_glucose_input(answer: str, previously_asked: bool = False) -> Tuple
                 return val, "unclear", False, guidance, reason
 
     # 3. Standard validate_glucose_input flow
-    if v_res.valid:
+    if v_res.valid and v_res.value is not None:
         val = v_res.value
         if v_res.unit == "mmol/L":
             if not previously_asked:

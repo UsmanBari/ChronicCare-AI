@@ -171,7 +171,7 @@ def validate_glucose_input(text: str, previously_asked_unit: bool = False) -> Va
         if previously_asked_unit:
             # If answering "I don't know" to unit clarification, and original value was <= 40, treat as possible low
             return ValidationResult(
-                valid=True,
+                valid=False,
                 value=None,
                 unit="unclear",
                 is_unclear=True,

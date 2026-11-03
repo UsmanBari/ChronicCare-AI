@@ -30,9 +30,9 @@
     "needs_native_review": false
   },
   "unit_clarification_question": {
-    "en": "Did you mean {value} mmol/L or {value} mg/dL?",
-    "ur": "کیا آپ کی مراد {value} mmol/L تھی یا {value} mg/dL؟",
-    "roman_ur": "Kya aap ki muraad {value} mmol/L thi ya {value} mg/dL?",
+    "en": "Is that number in mg/dL (most meters) or mmol/L?",
+    "ur": "کیا یہ نمبر mg/dL میں ہے (زیادہ تر میٹر) یا mmol/L میں؟",
+    "roman_ur": "Kya yeh number mg/dL mein hai (zyada tar meter) ya mmol/L mein?",
     "needs_native_review": false
   },
   "unit_clarification_why": {

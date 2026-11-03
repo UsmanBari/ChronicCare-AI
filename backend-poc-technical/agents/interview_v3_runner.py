@@ -552,7 +552,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         if val_res.needs_unit_clarification:
             session_state["awaiting_glucose_unit"] = True
             session_state["raw_unclarified_glucose"] = val_res.value
-            session_state["current_question"] = get_message("unit_clarification_question", lang, value=f"{val_res.value:g}")
+            session_state["current_question"] = get_message("unit_clarification_question", lang)
             session_state["why_text"] = get_message("unit_clarification_why", lang)
             session_state["options"] = ["mmol/L", "mg/dL"]
             session_state["option_items"] = [
@@ -566,7 +566,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             if not has_unit and 41.0 <= float(val_res.value) <= 54.0:
                 session_state["awaiting_glucose_unit"] = True
                 session_state["raw_unclarified_glucose"] = val_res.value
-                session_state["current_question"] = get_message("unit_clarification_question", lang, value=f"{val_res.value:g}")
+                session_state["current_question"] = get_message("unit_clarification_question", lang)
                 session_state["why_text"] = get_message("unit_clarification_why", lang)
                 session_state["options"] = ["mmol/L", "mg/dL"]
                 session_state["option_items"] = [

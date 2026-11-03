@@ -186,6 +186,15 @@ The Urdu phrases have been reviewed; Urdu negation is handled for danger screeni
 - Available exclusively in the authenticated clinician review queue; never exposed to patients.
 - Strictly decision-support only; cannot lower triage levels and never provides automatic medical diagnoses.
 
+### Update 3 Nov 2026: Bare Glucose 2-40 Unit Re-Ask (Rule R7)
+
+- **Consensus decision (2 doctors requested, approved):** On a bare glucose reading between 2.0 and 40.0 with no unit, the interview asks ONCE for the unit before treating the reading as possible severe hypoglycemia:
+  - English: *"Is that number in mg/dL (most meters) or mmol/L?"*
+  - Urdu: *"کیا یہ نمبر mg/dL میں ہے (زیادہ تر میٹر) یا mmol/L میں؟"*
+  - Roman Urdu: *"Kya yeh number mg/dL mein hai (zyada tar meter) ya mmol/L mein?"*
+- If the patient provides the unit (e.g. mmol/L), the engine converts to mg/dL (multiplied by 18.0) and evaluates against clinical thresholds.
+- If STILL unclear after the re-ask (e.g. "don't know", no unit, or repeated bare number), the engine routes to the safe path: flagged for clinician review, attaches low-sugar guidance, never lowers triage level.
+
 ## 6. Medication confirmation
 
 After the interview (and the protocol, if one was needed) the patient is asked about each **active** medication in the record, at most `MAX_MEDICATIONS` (20). The answer is read as: stopped (stop words such as stopped, quit, discontinued, no longer, anymore), still taking at the same dose, still taking at a different dose (only when a unit or dose word such as mg, tablet, half, twice, once, daily is given; a bare number is not a dose; the text is cut at `MAX_DOSAGE_CHARS` = 100), or unclear. Missed or skipped doses are not a stop. An unclear answer is asked once more, then recorded as unknown and left out of the comparison. A medication that the record lists as active but the patient says is stopped is high severity for the clinician. Every answer goes through the danger-phrase check first.
