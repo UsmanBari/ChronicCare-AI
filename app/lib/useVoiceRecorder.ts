@@ -7,6 +7,55 @@ export interface UseVoiceRecorderOptions {
   profile?: ProfileResponse | null;
 }
 
+/**
+ * Maps microphone permission and device errors to patient-friendly localized strings.
+ * Guarantees zero raw technical error names (NotAllowedError, NotFoundError, etc.) are shown to patients.
+ * Every message includes clear, actionable next steps ("allow the microphone in browser settings" / "type your answer instead").
+ */
+export function mapMicrophoneError(err: any, isUrdu: boolean): string {
+  const errName = (err?.name || "").toString();
+  const errMsg = (err?.message || "").toString();
+  const combined = `${errName} ${errMsg}`.toLowerCase();
+
+  if (
+    errName === "NotAllowedError" ||
+    errName === "PermissionDeniedError" ||
+    combined.includes("permission denied") ||
+    combined.includes("not allowed")
+  ) {
+    return isUrdu
+      ? "مائیکروفون کی اجازت نہیں ملی۔ براہ کرم براؤزر کی ترتیبات میں مائیکروفون کی اجازت دیں، یا اپنا جواب ٹائپ کریں۔"
+      : "Microphone access denied. Please allow microphone access in your browser settings, or type your answer instead.";
+  }
+
+  if (
+    errName === "NotFoundError" ||
+    errName === "DevicesNotFoundError" ||
+    combined.includes("not found") ||
+    combined.includes("requested device not found")
+  ) {
+    return isUrdu
+      ? "مائیکروفون نہیں ملا۔ براہ کرم مائیکروفون منسلک کریں یا اپنا جواب ٹائپ کریں۔"
+      : "No microphone found. Please connect a microphone or type your answer instead.";
+  }
+
+  if (
+    errName === "NotReadableError" ||
+    errName === "TrackStartError" ||
+    combined.includes("could not start") ||
+    combined.includes("busy") ||
+    combined.includes("in use")
+  ) {
+    return isUrdu
+      ? "مائیکروفون مصروف یا دستیاب نہیں ہے۔ براہ کرم مائیک استعمال کرنے والی دیگر ایپس بند کریں یا اپنا جواب ٹائپ کریں۔"
+      : "Microphone is busy or unavailable. Please close other apps using the microphone or type your answer instead.";
+  }
+
+  return isUrdu
+    ? "مائیکروفون تک رسائی ممکن نہیں۔ براہ کرم براؤزر کی ترتیبات چیک کریں یا اپنا جواب ٹائپ کریں۔"
+    : "Unable to access microphone. Please check your browser settings or type your answer instead.";
+}
+
 export function useVoiceRecorder({
   onTranscribed,
   isUrdu,
@@ -182,11 +231,7 @@ export function useVoiceRecorder({
     } catch (err: any) {
       cleanupMediaStream();
       setIsRecording(false);
-      setVoiceError(
-        isUrdu
-          ? "مائیکروفون تک رسائی کی اجازت نہیں ملی۔ براہ کرم براؤزر میں مائیک کی اجازت دیں یا ٹائپ کریں۔"
-          : "Microphone access denied. Please allow microphone permissions or type your answer."
-      );
+      setVoiceError(mapMicrophoneError(err, isUrdu));
     }
   };
 
