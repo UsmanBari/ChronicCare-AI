@@ -8,7 +8,8 @@
 **Related Pull Request:** feat/i3-danger-wordgroups (PR #103)  
 **Detector Module:** `backend-poc-technical/agents/danger_wordgroups.py`  
 **Detector SHA-256 (v1.0):** `e00ef0e7e82747421c4835b64e081e8ff3b7614a17bf6f1aa4963275a9b1b676`  
-**Detector SHA-256 (v1.1):** `6f6b6d8055c07e95e681f6277c624e9aa6f8b50a982b3a7a09e1dafc10fddf63`  
+**Detector SHA-256 (v1.1):** `ad909e03f13defcbdc8c2128154e343e5e5ec2ff87dbde09fe1af6c326010d6b` (git LF)  
+*(On a Windows checkout with CRLF the hash is `6f6b6d8055c07e95e681f6277c624e9aa6f8b50a982b3a7a09e1dafc10fddf63`)*  
 **Benchmark Results:** [v1.0 Results](DANGER_WORDGROUPS_V1_RESULTS.md) | [v1.1 Results](DANGER_WORDGROUPS_V1_1_RESULTS.md)  
 
 ---
@@ -182,7 +183,8 @@ Both versions are preserved as immutable git tags:
 - **v1.0 Frozen Tag:** `wordgroups-v1-frozen` (Commit `28dfe82`)  
   `danger_wordgroups.py` SHA-256: `e00ef0e7e82747421c4835b64e081e8ff3b7614a17bf6f1aa4963275a9b1b676`
 - **v1.1 Frozen Tag:** `wordgroups-v1.1-frozen`  
-  `danger_wordgroups.py` SHA-256: `6f6b6d8055c07e95e681f6277c624e9aa6f8b50a982b3a7a09e1dafc10fddf63`
+  `danger_wordgroups.py` SHA-256: `ad909e03f13defcbdc8c2128154e343e5e5ec2ff87dbde09fe1af6c326010d6b` (git LF)  
+  *(On a Windows checkout with CRLF the hash is `6f6b6d8055c07e95e681f6277c624e9aa6f8b50a982b3a7a09e1dafc10fddf63`)*
 
 ### c. Side-by-Side Held-Out & Dev Results (v1.0 vs v1.1)
 
