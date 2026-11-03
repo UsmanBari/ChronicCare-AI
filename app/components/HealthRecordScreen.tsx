@@ -34,7 +34,7 @@ import {
   RecordEditItem,
   RecordImportResponse,
 } from "../lib/api";
-import { mapApiError } from "../lib/presentation";
+import { mapApiError, convertGlucoseMmolToMgDl } from "../lib/presentation";
 import { getConditionFlags } from "../lib/conditions";
 
 export const HealthRecordScreen = () => {
@@ -123,6 +123,8 @@ export const HealthRecordScreen = () => {
     new Date().toISOString().slice(0, 16)
   );
   const [isAddingObs, setIsAddingObs] = useState(false);
+  const glucoseUnitPref = ((isLiveMode ? liveProfile?.glucose_unit : profile?.glucose_unit) || profile?.glucose_unit || "mg/dL").toLowerCase();
+  const isGlucoseMmol = glucoseUnitPref.includes("mmol");
 
   useEffect(() => {
     const flags = getConditionFlags(
@@ -504,9 +506,26 @@ export const HealthRecordScreen = () => {
     }
 
     // Client-side range validation mirroring server
-    if (obsType === "glucose" && (val < 20 || val > 600)) {
-      setError("Glucose reading must be between 20 and 600 mg/dL.");
-      return;
+    if (obsType === "glucose") {
+      if (isGlucoseMmol) {
+        if (val < 2.2 || val > 33.3) {
+          setError(
+            t.obsGlucoseRangeErrorMmol ||
+              (isUrdu
+                ? "بلڈ شوگر کی پیمائش 2.2 اور 33.3 mmol/L کے درمیان ہونی چاہیے۔"
+                : "Glucose reading must be between 2.2 and 33.3 mmol/L.")
+          );
+          return;
+        }
+      } else if (val < 20 || val > 600) {
+        setError(
+          t.obsGlucoseRangeErrorMgdl ||
+            (isUrdu
+              ? "بلڈ شوگر کی پیمائش 20 اور 600 mg/dL کے درمیان ہونی چاہیے۔"
+              : "Glucose reading must be between 20 and 600 mg/dL.")
+        );
+        return;
+      }
     }
     if (obsType === "blood_pressure_systolic" && (val < 60 || val > 260)) {
       setError("Systolic blood pressure must be between 60 and 260 mmHg.");
@@ -541,9 +560,10 @@ export const HealthRecordScreen = () => {
 
     setIsAddingObs(true);
     try {
+      const apiObsValue = (obsType === "glucose" && isGlucoseMmol) ? convertGlucoseMmolToMgDl(val) : val;
       const added = await api.createRecordObservation({
         observation_type: obsType,
-        value: val,
+        value: apiObsValue,
         measured_at: isoTimestamp,
       });
       setObservations((prev) => [...prev, added]);
@@ -1126,11 +1146,19 @@ export const HealthRecordScreen = () => {
                   <>
                     <option value="blood_pressure_systolic">Systolic BP (mmHg)</option>
                     <option value="blood_pressure_diastolic">Diastolic BP (mmHg)</option>
-                    <option value="glucose">Blood Glucose (mg/dL)</option>
+                    <option value="glucose">
+                      {isGlucoseMmol
+                        ? t.obsOptionGlucoseMmol || "Blood Glucose (mmol/L)"
+                        : t.obsOptionGlucoseMgdl || "Blood Glucose (mg/dL)"}
+                    </option>
                   </>
                 ) : (
                   <>
-                    <option value="glucose">Blood Glucose (mg/dL)</option>
+                    <option value="glucose">
+                      {isGlucoseMmol
+                        ? t.obsOptionGlucoseMmol || "Blood Glucose (mmol/L)"
+                        : t.obsOptionGlucoseMgdl || "Blood Glucose (mg/dL)"}
+                    </option>
                     <option value="blood_pressure_systolic">Systolic BP (mmHg)</option>
                     <option value="blood_pressure_diastolic">Diastolic BP (mmHg)</option>
                   </>
@@ -1153,7 +1181,9 @@ export const HealthRecordScreen = () => {
                     : obsType === "blood_pressure_diastolic"
                     ? t.obsPlaceholderDiastolic || "e.g. 85"
                     : obsType === "glucose"
-                    ? t.obsPlaceholderGlucose || "e.g. 140"
+                    ? isGlucoseMmol
+                      ? t.obsPlaceholderGlucoseMmol || (isUrdu ? "مثلاً 7.0" : "e.g. 7.0")
+                      : t.obsPlaceholderGlucose || (isUrdu ? "مثلاً 140" : "e.g. 140")
                     : obsType === "weight"
                     ? (isUrdu ? "مثلاً 70" : "e.g. 70")
                     : (isUrdu ? "مثلاً 6.5" : "e.g. 6.5")
