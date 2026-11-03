@@ -35,6 +35,7 @@ To protect clinical safety and prevent patient distress:
 | `checkin_risk` | `ReviewDetailResponse` (Provider) | `Optional[Dict]` | Frozen risk snapshot stored at check-in time (`probability`, `band`, `raised`, `model`, `version`, `caveats`). |
 | `explanation` | `ReviewDetailResponse` (Provider) | `Optional[Dict]` | Full guideline explanation object (`status`, `mode`, `sentences`, `sources`, `rejected_reasons`). |
 | `trace` | `ReviewDetailResponse` (Provider) | `Optional[List[Dict]]` | Execution trace steps. Contains node names and aggregate counts; contains no PHI or reading values. |
+| `safety_note` | `CheckinAnswerResponse` / `CheckinCompleteResponse` | `Optional[str]` | Localized emergency safety advisory ('If this is an emergency, call 1122 now.') returned when acute danger word groups trigger in patient free-text answers. Null otherwise. |
 
 ---
 
@@ -3750,3 +3751,28 @@ When the patient profile language is set to Urdu (`language="ur"`), explanation 
    - Clicking a citation badge expands a drawer or popover displaying the source guideline title and section from `sources`.
 3. **Emergency Protection:**
    - When `emergency == true`, hide risk and explanation cards completely. Display only the emergency banner and instructions.
+
+---
+
+## 5. Danger Word Groups & Patient Safety Note (`safety_note`)
+
+### Feature Flag & Operation
+- **Environment Variable:** `DANGER_WORDGROUPS_ENABLED="true"` (case-insensitive, default `false`).
+- **Raise-Only Invariant:** A danger word group match can **only raise** a routine check-in to `"review"` (`requires_review: true`, `review_status: "open"`). It **never lowers** any level and **never sets `"emergency"`**.
+- **Conservative Decision Support on Chest Pain:** In chronic hypertensive and diabetic cohorts, `"chest + pain/bhaari"` triggers review routing and safety note advisory.
+
+### Localized Patient Advisory (`safety_note`)
+When an acute danger word group is detected in patient free text during check-in turn answers (`POST /api/checkins/{id}/answer`) or completion (`POST /api/checkins/{id}/complete`), the response includes `safety_note: Optional[str]`:
+- **English (`en`):** `"If this is an emergency, call 1122 now."`
+- **Urdu (`ur`):** `"اگر یہ ایمرجنسی ہے تو ابھی 1122 پر کال کریں۔"`
+- **Roman Urdu (`roman_ur`):** `"Agar yeh emergency hai to abhi 1122 par call karein."`
+If no acute danger word group is triggered or the feature flag is disabled, `safety_note` is `null`.
+
+### Frontend Rendering Guidelines
+- **`AdaptiveInterviewScreen`:** Render as an amber advisory card (`data-testid="danger-wordgroup-banner"`) above the next turn question. The text span must have `dir="auto"` for proper bidirectional alignment. The phone number `1122` must be rendered as a clickable `<a href="tel:1122">1122</a>` link.
+- **`RoutedToReviewScreen`:** Render the amber advisory banner (`data-testid="danger-wordgroup-review-banner"`) with `dir="auto"` and `<a href="tel:1122">1122</a>`.
+
+### Provider Review & Audit Hygiene (Zero PHI)
+- **Check-in Metadata:** Stored state retains `wordgroup_hits` as `[{"group": "<group_id>", "step": "<step_id>"}]`. Free text, matched words, and substrings are **never stored**.
+- **Audit Log:** Action `danger_wordgroup_hit` records outcome `"flagged"` and detail `{"group": "<group_id>"}`. Zero patient free text or PHI is recorded in audit logs.
+
