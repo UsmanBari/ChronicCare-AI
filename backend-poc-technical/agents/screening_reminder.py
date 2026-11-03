@@ -7,10 +7,22 @@ HbA1c LOINC code '4548-4' is mapped in data_sources/fhir_adapter.py:35 ("4548-4"
 """
 from __future__ import annotations
 
+import os
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 HBA1C_LOINC_CODE = "4548-4"
+SCREENING_REMINDER_INTERVAL_DAYS: int = 365
+
+
+def get_screening_interval_from_env() -> Optional[int]:
+    raw = os.environ.get("SCREENING_REMINDER_INTERVAL_DAYS")
+    if raw is not None and raw.strip():
+        try:
+            return int(raw.strip())
+        except ValueError:
+            return None
+    return None
 
 
 def _parse_date(d: Any) -> Optional[date]:
@@ -64,6 +76,9 @@ def hba1c_reminder(
     dict or None
         Screening reminder payload if overdue, or None.
     """
+    if interval_days is None:
+        interval_days = get_screening_interval_from_env()
+
     # 1. Dormant Check: If interval is unset or not positive, do nothing
     if interval_days is None or interval_days <= 0:
         return None

@@ -174,6 +174,18 @@ The Urdu phrases have been reviewed; Urdu negation is handled for danger screeni
   - An affirmative answer elevates triage to **EMERGENCY**. A negative answer maintains **URGENT**.
 - **Age consideration (Dr Shaiza suggestion):** Dr Shaiza suggested considering age (more aggressive elevation in older adults). **Status: Suggested, not adopted** (no specific age cut-off provided; all adult patients elevated per consensus on severe warning signs).
 
+### Update 3 Nov 2026: HbA1c 365-Day Preventive Screening Interval (Rule R5)
+
+- **Approved by consensus (all 3 doctors):** Annual (365-day) screening reminder interval for stable hypertensive patients meeting treatment goals without diagnosed diabetes (`SCREENING_REMINDER_INTERVAL_DAYS = 365`).
+- Suggests consulting a clinician for an HbA1c test if none has been performed within the past 365 days or if no records are available.
+- Controlled via `SCREENING_REMINDER_INTERVAL_DAYS` environment variable; dormant when unconfigured.
+
+### Update 3 Nov 2026: Provider-Only Experimental Risk Panel (Rule R6)
+
+- **Approved by consensus (all 3 doctors):** Provider-only experimental risk panel (PR #90) with mandatory "Experimental / decision-support only" labelling.
+- Available exclusively in the authenticated clinician review queue; never exposed to patients.
+- Strictly decision-support only; cannot lower triage levels and never provides automatic medical diagnoses.
+
 ## 6. Medication confirmation
 
 After the interview (and the protocol, if one was needed) the patient is asked about each **active** medication in the record, at most `MAX_MEDICATIONS` (20). The answer is read as: stopped (stop words such as stopped, quit, discontinued, no longer, anymore), still taking at the same dose, still taking at a different dose (only when a unit or dose word such as mg, tablet, half, twice, once, daily is given; a bare number is not a dose; the text is cut at `MAX_DOSAGE_CHARS` = 100), or unclear. Missed or skipped doses are not a stop. An unclear answer is asked once more, then recorded as unknown and left out of the comparison. A medication that the record lists as active but the patient says is stopped is high severity for the clinician. Every answer goes through the danger-phrase check first.

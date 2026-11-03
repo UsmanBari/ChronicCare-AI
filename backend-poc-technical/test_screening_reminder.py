@@ -76,3 +76,19 @@ def test_recent_hba1c_suppresses_reminder():
     ]
     res = hba1c_reminder(["hypertension"], recent_obs, today=ref_date, interval_days=interval)
     assert res is None
+
+
+def test_screening_reminder_interval_days_constant_and_env(monkeypatch):
+    """Rule R5: 365-day interval approved by clinicians; verifies constant and end-to-end env configuration."""
+    from agents.screening_reminder import SCREENING_REMINDER_INTERVAL_DAYS, hba1c_reminder
+    assert SCREENING_REMINDER_INTERVAL_DAYS == 365
+
+    # With env variable set to 365
+    monkeypatch.setenv("SCREENING_REMINDER_INTERVAL_DAYS", "365")
+    res = hba1c_reminder(["hypertension"], [])
+    assert res is not None
+    assert res["type"] == "hba1c_reminder"
+
+    # With env variable unset
+    monkeypatch.delenv("SCREENING_REMINDER_INTERVAL_DAYS", raising=False)
+    assert hba1c_reminder(["hypertension"], []) is None
