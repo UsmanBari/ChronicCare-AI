@@ -195,6 +195,26 @@ The Urdu phrases have been reviewed; Urdu negation is handled for danger screeni
 - If the patient provides the unit (e.g. mmol/L), the engine converts to mg/dL (multiplied by 18.0) and evaluates against clinical thresholds.
 - If STILL unclear after the re-ask (e.g. "don't know", no unit, or repeated bare number), the engine routes to the safe path: flagged for clinician review, attaches low-sugar guidance, never lowers triage level.
 
+### Update 3 Nov 2026: Check-in With No Readings (Rule R8)
+
+- **Consensus decision (3 doctors approved: Dr Shaiza Jabbar, Dr Anam Zafar, Doctor C (asked not to be named)):**
+  - If a patient completes a check-in with **no blood glucose and no blood pressure reading**:
+    - **ROUTINE** (`level: "routine"`, `requires_review: False`): when no symptoms were reported (all symptom questions answered negative, and no clinical symptoms extracted in free text).
+    - **REVIEW** (`level: "review"`, `requires_review: True`): when any symptom is reported (affirmative answer to any symptom question, or symptom finding extracted in free text).
+  - Both engines (v2 and v3) implement this rule identically across direct and graph modes.
+  - *Note:* In v2 this lowers previous behavior (which held missing data in review or flagged review unconditionally) for symptom-free check-ins; this reflects the unanimous clinical decision of all three reviewing physicians.
+
+#### Symptoms Gap Table (Reported by Doctors but not currently in Question Bank)
+
+The doctors identified symptoms that should mandate clinician review, which are not currently explicitly probed as standalone questions in today's Question Bank:
+
+| Symptom Identified by Doctors | Doctor Source | Today's Question Bank Status | Interim Safety Handling |
+|---|---|---|---|
+| Severe headache for days or repeated episodes / migraine episodes | Dr Shaiza Jabbar, Doctor C (asked not to be named) | Not asked as duration/episodes; only severe acute headache in `associated_symptoms` | Free text parsed via `extract_findings_from_answer` flags `headache` -> routes to `review` |
+| Numbness in both feet or both hands | Dr Shaiza Jabbar, Doctor C (asked not to be named) | Feet sores/cuts asked in v2/v3; bilateral hand numbness not asked | Hand/limb numbness caught if acute (stroke extras); otherwise free text note routes to `review` |
+| Slow wound healing | Doctor C (asked not to be named) | Not asked in current question bank | Captured via patient free-text note; requires future question bank expansion |
+| Blurred vision (standalone / persistent outside acute context) | Dr Shaiza Jabbar, Doctor C (asked not to be named) | Included only inside acute composite symptom list (`hyperglycemia_symptoms`) | Captured if patient affirms composite question or reports in free text |
+
 ## 6. Medication confirmation
 
 After the interview (and the protocol, if one was needed) the patient is asked about each **active** medication in the record, at most `MAX_MEDICATIONS` (20). The answer is read as: stopped (stop words such as stopped, quit, discontinued, no longer, anymore), still taking at the same dose, still taking at a different dose (only when a unit or dose word such as mg, tablet, half, twice, once, daily is given; a bare number is not a dose; the text is cut at `MAX_DOSAGE_CHARS` = 100), or unclear. Missed or skipped doses are not a stop. An unclear answer is asked once more, then recorded as unknown and left out of the comparison. A medication that the record lists as active but the patient says is stopped is high severity for the clinician. Every answer goes through the danger-phrase check first.

@@ -872,6 +872,8 @@ def finish_v3_session(session_state: Dict[str, Any]) -> Dict[str, Any]:
     conditions = session_state.get("conditions_on_file", ["diabetes"])
     readings_dict = session_state.get("readings", {})
     raw_answers = session_state.get("raw_answers", {})
+    known_slots = session_state.get("known_slots", {})
+    lang = session_state.get("language") or "en"
     answered_by = session_state.get("answered_by", "patient")
     intakes = []
 
@@ -936,8 +938,30 @@ def finish_v3_session(session_state: Dict[str, Any]) -> Dict[str, Any]:
         for pn in session_state.get("patient_notes", []):
             cond_notes.append(pn)
 
+        # Rule R8: symptom reported evaluation
+        cond_symptom_reported = False
+        if cond_symptoms:
+            for s in cond_symptoms:
+                from agents.adaptive_interview_agent import _looks_affirmative
+                if parse_yes_no(str(s), lang=lang).get("value") == "yes" or _looks_affirmative(str(s)) is True:
+                    cond_symptom_reported = True
+                    break
+        for sk in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems", "sick_vomiting_diarrhea"):
+            if known_slots.get(sk) is True:
+                cond_symptom_reported = True
+                break
+        if session_state.get("findings"):
+            cond_symptom_reported = True
+
+        cond_requires_review = bool(
+            session_state.get("possible_severe_low")
+            or (not cond_readings and cond_symptom_reported)
+            or (cond_readings and session_state.get("needs_clinician_flag"))
+        )
+
         intakes.append({
             "condition": cond,
+            "level": "review" if cond_requires_review else "routine",
             "readings": cond_readings,
             "symptoms": cond_symptoms,
             "notes": cond_notes,
@@ -945,6 +969,7 @@ def finish_v3_session(session_state: Dict[str, Any]) -> Dict[str, Any]:
             "emergency_reason": session_state.get("emergency_reason"),
             "confidence": confidence,
             "answered_by": answered_by,
+            "requires_review": cond_requires_review,
         })
 
     return {

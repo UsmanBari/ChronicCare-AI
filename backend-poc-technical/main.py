@@ -4112,6 +4112,8 @@ def answer_checkin_endpoint(
     protocol_state = TriageProtocolState.from_dict(protocol_state_dict) if protocol_state_dict else None
     med_state_dict = checkin.get("med_state")
     med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
+    user_profile = get_patient_profile(current_user["user_id"]) or {}
+    lang = (raw_state.get("language") if isinstance(raw_state, dict) else None) or getattr(current_state, "language", None) or (current_state.answers.get("language") if hasattr(current_state, "answers") and isinstance(current_state.answers, dict) else None) or user_profile.get("language") or "en"
 
     # Clinical Safety Rule: Typed pregnancy statement stops check-in immediately
     answer_raw = (body.answer or "").strip()

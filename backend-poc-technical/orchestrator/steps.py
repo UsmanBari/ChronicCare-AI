@@ -598,11 +598,26 @@ def step_decide_triage(
                 "advice": stroke_eval.get("advice", "Check-in flagged for clinician review."),
                 "summary": stroke_eval.get("advice", "Stroke extras evaluation: clinician review required."),
             }
-        elif intake_requires_review:
+        elif final_triage_level == "review":
+            is_severe_low = any(
+                (isinstance(it.get("symptoms"), dict) and it.get("symptoms", {}).get("possible_severe_low"))
+                for it in (state.intakes or [])
+            )
+            guidance = (
+                "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
+                if is_severe_low
+                else "Check-in flagged for clinician review."
+            )
             triage_dict = {
                 "level": "review",
-                "guidance": "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist.",
+                "guidance": guidance,
                 "summary": "Check-in flagged for clinician review.",
+            }
+        elif final_triage_level == "routine":
+            triage_dict = {
+                "level": "routine",
+                "guidance": "Continue routine self-monitoring and care plan.",
+                "summary": "Routine check-in completed.",
             }
         else:
             triage_dict = None
