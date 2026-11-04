@@ -329,6 +329,25 @@ export interface CheckinAnswerResponse {
   safety_note?: string | null;
 }
 
+export interface PatientExplanationSentence {
+  text: string;
+  cites?: string[];
+}
+
+export interface PatientExplanationSource {
+  chunk_id: string;
+  title: string;
+  edition?: string | null;
+  section_path?: string | null;
+  page_start?: number | null;
+}
+
+export interface PatientExplanation {
+  status?: string;
+  sentences?: PatientExplanationSentence[];
+  sources?: PatientExplanationSource[];
+}
+
 export interface CheckinCompleteResponse {
   emergency: boolean;
   intakes: Array<Record<string, any>>;
@@ -339,6 +358,7 @@ export interface CheckinCompleteResponse {
   triage?: Record<string, any> | null;
   record_source_label?: string | null;
   safety_note?: string | null;
+  explanation?: PatientExplanation | null;
 }
 
 export interface UserCheckinSummaryResponse {
@@ -444,6 +464,44 @@ export interface RiskAssessmentResponse {
   audience?: string;
 }
 
+export interface CheckinRiskResponse {
+  status: "ok" | "not_enough_information" | "error" | string;
+  disease?: string;
+  model_name?: string;
+  model_version?: string;
+  model?: string;
+  version?: string;
+  probability?: number | null;
+  band?: "low" | "moderate" | "medium" | "high" | null;
+  reasons?: RiskReason[] | null;
+  top_reasons?: RiskReason[] | null;
+  advisory?: boolean;
+  audience?: string;
+  label_text?: Record<string, string> | null;
+  caveats?: string[] | null;
+  raised?: boolean;
+  missing?: string[] | null;
+  error?: string | null;
+}
+
+export interface ProviderExplanationResponse {
+  sentences?: PatientExplanationSentence[];
+  sources?: PatientExplanationSource[];
+  language?: string;
+  mode?: "llm" | "cache" | "template" | string;
+  reason?: string | null;
+  rejected_reasons?: string[];
+  version?: string;
+  status?: string;
+}
+
+export interface TraceStepItem {
+  node: string;
+  started_at: string;
+  summary: string;
+  duration_ms?: number;
+}
+
 export interface ReviewDetailResponse {
   checkin_id: string;
   patient_id: string;
@@ -465,6 +523,9 @@ export interface ReviewDetailResponse {
   patient_background?: PatientBackgroundResponse | null;
   trends?: TrendsResponse | null;
   risk?: RiskAssessmentResponse | null;
+  checkin_risk?: CheckinRiskResponse | null;
+  explanation?: ProviderExplanationResponse | null;
+  trace?: TraceStepItem[] | null;
   recent_record_edits?: RecordEditItem[] | null;
   danger_wordgroups?: string[] | null;
 }

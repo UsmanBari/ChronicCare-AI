@@ -437,8 +437,8 @@ MUTATIONS = [
         "id": "M-U-G1",
         "name": "Explain Guards: Disable time budget deadline enforcement",
         "file": BACKEND_DIR / "rag" / "explain_guards.py",
-        "target": "    if thread.is_alive():\n        # Hard budget timeout",
-        "replacement": "    if False and thread.is_alive():\n        # Hard budget timeout",
+        "target": "            if thread.is_alive():\n                # Provider timed out",
+        "replacement": "            if False and thread.is_alive():\n                # Provider timed out",
         "test_node": "backend-poc-technical/test_explain_guards.py::test_mutation_proof_budget_deadline_killed",
     },
     {
@@ -456,6 +456,30 @@ MUTATIONS = [
         "target": "            if is_rate_limit or self._consecutive_failures >= self._threshold or self._state == self.HALF_OPEN:\n                self._state = self.OPEN",
         "replacement": "            if False and (is_rate_limit or self._consecutive_failures >= self._threshold or self._state == self.HALF_OPEN):\n                self._state = self.OPEN",
         "test_node": "backend-poc-technical/test_explain_guards.py::test_mutation_proof_breaker_never_opens_killed",
+    },
+    {
+        "id": "M-U-G4",
+        "name": "Explain Guards: Remove G3 licence check",
+        "file": BACKEND_DIR / "rag" / "explain_guards.py",
+        "target": "    # Filter by licence restriction: G3 forbids Gemini if any restricted chunk\n    if has_restricted_chunk:\n        provider_candidates = [p for p in provider_candidates if p != \"gemini\"]",
+        "replacement": "    # Filter by licence restriction: G3 forbids Gemini if any restricted chunk\n    if False and has_restricted_chunk:\n        provider_candidates = [p for p in provider_candidates if p != \"gemini\"]",
+        "test_node": "backend-poc-technical/test_llm_providers.py::test_g3_licence_restricted_chunk_never_calls_gemini",
+    },
+    {
+        "id": "M-U-G5",
+        "name": "Explain Guards: Remove H1 condition check",
+        "file": BACKEND_DIR / "rag" / "explain_guards.py",
+        "target": "    # 3. Check Condition Gate (H1)\n    if not is_condition_allowed_for_llm(cond_str, trigger_category):\n        return _make_template_fallback(\"condition_template_only\", [\"Condition not permitted for LLM explainer\"])",
+        "replacement": "    # 3. Check Condition Gate (H1)\n    if False and not is_condition_allowed_for_llm(cond_str, trigger_category):\n        return _make_template_fallback(\"condition_template_only\", [\"Condition not permitted for LLM explainer\"])",
+        "test_node": "backend-poc-technical/test_llm_providers.py::test_h1_condition_filter_blocks_diabetes_by_default",
+    },
+    {
+        "id": "M-U-G6",
+        "name": "Explain Guards: Make auto skip the fallback provider",
+        "file": BACKEND_DIR / "rag" / "explain_guards.py",
+        "target": "        for idx, current_provider in enumerate(eligible_providers):",
+        "replacement": "        for idx, current_provider in enumerate(eligible_providers[:1]):",
+        "test_node": "backend-poc-technical/test_llm_providers.py::test_routing_auto_groq_429_falls_back_to_gemini",
     },
 ]
 
@@ -571,10 +595,13 @@ def main():
     print("STAGE 9A-4 TASK B: REAL SUBPROCESS MUTATION VERIFICATION ENGINE")
     print("=" * 105)
 
+    mut_filter = sys.argv[1] if len(sys.argv) > 1 else None
+    mutations_to_run = [m for m in MUTATIONS if mut_filter in m["id"]] if mut_filter else MUTATIONS
+
     all_passed = True
     results = []
 
-    for mut in MUTATIONS:
+    for mut in mutations_to_run:
         res = run_mutation(mut)
         results.append(res)
         status = "KILLED (PASS)" if res["killed"] else "SURVIVED (FAIL)"
