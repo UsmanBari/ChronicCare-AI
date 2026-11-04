@@ -1,0 +1,790 @@
+[
+  {
+    "case_id": "CASE_01",
+    "persona_id": "p01_stoic_minimiser",
+    "condition": "hypertension",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {
+      "blood_pressure_systolic": 135,
+      "blood_pressure_diastolic": 88
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Stoic Minimiser"
+  },
+  {
+    "case_id": "CASE_02",
+    "persona_id": "p04_terse_yes_no",
+    "condition": "hypertension",
+    "language": "ur",
+    "triage_level": "review",
+    "readings": {
+      "blood_pressure_systolic": 125,
+      "blood_pressure_diastolic": 82
+    },
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Check-in evaluated as review"
+      ],
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "routine"
+    },
+    "description": "Terse Yes/No Only"
+  },
+  {
+    "case_id": "CASE_03",
+    "persona_id": "p09_voice_transcript_mishearings",
+    "condition": "hypertension",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {
+      "blood_pressure_systolic": 128,
+      "blood_pressure_diastolic": 84
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Voice Transcript with Fillers"
+  },
+  {
+    "case_id": "CASE_04",
+    "persona_id": "p12_no_bp_cuff_barrier",
+    "condition": "hypertension",
+    "language": "roman_ur",
+    "triage_level": "routine",
+    "readings": {},
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Continue routine self-monitoring and care plan.",
+      "trigger_category": "routine"
+    },
+    "description": "No BP Cuff Available"
+  },
+  {
+    "case_id": "CASE_05",
+    "persona_id": "p16_elderly_slow_respondent",
+    "condition": "hypertension",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {
+      "blood_pressure_systolic": 132,
+      "blood_pressure_diastolic": 84
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Elderly Slow Respondent"
+  },
+  {
+    "case_id": "CASE_06",
+    "persona_id": "p07_roman_urdu_normal",
+    "condition": "hypertension",
+    "language": "roman_ur",
+    "triage_level": "review",
+    "readings": {
+      "blood_pressure_systolic": 128,
+      "blood_pressure_diastolic": 82
+    },
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Check-in evaluated as review"
+      ],
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "routine"
+    },
+    "description": "Roman Urdu Normal Patient"
+  },
+  {
+    "case_id": "CASE_07",
+    "persona_id": "p30_fear_prognosis_handled",
+    "condition": "hypertension",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {},
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Continue routine self-monitoring and care plan.",
+      "trigger_category": "routine"
+    },
+    "description": "Fear of Mortality"
+  },
+  {
+    "case_id": "CASE_08",
+    "persona_id": "p41_side_effects_stopping_meds",
+    "condition": "hypertension",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {
+      "blood_pressure_systolic": 148,
+      "blood_pressure_diastolic": 94
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "bp_routine"
+    },
+    "description": "Side Effects Causing Adherence Drop"
+  },
+  {
+    "case_id": "CASE_09",
+    "persona_id": "p42_felt_well_stopped_meds",
+    "condition": "hypertension",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {
+      "blood_pressure_systolic": 158,
+      "blood_pressure_diastolic": 98
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "bp_routine"
+    },
+    "description": "Stopped Meds Because Felt Well"
+  },
+  {
+    "case_id": "CASE_10",
+    "persona_id": "p43_htn_severe_headache",
+    "condition": "hypertension",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {
+      "blood_pressure_systolic": 172,
+      "blood_pressure_diastolic": 104
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "bp_urgent"
+    },
+    "description": "Hypertension with Severe Headache"
+  },
+  {
+    "case_id": "CASE_11",
+    "persona_id": "p45_orthostatic_dizziness",
+    "condition": "hypertension",
+    "language": "roman_ur",
+    "triage_level": "routine",
+    "readings": {
+      "blood_pressure_systolic": 108,
+      "blood_pressure_diastolic": 65
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Orthostatic Postural Dizziness"
+  },
+  {
+    "case_id": "CASE_12",
+    "persona_id": "p52_swollen_ankles_salty_diet",
+    "condition": "hypertension",
+    "language": "roman_ur",
+    "triage_level": "routine",
+    "readings": {
+      "blood_pressure_systolic": 146,
+      "blood_pressure_diastolic": 92
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "bp_routine"
+    },
+    "description": "Swollen Ankles with High Sodium"
+  },
+  {
+    "case_id": "CASE_13",
+    "persona_id": "p50_urdu_script_htn_elevated",
+    "condition": "hypertension",
+    "language": "ur",
+    "triage_level": "routine",
+    "readings": {
+      "blood_pressure_systolic": 155,
+      "blood_pressure_diastolic": 95
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "bp_routine"
+    },
+    "description": "Urdu Script Elevated BP and NSAIDs"
+  },
+  {
+    "case_id": "CASE_14",
+    "persona_id": "p43_htn_severe_headache",
+    "condition": "hypertension",
+    "language": "ur",
+    "triage_level": "routine",
+    "readings": {},
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Hypertension with Severe Headache"
+  },
+  {
+    "case_id": "CASE_15",
+    "persona_id": "p47_young_adult_stress_sleep",
+    "condition": "hypertension",
+    "language": "ur",
+    "triage_level": "routine",
+    "readings": {
+      "blood_pressure_systolic": 136,
+      "blood_pressure_diastolic": 88
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Young Adult Stress and Poor Sleep"
+  },
+  {
+    "case_id": "CASE_16",
+    "persona_id": "p03_people_pleaser",
+    "condition": "diabetes",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {
+      "glucose": 120.0
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "People Pleaser"
+  },
+  {
+    "case_id": "CASE_17",
+    "persona_id": "p05_rambling_story",
+    "condition": "diabetes",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {
+      "glucose": 138.0
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Rambling Storyteller"
+  },
+  {
+    "case_id": "CASE_18",
+    "persona_id": "p10_caregiver_son",
+    "condition": "diabetes",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {},
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Caregiver Answering for Parent"
+  },
+  {
+    "case_id": "CASE_19",
+    "persona_id": "p15_newly_diagnosed_confused_units",
+    "condition": "diabetes",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {},
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Newly Diagnosed Confused About Units"
+  },
+  {
+    "case_id": "CASE_20",
+    "persona_id": "p06_urdu_script_normal",
+    "condition": "diabetes",
+    "language": "ur",
+    "triage_level": "routine",
+    "readings": {
+      "glucose": 125.0
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Urdu Script Normal Patient"
+  },
+  {
+    "case_id": "CASE_21",
+    "persona_id": "p38_fasting_suhoor_safe",
+    "condition": "diabetes",
+    "language": "ur",
+    "triage_level": "review",
+    "readings": {
+      "glucose": 128.0
+    },
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Check-in evaluated as review"
+      ],
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "ramadan_fasting"
+    },
+    "description": "Fasting with Suhoor Safe"
+  },
+  {
+    "case_id": "CASE_22",
+    "persona_id": "p13_cannot_afford_meds",
+    "condition": "diabetes",
+    "language": "en",
+    "triage_level": "review",
+    "readings": {
+      "glucose": 185.0
+    },
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Check-in evaluated as review"
+      ],
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "glucose_routine"
+    },
+    "description": "Medication Affordability Barrier"
+  },
+  {
+    "case_id": "CASE_23",
+    "persona_id": "p14_fasting_ramadan_with_low",
+    "condition": "diabetes",
+    "language": "en",
+    "triage_level": "review",
+    "readings": {
+      "glucose": 62.0
+    },
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Glucose is low.",
+        "Symptoms of low glucose."
+      ],
+      "guidance": "A clinician will review this. Please measure again later today and at the same time tomorrow.",
+      "trigger_category": "ramadan_fasting"
+    },
+    "description": "Fasting Patient with Hypoglycemia"
+  },
+  {
+    "case_id": "CASE_24",
+    "persona_id": "p21_low_mood_distress",
+    "condition": "diabetes",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {
+      "glucose": 165.0
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Low Mood and Condition Distress"
+  },
+  {
+    "case_id": "CASE_25",
+    "persona_id": "p44_diabetic_foot_ulcer",
+    "condition": "diabetes",
+    "language": "ur",
+    "triage_level": "routine",
+    "readings": {
+      "glucose": 155.0
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Diabetic Foot Ulcer / Wound"
+  },
+  {
+    "case_id": "CASE_26",
+    "persona_id": "p39_fasting_broke_fast_recorded",
+    "condition": "diabetes",
+    "language": "roman_ur",
+    "triage_level": "review",
+    "readings": {
+      "glucose": 58.0
+    },
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Glucose is low.",
+        "Symptoms of low glucose."
+      ],
+      "guidance": "A clinician will review this. Please measure again later today and at the same time tomorrow.",
+      "trigger_category": "ramadan_fasting"
+    },
+    "description": "Fasting Broke Fast for Low Sugar"
+  },
+  {
+    "case_id": "CASE_27",
+    "persona_id": "p49_roman_urdu_hypo_insulin",
+    "condition": "diabetes",
+    "language": "roman_ur",
+    "triage_level": "review",
+    "readings": {
+      "glucose": 65.0
+    },
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Glucose is low.",
+        "Symptoms of low glucose."
+      ],
+      "guidance": "A clinician will review this. Please measure again later today and at the same time tomorrow.",
+      "trigger_category": "glucose_low"
+    },
+    "description": "Roman Urdu Hypoglycemia on Insulin"
+  },
+  {
+    "case_id": "CASE_28",
+    "persona_id": "p36_severe_hypo_urgent",
+    "condition": "diabetes",
+    "language": "en",
+    "triage_level": "urgent",
+    "readings": {
+      "glucose": 48.0
+    },
+    "triage_result": {
+      "level": "urgent",
+      "reasons": [
+        "Glucose is low.",
+        "Glucose is below 54 mg/dL.",
+        "Symptoms of low glucose."
+      ],
+      "guidance": "Please contact your clinician today. If you feel worse, call your local emergency number.",
+      "trigger_category": "glucose_very_low"
+    },
+    "description": "Acute Severe Hypoglycemia"
+  },
+  {
+    "case_id": "CASE_29",
+    "persona_id": "p36_severe_hypo_urgent",
+    "condition": "diabetes",
+    "language": "ur",
+    "triage_level": "urgent",
+    "readings": {
+      "glucose": 48.0
+    },
+    "triage_result": {
+      "level": "urgent",
+      "reasons": [
+        "Glucose is low.",
+        "Glucose is below 54 mg/dL.",
+        "Symptoms of low glucose."
+      ],
+      "guidance": "Please contact your clinician today. If you feel worse, call your local emergency number.",
+      "trigger_category": "glucose_very_low"
+    },
+    "description": "Acute Severe Hypoglycemia"
+  },
+  {
+    "case_id": "CASE_30",
+    "persona_id": "p36_severe_hypo_urgent",
+    "condition": "diabetes",
+    "language": "roman_ur",
+    "triage_level": "urgent",
+    "readings": {
+      "glucose": 48.0
+    },
+    "triage_result": {
+      "level": "urgent",
+      "reasons": [
+        "Glucose is low.",
+        "Glucose is below 54 mg/dL.",
+        "Symptoms of low glucose."
+      ],
+      "guidance": "Please contact your clinician today. If you feel worse, call your local emergency number.",
+      "trigger_category": "glucose_very_low"
+    },
+    "description": "Acute Severe Hypoglycemia"
+  },
+  {
+    "case_id": "CASE_31",
+    "persona_id": "p34_dual_normal_readings",
+    "condition": "both",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {
+      "glucose": 118.0,
+      "blood_pressure_systolic": 120,
+      "blood_pressure_diastolic": 78
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Dual Diagnosis Both Normal"
+  },
+  {
+    "case_id": "CASE_32",
+    "persona_id": "p46_elderly_complex_meds",
+    "condition": "both",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {
+      "glucose": 145.0,
+      "blood_pressure_systolic": 138,
+      "blood_pressure_diastolic": 84
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Elderly Multimorbid Complex Meds"
+  },
+  {
+    "case_id": "CASE_33",
+    "persona_id": "dual_normal_ur",
+    "condition": "both",
+    "language": "ur",
+    "triage_level": "routine",
+    "readings": {
+      "glucose": 115.0,
+      "blood_pressure_systolic": 120,
+      "blood_pressure_diastolic": 80
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "routine"
+    },
+    "description": "Dual Normal Urdu"
+  },
+  {
+    "case_id": "CASE_34",
+    "persona_id": "dual_normal_roman_ur",
+    "condition": "both",
+    "language": "roman_ur",
+    "triage_level": "review",
+    "readings": {
+      "glucose": 120.0,
+      "blood_pressure_systolic": 118,
+      "blood_pressure_diastolic": 78
+    },
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Check-in evaluated as review"
+      ],
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "routine"
+    },
+    "description": "Dual Normal Roman Urdu"
+  },
+  {
+    "case_id": "CASE_35",
+    "persona_id": "p02_anxious_overreporter",
+    "condition": "both",
+    "language": "en",
+    "triage_level": "routine",
+    "readings": {
+      "glucose": 142.0,
+      "blood_pressure_systolic": 145,
+      "blood_pressure_diastolic": 92
+    },
+    "triage_result": {
+      "level": "routine",
+      "reasons": [
+        "Check-in evaluated as routine"
+      ],
+      "guidance": "Follow regular medical plan",
+      "trigger_category": "bp_routine"
+    },
+    "description": "Anxious Over-Reporter"
+  },
+  {
+    "case_id": "CASE_36",
+    "persona_id": "p40_multi_barrier_cost_and_meter",
+    "condition": "both",
+    "language": "en",
+    "triage_level": "review",
+    "readings": {},
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Check-in evaluated as review"
+      ],
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "routine"
+    },
+    "description": "Multi-Barrier Cost and Device"
+  },
+  {
+    "case_id": "CASE_37",
+    "persona_id": "dual_both_high",
+    "condition": "both",
+    "language": "en",
+    "triage_level": "review",
+    "readings": {
+      "glucose": 280.0,
+      "blood_pressure_systolic": 165,
+      "blood_pressure_diastolic": 102
+    },
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Glucose is high."
+      ],
+      "guidance": "A clinician will review this. Please measure again later today and at the same time tomorrow.",
+      "trigger_category": "glucose_routine"
+    },
+    "description": "Dual Both High"
+  },
+  {
+    "case_id": "CASE_38",
+    "persona_id": "dual_sick_day",
+    "condition": "both",
+    "language": "roman_ur",
+    "triage_level": "review",
+    "readings": {
+      "glucose": 145.0,
+      "blood_pressure_systolic": 125,
+      "blood_pressure_diastolic": 82
+    },
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Check-in evaluated as review"
+      ],
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "routine"
+    },
+    "description": "Dual Sick Day"
+  },
+  {
+    "case_id": "CASE_39",
+    "persona_id": "dual_caregiver_roman_ur",
+    "condition": "both",
+    "language": "roman_ur",
+    "triage_level": "review",
+    "readings": {
+      "glucose": 150.0,
+      "blood_pressure_systolic": 132,
+      "blood_pressure_diastolic": 84
+    },
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Check-in evaluated as review"
+      ],
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "routine"
+    },
+    "description": "Dual Caregiver Roman Urdu"
+  },
+  {
+    "case_id": "CASE_40",
+    "persona_id": "dual_glucose_low_bp_normal",
+    "condition": "both",
+    "language": "ur",
+    "triage_level": "review",
+    "readings": {
+      "glucose": 55.0,
+      "blood_pressure_systolic": 122,
+      "blood_pressure_diastolic": 80
+    },
+    "triage_result": {
+      "level": "review",
+      "reasons": [
+        "Glucose is low.",
+        "Symptoms of low glucose."
+      ],
+      "guidance": "A clinician will review this. Please measure again later today and at the same time tomorrow.",
+      "trigger_category": "glucose_low"
+    },
+    "description": "Dual Glucose Low BP Normal"
+  }
+]
