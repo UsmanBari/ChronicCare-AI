@@ -1,0 +1,62 @@
+[
+  {
+    "item_id": "R008",
+    "chunk_id": "7c03f3a77aead741a470a2d6c0f1ad624a92e654",
+    "verdict": "RELEVANT",
+    "reason": "fasting"
+  },
+  {
+    "item_id": "R026",
+    "chunk_id": "561b60be84b32b046d2c878ded64332abcfa03f3",
+    "verdict": "RELEVANT",
+    "reason": "thresholds"
+  },
+  {
+    "item_id": "R028",
+    "chunk_id": "1fdbe44c7aa23fbf4c3e5d6a35f20014d3deb851",
+    "verdict": "RELEVANT",
+    "reason": "measurement"
+  },
+  {
+    "item_id": "R030",
+    "chunk_id": "47910cc162a9f31cbc6a2bb2a41a63b2fe45504d",
+    "verdict": "RELEVANT",
+    "reason": "diet"
+  },
+  {
+    "item_id": "R031",
+    "chunk_id": "3c5b41b2d30a1e4e8fc442f726e3f1897b99d052",
+    "verdict": "RELEVANT",
+    "reason": "pharmacology"
+  },
+  {
+    "item_id": "R032",
+    "chunk_id": "dbcbbbebee010bbc5c86bf620aa55edc41430dbf",
+    "verdict": "NOT RELEVANT",
+    "reason": "setting"
+  },
+  {
+    "item_id": "R035",
+    "chunk_id": "f59054481da2514a9949e1e795ffe331f822364d",
+    "verdict": "RELEVANT",
+    "reason": "preeclampsia"
+  },
+  {
+    "item_id": "R040",
+    "chunk_id": "b8676f2712732f736e651cbb4657762ecaec1c03",
+    "verdict": "NOT RELEVANT",
+    "reason": "adherence"
+  },
+  {
+    "item_id": "R044",
+    "chunk_id": "b8676f2712732f736e651cbb4657762ecaec1c03",
+    "verdict": "NOT RELEVANT",
+    "reason": "adherence"
+  },
+  {
+    "item_id": "R051",
+    "chunk_id": "ea964cefadfd7f74c6bcfa9165ceb53ae8dd193b",
+    "verdict": "NOT RELEVANT",
+    "reason": "ramadan"
+  }
+]
