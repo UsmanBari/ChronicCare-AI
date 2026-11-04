@@ -71,6 +71,12 @@ def get_token(rsa_key, uid: str) -> str:
 
 
 def setup_db(db_file: str, cert_pem: str):
+    if os.path.exists(db_file):
+        try:
+            os.remove(db_file)
+        except OSError:
+            pass
+
     os.environ["LOCAL_DB_PATH"] = db_file
     os.environ["DB_BACKEND"] = "sqlite"
     os.environ["FIREBASE_PROJECT_ID"] = TEST_PROJECT_ID
@@ -161,6 +167,7 @@ def main():
     print("-" * 90)
 
     try:
+        run_id = int(time.time())
         prev_tokens_groq = 0
         prev_tokens_gemini = 0
 
@@ -173,8 +180,8 @@ def main():
                 print(f"\n[ALERT] Reached token safety cap ({MAX_TOKEN_BUDGET_PER_PROVIDER}). Stopping early.")
                 break
 
-            uid = f"smoke_user_{idx}"
-            cid = f"smoke_chk_{idx}"
+            uid = f"smoke_{run_id}_{idx}"
+            cid = f"smoke_chk_{run_id}_{idx}"
             token = get_token(rsa_key, uid)
             headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
@@ -221,10 +228,11 @@ def main():
             triage_val = data.get("triage")
             triage_level = triage_val.get("level", "routine") if isinstance(triage_val, dict) else ("emergency" if data.get("emergency") else ("review" if data.get("requires_review") else "routine"))
 
-            # Provider audit info retrieved from store state dict
-            chk = app_store.get_checkin(cid)
-            state_dict = chk.get("state_dict", {}) if chk else {}
-            explanation = state_dict.get("explanation") or {}
+            # Provider audit info retrieved from store
+            chk_res = app_store.get_checkin_result(cid)
+            chk_row = app_store.get_checkin_by_id(cid)
+            state_dict = chk_row.get("state_dict", {}) if chk_row else {}
+            explanation = (chk_res.get("explanation") if chk_res else None) or state_dict.get("explanation") or {}
 
             mode = explanation.get("mode", "-")
             reason = explanation.get("reason", "-")
