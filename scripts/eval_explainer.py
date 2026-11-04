@@ -51,6 +51,14 @@ from rag.store import ChunkStore, JsonlChunkStore
 
 # Constants
 DEFAULT_DAILY_TOKEN_LIMIT = 150000
+
+
+def get_default_budget_seconds() -> float:
+    """Returns default budget seconds from EXPLAIN_BUDGET_SECONDS env var or 3.0."""
+    try:
+        return float(os.getenv("EXPLAIN_BUDGET_SECONDS", "3.0"))
+    except (TypeError, ValueError):
+        return 3.0
 RECOMMENDED_MODEL = "qwen/qwen3.8-27b"
 
 # Arabic script Unicode range
@@ -166,10 +174,12 @@ def evaluate_single_case(
     case: dict[str, Any],
     store: ChunkStore | None,
     llm: Any,
-    budget_seconds: float = 8.0,
+    budget_seconds: float | None = None,
     use_cache: bool = False,
 ) -> dict[str, Any]:
     """Runs a single explanation case under guarded_explain."""
+    if budget_seconds is None:
+        budget_seconds = get_default_budget_seconds()
     triage_result = copy.deepcopy(case.get("triage_result") or {"level": case.get("triage_level", "routine")})
     readings = copy.deepcopy(case.get("readings") or {})
     lang = case.get("language", "en")
@@ -222,6 +232,7 @@ def run_evaluation(
     model_name: str,
     run_llm: bool = True,
     token_cap: int = DEFAULT_DAILY_TOKEN_LIMIT,
+    budget_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Executes the full evaluation pipeline across all cases."""
     reset_explain_guards()
@@ -243,7 +254,7 @@ def run_evaluation(
     # 1. Baseline Template Run (llm=None)
     print("\n--- Running Baseline Template Run (llm=None) ---")
     for idx, c in enumerate(cases):
-        res = evaluate_single_case(c, store=store, llm=None)
+        res = evaluate_single_case(c, store=store, llm=None, budget_seconds=budget_seconds)
         template_eval_results.append(res)
 
     # 2. LLM Run (if configured)
@@ -253,7 +264,7 @@ def run_evaluation(
             if tracking_llm.cap_reached:
                 print(f"  [STOP] Token budget limit reached at case {idx}/{len(cases)}. Halting LLM calls.")
                 # Mark remaining as token cap fallbacks
-                res = evaluate_single_case(c, store=store, llm=None)
+                res = evaluate_single_case(c, store=store, llm=None, budget_seconds=budget_seconds)
                 res["mode"] = "template"
                 res["reason"] = "token_cap_exceeded"
                 res["rejected_reasons"] = ["Daily evaluation token budget limit (150k) reached"]
@@ -261,13 +272,13 @@ def run_evaluation(
                 continue
 
             try:
-                res = evaluate_single_case(c, store=store, llm=tracking_llm)
+                res = evaluate_single_case(c, store=store, llm=tracking_llm, budget_seconds=budget_seconds)
                 llm_eval_results.append(res)
                 status_icon = "PASS" if res["mode"] == "llm" else f"FALLBACK ({res['reason']})"
                 print(f"  [{c['case_id']}] {c['condition']}/{c['language']} ({c['triage_level']}) -> {status_icon} in {res['latency_ms']:.1f}ms")
             except Exception as e:  # noqa: BLE001
                 print(f"  [{c['case_id']}] Exception: {e}")
-                res = evaluate_single_case(c, store=store, llm=None)
+                res = evaluate_single_case(c, store=store, llm=None, budget_seconds=budget_seconds)
                 res["mode"] = "template"
                 res["reason"] = "execution_error"
                 res["rejected_reasons"] = [str(e)]
@@ -457,6 +468,12 @@ def main() -> None:
     parser.add_argument("--output", default="docs/explain_eval/results.json", help="Path to save evaluation output")
     parser.add_argument("--baseline-only", action="store_true", help="Run template baseline only without LLM")
     parser.add_argument("--token-cap", type=int, default=DEFAULT_DAILY_TOKEN_LIMIT, help="Max daily tokens")
+    parser.add_argument(
+        "--budget-seconds",
+        type=float,
+        default=None,
+        help="Hard timeout budget per LLM call in seconds (default: from EXPLAIN_BUDGET_SECONDS or 3.0)",
+    )
     args = parser.parse_args()
 
     # Load cases
@@ -496,6 +513,7 @@ def main() -> None:
         model_name=configured_model,
         run_llm=run_llm,
         token_cap=args.token_cap,
+        budget_seconds=args.budget_seconds,
     )
 
     print_evaluation_report(summary)

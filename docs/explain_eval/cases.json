@@ -24,17 +24,17 @@
     "persona_id": "p04_terse_yes_no",
     "condition": "hypertension",
     "language": "ur",
-    "triage_level": "review",
+    "triage_level": "routine",
     "readings": {
       "blood_pressure_systolic": 125,
       "blood_pressure_diastolic": 82
     },
     "triage_result": {
-      "level": "review",
+      "level": "routine",
       "reasons": [
-        "Check-in evaluated as review"
+        "Check-in evaluated as routine"
       ],
-      "guidance": "Check-in flagged for clinician review.",
+      "guidance": "Your blood pressure is within normal limits.",
       "trigger_category": "routine"
     },
     "description": "Terse Yes/No Only"
@@ -405,16 +405,16 @@
     "persona_id": "p13_cannot_afford_meds",
     "condition": "diabetes",
     "language": "en",
-    "triage_level": "review",
+    "triage_level": "routine",
     "readings": {
       "glucose": 185.0
     },
     "triage_result": {
-      "level": "review",
+      "level": "routine",
       "reasons": [
-        "Check-in evaluated as review"
+        "Check-in evaluated as routine"
       ],
-      "guidance": "Check-in flagged for clinician review.",
+      "guidance": "Your blood glucose reading is in your routine target range.",
       "trigger_category": "glucose_routine"
     },
     "description": "Medication Affordability Barrier"

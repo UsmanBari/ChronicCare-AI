@@ -35,6 +35,7 @@ from scripts.eval_explainer import (
     check_arabic_script_share,
     compute_summary_metrics,
     evaluate_single_case,
+    get_default_budget_seconds,
 )
 
 
@@ -245,3 +246,18 @@ def test_compute_summary_metrics() -> None:
     assert summary["fallback_rate"] == 0.5
     assert summary["validator_rejections"]["V1"] == 1
     assert summary["latency_llm"]["p50_ms"] == 350.0
+
+
+def test_default_budget_seconds_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verifies default budget_seconds comes from EXPLAIN_BUDGET_SECONDS (default 3.0)."""
+    # 1. Default when env var is unset
+    monkeypatch.delenv("EXPLAIN_BUDGET_SECONDS", raising=False)
+    assert get_default_budget_seconds() == 3.0
+
+    # 2. Configured via env var
+    monkeypatch.setenv("EXPLAIN_BUDGET_SECONDS", "5.5")
+    assert get_default_budget_seconds() == 5.5
+
+    # 3. Invalid value falls back to 3.0 safely
+    monkeypatch.setenv("EXPLAIN_BUDGET_SECONDS", "not_a_float")
+    assert get_default_budget_seconds() == 3.0
