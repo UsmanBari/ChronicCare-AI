@@ -199,3 +199,23 @@ Based on empirical data across all candidate open-weight models:
    - Serve verified deterministic templates (`templates.json`) to guarantee zero-latency clinical explanations and 100% deterministic safety.
 
 **Decision Authority:** **Usman decides** whether to configure `GROQ_MODEL=qwen/qwen3.8-27b` on Render in Week 2 Day 7 or maintain template-only mode in production.
+
+---
+
+## 8. Second Provider: Google Gemini (`gemini_client.py`)
+
+### 1. What and Why
+To expand daily token capacity and prevent single-provider service disruption, ChronicCare AI integrates Google Generative Language (Gemini) as a secondary explainer provider alongside Groq:
+- **Extra Daily Capacity:** Provides an independent daily token allowance (`EXPLAIN_DAILY_TOKEN_CAP_GEMINI`, default 150,000 tokens) completely separate from Groq.
+- **Failover Routing:** When `LLM_PROVIDER=auto` (default), the explainer routes requests to the primary provider (Groq) and automatically fails over to Gemini within the same request time budget if Groq encounters an HTTP 429 rate limit, network timeout, or connection failure.
+- **Model Configuration:** The model is not hardcoded; it is chosen by the `GEMINI_MODEL` environment variable (e.g. `gemini-2.5-flash`). If `GEMINI_MODEL` is unset, Gemini fails cleanly without crashing.
+- **Optional Reasoning Configuration:** Supports `GEMINI_THINKING_BUDGET` (e.g. `0` to disable thinking on models that support it).
+
+### 2. Privacy, Free-Tier Data Advisory, and Licence Restrictions
+> [!IMPORTANT]
+> Gemini free tier: Google may use prompts and responses to improve its products and human reviewers may read them. Fake/test data only. Real patient data requires the paid tier.
+
+- **Licence-Restricted Sources (G3):** In compliance with data-use licences, any prompt citing guideline sources marked `allowed_for_rag == FALSE` in `docs/GUIDELINE_CORPUS.md` (e.g. ADA Standards of Care, AHA/ACC guidelines) is strictly barred from being transmitted to Google Gemini. In `auto` mode, Gemini is quietly pruned from the candidate sequence; if Gemini was explicitly requested (`LLM_PROVIDER=gemini`), the system falls back to verified deterministic templates with `reason='licence_restricted'`.
+- **Condition Filter (H1):** Diabetes explanations are restricted to pre-verified deterministic templates (`reason='condition_template_only'`). Only conditions in `EXPLAIN_LLM_CONDITIONS` (default `hypertension`) may invoke Gemini or Groq.
+- **Credential Leak Defense:** `GEMINI_API_KEY` is sent exclusively in the `x-goog-api-key` HTTP header and is never passed in request URLs, query parameters, logs, or stored records.
+

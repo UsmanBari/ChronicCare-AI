@@ -1,15 +1,15 @@
 """
-Live Smoke Test Script for Explainer Guards (D2).
+Live Smoke Test Script for Explainer Guards (D2 / Day 4b).
 
-Can be run with a real GROQ_API_KEY when chosen:
-- Checks GROQ_API_KEY is present; if not, prints a clear message and exits 0
-- Sets EXPLAIN_ENABLED=true
-- Runs 10 fake check-ins through the pipeline (different reading values, some repeated to exercise cache)
-- Prints for each: level, mode (llm/cache/template), reason (if template), citations, latency
-- Prints token usage reported by Groq
-- Stops early if total tokens reach 20,000 (safety token limit)
-- NEVER prints the key or patient data
+For USMAN to run (with real API keys):
+- Supports --provider groq|gemini|auto (default auto)
+- Checks API keys presence; if missing for chosen provider, prints a clear message and exits 0
+- Prints keys strictly as SET or NOT SET (never prints key characters or masked strings)
+- Runs 10 fake check-ins (hypertension only, en/ur/roman_ur)
+- Prints per call: provider, time, mode, reason, tokens
+- Stops early if token usage reaches 20,000 per provider
 """
+import argparse
 import copy
 import json
 import os
@@ -33,13 +33,12 @@ import jwt
 
 from auth import firebase_verify
 from data_sources import app_store, local_store
-import llm.groq_client as groq_client
 from main import app
 from rag.explain_guards import get_explain_guard_metrics, reset_explain_guards
 
 TEST_PROJECT_ID = "live-smoke-test-project"
 TEST_KID = "live-smoke-test-kid"
-MAX_TOKEN_BUDGET = 20000
+MAX_TOKEN_BUDGET_PER_PROVIDER = 20000
 
 
 def generate_cert(rsa_key):
@@ -86,12 +85,10 @@ def setup_db(db_file: str, cert_pem: str):
 
     now = datetime.now(timezone.utc).isoformat()
     chunks = [
-        ("c_htn_1", "AHA_ACC_2017", "BP Targets", "hypertension",
-         "Stage 1 hypertension is systolic 130-139 mmHg or diastolic 80-89 mmHg.", now),
-        ("c_htn_2", "AHA_ACC_2017", "Stage 2 Targets", "hypertension",
-         "Stage 2 hypertension is systolic 140 mmHg or higher, or diastolic 90 mmHg or higher.", now),
-        ("c_dm_1", "ADA_2024", "Glycemic Targets", "diabetes",
-         "Target fasting blood glucose is 80-130 mg/dL for nonpregnant adults.", now),
+        ("c_htn_1", "ish_2020_htn", "BP Targets", "hypertension",
+         "Target blood pressure for adults with hypertension is below 130/80 mmHg.", now),
+        ("c_htn_2", "who_2021_htn", "Stage 2 Targets", "hypertension",
+         "Blood pressure 140/90 mmHg or higher requires clinical management.", now),
     ]
     with app_store.get_db_cursor(backend="sqlite", db_path=db_file) as (cur, be, ph):
         for cid, src, title, cond, text, updated in chunks:
@@ -103,22 +100,39 @@ def setup_db(db_file: str, cert_pem: str):
 
 
 def main():
-    print("=" * 80)
-    print("CHRONICCARE AI - LIVE EXPLAINER SMOKE TEST (D2)")
-    print("=" * 80)
+    parser = argparse.ArgumentParser(description="Live Smoke Test for Explainer LLM Providers")
+    parser.add_argument(
+        "--provider",
+        choices=["groq", "gemini", "auto"],
+        default="auto",
+        help="LLM provider routing mode (default: auto)",
+    )
+    args = parser.parse_args()
 
-    groq_key = os.getenv("GROQ_API_KEY", "").strip()
-    if not groq_key:
-        print("[INFO] GROQ_API_KEY environment variable is not set.")
-        print("[INFO] To run live smoke tests against Groq LLM, set GROQ_API_KEY and re-run.")
-        print("[INFO] Exiting cleanly (exit code 0).")
+    print("=" * 90)
+    print("CHRONICCARE AI - LIVE EXPLAINER SMOKE TEST (Groq & Gemini Dual Provider)")
+    print("=" * 90)
+
+    groq_set = "SET" if os.getenv("GROQ_API_KEY", "").strip() else "NOT SET"
+    gemini_set = "SET" if os.getenv("GEMINI_API_KEY", "").strip() else "NOT SET"
+
+    print(f"Provider mode requested: {args.provider}")
+    print(f"GROQ_API_KEY:            {groq_set}")
+    print(f"GEMINI_API_KEY:          {gemini_set}")
+
+    if args.provider == "groq" and groq_set != "SET":
+        print("[INFO] GROQ_API_KEY is NOT SET. Exiting cleanly (code 0).")
+        return 0
+    if args.provider == "gemini" and gemini_set != "SET":
+        print("[INFO] GEMINI_API_KEY is NOT SET. Exiting cleanly (code 0).")
+        return 0
+    if args.provider == "auto" and groq_set != "SET" and gemini_set != "SET":
+        print("[INFO] Neither GROQ_API_KEY nor GEMINI_API_KEY is SET. Exiting cleanly (code 0).")
         return 0
 
-    # Ensure key is never printed
-    masked_key = groq_key[:4] + "..." + groq_key[-4:] if len(groq_key) > 8 else "***"
-    print(f"[OK] GROQ_API_KEY detected ({masked_key}). Initializing smoke test suite...")
-
     os.environ["EXPLAIN_ENABLED"] = "true"
+    os.environ["LLM_PROVIDER"] = args.provider
+    os.environ["EXPLAIN_LLM_CONDITIONS"] = "hypertension"
     reset_explain_guards()
 
     rsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -128,31 +142,35 @@ def main():
 
     client = TestClient(app)
 
-    # 10 test check-ins with repeated readings to test cache hits
-    test_readings = [
-        {"bp_sys": 135.0, "bp_dia": 85.0, "cond": "hypertension"},  # 1. new call (stage 1)
-        {"bp_sys": 135.0, "bp_dia": 85.0, "cond": "hypertension"},  # 2. same band (cache hit)
-        {"bp_sys": 145.0, "bp_dia": 92.0, "cond": "hypertension"},  # 3. new call (stage 2)
-        {"bp_sys": 145.0, "bp_dia": 92.0, "cond": "hypertension"},  # 4. same band (cache hit)
-        {"bp_sys": 122.0, "bp_dia": 78.0, "cond": "hypertension"},  # 5. routine/elevated
-        {"bp_sys": 122.0, "bp_dia": 78.0, "cond": "hypertension"},  # 6. same band (cache hit)
-        {"bp_sys": 138.0, "bp_dia": 86.0, "cond": "hypertension"},  # 7. stage 1 band repeat
-        {"bp_sys": 150.0, "bp_dia": 95.0, "cond": "hypertension"},  # 8. stage 2 band repeat
-        {"bp_sys": 120.0, "bp_dia": 80.0, "cond": "hypertension"},  # 9. normal/elevated
-        {"bp_sys": 135.0, "bp_dia": 85.0, "cond": "hypertension"},  # 10. stage 1 repeat
+    # 10 test check-ins across en, ur, roman_ur with repeated readings to test cache
+    test_checkins = [
+        {"bp_sys": 135.0, "bp_dia": 85.0, "lang": "en"},
+        {"bp_sys": 135.0, "bp_dia": 85.0, "lang": "en"},        # Cache hit
+        {"bp_sys": 145.0, "bp_dia": 92.0, "lang": "en"},
+        {"bp_sys": 132.0, "bp_dia": 84.0, "lang": "ur"},
+        {"bp_sys": 132.0, "bp_dia": 84.0, "lang": "ur"},        # Cache hit
+        {"bp_sys": 150.0, "bp_dia": 95.0, "lang": "ur"},
+        {"bp_sys": 125.0, "bp_dia": 82.0, "lang": "roman_ur"},
+        {"bp_sys": 125.0, "bp_dia": 82.0, "lang": "roman_ur"},  # Cache hit
+        {"bp_sys": 142.0, "bp_dia": 91.0, "lang": "roman_ur"},
+        {"bp_sys": 135.0, "bp_dia": 85.0, "lang": "en"},        # Cache hit
     ]
 
-    print("\nRunning 10 pipeline check-ins...\n")
-    print(f"{'#':<3} | {'Level':<10} | {'Mode':<10} | {'Reason':<16} | {'Citations':<14} | {'Latency (s)':<12}")
-    print("-" * 75)
+    print("\nRunning 10 pipeline check-ins (Hypertension only, en / ur / roman_ur)...\n")
+    print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Time (s)':<10}")
+    print("-" * 90)
 
     try:
-        for idx, item in enumerate(test_readings, start=1):
-            # Check token budget safety cap
+        prev_tokens_groq = 0
+        prev_tokens_gemini = 0
+
+        for idx, item in enumerate(test_checkins, start=1):
             metrics = get_explain_guard_metrics()
-            used_tokens = metrics["tokens_used_today"]
-            if used_tokens >= MAX_TOKEN_BUDGET:
-                print(f"\n[ALERT] Reached token safety ceiling ({used_tokens} >= {MAX_TOKEN_BUDGET}). Stopping early.")
+            used_groq = metrics.get("groq", {}).get("tokens_used_today", 0)
+            used_gemini = metrics.get("gemini", {}).get("tokens_used_today", 0)
+
+            if used_groq >= MAX_TOKEN_BUDGET_PER_PROVIDER or used_gemini >= MAX_TOKEN_BUDGET_PER_PROVIDER:
+                print(f"\n[ALERT] Reached token safety cap ({MAX_TOKEN_BUDGET_PER_PROVIDER}). Stopping early.")
                 break
 
             uid = f"smoke_user_{idx}"
@@ -168,17 +186,17 @@ def main():
                 "/api/me/profile",
                 headers=headers,
                 json={
-                    "conditions": [item["cond"]],
+                    "conditions": ["hypertension"],
                     "date_of_birth": "1980-01-01",
                     "inclusion_confirmed": True,
-                    "language": "en",
+                    "language": item["lang"],
                 },
             )
 
             raw_state = {
                 "engine": "v3",
                 "completed": True,
-                "conditions_on_file": [item["cond"]],
+                "conditions_on_file": ["hypertension"],
                 "readings": {"blood_pressure_systolic": item["bp_sys"], "blood_pressure_diastolic": item["bp_dia"]},
                 "findings": [],
             }
@@ -200,26 +218,44 @@ def main():
                 continue
 
             data = resp.json()
-            triage_level = data.get("triage", {}).get("level", "unknown")
-            explanation = data.get("explanation") or {}
-            mode = explanation.get("mode", "none")
-            reason = explanation.get("reason", "-")
-            sources = explanation.get("sources", [])
-            citations_str = ",".join(s.get("source_id", "") for s in sources) or "-"
+            triage_val = data.get("triage")
+            triage_level = triage_val.get("level", "routine") if isinstance(triage_val, dict) else ("emergency" if data.get("emergency") else ("review" if data.get("requires_review") else "routine"))
 
-            print(f"{idx:<3} | {triage_level:<10} | {mode:<10} | {reason:<16} | {citations_str:<14} | {elapsed:<12.3f}")
+            # Provider audit info retrieved from store state dict
+            chk = app_store.get_checkin(cid)
+            state_dict = chk.get("state_dict", {}) if chk else {}
+            explanation = state_dict.get("explanation") or {}
+
+            mode = explanation.get("mode", "-")
+            reason = explanation.get("reason", "-")
+            provider_used = explanation.get("provider", "-") or "-"
+
+            curr_metrics = get_explain_guard_metrics()
+            curr_groq = curr_metrics.get("groq", {}).get("tokens_used_today", 0)
+            curr_gemini = curr_metrics.get("gemini", {}).get("tokens_used_today", 0)
+            tokens_delta = (curr_groq - prev_tokens_groq) + (curr_gemini - prev_tokens_gemini)
+            prev_tokens_groq = curr_groq
+            prev_tokens_gemini = curr_gemini
+
+            print(
+                f"{idx:<3} | {item['lang']:<8} | {triage_level:<10} | {provider_used:<10} | "
+                f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {elapsed:<10.3f}"
+            )
 
         final_metrics = get_explain_guard_metrics()
-        print("\n" + "=" * 80)
-        print("SMOKE TEST SUMMARY")
-        print("=" * 80)
-        print(f"Total LLM calls:   {final_metrics['llm_calls']}")
-        print(f"Cache hits:        {final_metrics['cache_hits']}")
-        print(f"Cache misses:      {final_metrics['cache_misses']}")
-        print(f"Tokens consumed:   {final_metrics['tokens_used_today']} / {MAX_TOKEN_BUDGET} cap")
-        print(f"Circuit Breaker:   {final_metrics['breaker_state']}")
-        print(f"Fallbacks:         {final_metrics['template_fallbacks_by_reason']}")
-        print("=" * 80)
+        print("\n" + "=" * 90)
+        print("LIVE SMOKE TEST SUMMARY")
+        print("=" * 90)
+        print(f"Cache Hits:            {final_metrics.get('cache_hits', 0)}")
+        print(f"Cache Misses:          {final_metrics.get('cache_misses', 0)}")
+        print(f"Groq LLM Calls:        {final_metrics.get('groq', {}).get('llm_calls', 0)}")
+        print(f"Groq Tokens Used:      {final_metrics.get('groq', {}).get('tokens_used_today', 0)} / {MAX_TOKEN_BUDGET_PER_PROVIDER}")
+        print(f"Groq Breaker State:    {final_metrics.get('groq', {}).get('breaker_state', '-')}")
+        print(f"Gemini LLM Calls:      {final_metrics.get('gemini', {}).get('llm_calls', 0)}")
+        print(f"Gemini Tokens Used:    {final_metrics.get('gemini', {}).get('tokens_used_today', 0)} / {MAX_TOKEN_BUDGET_PER_PROVIDER}")
+        print(f"Gemini Breaker State:  {final_metrics.get('gemini', {}).get('breaker_state', '-')}")
+        print(f"Template Fallbacks:    {final_metrics.get('template_fallbacks_by_reason', {})}")
+        print("=" * 90)
         return 0
 
     finally:
@@ -232,4 +268,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

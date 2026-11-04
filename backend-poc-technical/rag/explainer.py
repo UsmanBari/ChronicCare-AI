@@ -282,6 +282,78 @@ def validate_level_consistency(
     return errors
 
 
+def is_template_consistent(trigger_category: str, readings: dict[str, Any]) -> bool:
+    """
+    Template consistency guard (H2):
+    A template must never call a reading high/severe/elevated/low when in the normal range,
+    and must never mention a reading the patient didn't give.
+    """
+    sbp_raw = readings.get("blood_pressure_systolic")
+    dbp_raw = readings.get("blood_pressure_diastolic")
+    gluc_raw = readings.get("glucose") or readings.get("fasting_glucose") or readings.get("random_glucose")
+
+    try:
+        sbp = float(sbp_raw) if sbp_raw is not None else None
+    except (ValueError, TypeError):
+        sbp = None
+    try:
+        dbp = float(dbp_raw) if dbp_raw is not None else None
+    except (ValueError, TypeError):
+        dbp = None
+    try:
+        gluc = float(gluc_raw) if gluc_raw is not None else None
+    except (ValueError, TypeError):
+        gluc = None
+
+    # Check BP templates
+    if trigger_category in ("bp_severe", "bp_crisis"):
+        if sbp is None and dbp is None:
+            return False
+        # Severe / crisis requires at least sbp >= 180 or dbp >= 120
+        is_severe = (sbp is not None and sbp >= 180.0) or (dbp is not None and dbp >= 120.0)
+        if not is_severe:
+            return False
+
+    elif trigger_category == "bp_urgent":
+        if sbp is None and dbp is None:
+            return False
+        # Stage 2 requires sbp >= 140 or dbp >= 90
+        is_stage2 = (sbp is not None and sbp >= 140.0) or (dbp is not None and dbp >= 90.0)
+        if not is_stage2:
+            return False
+
+    elif trigger_category == "bp_low":
+        if sbp is None and dbp is None:
+            return False
+        # Low BP requires sbp < 90 or dbp < 60
+        is_low = (sbp is not None and sbp < 90.0) or (dbp is not None and dbp < 60.0)
+        if not is_low:
+            return False
+
+    elif trigger_category == "bp_change":
+        if sbp is None and dbp is None:
+            return False
+
+    # Check Glucose templates
+    elif trigger_category == "glucose_urgent_high":
+        if gluc is None or gluc < 250.0:
+            return False
+
+    elif trigger_category == "glucose_high":
+        if gluc is None or gluc < 180.0:
+            return False
+
+    elif trigger_category == "glucose_very_low":
+        if gluc is None or gluc >= 54.0:
+            return False
+
+    elif trigger_category == "glucose_low":
+        if gluc is None or gluc >= 70.0:
+            return False
+
+    return True
+
+
 def get_template_explanation(
     trigger_category: str,
     readings: dict[str, Any],
@@ -293,6 +365,13 @@ def get_template_explanation(
     """Construct safe fallback explanation from pre-verified templates."""
     lang = language if language in ("en", "ur", "roman_ur") else "en"
     cat = trigger_category if trigger_category in TEMPLATES else "routine"
+
+    # Template consistency check (H2)
+    is_corrected = False
+    if cat != "routine" and not is_template_consistent(cat, readings):
+        cat = "routine"
+        is_corrected = True
+        rejected_reasons.append("Template contradicted readings; substituted neutral routine template")
 
     template_entry = TEMPLATES[cat].get(lang, TEMPLATES[cat]["en"])
     raw_sentences = template_entry.get("sentences", [])
@@ -329,7 +408,7 @@ def get_template_explanation(
             "page_start": c.get("page_start", 1),
         })
 
-    return {
+    res = {
         "sentences": formatted_sentences,
         "sources": sources,
         "language": lang,
@@ -337,6 +416,9 @@ def get_template_explanation(
         "rejected_reasons": rejected_reasons,
         "version": EXPLAINER_VERSION,
     }
+    if is_corrected:
+        res["reason"] = "template_corrected"
+    return res
 
 
 def explain(

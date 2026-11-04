@@ -69,22 +69,14 @@ class CheckinCompleteResponse(BaseModel):
 
 
 def _build_patient_risk_view(risk: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Patient-facing risk view: band + reasons, NO probability."""
-    if not risk or not isinstance(risk, dict):
-        return None
-    if risk.get("status") != "ok":
-        return {
-            "status": risk.get("status", "unknown"),
-            "band": None,
-            "reasons": [],
-            "advisory": "Advisory risk assessment, not a clinical diagnosis. Consult your healthcare provider.",
-        }
-    return {
-        "status": "ok",
-        "band": risk.get("band"),
-        "reasons": risk.get("reasons", []),
-        "advisory": "Advisory risk assessment, not a clinical diagnosis. Consult your healthcare provider.",
-    }
+    """
+    Patient-facing risk view (H3):
+    Doctors approved the diabetes risk panel as doctors-only (docs/RISK_PANEL.md:
+    'Patients never see a risk score, risk band, percentage, or advisory hint').
+    The /complete response never contains risk (always null), in both orchestrator modes,
+    whatever the flags.
+    """
+    return None
 
 
 def _build_patient_explain_view(explanation: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -828,13 +820,7 @@ def step_explain(
             except Exception:
                 store = None
 
-        if llm is None:
-            try:
-                import llm.groq_client as groq_client
-                if groq_client.is_configured():
-                    llm = groq_client.chat_with_usage
-            except Exception:
-                llm = None
+        # If llm is None, guarded_explain will route dynamically across configured providers (groq/gemini)
 
         active_cond = "diabetes"
         if state and getattr(state, "conditions_on_file", None):

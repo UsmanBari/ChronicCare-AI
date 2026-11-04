@@ -289,11 +289,8 @@ def test_flags_on_safety_fields_identical_when_can_raise_false(rsa_key, monkeypa
     assert resp.status_code == 200
     data = resp.json()
 
-    # Patient view has qualitative risk card
-    assert data["risk"] is not None
-    assert data["risk"]["status"] == "ok"
-    assert "band" in data["risk"]
-    assert "probability" not in data["risk"]  # Strict leak defense
+    # Patient view: Doctors approved risk panel as doctors-only (H3); /complete never contains risk
+    assert data["risk"] is None
 
     # Patient view has explanation sentences
     assert data["explanation"] is not None
@@ -506,10 +503,8 @@ def test_privacy_views_and_trace_sanitization(rsa_key, monkeypatch):
     resp = client.post(f"/api/checkins/{cid}/complete", headers=headers)
     patient_data = resp.json()
 
-    # Patient view: NO probability, NO model metadata, NO mode, NO reason
-    assert "probability" not in patient_data["risk"]
-    assert "model_name" not in patient_data["risk"]
-    assert "model_version" not in patient_data["risk"]
+    # Patient view: strictly null risk (H3) and NO explanation mode/reason
+    assert patient_data["risk"] is None
     assert "trace" not in patient_data
     assert "mode" not in patient_data["explanation"]
     assert "reason" not in patient_data["explanation"]
@@ -561,7 +556,7 @@ def test_orchestrator_modes_completion(rsa_key, monkeypatch, orch_mode):
     resp = client.post(f"/api/checkins/{cid}/complete", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["risk"]["status"] == "ok"
+    assert data["risk"] is None
     assert len(data["explanation"]["sentences"]) == 2
 
 

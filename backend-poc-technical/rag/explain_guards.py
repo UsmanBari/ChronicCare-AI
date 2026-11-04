@@ -3,13 +3,17 @@ Guardrails and Resiliency Layer for ChronicCare AI Guideline Explanations.
 
 Enforces:
 1. Hard time budget (EXPLAIN_BUDGET_SECONDS, default 3.0s) with worker-thread hard stop.
-2. Daily Groq token cap (EXPLAIN_DAILY_TOKEN_CAP, default 150,000) resetting per UTC day.
-3. In-memory LRU cache with clinical reading bands and strict re-validation
-   (chunk existence, citations, number grounding, banned patterns, level consistency).
-4. Circuit breaker (3 consecutive timeouts/errors or 429 rate limit trips; 600s cooldown; half-open trial).
-5. Retriever caching (BM25Retriever built once per store, reused while count unchanged).
-6. Result metadata (mode: "llm"|"cache"|"template", reason on template fallback).
-7. Guard metrics for monitoring and Day 5 admin view.
+   Dynamic budget split (60% to primary provider when fallback available).
+2. Daily token caps resetting per UTC day:
+   - Groq: EXPLAIN_DAILY_TOKEN_CAP (default 150,000)
+   - Gemini: EXPLAIN_DAILY_TOKEN_CAP_GEMINI (default 150,000)
+3. Multi-provider routing (LLM_PROVIDER = auto | groq | gemini; LLM_PROVIDER_ORDER = "groq,gemini").
+4. In-memory LRU cache with clinical reading bands and strict re-validation.
+5. Circuit breakers per provider (3 consecutive timeouts/errors or 429 rate limit trips; 600s cooldown).
+6. Guideline corpus licensing rule (G3): restricted sources never sent to Gemini.
+7. Condition filtering (H1): EXPLAIN_LLM_CONDITIONS (default "hypertension").
+8. Template consistency guard (H2): neutral routine fallback if template contradicts readings.
+9. Audit segregation: provider and providers_tried recorded for provider review, excluded from patient view.
 """
 from __future__ import annotations
 
@@ -27,6 +31,7 @@ from rag.explainer import (
     EXPLAINER_VERSION,
     get_allowed_numbers,
     get_template_explanation,
+    is_template_consistent,
     validate_banned_patterns,
     validate_citations,
     validate_level_consistency,
@@ -39,15 +44,35 @@ from rag.store import ChunkStore
 logger = logging.getLogger(__name__)
 
 # =============================================================================
+# Guideline Corpus Licensing Restrictions (G3)
+# Source IDs with allowed_for_rag == FALSE in docs/GUIDELINE_CORPUS.md.
+# These guidelines carry text/data mining prohibitions or copyright restrictions.
+# Chunks derived from these sources must NEVER be sent to Google Gemini under any circumstances.
+# =============================================================================
+LICENCE_RESTRICTED_SOURCES: Set[str] = {
+    "ada_2026_sec02",
+    "ada_2026_sec05",
+    "ada_2026_sec06",
+    "ada_2026_sec10",
+    "ada_2026_sec11",
+    "ada_2026_sec13",
+    "aha_acc_2025",
+}
+
+# =============================================================================
 # Configuration & Defaults
 # =============================================================================
 DEFAULT_BUDGET_SECONDS: float = 3.0
 DEFAULT_DAILY_TOKEN_CAP: int = 150000
+DEFAULT_DAILY_TOKEN_CAP_GEMINI: int = 150000
 DEFAULT_CACHE_MAX: int = 500
 DEFAULT_CACHE_TTL_SECONDS: float = 86400.0  # 24 hours
 DEFAULT_BREAKER_FAILURES: int = 3
 DEFAULT_BREAKER_COOLDOWN_SECONDS: float = 600.0  # 10 minutes
 DEFAULT_MAX_WORKERS: int = 8
+DEFAULT_LLM_PROVIDER: str = "auto"
+DEFAULT_LLM_PROVIDER_ORDER: str = "groq,gemini"
+DEFAULT_LLM_CONDITIONS: str = "hypertension"
 
 
 def get_budget_seconds() -> float:
@@ -62,6 +87,13 @@ def get_daily_token_cap() -> int:
         return int(os.environ.get("EXPLAIN_DAILY_TOKEN_CAP", str(DEFAULT_DAILY_TOKEN_CAP)))
     except (ValueError, TypeError):
         return DEFAULT_DAILY_TOKEN_CAP
+
+
+def get_daily_token_cap_gemini() -> int:
+    try:
+        return int(os.environ.get("EXPLAIN_DAILY_TOKEN_CAP_GEMINI", str(DEFAULT_DAILY_TOKEN_CAP_GEMINI)))
+    except (ValueError, TypeError):
+        return DEFAULT_DAILY_TOKEN_CAP_GEMINI
 
 
 def get_cache_max() -> int:
@@ -99,14 +131,49 @@ def get_max_workers() -> int:
         return DEFAULT_MAX_WORKERS
 
 
+def get_llm_provider() -> str:
+    prov = os.environ.get("LLM_PROVIDER", DEFAULT_LLM_PROVIDER).strip().lower()
+    return prov if prov in ("auto", "groq", "gemini") else DEFAULT_LLM_PROVIDER
+
+
+def get_llm_provider_order() -> List[str]:
+    order_str = os.environ.get("LLM_PROVIDER_ORDER", DEFAULT_LLM_PROVIDER_ORDER).strip().lower()
+    items = [p.strip() for p in order_str.split(",") if p.strip() in ("groq", "gemini")]
+    return items if items else ["groq", "gemini"]
+
+
+def get_explain_llm_conditions() -> Set[str]:
+    cond_str = os.environ.get("EXPLAIN_LLM_CONDITIONS", DEFAULT_LLM_CONDITIONS).strip().lower()
+    return {c.strip() for c in cond_str.split(",") if c.strip()}
+
+
+def is_condition_allowed_for_llm(condition: str, trigger_category: str) -> bool:
+    """
+    Checks if condition is permitted to call LLMs (H1).
+    Default is 'hypertension' only.
+    For dual condition check-in ('both'), only permitted if trigger is a blood pressure one.
+    """
+    allowed = get_explain_llm_conditions()
+    cond = (condition or "").strip().lower()
+
+    if cond == "both":
+        bp_triggers = {
+            "bp_severe",
+            "bp_crisis",
+            "bp_urgent",
+            "bp_low",
+            "bp_change",
+            "pregnancy_hypertension",
+        }
+        return trigger_category in bp_triggers and "hypertension" in allowed
+
+    return cond in allowed
+
+
 # =============================================================================
 # Reading Bands & Cache Key Computation
 # =============================================================================
 def get_glucose_band(glucose: Optional[float]) -> str:
-    """
-    Categorize glucose into bands:
-    <54, 54-69, 70-180, 181-250, 251-400, >400 mg/dL; 'none' when absent.
-    """
     if glucose is None:
         return "none"
     try:
@@ -129,11 +196,6 @@ def get_glucose_band(glucose: Optional[float]) -> str:
 
 
 def get_bp_band(systolic: Optional[float], diastolic: Optional[float]) -> str:
-    """
-    Categorize BP into bands:
-    normal (<130/80), elevated/stage 1 (130-139 or 80-89),
-    stage 2 (>=140 or >=90), crisis (>=180 or >=120); 'none' when absent.
-    """
     sbp: Optional[float] = None
     dbp: Optional[float] = None
     if systolic is not None:
@@ -179,9 +241,6 @@ def compute_cache_key(
     language: str,
     condition: str,
 ) -> Tuple[str, str, str, str, str, str]:
-    """
-    Build coarse-grained cache key without user id, free text, or exact numbers.
-    """
     return (
         trigger_category.strip().lower(),
         triage_level.strip().lower(),
@@ -196,9 +255,7 @@ def compute_cache_key(
 # In-Memory LRU Cache with Re-validation
 # =============================================================================
 class ExplainCache:
-    """
-    Thread-safe in-memory LRU cache with TTL and safety re-validation.
-    """
+    """Thread-safe in-memory LRU cache with TTL and safety re-validation."""
     def __init__(self, max_size: int = DEFAULT_CACHE_MAX, ttl_seconds: float = DEFAULT_CACHE_TTL_SECONDS):
         self._max_size = max_size
         self._ttl_seconds = ttl_seconds
@@ -228,11 +285,6 @@ class ExplainCache:
                 return None
             self._cache.move_to_end(key)
 
-        # Re-validation outside lock:
-        # A3: store with each cached explanation the chunk ids it cited.
-        # On a hit, re-run citations (chunk ids must still exist in current store),
-        # number grounding against THIS check-in's allowed numbers, banned patterns,
-        # and level consistency. Any failure = miss.
         cited_cids: List[str] = data.get("cited_chunk_ids", [])
         sentences: List[Dict[str, Any]] = data.get("sentences", [])
 
@@ -261,7 +313,7 @@ class ExplainCache:
                 self.misses += 1
             return None
 
-        # 3. Re-validate number grounding against THIS check-in's readings & level
+        # 3. Re-validate number grounding
         allowed_nums = get_allowed_numbers(readings, triage_result, verified_candidate_chunks)
         v3_errs = validate_number_grounding(resolved_sentences, allowed_nums)
         if v3_errs:
@@ -283,7 +335,6 @@ class ExplainCache:
                 self.misses += 1
             return None
 
-        # All validators passed: record hit and return deep copy
         with self._lock:
             self.hits += 1
 
@@ -293,7 +344,6 @@ class ExplainCache:
         return hit_result
 
     def put(self, key: Tuple[str, ...], result: Dict[str, Any], cited_chunk_ids: List[str]) -> None:
-        # Never cache template results or errors
         if result.get("mode") != "llm":
             return
         if result.get("rejected_reasons"):
@@ -328,18 +378,21 @@ class ExplainCache:
 # Daily Token Cap Guard
 # =============================================================================
 class TokenCapGuard:
-    """
-    In-memory daily Groq token counter resetting on UTC day boundary.
-    """
-    def __init__(self, cap: Optional[int] = None, get_utc_date_fn: Optional[Callable[[], str]] = None):
-        self._cap = cap if cap is not None else get_daily_token_cap()
+    """In-memory daily token counter resetting on UTC day boundary."""
+    def __init__(self, cap: Optional[int] = None, cap_fn: Optional[Callable[[], int]] = None, get_utc_date_fn: Optional[Callable[[], str]] = None):
+        self._cap = cap
+        self._cap_fn = cap_fn
         self._get_date = get_utc_date_fn or (lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d"))
         self._current_date: str = self._get_date()
         self._tokens_used: int = 0
         self._lock = threading.Lock()
 
     def get_cap(self) -> int:
-        return self._cap
+        if self._cap is not None:
+            return self._cap
+        if self._cap_fn is not None:
+            return self._cap_fn()
+        return DEFAULT_DAILY_TOKEN_CAP
 
     def _sync_date(self) -> None:
         today = self._get_date()
@@ -350,7 +403,7 @@ class TokenCapGuard:
     def can_consume(self, estimated_tokens: int = 1000) -> bool:
         with self._lock:
             self._sync_date()
-            return (self._tokens_used + estimated_tokens) <= self._cap
+            return (self._tokens_used + estimated_tokens) <= self.get_cap()
 
     def record_usage(self, tokens: int) -> None:
         if tokens <= 0:
@@ -374,11 +427,7 @@ class TokenCapGuard:
 # Circuit Breaker Guard
 # =============================================================================
 class CircuitBreaker:
-    """
-    Circuit breaker for LLM explainer calls.
-    Trips on consecutive timeouts/errors or instant 429 rate limits.
-    Validator rejections do NOT trip the breaker.
-    """
+    """Circuit breaker for LLM explainer calls."""
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
@@ -447,12 +496,14 @@ class CircuitBreaker:
 # Global Guard Instances & Metrics
 # =============================================================================
 _GLOBAL_CACHE = ExplainCache()
-_GLOBAL_TOKEN_GUARD = TokenCapGuard()
-_GLOBAL_BREAKER = CircuitBreaker()
+_GLOBAL_TOKEN_GUARD_GROQ = TokenCapGuard(cap_fn=get_daily_token_cap)
+_GLOBAL_TOKEN_GUARD_GEMINI = TokenCapGuard(cap_fn=get_daily_token_cap_gemini)
+_GLOBAL_BREAKER_GROQ = CircuitBreaker()
+_GLOBAL_BREAKER_GEMINI = CircuitBreaker()
 _WORKER_SEMAPHORE = threading.Semaphore(get_max_workers())
 
 _METRICS_LOCK = threading.Lock()
-_TOTAL_LLM_CALLS: int = 0
+_LLM_CALLS_BY_PROVIDER: Dict[str, int] = {"groq": 0, "gemini": 0}
 _FALLBACK_COUNTS: Dict[str, int] = {
     "budget_timeout": 0,
     "token_cap": 0,
@@ -462,14 +513,15 @@ _FALLBACK_COUNTS: Dict[str, int] = {
     "no_llm": 0,
     "no_chunks": 0,
     "busy": 0,
+    "condition_template_only": 0,
+    "template_corrected": 0,
     "error": 0,
 }
 
 
-def record_llm_call() -> None:
-    global _TOTAL_LLM_CALLS
+def record_llm_call(provider: str) -> None:
     with _METRICS_LOCK:
-        _TOTAL_LLM_CALLS += 1
+        _LLM_CALLS_BY_PROVIDER[provider] = _LLM_CALLS_BY_PROVIDER.get(provider, 0) + 1
 
 
 def record_fallback(reason: str) -> None:
@@ -480,32 +532,62 @@ def record_fallback(reason: str) -> None:
 def get_explain_guard_metrics() -> Dict[str, Any]:
     with _METRICS_LOCK:
         fallbacks = dict(_FALLBACK_COUNTS)
-        llm_calls = _TOTAL_LLM_CALLS
+        calls_groq = _LLM_CALLS_BY_PROVIDER.get("groq", 0)
+        calls_gemini = _LLM_CALLS_BY_PROVIDER.get("gemini", 0)
+        total_calls = calls_groq + calls_gemini
+
+    tokens_groq = _GLOBAL_TOKEN_GUARD_GROQ.get_tokens_used_today()
+    tokens_gemini = _GLOBAL_TOKEN_GUARD_GEMINI.get_tokens_used_today()
+
     return {
-        "tokens_used_today": _GLOBAL_TOKEN_GUARD.get_tokens_used_today(),
-        "cap": _GLOBAL_TOKEN_GUARD.get_cap(),
-        "breaker_state": _GLOBAL_BREAKER.state(),
+        "tokens_used_today": tokens_groq + tokens_gemini,
+        "tokens_used_by_provider": {
+            "groq": tokens_groq,
+            "gemini": tokens_gemini,
+        },
+        "cap": _GLOBAL_TOKEN_GUARD_GROQ.get_cap(),
+        "caps": {
+            "groq": _GLOBAL_TOKEN_GUARD_GROQ.get_cap(),
+            "gemini": _GLOBAL_TOKEN_GUARD_GEMINI.get_cap(),
+        },
+        "breaker_state": _GLOBAL_BREAKER_GROQ.state(),
+        "breaker_states": {
+            "groq": _GLOBAL_BREAKER_GROQ.state(),
+            "gemini": _GLOBAL_BREAKER_GEMINI.state(),
+        },
         "cache_size": _GLOBAL_CACHE.size(),
         "cache_hits": _GLOBAL_CACHE.hits,
         "cache_misses": _GLOBAL_CACHE.misses,
-        "llm_calls": llm_calls,
+        "llm_calls": total_calls,
+        "llm_calls_by_provider": {
+            "groq": calls_groq,
+            "gemini": calls_gemini,
+        },
         "template_fallbacks_by_reason": fallbacks,
     }
 
 
 def reset_explain_guards() -> None:
     """Helper for hermetic test suites to reset all guards to pristine state."""
-    global _TOTAL_LLM_CALLS, _FALLBACK_COUNTS, _CACHED_RETRIEVER, _CACHED_CHUNK_COUNT, _CACHED_STORE_ID
+    global _CACHED_RETRIEVER, _CACHED_CHUNK_COUNT, _CACHED_STORE_ID
     _GLOBAL_CACHE.clear()
-    _GLOBAL_TOKEN_GUARD.reset()
-    _GLOBAL_BREAKER.reset()
+    _GLOBAL_TOKEN_GUARD_GROQ.reset()
+    _GLOBAL_TOKEN_GUARD_GEMINI.reset()
+    _GLOBAL_BREAKER_GROQ.reset()
+    _GLOBAL_BREAKER_GEMINI.reset()
     with _METRICS_LOCK:
-        _TOTAL_LLM_CALLS = 0
+        _LLM_CALLS_BY_PROVIDER["groq"] = 0
+        _LLM_CALLS_BY_PROVIDER["gemini"] = 0
         for k in _FALLBACK_COUNTS:
             _FALLBACK_COUNTS[k] = 0
     _CACHED_RETRIEVER = None
     _CACHED_CHUNK_COUNT = None
     _CACHED_STORE_ID = None
+    try:
+        import rag.store as rag_store
+        rag_store._GLOBAL_DB_CHUNK_STORE = None
+    except Exception:
+        pass
 
 
 # =============================================================================
@@ -518,9 +600,6 @@ _RETRIEVER_LOCK = threading.Lock()
 
 
 def get_or_build_retriever(store: Optional[ChunkStore]) -> Optional[BM25Retriever]:
-    """
-    Builds BM25 index once per store and reuses it; rebuilds only if count changes.
-    """
     global _CACHED_RETRIEVER, _CACHED_CHUNK_COUNT, _CACHED_STORE_ID
     if store is None:
         return None
@@ -550,7 +629,6 @@ def get_or_build_retriever(store: Optional[ChunkStore]) -> Optional[BM25Retrieve
 # Guarded Explanation Runner
 # =============================================================================
 def _call_with_supported_kwargs(func: Any, **call_kwargs: Any) -> Any:
-    """Calls func with supported kwargs, filtering out unsupported parameters if no **kwargs."""
     try:
         sig = inspect.signature(func)
         has_var_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
@@ -568,28 +646,27 @@ def guarded_explain(
     language: str = "en",
     store: Optional[ChunkStore] = None,
     llm: Any = None,
-    condition: str = "diabetes",
+    condition: str = "hypertension",
     budget_seconds: Optional[float] = None,
     daily_token_guard: Optional[TokenCapGuard] = None,
     cache: Optional[ExplainCache] = None,
     breaker: Optional[CircuitBreaker] = None,
+    provider: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Executes a fully guarded clinical explanation:
-    - Time budget deadline with worker-thread hard stop.
-    - Daily token cap checking.
-    - Cache lookup with rigorous safety re-validation.
-    - Circuit breaker failure and 429 rate-limit tracking.
-    - Concurrency worker pool limit with safe "busy" fallback.
-    - Additive mode and reason metadata.
+    - Multi-provider routing (auto, groq, gemini).
+    - 60% budget allocation to first provider when fallback is available.
+    - G3 licence restriction check (blocks Gemini on restricted chunks).
+    - H1 condition filter (diabetes check-ins default to template-only).
+    - H2 template consistency check (substitutes routine template if reading contradicts).
+    - Provider review fields: provider, providers_tried (strictly excluded from patient view).
     """
     start_time = time.monotonic()
     budget = budget_seconds if budget_seconds is not None else get_budget_seconds()
     deadline = start_time + budget
 
-    token_guard = daily_token_guard or _GLOBAL_TOKEN_GUARD
     exp_cache = cache or _GLOBAL_CACHE
-    circ_breaker = breaker or _GLOBAL_BREAKER
 
     triage_copy = copy.deepcopy(triage_result)
     readings_copy = copy.deepcopy(readings)
@@ -607,7 +684,7 @@ def guarded_explain(
 
     glucose_band = get_glucose_band(glucose_val)
     bp_band = get_bp_band(systolic_val, diastolic_val)
-    cond_str = condition or query_mapping.condition or "diabetes"
+    cond_str = condition or query_mapping.condition or "hypertension"
 
     cache_key = compute_cache_key(
         trigger_category=trigger_category,
@@ -646,11 +723,14 @@ def guarded_explain(
         candidate_chunks=candidate_chunks,
     )
     if cached_hit is not None:
+        cached_hit.setdefault("provider", None)
+        cached_hit.setdefault("providers_tried", [])
         return cached_hit
+
+    providers_tried: List[str] = []
 
     # Helper for template fallback
     def _make_template_fallback(reason: str, rejected: Optional[List[str]] = None) -> Dict[str, Any]:
-        record_fallback(reason)
         reasons_list = [f"Guard fallback: {reason}"]
         if rejected:
             reasons_list.extend(rejected)
@@ -662,161 +742,253 @@ def guarded_explain(
             candidate_chunks=candidate_chunks,
             rejected_reasons=reasons_list,
         )
+        final_reason = tmpl.get("reason") or reason
         tmpl["mode"] = "template"
-        tmpl["reason"] = reason
+        tmpl["reason"] = final_reason
+        tmpl["provider"] = None
+        tmpl["providers_tried"] = list(providers_tried)
+        record_fallback(final_reason)
         return tmpl
 
-    # 3. Check No LLM or No Chunks
-    if llm is None:
-        return _make_template_fallback("no_llm", ["No LLM configured"])
+    # 3. Check Condition Gate (H1)
+    if not is_condition_allowed_for_llm(cond_str, trigger_category):
+        return _make_template_fallback("condition_template_only", ["Condition not permitted for LLM explainer"])
+
+    # 4. Check Guideline Chunks Existence
     if not candidate_chunks and store is not None:
         return _make_template_fallback("no_chunks", ["No matching clinical guideline chunks found"])
 
-    # 4. Check Circuit Breaker
-    if not circ_breaker.allow_call():
-        return _make_template_fallback("breaker_open", ["Circuit breaker is OPEN"])
+    # 5. Check G3 Licence Restriction across chunks
+    has_restricted_chunk = any(
+        str(c.get("source_id", "")).strip().lower() in LICENCE_RESTRICTED_SOURCES
+        for c in candidate_chunks
+    )
 
-    # 5. Check Daily Token Cap
-    if not token_guard.can_consume(1000):
-        return _make_template_fallback("token_cap", ["Daily token cap reached"])
+    # 6. Resolve Candidate Providers
+    active_mode = (provider or get_llm_provider()).strip().lower()
+    if active_mode == "groq":
+        provider_candidates = ["groq"]
+    elif active_mode == "gemini":
+        provider_candidates = ["gemini"]
+    else:
+        provider_candidates = get_llm_provider_order()
 
-    # 6. Check Time Budget before spawning worker
-    time_left = deadline - time.monotonic()
-    if time_left <= 0.0:
-        circ_breaker.record_failure(is_rate_limit=False)
-        return _make_template_fallback("budget_timeout", ["Insufficient budget before LLM dispatch"])
+    # Filter by licence restriction: G3 forbids Gemini if any restricted chunk
+    if has_restricted_chunk:
+        provider_candidates = [p for p in provider_candidates if p != "gemini"]
+
+    # Filter by configuration, breakers, and token caps
+    eligible_providers: List[str] = []
+    skipped_reasons: Dict[str, str] = {}
+
+    import llm.groq_client as groq_client
+    import llm.gemini_client as gemini_client
+
+    for p in provider_candidates:
+        # Determine client callable
+        p_configured = False
+        if llm is not None:
+            if isinstance(llm, dict):
+                p_configured = p in llm and llm[p] is not None
+            else:
+                p_configured = True
+        else:
+            if p == "groq":
+                p_configured = groq_client.is_configured()
+            elif p == "gemini":
+                p_configured = gemini_client.is_configured()
+
+        if not p_configured:
+            skipped_reasons[p] = "no_llm"
+            continue
+
+        # Breaker check
+        p_breaker = breaker if breaker is not None else (_GLOBAL_BREAKER_GROQ if p == "groq" else _GLOBAL_BREAKER_GEMINI)
+        if not p_breaker.allow_call():
+            skipped_reasons[p] = "breaker_open"
+            continue
+
+        # Token cap check
+        p_cap = daily_token_guard if daily_token_guard is not None else (_GLOBAL_TOKEN_GUARD_GROQ if p == "groq" else _GLOBAL_TOKEN_GUARD_GEMINI)
+        if not p_cap.can_consume(1000):
+            skipped_reasons[p] = "token_cap"
+            continue
+
+        eligible_providers.append(p)
+
+    if not eligible_providers:
+        # Determine fallback reason from skipped
+        if any(r == "breaker_open" for r in skipped_reasons.values()):
+            return _make_template_fallback("breaker_open", ["Circuit breaker is OPEN"])
+        if any(r == "token_cap" for r in skipped_reasons.values()):
+            return _make_template_fallback("token_cap", ["Daily token cap reached"])
+        return _make_template_fallback("no_llm", ["No configured LLM provider available"])
 
     # 7. Check Concurrency Limit (Worker Semaphore)
     acquired = _WORKER_SEMAPHORE.acquire(blocking=False)
     if not acquired:
         return _make_template_fallback("busy", ["Worker pool at maximum capacity"])
 
-    # 8. Execute LLM Call in Thread with Hard Budget Join
-    record_llm_call()
+    # 8. Multi-Provider Execution Loop
+    try:
+        from rag.explainer import explain
 
-    worker_result: Dict[str, Any] = {}
-    worker_error: Dict[str, Any] = {}
-    worker_tokens: Dict[str, int] = {"count": 0}
-    token_lock = threading.Lock()
-    token_state: Dict[str, bool] = {"recorded": False, "consumed_by_caller": False}
+        for idx, current_provider in enumerate(eligible_providers):
+            time_now = time.monotonic()
+            time_left = deadline - time_now
+            if time_left <= 0.0:
+                p_breaker = breaker if breaker is not None else (_GLOBAL_BREAKER_GROQ if current_provider == "groq" else _GLOBAL_BREAKER_GEMINI)
+                p_breaker.record_failure(is_rate_limit=False)
+                return _make_template_fallback("budget_timeout", ["Total time budget exhausted"])
 
-    def _record_tokens_locked() -> None:
-        with token_lock:
-            if not token_state["recorded"]:
-                cnt = worker_tokens["count"]
-                if cnt > 0:
-                    token_guard.record_usage(cnt)
-                token_state["recorded"] = True
+            has_next = (idx < len(eligible_providers) - 1)
+            if has_next:
+                # Primary provider gets at most 60% of the remaining time
+                prov_budget = min(0.6 * time_left, time_left)
+            else:
+                prov_budget = time_left
 
-    def _worker():
-        try:
-            from rag.explainer import explain
+            prov_deadline = time_now + prov_budget
+            providers_tried.append(current_provider)
+            record_llm_call(current_provider)
 
-            def _timed_llm(**kwargs):
+            p_breaker = breaker if breaker is not None else (_GLOBAL_BREAKER_GROQ if current_provider == "groq" else _GLOBAL_BREAKER_GEMINI)
+            p_cap = daily_token_guard if daily_token_guard is not None else (_GLOBAL_TOKEN_GUARD_GROQ if current_provider == "groq" else _GLOBAL_TOKEN_GUARD_GEMINI)
+
+            # Resolve provider callable
+            prov_callable: Any = None
+            if llm is not None:
+                if isinstance(llm, dict):
+                    prov_callable = llm.get(current_provider)
+                else:
+                    prov_callable = llm
+            else:
+                if current_provider == "groq":
+                    prov_callable = groq_client.chat_with_usage
+                else:
+                    prov_callable = gemini_client.chat_with_usage
+
+            worker_result: Dict[str, Any] = {}
+            worker_error: Dict[str, Any] = {}
+            worker_tokens: Dict[str, int] = {"count": 0}
+            token_lock = threading.Lock()
+            token_state: Dict[str, bool] = {"recorded": False}
+
+            def _record_tokens_locked() -> None:
+                with token_lock:
+                    if not token_state["recorded"]:
+                        cnt = worker_tokens["count"]
+                        if cnt > 0:
+                            p_cap.record_usage(cnt)
+                        token_state["recorded"] = True
+
+            def _worker():
                 try:
-                    kwargs["timeout"] = max(0.1, deadline - time.monotonic())
-                    kwargs["max_retries"] = 0
-                    kwargs["sdk_max_retries"] = 0
-                    if hasattr(llm, "chat_with_usage"):
-                        text, tokens = _call_with_supported_kwargs(llm.chat_with_usage, **kwargs)
-                        worker_tokens["count"] += tokens
-                        return text
-                    elif callable(llm):
-                        res = _call_with_supported_kwargs(llm, **kwargs)
-                        if isinstance(res, tuple) and len(res) == 2 and isinstance(res[1], int):
-                            worker_tokens["count"] += res[1]
-                            return res[0]
-                        return res
-                    elif hasattr(llm, "chat"):
-                        return _call_with_supported_kwargs(llm.chat, **kwargs)
-                    raise TypeError("Invalid LLM callable")
+                    def _timed_llm(**kwargs):
+                        try:
+                            kwargs["timeout"] = max(0.1, prov_deadline - time.monotonic())
+                            kwargs["max_retries"] = 0
+                            kwargs["sdk_max_retries"] = 0
+                            if hasattr(prov_callable, "chat_with_usage"):
+                                text, tokens = _call_with_supported_kwargs(prov_callable.chat_with_usage, **kwargs)
+                                worker_tokens["count"] += tokens
+                                return text
+                            elif callable(prov_callable):
+                                res = _call_with_supported_kwargs(prov_callable, **kwargs)
+                                if isinstance(res, tuple) and len(res) == 2 and isinstance(res[1], int):
+                                    worker_tokens["count"] += res[1]
+                                    return res[0]
+                                return res
+                            elif hasattr(prov_callable, "chat"):
+                                return _call_with_supported_kwargs(prov_callable.chat, **kwargs)
+                            raise TypeError(f"Invalid callable for provider {current_provider}")
+                        except Exception as exc:
+                            worker_error["error"] = exc
+                            raise
+
+                    res = explain(
+                        triage_result=triage_copy,
+                        readings=readings_copy,
+                        language=target_lang,
+                        store=store,
+                        llm=_timed_llm,
+                    )
+                    worker_result["data"] = res
                 except Exception as exc:
                     worker_error["error"] = exc
-                    raise
+                finally:
+                    _record_tokens_locked()
 
-            res = explain(
-                triage_result=triage_copy,
-                readings=readings_copy,
-                language=target_lang,
-                store=store,
-                llm=_timed_llm,
-            )
-            worker_result["data"] = res
-        except Exception as exc:
-            worker_error["error"] = exc
-        finally:
-            _WORKER_SEMAPHORE.release()
-            # Late-finishing or timed-out worker tokens counted safely under lock
-            _record_tokens_locked()
+            thread = threading.Thread(target=_worker, daemon=True)
+            thread.start()
 
-    thread = threading.Thread(target=_worker, daemon=True)
-    thread.start()
+            # Wait at most prov_budget
+            thread.join(timeout=max(0.0, prov_deadline - time.monotonic()))
 
-    # Hard wait at most time_left
-    thread.join(timeout=max(0.0, deadline - time.monotonic()))
+            if thread.is_alive():
+                # Provider timed out
+                p_breaker.record_failure(is_rate_limit=False)
+                if has_next:
+                    continue
+                return _make_template_fallback("budget_timeout", ["LLM execution exceeded time budget"])
 
-    if thread.is_alive():
-        # Hard budget timeout
-        with token_lock:
-            token_state["consumed_by_caller"] = False
-        circ_breaker.record_failure(is_rate_limit=False)
-        return _make_template_fallback("budget_timeout", ["LLM execution exceeded time budget"])
+            # Check error
+            if "error" in worker_error:
+                err = worker_error["error"]
+                err_str = str(err).lower()
+                is_429 = "rate limit" in err_str or "429" in err_str or type(err).__name__ in ("RateLimitError", "GeminiRateLimitError")
+                p_breaker.record_failure(is_rate_limit=is_429)
+                if has_next:
+                    continue
+                reason = "rate_limited" if is_429 else "error"
+                return _make_template_fallback(reason, [f"LLM exception: {type(err).__name__}"])
 
-    # Worker finished within budget; record token usage safely under lock
-    with token_lock:
-        token_state["consumed_by_caller"] = True
-    _record_tokens_locked()
+            res_data = worker_result.get("data")
+            if not res_data:
+                p_breaker.record_failure(is_rate_limit=False)
+                if has_next:
+                    continue
+                return _make_template_fallback("error", ["No response received from explainer worker"])
 
-    # Check worker exception
-    if "error" in worker_error:
-        err = worker_error["error"]
-        err_str = str(err).lower()
-        is_429 = "rate limit" in err_str or "429" in err_str or type(err).__name__ == "RateLimitError"
-        circ_breaker.record_failure(is_rate_limit=is_429)
-        reason = "rate_limited" if is_429 else "error"
-        return _make_template_fallback(reason, [f"LLM exception: {type(err).__name__}"])
+            # Check template fallback from explain()
+            if res_data.get("mode") == "template":
+                rej_list = res_data.get("rejected_reasons", [])
+                if any("LLM execution error" in r for r in rej_list):
+                    is_429 = any("rate limit" in r.lower() or "429" in r.lower() for r in rej_list)
+                    p_breaker.record_failure(is_rate_limit=is_429)
+                    if has_next:
+                        continue
+                    reason = "rate_limited" if is_429 else "error"
+                    res_data["reason"] = reason
+                    res_data["provider"] = None
+                    res_data["providers_tried"] = list(providers_tried)
+                    record_fallback(reason)
+                    return res_data
 
-    res_data = worker_result.get("data")
-    if not res_data:
-        circ_breaker.record_failure(is_rate_limit=False)
-        return _make_template_fallback("error", ["No response received from explainer worker"])
+                # Validator rejection: does not trip breaker
+                res_data["reason"] = "validation_failed"
+                res_data["provider"] = None
+                res_data["providers_tried"] = list(providers_tried)
+                record_fallback("validation_failed")
+                return res_data
 
-    # Check if explanation was rejected by clinical validators or failed due to LLM error
-    if res_data.get("mode") == "template":
-        if "error" in worker_error:
-            err = worker_error["error"]
-            err_str = str(err).lower()
-            is_429 = "rate limit" in err_str or "429" in err_str or type(err).__name__ == "RateLimitError"
-            circ_breaker.record_failure(is_rate_limit=is_429)
-            reason = "rate_limited" if is_429 else "error"
-            res_data["reason"] = reason
-            record_fallback(reason)
+            # Successful LLM generation!
+            p_breaker.record_success()
+            res_data["mode"] = "llm"
+            res_data["provider"] = current_provider
+            res_data["providers_tried"] = list(providers_tried)
+
+            # Extract cited chunk ids to populate cache
+            cited_cids: List[str] = []
+            for s in res_data.get("sentences", []):
+                for c in s.get("cites", []):
+                    cited_cids.append(str(c))
+
+            exp_cache.put(cache_key, res_data, cited_cids)
             return res_data
 
-        rej_list = res_data.get("rejected_reasons", [])
-        if any("LLM execution error" in r for r in rej_list):
-            is_429 = any("rate limit" in r.lower() or "429" in r.lower() for r in rej_list)
-            circ_breaker.record_failure(is_rate_limit=is_429)
-            reason = "rate_limited" if is_429 else "error"
-            res_data["reason"] = reason
-            record_fallback(reason)
-            return res_data
+        # Fallback if loop finishes without returning
+        return _make_template_fallback("error", ["All eligible LLM providers exhausted"])
 
-        # Clinical validator rejection does NOT count as breaker failure
-        res_data["reason"] = "validation_failed"
-        record_fallback("validation_failed")
-        return res_data
-
-    # Successful LLM generation!
-    circ_breaker.record_success()
-    res_data["mode"] = "llm"
-
-    # Extract cited chunk ids to populate cache
-    cited_cids: List[str] = []
-    for s in res_data.get("sentences", []):
-        for c in s.get("cites", []):
-            cited_cids.append(str(c))
-
-    exp_cache.put(cache_key, res_data, cited_cids)
-    return res_data
-
+    finally:
+        _WORKER_SEMAPHORE.release()
