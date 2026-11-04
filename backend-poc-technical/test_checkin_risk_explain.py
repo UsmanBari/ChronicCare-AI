@@ -76,6 +76,8 @@ def cert_pem(rsa_key):
 
 @pytest.fixture(autouse=True)
 def setup_test_env(tmp_path, monkeypatch, cert_pem):
+    from rag.explain_guards import reset_explain_guards
+    reset_explain_guards()
     db_file = str(tmp_path / "test_wire.db")
     monkeypatch.setenv("LOCAL_DB_PATH", db_file)
     monkeypatch.setenv("DB_BACKEND", "sqlite")
