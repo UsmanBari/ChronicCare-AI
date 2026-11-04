@@ -792,20 +792,22 @@ def parse_bp(text: str) -> Dict[str, Any]:
 _KINSHIP_WORDS = r"(?:ammi|abbu|abu|walida|walid(?: sahab)?|bhai|behan|baji|dadi|dada|nani|nana|ami|والدہ|والد|امی|ابو|باجی|بھائی|بہن|دادا|دادی|نانا|نانی)"
 
 _CAREGIVER_PATTERNS = [
-    re.compile(rf"\b{_KINSHIP_WORDS}\s+ki\s+taraf\s+se\b", re.IGNORECASE),
-    re.compile(r"(?:امی|والدہ|والد|ابو|باجی|بھائی|بہن|دادا|دادی|نانا|نانی)\s+کی\s+طرف\s+سے", re.IGNORECASE),
-    re.compile(rf"\b(?:main|mein|hum)\s+apn[ie]\s+{_KINSHIP_WORDS}\s+ke\s+liye\b", re.IGNORECASE),
-    re.compile(rf"\b{_KINSHIP_WORDS}\s+ke\s+liye\s+(?:jawab|check[\s-]?in|checking|kar\s+raha)\b", re.IGNORECASE),
-    re.compile(r"(?:امی|والدہ|والد|ابو|باجی|بھائی|بہن)\s+کے\s+لیے\s+(?:جواب|چیک\s*ان)", re.IGNORECASE),
+    re.compile(rf"\b(?:main\s+)?{_KINSHIP_WORDS}\s+ki\s+taraf\s+se\b", re.IGNORECASE),
+    re.compile(r"(?:میں\s+(?:اپنی\s+)?)?(?:امی|والدہ|والد|ابو|باجی|بھائی|بہن|دادا|دادی|نانا|نانی)\s+کی\s+طرف\s+سے", re.IGNORECASE),
+    re.compile(rf"\b(?:main|mein|hum)\s+apn[ie]\s+{_KINSHIP_WORDS}\s+ke\s+liye(?:\s+jawab(?:\s+de\s+raha\s+hoon)?)?\b", re.IGNORECASE),
+    re.compile(rf"\b(?:main\s+)?(?:apn[ie]\s+)?{_KINSHIP_WORDS}\s+ke\s+liye(?:\s+(?:check[\s-]?in|checking))?(?:\s+(?:jawab|kar\s+raha(?:\s+hoon)?|de\s+raha(?:\s+hoon)?))?\b", re.IGNORECASE),
+    re.compile(r"(?:میں\s+(?:اپنے|اپنی)\s+)?(?:امی|والدہ|والد|ابو|باجی|بھائی|بہن)\s+کے\s+لیے(?:\s+(?:جواب|چیک\s*ان|جواب\s+دے\s+رہا(?:\s+ہوں)?))?", re.IGNORECASE),
     re.compile(rf"^\s*(?:main\s+)?{_KINSHIP_WORDS}\s+ke\s+liye\s*$", re.IGNORECASE),
-    re.compile(rf"\bmer[ei]\s+{_KINSHIP_WORDS}\s+ki\s+(?:checking|check[\s-]?in)\b", re.IGNORECASE),
-    re.compile(r"میں\s+اپن[یے]\s+(?:امی|والدہ|والد|ابو)\s+کے\s+لیے\s+جواب\s+دے\s+رہا", re.IGNORECASE),
-    re.compile(r"میں\s+اپنے\s+والد\s+کے\s+لیے", re.IGNORECASE),
+    re.compile(rf"\bmer[ei]\s+{_KINSHIP_WORDS}\s+ki\s+(?:checking|check[\s-]?in)(?:\s+hai)?\b", re.IGNORECASE),
+    re.compile(r"میں\s+اپن[یے]\s+(?:امی|والدہ|والد|ابو)\s+کے\s+لیے(?:\s+جواب\s+دے\s+رہا(?:\s+ہوں)?)?", re.IGNORECASE),
+    re.compile(r"میں\s+اپنے\s+والد\s+کے\s+لیے(?:\s+جواب\s+دے\s+رہا(?:\s+ہوں)?)?", re.IGNORECASE),
 ]
 
 _LOOKALIKE_EXCLUSIONS = [
     re.compile(rf"\b{_KINSHIP_WORDS}\s+(?:ne\s+(?:kaha|bola|kaha\s+tha|mangwai)|kehti\s+hain|bolte\s+hain)\b", re.IGNORECASE),
     re.compile(r"(?:امی|والدہ|والد|ابو)\s+نے\s+(?:کہا|بولا)", re.IGNORECASE),
+    re.compile(rf"\b{_KINSHIP_WORDS}\s+ke\s+liye\s+(?:dawai|medicine|sauda|khana|kuch|madad)\b", re.IGNORECASE),
+    re.compile(r"\b(?:dawai|medicine)\s+(?:lata|laata|late|lana|kharid)\b", re.IGNORECASE),
 ]
 
 
@@ -875,3 +877,18 @@ def is_unclear_adherence_answer(text: str) -> bool:
     if yn["value"] == "unknown" or yn.get("partial") is True:
         return True
     return False
+
+
+def is_only_caregiver_statement(text: str) -> bool:
+    """
+    Returns True if the text contains a caregiver phrase and NO clinical content,
+    readings, symptoms, or answers (i.e. it is purely an introductory caregiver notice).
+    """
+    if not text or not detect_caregiver_phrase(text):
+        return False
+    t = text
+    for pat in _CAREGIVER_PATTERNS:
+        t = pat.sub("", t)
+    # Remove punctuation, symbols, whitespace
+    clean = re.sub(r"[^\w؀-ۿ]", "", t).strip()
+    return len(clean) == 0

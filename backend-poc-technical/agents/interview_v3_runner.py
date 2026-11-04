@@ -11,6 +11,7 @@ Deterministic: The Model Proposes, The Rules Decide.
 from __future__ import annotations
 
 import os
+import re
 import copy
 import logging
 from dataclasses import asdict
@@ -324,6 +325,31 @@ def start_v3_session(
     return session_state
 
 
+def _has_clinical_content(text: str, lang: str = "en") -> bool:
+    """Returns True if text contains a numeric value, BP, yes/no, or symptom cue."""
+    if not text:
+        return False
+    # Numeric or BP or meter tokens
+    if re.search(r"\d+", text):
+        return True
+    if detect_meter_lo_hi(text) is not None:
+        return True
+    p_num = parse_number(text)
+    if p_num.get("value") is not None:
+        return True
+    p_bp = parse_bp(text)
+    if p_bp.get("value") is not None:
+        return True
+    # Yes / No
+    p_yn = parse_yes_no(text, lang=lang)
+    if p_yn.get("value") in ("yes", "no"):
+        return True
+    # Symptoms / findings
+    findings = extract_findings_from_answer(text)
+    if findings:
+        return True
+    return False
+
 def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]:
     """
     Processes a patient turn in Interview Engine v3:
@@ -421,21 +447,47 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             session_state.setdefault("wordgroup_hits", []).append({"group": wg_hit.group, "step": current_slot})
             session_state["safety_note"] = get_safety_note(lang)
 
+
+
+
     # G-14: Caregiver detection across Urdu, Roman Urdu, and English
-    if detect_caregiver_phrase(clean_answer):
+    from agents.answer_understanding import is_only_caregiver_statement
+    is_caregiver = detect_caregiver_phrase(clean_answer) or (triage_res.odd_class == "third_party_report")
+    if is_caregiver:
         session_state["answered_by"] = "caregiver"
         session_state.setdefault("known_slots", {})["answered_by"] = "caregiver"
-        if triage_res.category != "odd_input":
+
+    if is_caregiver and (is_only_caregiver_statement(clean_answer) or (triage_res.odd_class == "third_party_report" and not _has_clinical_content(clean_answer, lang))):
+        # Answer is ONLY a caregiver statement (no number, no yes/no, no symptom).
+        # Treat as odd_input, but NEVER end interview through strike rule.
+        triage_res = TriageInputResult(
+            category="odd_input",
+            odd_class="third_party_report",
+            response_key="third_party_report",
+            is_off_topic=False,
+        )
+    elif is_caregiver and _has_clinical_content(clean_answer, lang):
+        # Answer contains clinical content (readings, yes/no, symptoms).
+        # Do NOT treat as odd_input. Keep processing the SAME answer normally.
+        if triage_res.category == "odd_input" and triage_res.odd_class == "third_party_report":
             triage_res = TriageInputResult(
-                category="odd_input",
-                odd_class="third_party_report",
-                response_key="third_party_report",
-                is_off_topic=True,
+                category="normal_clinical",
+                odd_class=None,
+                trigger_detail=None,
+                response_key=None,
+                is_emergency=triage_res.is_emergency,
+                is_urgent_safety=triage_res.is_urgent_safety,
+                needs_clinician_flag=False,
+                is_off_topic=False,
             )
 
     if triage_res.category == "odd_input":
-        odd_count = session_state.get("consecutive_odd_count", 0) + 1
-        session_state["consecutive_odd_count"] = odd_count
+        is_third_party = (triage_res.odd_class == "third_party_report")
+        if not is_third_party:
+            odd_count = session_state.get("consecutive_odd_count", 0) + 1
+            session_state["consecutive_odd_count"] = odd_count
+        else:
+            odd_count = session_state.get("consecutive_odd_count", 0)
         session_state.setdefault("odd_classes_seen", []).append(triage_res.odd_class)
         session_state["last_odd_class"] = triage_res.odd_class
 
@@ -455,7 +507,8 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             })
 
         # Strike rule: 4 consecutive off-topic answers -> finish politely without lowering triage
-        if odd_count >= 4:
+        # (Caregiver statements alone must NEVER end the interview through the strike rule)
+        if not is_third_party and odd_count >= 4:
             session_state["ended_early_off_topic"] = True
             session_state["completed"] = True
             session_state["step"] = "COMPLETE"
@@ -464,7 +517,8 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             return session_state
 
         # Strike rule: 2 consecutive off-topic answers -> offer choices
-        if odd_count >= 2:
+        # (Caregiver statements alone must NEVER trigger strike options menu)
+        if not is_third_party and odd_count >= 2:
             session_state["system_note"] = system_note
             session_state["options"] = list(CANONICAL_STRIKE_OPTIONS)
             session_state["option_items"] = [
@@ -618,6 +672,8 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             readings["blood_pressure_diastolic"] = bp_res.value[1]
             known_slots["bp_reading"] = bp_res.value
             known_slots["bp_reading__evidence"] = p_bp.get("evidence", clean_answer)
+            if bp_res.value[0] >= 180 or bp_res.value[1] >= 120:
+                session_state["needs_clinician_flag"] = True
         else:
             known_slots["missing_reading"] = True
 
