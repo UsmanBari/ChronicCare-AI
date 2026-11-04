@@ -38,6 +38,48 @@ flowchart TD
     Validators -- Passed --> CachePut[Populate LRU Cache] --> RetLLM[Return mode='llm']
 ```
 
+### 1.1 Background Explainer Architecture & Groq OTPM Pacer (Day 5)
+
+Under Usman's Day 5 directive—*"Best answer, not fastest answer"*—the explainer runs asynchronously by default (`EXPLAIN_MODE=background`):
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Patient
+    participant API as FastAPI /complete
+    participant Store as SQLite DB
+    participant Queue as Job Queue (max 50)
+    participant Worker as Background Worker
+    participant Guards as guarded_explain (bg)
+    participant Pacer as TokenPacer (60s)
+    participant LLM as Groq / Gemini
+
+    Patient->>API: POST /api/checkins/{id}/complete
+    API->>Store: Persist checkin_result (triage decided)
+    API->>Queue: Enqueue ExplanationJob
+    API-->>Patient: 200 OK (triage decided, explanation: status="pending")
+    Patient->>API: GET /api/checkins/{id}/explanation (poll every 3s)
+    API-->>Patient: status="pending"
+
+    Queue->>Worker: Dequeue job
+    Worker->>Guards: guarded_explain(mode="background", deadline=45s)
+    Guards->>Pacer: acquire() (Groq OTPM check)
+    Pacer-->>Guards: wait_sec (if rolling 60s usage > 1000 OTPM)
+    Guards->>LLM: Call Groq / Gemini
+    LLM-->>Guards: Validated sentences + usage
+    Guards-->>Worker: Explanation result
+    Worker->>Store: update_checkin_explanation(status="ready")
+    Patient->>API: GET /api/checkins/{id}/explanation
+    API-->>Patient: 200 OK (status="ready", sentences, sources)
+```
+
+1. **Immediate Check-in Return:** `POST /api/checkins/{id}/complete` returns immediately with the decided triage level and `explanation: {"status": "pending"}`. Extra `/complete` latency is under 10 ms.
+2. **Bounded Job Queue (`EXPLAIN_QUEUE_MAX`):** Capacity 50 (`EXPLAIN_QUEUE_MAX=50`). If the queue overflows, the check-in immediately stores the pre-computed template fallback with `reason="queue_full"`.
+3. **Lazy Worker Thread:** The background daemon worker thread starts lazily upon arrival of the first job.
+4. **Groq Rolling 60s OTPM Pacer (`TokenPacer`):** Groq allows 1,000 output tokens per minute on its free tier. `TokenPacer` maintains a sliding 60-second window of recorded completion tokens. If generating 250 completion tokens would exceed 1,000 OTPM, the worker thread sleeps for the exact seconds required for older tokens to roll out of the window.
+5. **Non-Tripping 429 Retries in Background:** In background mode, an HTTP 429 does **not** trip the circuit breaker. It parses the upstream `retry-after` header and sleeps (default 5.0s, capped at 30.0s), retrying once before failing over to Gemini.
+6. **Stale Job Protection:** If an explanation remains in `status="pending"` for longer than `EXPLAIN_JOB_DEADLINE_SECONDS + 30.0s` (75.0 s), `app_store.get_checkin_explanation` automatically replaces it with the stored fallback template with `reason="job_lost"`.
+
 ---
 
 ## 2. Safety Guards Specification
@@ -119,6 +161,11 @@ flowchart TD
 | `GEMINI_MODEL` | str | `""` | string | Google Gemini model ID (e.g. `gemini-2.5-flash`). Required if using Gemini. |
 | `GEMINI_THINKING_BUDGET` | str | `""` | int string (e.g. `0`) or `none` | Optional Gemini thinking budget. Defaults to `0` (disables thinking for speed) when unset; set to `none` to omit `thinkingConfig`. |
 | `EXPLAIN_LLM_CONDITIONS` | str | `hypertension` | comma-separated list | Clinical conditions eligible for LLM explanations (diabetes is template-only). |
+| `EXPLAIN_MODE` | str | `background` | `background`, `inline` | Job execution mode: `background` worker or synchronous `inline`. |
+| `EXPLAIN_QUEUE_MAX` | int | `50` | `1` - `500` | Bounded capacity for background explanation job queue. |
+| `EXPLAIN_JOB_DEADLINE_SECONDS` | float | `45.0` | `10.0` - `120.0` | Total wall-clock deadline for background explanation job. |
+| `EXPLAIN_CALL_TIMEOUT_SECONDS` | float | `20.0` | `5.0` - `60.0` | Per-provider call timeout for background explanation job. |
+| `EXPLAIN_GROQ_OTPM` | int | `1000` | `100` - `10000` | Groq output tokens per minute pacer limit (60s rolling window). |
 
 > [!NOTE]
 > **Gemini Thinking Budget:** To avoid budget timeouts on reasoning models (`gemini-flash-latest`), `GEMINI_THINKING_BUDGET` defaults to `0` (`thinkingConfig.thinkingBudget = 0`) when unset or empty. Set `GEMINI_THINKING_BUDGET=none` only if calling a legacy model that rejects `thinkingConfig`.

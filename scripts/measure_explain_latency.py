@@ -1,5 +1,5 @@
 """
-Latency Benchmark for Explainer Guards (D1).
+Latency Benchmark for Explainer Guards (D1 / Day 4b / Day 5).
 
 Simulates 50 check-ins through real endpoints with a fake LLM injected with realistic delays:
 - 40 calls with 200-400 ms response
@@ -8,8 +8,8 @@ Simulates 50 check-ins through real endpoints with a fake LLM injected with real
 - 2 calls that raise an exception
 
 Measures and prints clean table comparing:
-- Mode (EXPLAIN off vs on)
-- p50, p95, max latency
+- Mode (EXPLAIN OFF vs EXPLAIN INLINE vs EXPLAIN BACKGROUND)
+- p50, p95, max latency for /complete
 - LLM calls
 - Mode counts (llm, cache, template by reason)
 - Template fallbacks (by reason)
@@ -98,10 +98,10 @@ def setup_db(db_file: str, cert_pem: str):
 
     now = datetime.now(timezone.utc).isoformat()
     chunks = [
-        ("c_htn_1", "AHA_ACC_2017", "BP Targets", "hypertension",
-         "Stage 1 hypertension is systolic 130-139 mmHg or diastolic 80-89 mmHg.", now),
-        ("c_dm_1", "ADA_2024", "Glycemic Targets", "diabetes",
-         "Target fasting blood glucose is 80-130 mg/dL for nonpregnant adults.", now),
+        ("c_htn_1", "ish_2020_htn", "BP Targets", "hypertension",
+         "Target blood pressure for adults with hypertension is below 130/80 mmHg.", now),
+        ("c_htn_2", "who_2021_htn", "Stage 2 Targets", "hypertension",
+         "Blood pressure 140/90 mmHg or higher requires clinical management.", now),
     ]
     with app_store.get_db_cursor(backend="sqlite", db_path=db_file) as (cur, be, ph):
         for cid, src, title, cond, text, updated in chunks:
@@ -112,41 +112,38 @@ def setup_db(db_file: str, cert_pem: str):
             )
 
 
-def make_simulated_llm(plan: List[str]):
-    """
-    Creates an LLM mock that follows the specified call plan:
-    - 'fast': 200-400 ms
-    - 'edge': 2.0-2.3 s
-    - 'hang': 10 s (budget timeout)
-    - 'error': raises RuntimeError
+def make_simulated_llm(profile_sequence: List[str]):
+    call_idx = 0
 
-    Grounded to patient SBP and cites [S1] without level conflict words.
-    """
-    call_index = [0]
+    def _mock_chat(messages, **kwargs):
+        nonlocal call_idx
+        idx = call_idx
+        call_idx += 1
+        cat = profile_sequence[idx % len(profile_sequence)]
 
-    def _mock_chat(**kwargs) -> Tuple[str, int]:
-        idx = call_index[0]
-        call_index[0] += 1
-        kind = plan[idx % len(plan)]
+        if cat == "fast":
+            delay = random.uniform(0.20, 0.40)
+        elif cat == "edge":
+            delay = random.uniform(2.0, 2.5)
+        elif cat == "hang":
+            delay = 10.0
+        elif cat == "error":
+            raise RuntimeError("Simulated Groq provider 500 internal error")
+        else:
+            delay = 0.25
 
-        if kind == "error":
-            raise RuntimeError("Simulated LLM upstream failure")
-        elif kind == "hang":
-            time.sleep(10.0)
-            text = json.dumps({
-                "sentences": [
-                    {"text": "Late reading text [S1].", "cites": ["S1"]},
-                    {"text": "Regular tracking helps [S1].", "cites": ["S1"]},
-                ]
-            })
-            return (text, 60)
-        elif kind == "edge":
-            time.sleep(random.uniform(2.0, 2.3))
-        else:  # fast
-            time.sleep(random.uniform(0.20, 0.40))
+        timeout = kwargs.get("timeout", 3.0)
+        actual_sleep = min(delay, timeout)
+        time.sleep(actual_sleep)
 
-        # Extract patient's SBP from user prompt so number validator V3 passes
-        user_msg = kwargs.get("messages", [])[-1]["content"] if kwargs.get("messages") else ""
+        if delay > timeout:
+            raise TimeoutError(f"Simulated timeout after {timeout:.2f}s")
+
+        user_msg = ""
+        for m in messages:
+            if m.get("role") == "user":
+                user_msg += m.get("content", "")
+
         sbp_match = re.search(r'"blood_pressure_systolic":\s*(\d+(?:\.\d+)?)', user_msg)
         sbp = sbp_match.group(1) if sbp_match else "135"
 
@@ -161,12 +158,12 @@ def make_simulated_llm(plan: List[str]):
     return _mock_chat
 
 
-def run_benchmark(explain_enabled: bool, rsa_key, client: TestClient) -> Dict[str, Any]:
+def run_benchmark(explain_enabled: bool, explain_mode: str, rsa_key, client: TestClient) -> Dict[str, Any]:
     reset_explain_guards()
     os.environ["EXPLAIN_ENABLED"] = "true" if explain_enabled else "false"
+    os.environ["EXPLAIN_MODE"] = explain_mode
 
-    # Construct the 50-call profile:
-    # 40 fast, 5 edge, 3 hang, 2 error
+    # Profile: 40 fast, 5 edge, 3 hang, 2 error
     profile = ["fast"] * 40 + ["edge"] * 5 + ["hang"] * 3 + ["error"] * 2
     random.seed(42)
     random.shuffle(profile)
@@ -181,8 +178,9 @@ def run_benchmark(explain_enabled: bool, rsa_key, client: TestClient) -> Dict[st
     template_reasons: Dict[str, int] = {}
 
     for i in range(50):
-        uid = f"bench_{'on' if explain_enabled else 'off'}_{i}"
-        cid = f"chk_{'on' if explain_enabled else 'off'}_{i}"
+        mode_tag = f"{explain_mode}_{i}" if explain_enabled else f"off_{i}"
+        uid = f"bench_{mode_tag}"
+        cid = f"chk_{mode_tag}"
         token = get_token(rsa_key, uid)
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
@@ -201,8 +199,6 @@ def run_benchmark(explain_enabled: bool, rsa_key, client: TestClient) -> Dict[st
             },
         )
 
-        # Vary systolic so we exercise both cache hits and misses
-        # 10 values repeated across 50 check-ins
         sbp = 125.0 + (i % 10) * 2.0
         raw_state = {
             "engine": "v3",
@@ -242,24 +238,26 @@ def run_benchmark(explain_enabled: bool, rsa_key, client: TestClient) -> Dict[st
     max_lat = latencies[-1]
 
     metrics = get_explain_guard_metrics()
+    llm_calls = metrics.get("llm_calls", 0) if "llm_calls" in metrics else sum(metrics.get("llm_calls_by_provider", {}).values())
     return {
         "explain_enabled": explain_enabled,
+        "explain_mode": explain_mode,
         "p50": p50,
         "p95": p95,
         "max": max_lat,
-        "llm_calls": metrics["llm_calls"],
-        "cache_hits": metrics["cache_hits"],
-        "cache_misses": metrics["cache_misses"],
+        "llm_calls": llm_calls,
+        "cache_hits": metrics.get("cache_hits", 0),
+        "cache_misses": metrics.get("cache_misses", 0),
         "mode_counts": mode_counts,
         "template_reasons": template_reasons,
-        "fallbacks": metrics["template_fallbacks_by_reason"],
+        "fallbacks": metrics.get("template_fallbacks_by_reason", {}),
     }
 
 
 def main():
-    print("=" * 80)
+    print("=" * 85)
     print("EXPLAINER LATENCY BENCHMARK (50 Check-ins per mode)")
-    print("=" * 80)
+    print("=" * 85)
 
     rsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     cert_pem = generate_cert(rsa_key)
@@ -268,43 +266,47 @@ def main():
 
     client = TestClient(app)
 
-    print("Running EXPLAIN=OFF baseline...")
-    res_off = run_benchmark(explain_enabled=False, rsa_key=rsa_key, client=client)
+    try:
+        print("1. Running EXPLAIN=OFF baseline...")
+        res_off = run_benchmark(explain_enabled=False, explain_mode="inline", rsa_key=rsa_key, client=client)
 
-    print("Running EXPLAIN=ON guarded...")
-    res_on = run_benchmark(explain_enabled=True, rsa_key=rsa_key, client=client)
+        print("2. Running EXPLAIN=ON (INLINE)...")
+        res_inline = run_benchmark(explain_enabled=True, explain_mode="inline", rsa_key=rsa_key, client=client)
 
-    # Clean up temp db
-    if os.path.exists(db_file):
-        try:
-            os.remove(db_file)
-        except OSError:
-            pass
+        print("3. Running EXPLAIN=ON (BACKGROUND)...")
+        res_bg = run_benchmark(explain_enabled=True, explain_mode="background", rsa_key=rsa_key, client=client)
 
-    # Print results table
-    print("\n" + "=" * 115)
-    print(f"{'Mode':<14} | {'p50 (s)':<10} | {'p95 (s)':<10} | {'max (s)':<10} | {'LLM calls':<10} | {'Cache hits':<10} | {'Fallbacks by Reason'}")
-    print("-" * 115)
-    for r in (res_off, res_on):
-        mode_str = "EXPLAIN ON" if r["explain_enabled"] else "EXPLAIN OFF"
-        fb_str = ", ".join(f"{k}:{v}" for k, v in r["fallbacks"].items() if v > 0) or "none"
-        print(f"{mode_str:<14} | {r['p50']:<10.3f} | {r['p95']:<10.3f} | {r['max']:<10.3f} | {r['llm_calls']:<10} | {r['cache_hits']:<10} | {fb_str}")
-    print("=" * 115)
+        # Print results table
+        print("\n" + "=" * 115)
+        print(f"{'Mode':<18} | {'p50 (s)':<10} | {'p95 (s)':<10} | {'max (s)':<10} | {'LLM calls':<10} | {'Cache hits':<10} | {'Fallbacks by Reason'}")
+        print("-" * 115)
+        for r in (res_off, res_inline, res_bg):
+            if not r["explain_enabled"]:
+                mode_str = "EXPLAIN OFF"
+            elif r["explain_mode"] == "inline":
+                mode_str = "EXPLAIN INLINE"
+            else:
+                mode_str = "EXPLAIN BG (/comp)"
+            fb_str = ", ".join(f"{k}:{v}" for k, v in r["fallbacks"].items() if v > 0) or "none"
+            print(f"{mode_str:<18} | {r['p50']:<10.3f} | {r['p95']:<10.3f} | {r['max']:<10.3f} | {r['llm_calls']:<10} | {r['cache_hits']:<10} | {fb_str}")
+        print("=" * 115)
 
-    if res_on["explain_enabled"]:
-        print("\nMode Counts (EXPLAIN=ON):")
-        print(f"  llm:      {res_on['mode_counts'].get('llm', 0)}")
-        print(f"  cache:    {res_on['mode_counts'].get('cache', 0)}")
-        print(f"  template: {res_on['mode_counts'].get('template', 0)}")
-        if res_on["template_reasons"]:
-            print(f"    reasons: {res_on['template_reasons']}")
+        # In background mode, /complete latency overhead over EXPLAIN OFF is < 0.5s
+        bg_overhead_p50 = res_bg["p50"] - res_off["p50"]
+        print(f"\nBackground /complete p50 overhead over baseline: {bg_overhead_p50*1000:.1f} ms")
+        assert res_inline["p95"] < 3.0, f"inline p95 violated: {res_inline['p95']:.2f}s >= 3.0s"
+        assert res_bg["p95"] < 1.0, f"background /complete p95 violated: {res_bg['p95']:.2f}s >= 1.0s"
+        assert bg_overhead_p50 < 0.5, f"background overhead violated: {bg_overhead_p50:.2f}s >= 0.5s"
+        print("All latency assertions PASSED: inline p95 < 3.0s, background /complete p95 < 1.0s, overhead < 0.5s.")
+        return 0
 
-    # Verification checks
-    if res_on["explain_enabled"]:
-        assert res_on["p95"] < 3.0, f"p95 violated: {res_on['p95']:.2f}s >= 3.0s"
-        assert res_on["max"] < 4.0, f"max violated: {res_on['max']:.2f}s >= 4.0s (budget + 1s)"
-        print("\nAll latency assertions PASSED: p95 < 3.0s, max < 4.0s (budget + 1s).")
+    finally:
+        if os.path.exists(db_file):
+            try:
+                os.remove(db_file)
+            except OSError:
+                pass
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

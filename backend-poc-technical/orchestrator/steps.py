@@ -80,16 +80,22 @@ def _build_patient_risk_view(risk: Optional[Dict[str, Any]]) -> Optional[Dict[st
 
 
 def _build_patient_explain_view(explanation: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Patient-facing explanation view: sentences + sources. Strictly excludes mode, reason, and error traces."""
+    """Patient-facing explanation view: status, sentences + sources. Strictly excludes mode, reason, and error traces."""
     if not explanation or not isinstance(explanation, dict):
         return None
-    if explanation.get("status") == "error":
+    st = explanation.get("status")
+    if st == "pending":
+        return {
+            "status": "pending",
+        }
+    if st == "error":
         return {
             "status": "error",
             "sentences": [],
             "sources": [],
         }
     return {
+        "status": "ready",
         "sentences": explanation.get("sentences", []),
         "sources": explanation.get("sources", []),
     }
@@ -762,6 +768,7 @@ def step_explain(
     get_patient_profile_fn: Optional[Any] = None,
     store: Optional[Any] = None,
     llm: Optional[Any] = None,
+    checkin_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Step 10: Grounded clinical guideline explanation (behind EXPLAIN_ENABLED flag).
@@ -829,9 +836,112 @@ def step_explain(
             active_cond = state.active_condition
 
         import copy
-        from rag.explain_guards import guarded_explain
-        triage_copy = copy.deepcopy(triage_decision.get("triage_dict") or {"level": triage_decision.get("final_triage_level", "routine")})
+        from rag.explain_guards import (
+            guarded_explain,
+            get_explain_mode,
+            check_llm_eligibility,
+            record_fallback,
+            get_or_build_retriever,
+        )
+        from rag.explainer import get_template_explanation
+        from rag.query_map import build_query_from_triage
 
+        triage_copy = copy.deepcopy(triage_decision.get("triage_dict") or {"level": triage_decision.get("final_triage_level", "routine")})
+        active_explain_mode = get_explain_mode()
+
+        query_mapping = build_query_from_triage(triage_copy, readings)
+        trigger_category = query_mapping.trigger_category
+
+        # Retrieve candidate chunks if store available
+        candidate_chunks: List[Dict[str, Any]] = []
+        if store is not None:
+            retriever = get_or_build_retriever(store)
+            if retriever is not None:
+                candidate_chunks = retriever.retrieve(
+                    query=query_mapping.query_text,
+                    top_k=3,
+                    condition=query_mapping.condition,
+                    min_priority=query_mapping.min_priority,
+                )
+                if len(candidate_chunks) < 2:
+                    candidate_chunks = retriever.retrieve(
+                        query=query_mapping.query_text,
+                        top_k=3,
+                        min_priority=query_mapping.min_priority,
+                    )
+
+        if active_explain_mode == "background":
+            # Check eligibility before enqueuing using identical guards logic
+            is_eligible, skip_reason = check_llm_eligibility(
+                condition=active_cond,
+                trigger_category=trigger_category,
+                store=store,
+                candidate_chunks=candidate_chunks,
+                llm=llm,
+            )
+            if not is_eligible:
+                # Ineligible check-in: generate template explanation immediately with status ready
+                tmpl = get_template_explanation(
+                    trigger_category=trigger_category,
+                    readings=readings,
+                    triage_result=triage_copy,
+                    language=language,
+                    candidate_chunks=candidate_chunks,
+                    rejected_reasons=[f"Guard fallback: {skip_reason}"],
+                )
+                final_reason = tmpl.get("reason") or skip_reason
+                tmpl["status"] = "ready"
+                tmpl["mode"] = "template"
+                tmpl["reason"] = final_reason
+                tmpl["provider"] = None
+                tmpl["providers_tried"] = []
+                tmpl["provider_timings"] = {}
+                tmpl["tokens_used"] = 0
+                record_fallback(final_reason)
+                return tmpl
+
+            # Eligible: prepare fallback template in case worker fails or goes stale
+            fallback_tmpl = get_template_explanation(
+                trigger_category=trigger_category,
+                readings=readings,
+                triage_result=triage_copy,
+                language=language,
+                candidate_chunks=candidate_chunks,
+                rejected_reasons=["Guard fallback: job_fallback"],
+            )
+            fallback_tmpl["status"] = "ready"
+            fallback_tmpl["mode"] = "template"
+            fallback_tmpl["reason"] = fallback_tmpl.get("reason") or "job_fallback"
+            fallback_tmpl["provider"] = None
+            fallback_tmpl["providers_tried"] = []
+            fallback_tmpl["provider_timings"] = {}
+            fallback_tmpl["tokens_used"] = 0
+
+            from rag.explain_jobs import enqueue_job
+            cid = checkin_id or getattr(state, "checkin_id", None) or getattr(state, "session_id", None) or "temp_checkin_id"
+            enqueued = enqueue_job(
+                checkin_id=cid,
+                user_id=user_id,
+                condition=active_cond,
+                readings=readings,
+                language=language,
+                fallback_template=fallback_tmpl,
+                store=store,
+            )
+            if not enqueued:
+                # Queue full: immediately return template
+                fallback_tmpl["reason"] = "queue_full"
+                record_fallback("queue_full")
+                return fallback_tmpl
+
+            return {
+                "status": "pending",
+                "queued_at": _utc_now_iso(),
+                "template": fallback_tmpl,
+                "mode": "background",
+            }
+
+        # Inline execution mode
         explain_res = guarded_explain(
             triage_result=triage_copy,
             readings=readings,
@@ -839,7 +949,10 @@ def step_explain(
             store=store,
             llm=llm,
             condition=active_cond,
+            mode="inline",
         )
+        if "status" not in explain_res:
+            explain_res["status"] = "ready"
         return explain_res
     except Exception as e:
         import logging

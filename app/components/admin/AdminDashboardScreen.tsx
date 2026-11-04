@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
 import { api } from "../../lib/api";
+import { AdminConfigStatusSection } from "./AdminConfigStatusSection";
 import {
   Shield,
   Users,
@@ -362,6 +363,8 @@ export const AdminDashboardScreen = () => {
           ))}
         </div>
       </div>
+
+      <AdminConfigStatusSection />
 
       {/* Section A: Clinical Staff & Enrolled Patients (Interactive Creation) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">

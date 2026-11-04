@@ -10,11 +10,12 @@ Guarantees:
 """
 
 import os
+import copy
 import json
 import uuid
 import sqlite3
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Callable, Tuple
 from contextlib import contextmanager
 
 from data_sources.db_config import (
@@ -1965,6 +1966,95 @@ def get_checkin_result(checkin_id: str, backend: Optional[str] = None, db_path: 
         raw_trace = d.pop("trace_json", None)
         d["trace"] = json.loads(raw_trace) if raw_trace else None
         return d
+
+
+def update_checkin_explanation(
+    checkin_id: str,
+    explanation: Optional[Dict[str, Any]],
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> bool:
+    """Updates only the explanation_json column of an existing checkin_results record."""
+    expl_str = json.dumps(explanation) if explanation is not None else None
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"""
+            UPDATE checkin_results
+            SET explanation_json = {ph}
+            WHERE checkin_id = {ph}
+            """,
+            (expl_str, checkin_id),
+        )
+        return cursor.rowcount > 0
+
+
+def get_checkin_explanation(
+    checkin_id: str,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+    clock_fn: Optional[Callable[[], float]] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Retrieves the clinical explanation for a checkin.
+    Applies the stale rule:
+    If status is pending and older than EXPLAIN_JOB_DEADLINE_SECONDS + 30s,
+    substitutes the stored template with reason='job_lost', persists it, and returns it.
+    """
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"""
+            SELECT explanation_json
+            FROM checkin_results
+            WHERE checkin_id = {ph}
+            """,
+            (checkin_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        raw = row[0] if isinstance(row, tuple) else (row["explanation_json"] if hasattr(row, "__getitem__") else getattr(row, "explanation_json", None))
+        if not raw:
+            return None
+        try:
+            explanation = json.loads(raw)
+        except Exception:
+            return None
+
+    if isinstance(explanation, dict) and explanation.get("status") == "pending":
+        from datetime import datetime, timezone
+        from rag.explain_guards import get_job_deadline_seconds
+        queued_at_str = explanation.get("queued_at")
+        is_stale = False
+        stale_threshold = get_job_deadline_seconds() + 30.0
+        if queued_at_str:
+            try:
+                if queued_at_str.endswith("Z"):
+                    queued_at_str = queued_at_str[:-1] + "+00:00"
+                dt = datetime.fromisoformat(queued_at_str)
+                now_dt = datetime.now(timezone.utc)
+                age = (now_dt - dt).total_seconds()
+                if age > stale_threshold:
+                    is_stale = True
+            except Exception:
+                is_stale = False
+
+        if is_stale:
+            stale_tmpl = copy.deepcopy(explanation.get("template") or {})
+            stale_tmpl["status"] = "ready"
+            stale_tmpl["mode"] = "template"
+            stale_tmpl["reason"] = "job_lost"
+            stale_tmpl["provider"] = None
+            stale_tmpl["providers_tried"] = []
+            stale_tmpl["provider_timings"] = {}
+            stale_tmpl["tokens_used"] = 0
+            update_checkin_explanation(checkin_id, stale_tmpl, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+            return stale_tmpl
+
+    return explanation
 
 
 def get_user_checkins(user_id: str, limit: int = 20, backend: Optional[str] = None, db_path: Optional[str] = None,

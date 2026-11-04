@@ -502,6 +502,9 @@ def test_g3_licence_restricted_chunk_never_calls_gemini(monkeypatch):
     monkeypatch.setattr(groq_client, "is_configured", lambda: False)
     monkeypatch.setattr(gemini_client, "is_configured", lambda: True)
     monkeypatch.setattr(gemini_client, "chat_with_usage", mock_gemini)
+    monkeypatch.setattr(gemini_client, "chat_with_detailed_usage", lambda **kw: (mock_gemini(**kw)[0], {"total_tokens": 0, "completion_tokens": 0}))
+    monkeypatch.setattr(gemini_client, "chat_with_detailed_usage", lambda **kw: (mock_gemini(**kw)[0], {"total_tokens": 0, "completion_tokens": 0}))
+    monkeypatch.setattr(gemini_client, "chat_with_detailed_usage", lambda **kw: (mock_gemini(**kw)[0], {"total_tokens": 0, "completion_tokens": 0}))
     monkeypatch.setenv("LLM_PROVIDER", "auto")
 
     # Mock store containing an ADA 2026 restricted chunk
