@@ -32,7 +32,7 @@ describe("Record History UI (HealthRecordScreen)", () => {
     count: 2,
     edits: [
       {
-        id: "edit-1",
+        edit_id: "edit-1",
         user_id: "user-1",
         record_type: "medication",
         record_id: "med-1",
@@ -45,7 +45,7 @@ describe("Record History UI (HealthRecordScreen)", () => {
         reason: null,
       },
       {
-        id: "edit-2",
+        edit_id: "edit-2",
         user_id: "user-1",
         record_type: "medication",
         record_id: "med-1",
