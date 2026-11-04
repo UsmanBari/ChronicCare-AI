@@ -111,6 +111,41 @@ def setup_test_env(tmp_path, monkeypatch, cert_pem):
             )
 
 
+class MockChunkStore:
+    def __init__(self, chunks: List[Dict[str, Any]]):
+        self._chunks = chunks
+        self._by_id = {c["chunk_id"]: c for c in chunks}
+
+    def get_chunk(self, chunk_id: str) -> Optional[Dict[str, Any]]:
+        return self._by_id.get(chunk_id)
+
+    def list_chunks(
+        self,
+        condition: Optional[str] = None,
+        topic: Optional[str] = None,
+        min_priority: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        return list(self._chunks)
+
+    def total_chunks(self) -> int:
+        return len(self._chunks)
+
+
+@pytest.fixture
+def mock_store() -> MockChunkStore:
+    return MockChunkStore([
+        {
+            "chunk_id": "c1",
+            "source_id": "ish_2020",
+            "title": "ISH Hypertension Guidelines",
+            "section_path": "hypertension/targets",
+            "condition": "hypertension",
+            "priority": 1,
+            "text": "Target blood pressure for adults with hypertension is below 130/80 mmHg.",
+        },
+    ])
+
+
 def _create_token(rsa_key, uid: str, role: str = "patient") -> str:
     now = int(time.time())
     payload = {
@@ -791,3 +826,138 @@ def test_i6_flag_off_zero_provider_calls(rsa_key, monkeypatch, orch_mode):
     assert resp.status_code == 200
     assert resp.json().get("explanation") is None
     assert len(calls) == 0
+
+
+def test_gemini_thinking_budget_default_and_none(monkeypatch):
+    """
+    Review Item 3: Asserts GEMINI_THINKING_BUDGET defaults to 0 when unset/empty,
+    is completely omitted when set to 'none' (case-insensitive), and parses integers.
+    """
+    # 1. Unset -> defaults to 0
+    monkeypatch.delenv("GEMINI_THINKING_BUDGET", raising=False)
+    payload = gemini_client._build_payload([{"role": "user", "content": "test"}])
+    gen_config = payload["generationConfig"]
+    assert "thinkingConfig" in gen_config
+    assert gen_config["thinkingConfig"]["thinkingBudget"] == 0
+
+    # 2. Empty string -> defaults to 0
+    monkeypatch.setenv("GEMINI_THINKING_BUDGET", "   ")
+    payload_empty = gemini_client._build_payload([{"role": "user", "content": "test"}])
+    assert payload_empty["generationConfig"]["thinkingConfig"]["thinkingBudget"] == 0
+
+    # 3. Explicit 'none' -> omitted
+    monkeypatch.setenv("GEMINI_THINKING_BUDGET", "none")
+    payload_none = gemini_client._build_payload([{"role": "user", "content": "test"}])
+    assert "thinkingConfig" not in payload_none["generationConfig"]
+
+    monkeypatch.setenv("GEMINI_THINKING_BUDGET", "NONE")
+    payload_none_upper = gemini_client._build_payload([{"role": "user", "content": "test"}])
+    assert "thinkingConfig" not in payload_none_upper["generationConfig"]
+
+    # 4. Explicit integer string -> parsed
+    monkeypatch.setenv("GEMINI_THINKING_BUDGET", "128")
+    payload_int = gemini_client._build_payload([{"role": "user", "content": "test"}])
+    assert payload_int["generationConfig"]["thinkingConfig"]["thinkingBudget"] == 128
+
+    # 5. Invalid string -> defaults to 0
+    monkeypatch.setenv("GEMINI_THINKING_BUDGET", "invalid_value")
+    payload_invalid = gemini_client._build_payload([{"role": "user", "content": "test"}])
+    assert payload_invalid["generationConfig"]["thinkingConfig"]["thinkingBudget"] == 0
+
+
+def test_fake_groq_sdk_response_total_tokens_through_guarded_path(monkeypatch, mock_store):
+    """
+    Review Item 1: Asserts that a real Groq SDK shaped response (response.usage.total_tokens)
+    correctly propagates its token count through chat_with_usage, guarded_explain,
+    and into get_explain_guard_metrics().
+    """
+    reset_explain_guards()
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test_mock_key")
+    monkeypatch.setenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+
+    class FakeUsage:
+        def __init__(self, total_tokens: int = 185):
+            self.total_tokens = total_tokens
+            self.prompt_tokens = 110
+            self.completion_tokens = 75
+
+    class FakeMessage:
+        def __init__(self, content: str):
+            self.content = content
+            self.role = "assistant"
+
+    class FakeChoice:
+        def __init__(self, content: str):
+            self.message = FakeMessage(content)
+
+    class FakeGroqResponse:
+        def __init__(self, content: str, total_tokens: int = 185):
+            self.choices = [FakeChoice(content)]
+            self.usage = FakeUsage(total_tokens)
+
+    fake_text = json.dumps({
+        "sentences": [
+            {"text": "Your systolic blood pressure of 135 mmHg is within the target threshold [c1].", "cites": ["c1"]},
+            {"text": "Continue your routine lifestyle modifications and monitoring [c1].", "cites": ["c1"]},
+        ]
+    })
+
+    mock_sdk_client = MagicMock()
+    mock_sdk_client.chat.completions.create.return_value = FakeGroqResponse(fake_text, total_tokens=185)
+
+    monkeypatch.setattr(groq_client, "get_client", lambda **kwargs: mock_sdk_client)
+
+    triage = {"level": "routine", "trigger_category": "bp_elevated", "systolic": 135, "diastolic": 85}
+    readings = {"blood_pressure_systolic": 135.0, "blood_pressure_diastolic": 85.0}
+
+    res = guarded_explain(
+        triage_result=triage,
+        readings=readings,
+        language="en",
+        store=mock_store,
+        llm=None,  # Real path using groq_client.chat_with_usage
+        provider="groq",
+    )
+
+    assert res["mode"] == "llm"
+    assert res["provider"] == "groq"
+    assert res.get("tokens_used") == 185
+    assert "groq" in res.get("provider_timings", {})
+
+    metrics = get_explain_guard_metrics()
+    assert metrics["groq"]["tokens_used_today"] == 185
+    assert metrics["groq"]["llm_calls"] == 1
+    assert metrics["tokens_used_by_provider"]["groq"] == 185
+    assert metrics["llm_calls_by_provider"]["groq"] == 1
+    assert metrics["tokens_used_today"] == 185
+
+
+def test_provider_timings_recorded_on_timeout(monkeypatch, mock_store):
+    """
+    Review Item 5: Asserts provider_timings records the real elapsed duration
+    of the provider call even when budget_timeout occurs.
+    """
+    reset_explain_guards()
+
+    def slow_llm(**kwargs):
+        time.sleep(0.5)
+        return json.dumps({"sentences": []})
+
+    triage = {"level": "routine", "trigger_category": "bp_elevated", "systolic": 135, "diastolic": 85}
+    readings = {"blood_pressure_systolic": 135.0, "blood_pressure_diastolic": 85.0}
+
+    res = guarded_explain(
+        triage_result=triage,
+        readings=readings,
+        language="en",
+        store=mock_store,
+        llm={"groq": slow_llm},
+        provider="groq",
+        budget_seconds=0.15,
+    )
+
+    assert res["mode"] == "template"
+    assert res["reason"] == "budget_timeout"
+    assert "provider_timings" in res
+    assert "groq" in res["provider_timings"]
+    assert res["provider_timings"]["groq"] >= 0.10

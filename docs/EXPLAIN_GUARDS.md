@@ -117,8 +117,11 @@ flowchart TD
 | `LLM_PROVIDER` | str | `auto` | `auto`, `groq`, `gemini` | Explainer LLM provider routing mode (`auto` falls back through `LLM_PROVIDER_ORDER`). |
 | `LLM_PROVIDER_ORDER` | str | `groq,gemini` | comma-separated list | Provider failover order when `LLM_PROVIDER=auto`. |
 | `GEMINI_MODEL` | str | `""` | string | Google Gemini model ID (e.g. `gemini-2.5-flash`). Required if using Gemini. |
-| `GEMINI_THINKING_BUDGET` | str | `""` | int string (e.g. `0`) | Optional Gemini thinking budget. If set, passed in generationConfig. |
+| `GEMINI_THINKING_BUDGET` | str | `""` | int string (e.g. `0`) or `none` | Optional Gemini thinking budget. Defaults to `0` (disables thinking for speed) when unset; set to `none` to omit `thinkingConfig`. |
 | `EXPLAIN_LLM_CONDITIONS` | str | `hypertension` | comma-separated list | Clinical conditions eligible for LLM explanations (diabetes is template-only). |
+
+> [!NOTE]
+> **Gemini Thinking Budget:** To avoid budget timeouts on reasoning models (`gemini-flash-latest`), `GEMINI_THINKING_BUDGET` defaults to `0` (`thinkingConfig.thinkingBudget = 0`) when unset or empty. Set `GEMINI_THINKING_BUDGET=none` only if calling a legacy model that rejects `thinkingConfig`.
 
 ---
 

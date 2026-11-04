@@ -563,6 +563,18 @@ def get_explain_guard_metrics() -> Dict[str, Any]:
             "groq": calls_groq,
             "gemini": calls_gemini,
         },
+        "groq": {
+            "tokens_used_today": tokens_groq,
+            "breaker_state": _GLOBAL_BREAKER_GROQ.state(),
+            "llm_calls": calls_groq,
+            "cap": _GLOBAL_TOKEN_GUARD_GROQ.get_cap(),
+        },
+        "gemini": {
+            "tokens_used_today": tokens_gemini,
+            "breaker_state": _GLOBAL_BREAKER_GEMINI.state(),
+            "llm_calls": calls_gemini,
+            "cap": _GLOBAL_TOKEN_GUARD_GEMINI.get_cap(),
+        },
         "template_fallbacks_by_reason": fallbacks,
     }
 
@@ -728,6 +740,7 @@ def guarded_explain(
         return cached_hit
 
     providers_tried: List[str] = []
+    provider_timings: Dict[str, float] = {}
 
     # Helper for template fallback
     def _make_template_fallback(reason: str, rejected: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -747,6 +760,7 @@ def guarded_explain(
         tmpl["reason"] = final_reason
         tmpl["provider"] = None
         tmpl["providers_tried"] = list(providers_tried)
+        tmpl["provider_timings"] = dict(provider_timings)
         record_fallback(final_reason)
         return tmpl
 
@@ -849,6 +863,7 @@ def guarded_explain(
                 prov_budget = time_left
 
             prov_deadline = time_now + prov_budget
+            prov_t0 = time.monotonic()
             providers_tried.append(current_provider)
             record_llm_call(current_provider)
 
@@ -924,6 +939,8 @@ def guarded_explain(
 
             # Wait at most prov_budget
             thread.join(timeout=max(0.0, prov_deadline - time.monotonic()))
+            prov_duration = time.monotonic() - prov_t0
+            provider_timings[current_provider] = round(prov_duration, 3)
 
             if thread.is_alive():
                 # Provider timed out
@@ -962,6 +979,7 @@ def guarded_explain(
                     res_data["reason"] = reason
                     res_data["provider"] = None
                     res_data["providers_tried"] = list(providers_tried)
+                    res_data["provider_timings"] = dict(provider_timings)
                     record_fallback(reason)
                     return res_data
 
@@ -969,6 +987,7 @@ def guarded_explain(
                 res_data["reason"] = "validation_failed"
                 res_data["provider"] = None
                 res_data["providers_tried"] = list(providers_tried)
+                res_data["provider_timings"] = dict(provider_timings)
                 record_fallback("validation_failed")
                 return res_data
 
@@ -977,6 +996,8 @@ def guarded_explain(
             res_data["mode"] = "llm"
             res_data["provider"] = current_provider
             res_data["providers_tried"] = list(providers_tried)
+            res_data["provider_timings"] = dict(provider_timings)
+            res_data["tokens_used"] = worker_tokens["count"]
 
             # Extract cited chunk ids to populate cache
             cited_cids: List[str] = []

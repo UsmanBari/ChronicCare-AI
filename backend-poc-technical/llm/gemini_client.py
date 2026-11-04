@@ -63,7 +63,7 @@ def _build_payload(
     - user messages mapped to role 'user'
     - assistant messages mapped to role 'model'
     - generationConfig sets temperature, maxOutputTokens, and application/json mime type
-    - thinkingConfig added if GEMINI_THINKING_BUDGET environment variable is set
+    - thinkingConfig defaults to thinkingBudget=0 when GEMINI_THINKING_BUDGET is unset (set to "none" to omit)
     """
     system_parts: List[Dict[str, str]] = []
     contents: List[Dict[str, Any]] = []
@@ -85,12 +85,19 @@ def _build_payload(
     }
 
     thinking_budget_str = os.environ.get("GEMINI_THINKING_BUDGET", "").strip()
-    if thinking_budget_str:
+    if thinking_budget_str.lower() == "none":
+        # Explicitly skip sending thinkingConfig
+        pass
+    elif not thinking_budget_str:
+        # Default to 0 when unset/empty to eliminate thinking latency on gemini-flash
+        gen_config["thinkingConfig"] = {"thinkingBudget": 0}
+    else:
         try:
             budget_val = int(thinking_budget_str)
             gen_config["thinkingConfig"] = {"thinkingBudget": budget_val}
         except (ValueError, TypeError):
-            logger.warning("Invalid GEMINI_THINKING_BUDGET value: %s; omitting", thinking_budget_str)
+            logger.warning("Invalid GEMINI_THINKING_BUDGET value: %s; defaulting to 0", thinking_budget_str)
+            gen_config["thinkingConfig"] = {"thinkingBudget": 0}
 
     payload: Dict[str, Any] = {
         "contents": contents,
