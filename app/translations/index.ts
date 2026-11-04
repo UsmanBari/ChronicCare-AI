@@ -516,6 +516,36 @@ export interface Translations {
   whyThisResultBtn: string;
   hideWhyThisResultBtn: string;
   explanationSourcesTitle: string;
+
+  // Provider Check-in Risk, Explanation & Trace (I3 Day 3)
+  checkinRiskTitle: string;
+  checkinRiskSubtitle: string;
+  liveRiskLabelToday: string;
+  checkinRiskLabelAtCheckin: string;
+  checkinRiskModelLabel: string;
+  checkinRiskRaisedYes: string;
+  checkinRiskRaisedNo: string;
+  checkinRiskMissingData: string;
+  checkinRiskError: string;
+  providerExplanationTitle: string;
+  providerExplanationMode: string;
+  providerExplanationReason: string;
+  providerExplanationRejectedReasons: string;
+  decisionTimelineTitle: string;
+  decisionTimelineSubtitle: string;
+  traceShowAll: string;
+  traceShowFewer: string;
+  traceEmergencyShortcut: string;
+  traceNodeIntake: string;
+  traceNodeFetchPrior: string;
+  traceNodeBuildBundles: string;
+  traceNodeReconcile: string;
+  traceNodeVerify: string;
+  traceNodePersistLocal: string;
+  traceNodeDecideTriage: string;
+  traceNodeRisk: string;
+  traceNodeExplain: string;
+  traceNodePersist: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -1026,6 +1056,36 @@ export const translations: Record<Language, Translations> = {
     whyThisResultBtn: "Why this result?",
     hideWhyThisResultBtn: "Hide explanation",
     explanationSourcesTitle: "Clinical Sources",
+
+    // Provider Check-in Risk, Explanation & Trace (I3 Day 3)
+    checkinRiskTitle: "Risk at check-in",
+    checkinRiskSubtitle: "Evaluated and recorded at check-in completion time",
+    liveRiskLabelToday: "Today",
+    checkinRiskLabelAtCheckin: "At the time of this check-in",
+    checkinRiskModelLabel: "Model",
+    checkinRiskRaisedYes: "Raised this check-in to review: Yes",
+    checkinRiskRaisedNo: "Raised this check-in to review: No",
+    checkinRiskMissingData: "Risk assessment incomplete at check-in (insufficient baseline data)",
+    checkinRiskError: "Risk assessment unavailable at check-in",
+    providerExplanationTitle: "What the patient was told",
+    providerExplanationMode: "Mode",
+    providerExplanationReason: "Fallback reason",
+    providerExplanationRejectedReasons: "Rejected candidates",
+    decisionTimelineTitle: "Decision Timeline",
+    decisionTimelineSubtitle: "Execution trace across orchestration pipeline",
+    traceShowAll: "Show all steps",
+    traceShowFewer: "Show fewer steps",
+    traceEmergencyShortcut: "Emergency path: reconciliation skipped",
+    traceNodeIntake: "Intake validated",
+    traceNodeFetchPrior: "Prior baseline fetched",
+    traceNodeBuildBundles: "Bundles built",
+    traceNodeReconcile: "Records reconciled",
+    traceNodeVerify: "Provenance verified",
+    traceNodePersistLocal: "Local observations saved",
+    traceNodeDecideTriage: "Rules decided the level",
+    traceNodeRisk: "Risk assessed",
+    traceNodeExplain: "Explanation generated",
+    traceNodePersist: "Results persisted",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1536,5 +1596,35 @@ export const translations: Record<Language, Translations> = {
     whyThisResultBtn: "یہ نتیجہ کیوں؟",
     hideWhyThisResultBtn: "وضاحت چھپائیں",
     explanationSourcesTitle: "طبی ذرائع",
+
+    // Provider Check-in Risk, Explanation & Trace (I3 Day 3)
+    checkinRiskTitle: "چیک ان کے وقت خطرہ",
+    checkinRiskSubtitle: "چیک ان مکمل ہونے کے وقت جانچا گیا ریکارڈ",
+    liveRiskLabelToday: "آج",
+    checkinRiskLabelAtCheckin: "اس چیک ان کے وقت",
+    checkinRiskModelLabel: "ماڈل",
+    checkinRiskRaisedYes: "اس چیک ان کو جائزے کے لیے اٹھایا گیا: ہاں",
+    checkinRiskRaisedNo: "اس چیک ان کو جائزے کے لیے اٹھایا گیا: نہیں",
+    checkinRiskMissingData: "چیک ان کے وقت خطرے کا تخمینہ نامکمل تھا (ناکافی ڈیٹا)",
+    checkinRiskError: "چیک ان کے وقت خطرے کا تخمینہ دستیاب نہیں تھا",
+    providerExplanationTitle: "مریض کو کیا بتایا گیا",
+    providerExplanationMode: "طریقہ کار",
+    providerExplanationReason: "متبادل کی وجہ",
+    providerExplanationRejectedReasons: "مسترد شدہ امیدوار وجوہات",
+    decisionTimelineTitle: "فیصلہ سازی کا ٹائم لائن",
+    decisionTimelineSubtitle: "پائپ لائن کے مراحل کا مکمل ٹریس",
+    traceShowAll: "تمام مراحل دیکھیں",
+    traceShowFewer: "کم مراحل دیکھیں",
+    traceEmergencyShortcut: "ہنگامی راستہ: ریکارڈز کا موازنہ چھوڑ دیا گیا",
+    traceNodeIntake: "انٹیک کی توثیق ہو گئی",
+    traceNodeFetchPrior: "سابقہ ریکارڈ حاصل کیا گیا",
+    traceNodeBuildBundles: "بنڈلز تیار کیے گئے",
+    traceNodeReconcile: "ریکارڈز کا موازنہ کیا گیا",
+    traceNodeVerify: "ثبوت اور ماخذ کی تصدیق ہو گئی",
+    traceNodePersistLocal: "مقامی پیمائشیں محفوظ کر لی گئیں",
+    traceNodeDecideTriage: "طبی اصولوں نے درجہ طے کیا",
+    traceNodeRisk: "خطرے کا جائزہ لیا گیا",
+    traceNodeExplain: "وضاحت تیار کی گئی",
+    traceNodePersist: "نتائج محفوظ کر لیے گئے",
   }
 };
