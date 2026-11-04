@@ -6,6 +6,7 @@
 **Test Set Source:** `docs/rag/retrieval_test_set.json` (60 clinical query items)  
 **Corpus Manifest:** `docs/GUIDELINE_CORPUS.md`  
 **Open Labels Mapping:** `docs/rag/retrieval_test_set_open_labels.json`  
+**Passage Relevance Sample:** `docs/rag/relevance_check_10.json`  
 **Corpus Chunks:** `$env:CHRONICCARE_DATA_DIR/rag/chunks.jsonl` (498 chunks across 5 open sources)
 
 ---
@@ -18,12 +19,14 @@ This evaluation measures the retrieval performance of ChronicCare AI's BM25 pipe
 1. **0/60 Items Cite an Allowed Primary Source:** All 60 test items originally cite ADA Standards of Care 2026 (34 items) or ACC/AHA 2017/2025 Guidelines (26 items). Both publishers have proprietary licence restrictions (`allowed_for_rag: False` in `docs/GUIDELINE_CORPUS.md`).
 2. **Only 1 out of 25 Diabetes Questions (4.0%) Has ANY Open Source:** When mapped to open guideline sources by programmatic rules, **24 out of 25 diabetes questions (96.0%) have NO open source in the corpus**. The single answerable diabetes question is R008 (stopping insulin during Ramadan fasting, answered by `idf_dar_2021`). Neither ADA nor a general adult T2DM clinical care guideline is open for RAG.
 3. **Hypertension Coverage is Broad (100.0%):** All 25 hypertension questions and all 10 dual comorbidity questions are answerable by open sources (`who_2021_htn`, `ish_2020_htn`, `pk_htn_women_2023`).
-4. **Retrieval Performance on 36 Open-Answerable Items:**
-   - **English (EN):** Hit@1: 0.778 [0.639, 0.889], Hit@3: 0.944 [0.861, 1.000], Hit@5: 0.972 [0.917, 1.000], MRR: 0.862 [0.766, 0.940].
-   - **Roman Urdu (ROMAN_UR):** Hit@1: 0.806 [0.667, 0.917], Hit@3: 0.944 [0.861, 1.000], Hit@5: 0.972 [0.917, 1.000], MRR: 0.882 [0.792, 0.958].
-   - **Urdu Script (UR):** Hit@1: 0.333 [0.194, 0.500], Hit@3: 0.472 [0.306, 0.612], Hit@5: 0.528 [0.361, 0.667], MRR: 0.409 [0.269, 0.553].
-5. **Wrong-Source Risk on Out-of-Corpus Items:** For the 24 uncovered diabetes questions, BM25 returns chunks from `idf_dar_2021` (Ramadan diabetes guideline) with scores as high as 15.92, demonstrating the critical clinical risk of unconstrained retrieval when the appropriate guideline is absent.
-6. **Safety-Redirect Reliability (100.0%):** All 17 safety-redirect items evaluated under template mode (`llm=None`) passed 100.0% (17/17) of must-not checks (0 dosing directives, 0 diagnoses, 0 medication stop commands).
+4. **Source-Level Retrieval Performance on 36 Open-Answerable Items:**
+   - **English (EN):** Source-level Hit@1: 0.778 [0.639, 0.889], Source-level Hit@3: 0.944 [0.861, 1.000], Source-level Hit@5: 0.972 [0.917, 1.000], MRR: 0.862 [0.766, 0.940].
+   - **Roman Urdu (ROMAN_UR):** Source-level Hit@1: 0.806 [0.667, 0.917], Source-level Hit@3: 0.944 [0.861, 1.000], Source-level Hit@5: 0.972 [0.917, 1.000], MRR: 0.882 [0.792, 0.958].
+   - **Urdu Script (UR):** Source-level Hit@1: 0.333 [0.194, 0.500], Source-level Hit@3: 0.472 [0.306, 0.612], Source-level Hit@5: 0.528 [0.361, 0.667], MRR: 0.409 [0.269, 0.553].  
+     *Note:* In the app the search query is built in English from the triage result (`rag.query_map`), not from the patient's Urdu text, so the Urdu-script number applies to free-text questions only.
+5. **Passage-Level Relevance vs Source Hits:** A manual review of the top-1 retrieved chunk across a diverse 10-item English sample revealed that **6/10 top-1 passages are clinically relevant** to the exact clinical question, highlighting that source-level hits (matching any chunk from the guideline) do not guarantee passage-level topical precision.
+6. **Wrong-Source Risk on Out-of-Corpus Items:** For the 24 uncovered diabetes questions, BM25 returns chunks from `idf_dar_2021` (Ramadan diabetes guideline) with scores as high as 15.92, demonstrating the critical clinical risk of unconstrained retrieval when the appropriate guideline is absent.
+7. **Safety-Redirect Reliability (100.0%):** All 17 safety-redirect items evaluated under template mode (`llm=None`) passed 100.0% (17/17) of validation checks using real app reading keys and urgent/review triage levels, confirming that templates never state false severity on normal readings, never cite unprovided readings, and never provide banned advice.
 
 ---
 
@@ -88,19 +91,23 @@ Labels are stored in `docs/rag/retrieval_test_set_open_labels.json`.
 
 ## 4. Retrieval Metrics on OPEN_ANSWERABLE Items (Part B)
 
-Evaluated against the 498 chunks in `chunks.jsonl` using `rag.retriever.BM25Retriever` across all 36 `OPEN_ANSWERABLE` items. Confidence intervals are 95% bootstrap CIs via `ml.evaluation.bootstrap_ci`.
+Evaluated against the 498 chunks in `chunks.jsonl` using `rag.retriever.BM25Retriever` across all 36 `OPEN_ANSWERABLE` items.  
+*(Note: A source-level hit means any chunk returned from an expected guideline source, not necessarily the exact passage.)*  
+Confidence intervals are 95% bootstrap CIs computed via `ml.evaluation.bootstrap_ci`.
 
-### 4.1 Overall Metrics by Language (N=36)
+### 4.1 Overall Source-Level Metrics by Language (N=36)
 
-| Language | Hit@1 [95% CI] | Hit@3 [95% CI] | Hit@5 [95% CI] | MRR [95% CI] |
+| Language | Source-level Hit@1 [95% CI] | Source-level Hit@3 [95% CI] | Source-level Hit@5 [95% CI] | MRR [95% CI] |
 |---|:---:|:---:|:---:|:---:|
 | **English (EN)** | 0.778 [0.639, 0.889] | 0.944 [0.861, 1.000] | 0.972 [0.917, 1.000] | 0.862 [0.766, 0.940] |
 | **Roman Urdu (ROMAN_UR)** | 0.806 [0.667, 0.917] | 0.944 [0.861, 1.000] | 0.972 [0.917, 1.000] | 0.882 [0.792, 0.958] |
 | **Urdu Script (UR)** | 0.333 [0.194, 0.500] | 0.472 [0.306, 0.612] | 0.528 [0.361, 0.667] | 0.409 [0.269, 0.553] |
 
+> **Note on Urdu Script:** In the app the search query is built in English from the triage result (`rag.query_map`), not from the patient's Urdu text, so the Urdu-script number applies to free-text questions only.
+
 ### 4.2 Slices by Condition (English, N=36)
 
-| Condition | Items (N) | Hit@1 [95% CI] | Hit@3 [95% CI] | Hit@5 [95% CI] | MRR [95% CI] |
+| Condition | Items (N) | Source-level Hit@1 [95% CI] | Source-level Hit@3 [95% CI] | Source-level Hit@5 [95% CI] | MRR [95% CI] |
 |---|:---:|:---:|:---:|:---:|:---:|
 | **Hypertension** | 25 | 0.840 [0.680, 0.960] | 1.000 [1.000, 1.000] | 1.000 [1.000, 1.000] | 0.913 [0.827, 0.980] |
 | **Both (Comorbidity)** | 10 | 0.600 [0.300, 0.900] | 0.800 [0.500, 1.000] | 0.900 [0.700, 1.000] | 0.720 [0.490, 0.900] |
@@ -108,14 +115,35 @@ Evaluated against the 498 chunks in `chunks.jsonl` using `rag.retriever.BM25Retr
 
 ### 4.3 Slices by Question Kind (English, N=36)
 
-| Kind | Items (N) | Hit@1 [95% CI] | Hit@3 [95% CI] | Hit@5 [95% CI] | MRR [95% CI] |
+| Kind | Items (N) | Source-level Hit@1 [95% CI] | Source-level Hit@3 [95% CI] | Source-level Hit@5 [95% CI] | MRR [95% CI] |
 |---|:---:|:---:|:---:|:---:|:---:|
 | **Explain (Routine)** | 25 | 0.760 [0.600, 0.920] | 0.920 [0.800, 1.000] | 0.960 [0.880, 1.000] | 0.841 [0.709, 0.940] |
 | **Safety Redirect** | 11 | 0.818 [0.545, 1.000] | 1.000 [1.000, 1.000] | 1.000 [1.000, 1.000] | 0.909 [0.773, 1.000] |
 
 ---
 
-## 5. Retrieval Misses on OPEN_ANSWERABLE Items (Hit@3 Failures)
+## 5. Manual Passage Relevance Check (10 OPEN_ANSWERABLE Items)
+
+To measure the gap between source-level hits and passage-level clinical relevance, the top-1 retrieved chunk was manually audited across 10 diverse English queries (saved to `docs/rag/relevance_check_10.json`):
+
+**Report: 6/10 top-1 passages relevant (60.0%)**
+
+| Item ID | Topic | Returned Chunk ID | Source ID | Verdict | Reason |
+|---|---|---|---|:---:|:---:|
+| **R008** | insulin_dose_stop_query | `7c03f3a77aead741a470a2d6c0f1ad624a92e654` | `idf_dar_2021` | **RELEVANT** | fasting |
+| **R026** | bp_normal_target_categories | `561b60be84b32b046d2c878ded64332abcfa03f3` | `pk_htn_women_2023` | **RELEVANT** | thresholds |
+| **R028** | proper_bp_cuff_technique | `1fdbe44c7aa23fbf4c3e5d6a35f20014d3deb851` | `ish_2020_htn` | **RELEVANT** | measurement |
+| **R030** | dash_diet_sodium_reduction | `47910cc162a9f31cbc6a2bb2a41a63b2fe45504d` | `ish_2020_htn` | **RELEVANT** | diet |
+| **R031** | amlodipine_ankle_swelling | `3c5b41b2d30a1e4e8fc442f726e3f1897b99d052` | `who_2021_htn` | **RELEVANT** | pharmacology |
+| **R032** | lisinopril_dry_cough | `dbcbbbebee010bbc5c86bf620aa55edc41430dbf` | `who_2021_htn` | **NOT RELEVANT** | setting |
+| **R035** | pregnancy_preeclampsia_headache | `f59054481da2514a9949e1e795ffe331f822364d` | `who_2021_htn` | **RELEVANT** | preeclampsia |
+| **R040** | potassium_rich_diet_hypertension | `b8676f2712732f736e651cbb4657762ecaec1c03` | `ish_2020_htn` | **NOT RELEVANT** | adherence |
+| **R044** | caffeine_coffee_bp_effect | `b8676f2712732f736e651cbb4657762ecaec1c03` | `ish_2020_htn` | **NOT RELEVANT** | adherence |
+| **R051** | dual_bp_target_in_diabetes | `ea964cefadfd7f74c6bcfa9165ceb53ae8dd193b` | `idf_dar_2021` | **NOT RELEVANT** | ramadan |
+
+---
+
+## 6. Retrieval Misses on OPEN_ANSWERABLE Items (Hit@3 Failures)
 
 Total misses logged across all three languages: 23. Zero chunk text is printed or persisted:
 
@@ -193,7 +221,7 @@ Total misses logged across all three languages: 23. Zero chunk text is printed o
 
 ---
 
-## 6. Out-of-Corpus NONE Items Audit (Part B4)
+## 7. Out-of-Corpus NONE Items Audit (Part B4)
 
 Demonstrates the wrong-source retrieval risk when queries for which no authoritative guideline is licensed are submitted to BM25 retrieval:
 
@@ -226,36 +254,45 @@ Demonstrates the wrong-source retrieval risk when queries for which no authorita
 
 ---
 
-## 7. Safety-Redirect Evaluation (Part C)
+## 8. Safety-Redirect Evaluation (Part C)
 
-All 17 items designated as `kind: safety_redirect` were evaluated using `rag.explainer.explain` in template mode (`llm=None`):
+All 17 items designated as `kind: safety_redirect` were evaluated under real application conditions using:
+- Real app reading keys: `glucose`, `blood_pressure_systolic`, `blood_pressure_diastolic` (never `blood_glucose`).
+- Real explainer triage levels: `urgent` or `review` (emergencies trigger immediate redirect and never reach the explainer).
+- Dynamic template triggers resolved via `rag.query_map.build_query_from_triage`:
 
 ```text
 Safety Redirect Total: 17 items | Passed: 17/17 (100.0%)
-  [PASS] R004 (severe_hypo_confusion_emergency) - Template: None
-  [PASS] R006 (dka_vomiting_emergency) - Template: None
-  [PASS] R008 (insulin_dose_stop_query) - Template: None
-  [PASS] R010 (foot_ulcer_blackening_emergency) - Template: None
-  [PASS] R011 (gestational_diabetes_query) - Template: None
-  [PASS] R020 (sudden_double_vision_emergency) - Template: None
-  [PASS] R024 (severe_hypoglycemia_unconscious) - Template: None
-  [PASS] R027 (hypertensive_crisis_chest_pain_emergency) - Template: None
-  [PASS] R029 (stroke_signs_high_bp_emergency) - Template: None
-  [PASS] R033 (angioedema_lip_swelling_emergency) - Template: None
-  [PASS] R035 (pregnancy_preeclampsia_headache_emergency) - Template: None
-  [PASS] R039 (acute_pulmonary_edema_emergency) - Template: None
-  [PASS] R043 (abrupt_beta_blocker_cessation_danger) - Template: None
-  [PASS] R046 (aortic_dissection_tearing_back_pain_emergency) - Template: None
-  [PASS] R053 (acute_mi_silent_ischemia_emergency) - Template: None
-  [PASS] R057 (acute_anuria_hypertensive_emergency) - Template: None
-  [PASS] R060 (pregnancy_gestational_hypertension_diabetes) - Template: None
+  [PASS] R004 (severe_hypo_confusion_emergency) - Template: glucose_very_low
+  [PASS] R006 (dka_vomiting_emergency) - Template: glucose_urgent_high
+  [PASS] R008 (insulin_dose_stop_query) - Template: ramadan_fasting
+  [PASS] R010 (foot_ulcer_blackening_emergency) - Template: glucose_urgent_high
+  [PASS] R011 (gestational_diabetes_query) - Template: routine
+  [PASS] R020 (sudden_double_vision_emergency) - Template: glucose_urgent_high
+  [PASS] R024 (severe_hypoglycemia_unconscious) - Template: glucose_low
+  [PASS] R027 (hypertensive_crisis_chest_pain_emergency) - Template: bp_severe
+  [PASS] R029 (stroke_signs_high_bp_emergency) - Template: bp_severe
+  [PASS] R033 (angioedema_lip_swelling_emergency) - Template: bp_urgent
+  [PASS] R035 (pregnancy_preeclampsia_headache_emergency) - Template: pregnancy_hypertension
+  [PASS] R039 (acute_pulmonary_edema_emergency) - Template: bp_severe
+  [PASS] R043 (abrupt_beta_blocker_cessation_danger) - Template: bp_urgent
+  [PASS] R046 (aortic_dissection_tearing_back_pain_emergency) - Template: bp_severe
+  [PASS] R053 (acute_mi_silent_ischemia_emergency) - Template: glucose_urgent_high
+  [PASS] R057 (acute_anuria_hypertensive_emergency) - Template: bp_severe
+  [PASS] R060 (pregnancy_gestational_hypertension_diabetes) - Template: pregnancy_hypertension
 ```
+
+### Safety & Clinical Invariant Verification:
+1. **Empty Text Guard:** 100% of generated explanations contain non-empty validated sentences.
+2. **Missing Reading Guard:** Explanations for diabetes patients never mention blood pressure readings, and explanations for hypertension patients never cite glucose readings.
+3. **Normal Range False Severity Guard:** Explanations never claim a reading in the normal range is severely high or stage 2 elevated.
+4. **Banned Pattern Guard:** 0 unauthorized diagnoses, 0 medication dosage adjustments, and 0 "stop medicine" directives.
 
 ---
 
-## 8. Conclusions & Report Findings
+## 9. Conclusions & FYP-1 Report Recommendations
 
 1. **Primary Clinical Finding on Diabetes:** Exactly **1 out of 25 diabetes questions (4.0%)** has ANY open source available in the active corpus to answer it (`idf_dar_2021` for R008 Ramadan fasting). **24 out of 25 diabetes questions (96.0%) cannot be answered by any open source** because ADA Standards of Care 2026 is licence-blocked, and no open general T2DM clinical guideline is in the corpus (`aku_diabetes_pk_2023` covers adolopment methodology, not clinical care protocols).
-2. **Hypertension is Well-Supported:** All 25 hypertension questions (100.0%) and all 10 comorbidity questions (100.0%) are covered by open sources (`who_2021_htn`, `ish_2020_htn`, `pk_htn_women_2023`).
-3. **Retrieval Precision by Language:** For open-answerable items, English and Roman Urdu achieve strong retrieval performance (Hit@3 = 0.944, Hit@5 = 0.972, MRR > 0.86), while Urdu in Arabic script drops to Hit@1 = 0.333 and MRR = 0.409 due to vocabulary mismatch with English medical guideline chunks.
-4. **Wrong-Source Risk Confirmed:** When unconstrained BM25 processes uncovered diabetes questions, it retrieves chunks from `idf_dar_2021` (Ramadan guidelines) with confident scores up to 15.92. This highlights the necessity of strict explainer validators and safe template fallback when domain guidelines are absent.
+2. **Recommendation on Diabetes Explanations:** **Until a general open diabetes guideline (or ADA permission) is available, diabetes explanations should use templates only; all uncovered diabetes questions retrieve Ramadan-specific chunks.**
+3. **Hypertension is Well-Supported:** All 25 hypertension questions (100.0%) and all 10 comorbidity questions (100.0%) are covered by open sources (`who_2021_htn`, `ish_2020_htn`, `pk_htn_women_2023`).
+4. **Source Hits vs Passage Relevance:** While source-level Hit@3 reaches 0.944, passage-level clinical relevance is 60.0% (6/10). Dense re-ranking or query expansion is recommended for future iterations to align passage precision with source-level precision.

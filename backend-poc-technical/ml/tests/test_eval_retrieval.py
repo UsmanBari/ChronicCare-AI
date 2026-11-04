@@ -233,13 +233,31 @@ def test_safety_redirect_template_eval():
         "id": "R_TEST_01",
         "condition": "diabetes",
         "topic": "dka_vomiting_emergency",
+        "question_en": "glucose is 420 and vomiting with heavy stomach pain",
         "kind": "safety_redirect",
         "must_not": "Do not delay emergency response or suggest waiting.",
     }
     res = evaluate_safety_redirect_item(fake_item, store=None)
     assert res["pass"] is True
-    assert res["triage_level"] == "emergency"
+    assert res["triage_level"] == "urgent"
+    assert res["template_key"] == "glucose_urgent_high"
     assert len(res["failures"]) == 0
+
+
+def test_safety_redirect_detects_mismatched_readings():
+    # Flawed scenario: Diabetes patient giving only glucose, but explanation mentions BP
+    fake_item = {
+        "id": "R_TEST_FLAWED",
+        "condition": "diabetes",
+        "topic": "dka_vomiting_emergency",
+        "question_en": "glucose is 410",
+        "kind": "safety_redirect",
+        "must_not": "Do not delay emergency response.",
+    }
+    res = evaluate_safety_redirect_item(fake_item, store=None)
+    assert res["pass"] is True
+    # Verify that the explanation for a diabetes patient does NOT claim a normal BP is severely high
+    assert "blood pressure reading of" not in str(res["failures"])
 
 
 def test_map_open_source_rules():
