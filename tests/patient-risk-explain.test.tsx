@@ -2,12 +2,11 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { PatientRiskCard } from "../app/components/PatientRiskCard";
 import { ExplanationBox } from "../app/components/ExplanationBox";
 import { RiskResultScreen } from "../app/components/RiskResultScreen";
 import { RoutedToReviewScreen } from "../app/components/RoutedToReviewScreen";
 import { translations } from "../app/translations";
-import { PatientRisk, PatientExplanation, CheckinCompleteResponse } from "../app/lib/api";
+import { PatientExplanation, CheckinCompleteResponse } from "../app/lib/api";
 
 const mockAppContext: Record<string, any> = {};
 
@@ -22,7 +21,7 @@ vi.mock("../app/lib/firebase", () => ({
   getAuthErrorMessage: () => "",
 }));
 
-describe("Patient Risk Card & Explanation Box (I3 Day 2)", () => {
+describe("Patient Explanation Box & Strict Patient Risk Suppression (I3 Day 2)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAppContext.isLiveMode = true;
@@ -42,9 +41,9 @@ describe("Patient Risk Card & Explanation Box (I3 Day 2)", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 1. Flags Off Invariant (Screens render exactly as before)
+  // 1. Flags Off Invariant (Screens render baseline without explanation)
   // -------------------------------------------------------------------------
-  it("renders RiskResultScreen unchanged when flags are off (risk and explanation null)", () => {
+  it("renders RiskResultScreen unchanged when flags are off (explanation null)", () => {
     const baselineResult: CheckinCompleteResponse = {
       emergency: false,
       intakes: [],
@@ -52,18 +51,16 @@ describe("Patient Risk Card & Explanation Box (I3 Day 2)", () => {
       verification: null,
       requires_review: false,
       max_severity: null,
-      risk: null,
       explanation: null,
     };
     mockAppContext.liveCheckinResult = baselineResult;
 
     render(<RiskResultScreen />);
 
-    // Verify new components are completely absent
-    expect(screen.queryByTestId("patient-risk-card")).toBeNull();
+    // Verify explanation box is absent
     expect(screen.queryByTestId("patient-explanation-box")).toBeNull();
 
-    // Verify baseline scope note is still rendered
+    // Verify baseline scope note is unconditionally rendered
     expect(screen.getByText(translations.en.riskScoringOmittedNote)).toBeTruthy();
   });
 
@@ -75,172 +72,81 @@ describe("Patient Risk Card & Explanation Box (I3 Day 2)", () => {
       verification: null,
       requires_review: true,
       max_severity: "moderate",
-      risk: null,
       explanation: null,
     };
     mockAppContext.liveCheckinResult = reviewResult;
 
     render(<RoutedToReviewScreen />);
 
-    expect(screen.queryByTestId("patient-risk-card")).toBeNull();
     expect(screen.queryByTestId("patient-explanation-box")).toBeNull();
     expect(screen.getByText("Pending Provider Review")).toBeTruthy();
   });
 
   // -------------------------------------------------------------------------
-  // 2. PatientRiskCard States: ok, not_enough_information, null, error
+  // 2. Strict Patient Risk Suppression (Doctors only; patients never see it)
   // -------------------------------------------------------------------------
-  describe("PatientRiskCard states", () => {
-    it("renders qualitative band (low) and up to 3 contributing reasons with <bdi> when status is ok", () => {
-      const okRisk: PatientRisk = {
-        status: "ok",
-        band: "low",
-        reasons: [
-          {
-            feature: "told_high_bp",
-            contribution: 0.156,
-            label: { en: "history of high blood pressure", ur: "ہائی بلڈ پریشر کی تاریخ" },
-          },
-          {
-            feature: "age",
-            contribution: 0.1168,
-            label: { en: "your age", ur: "آپ کی عمر" },
-          },
-          {
-            feature: "sbp",
-            contribution: 0.104,
-            label: { en: "your recent blood pressure", ur: "آپ کا حالیہ بلڈ پریشر" },
-          },
-          {
-            feature: "bmi",
-            contribution: 0.08,
-            label: { en: "elevated body mass index", ur: "وزن کی زیادتی" },
-          },
-        ],
-        advisory: "Advisory risk assessment, not a clinical diagnosis. Consult your healthcare provider.",
-      };
-
-      render(<PatientRiskCard risk={okRisk} emergency={false} />);
-
-      const card = screen.getByTestId("patient-risk-card");
-      expect(card).toBeTruthy();
-
-      // Accessible Badge (text + icon, never color alone)
-      const badge = screen.getByTestId("patient-risk-badge");
-      expect(badge.textContent).toContain(translations.en.riskLowTitle);
-
-      // Exactly 3 top reasons rendered (4th sliced off)
-      const reasonItems = screen.getAllByTestId("patient-risk-reason-item");
-      expect(reasonItems.length).toBe(3);
-      expect(reasonItems[0].textContent).toContain("history of high blood pressure");
-      expect(reasonItems[1].textContent).toContain("your age");
-      expect(reasonItems[2].textContent).toContain("your recent blood pressure");
-
-      // Verify <bdi> tag wraps reason content
-      const bdiElements = card.querySelectorAll("bdi");
-      expect(bdiElements.length).toBe(3);
-      expect(bdiElements[0].textContent).toBe("history of high blood pressure");
-
-      // Advisory notice
-      expect(card.textContent).toContain(translations.en.patientRiskAdvisory);
-    });
-
-    it("renders moderate and high risk badges correctly with accessible icons", () => {
-      const moderateRisk: PatientRisk = {
-        status: "ok",
-        band: "moderate",
-        reasons: [{ feature: "sbp", label: { en: "elevated blood pressure", ur: "بلند فشار خون" } }],
-      };
-      const { unmount } = render(<PatientRiskCard risk={moderateRisk} emergency={false} />);
-      expect(screen.getByTestId("patient-risk-badge").textContent).toContain(translations.en.riskModerateTitle);
-      unmount();
-
-      const highRisk: PatientRisk = {
+  it("strictly suppresses patient risk: a /complete response containing a 'risk' object renders NO risk band, NO low/moderate/high risk wording, and NOTHING from risk anywhere on patient screens", () => {
+    const responseWithRisk: Record<string, any> = {
+      emergency: false,
+      intakes: [],
+      reconciliation: { summary: { agreement: 2, source_a_only: 0, source_b_only: 0 } },
+      verification: null,
+      requires_review: false,
+      max_severity: null,
+      // Backend may return a risk object (for providers), but patient screens must ignore it completely
+      risk: {
         status: "ok",
         band: "high",
-        reasons: [{ feature: "sbp", label: { en: "stage 2 blood pressure", ur: "اسٹیج 2 بلڈ پریشر" } }],
-      };
-      render(<PatientRiskCard risk={highRisk} emergency={false} />);
-      expect(screen.getByTestId("patient-risk-badge").textContent).toContain(translations.en.riskHighTitle);
-    });
-
-    it("renders not_enough_information state with single guidance line (waist circumference)", () => {
-      const missingRisk: PatientRisk = {
-        status: "not_enough_information",
-        band: null,
-        reasons: [],
-        advisory: "Advisory risk assessment, not a clinical diagnosis. Consult your healthcare provider.",
-      };
-
-      render(<PatientRiskCard risk={missingRisk} emergency={false} />);
-
-      const card = screen.getByTestId("patient-risk-card");
-      expect(card).toBeTruthy();
-      expect(screen.getByText(translations.en.patientRiskMissingWaist)).toBeTruthy();
-      expect(screen.queryByTestId("patient-risk-badge")).toBeNull();
-      expect(screen.queryByTestId("patient-risk-reasons")).toBeNull();
-    });
-
-    it("renders null (nothing) when risk is null, undefined, error, or not_applicable", () => {
-      const { rerender } = render(<PatientRiskCard risk={null} emergency={false} />);
-      expect(screen.queryByTestId("patient-risk-card")).toBeNull();
-
-      rerender(<PatientRiskCard risk={undefined} emergency={false} />);
-      expect(screen.queryByTestId("patient-risk-card")).toBeNull();
-
-      const errorRisk: PatientRisk = { status: "error" };
-      rerender(<PatientRiskCard risk={errorRisk} emergency={false} />);
-      expect(screen.queryByTestId("patient-risk-card")).toBeNull();
-
-      const notApplicableRisk: PatientRisk = { status: "not_applicable" };
-      rerender(<PatientRiskCard risk={notApplicableRisk} emergency={false} />);
-      expect(screen.queryByTestId("patient-risk-card")).toBeNull();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // 3. Strict Anti-Leak Invariant: ZERO numbers or "%" in the patient card
-  // -------------------------------------------------------------------------
-  it("enforces strict anti-leak invariant: NO percentage or numeric probabilities anywhere in the card DOM", () => {
-    const okRisk: PatientRisk = {
-      status: "ok",
-      band: "low",
-      reasons: [
-        {
-          feature: "told_high_bp",
-          contribution: 0.156,
-          label: { en: "history of high blood pressure", ur: "ہائی بلڈ پریشر کی تاریخ" },
-        },
-        {
-          feature: "age",
-          contribution: 0.1168,
-          label: { en: "your age", ur: "آپ کی عمر" },
-        },
-      ],
-      advisory: "Advisory risk assessment, not a clinical diagnosis. Consult your healthcare provider.",
+        reasons: [
+          { feature: "told_high_bp", contribution: 0.156, label: { en: "history of high blood pressure", ur: "ہائی بلڈ پریشر کی تاریخ" } },
+          { feature: "age", contribution: 0.1168, label: { en: "your age", ur: "آپ کی عمر" } },
+        ],
+        advisory: "Advisory risk assessment, not a clinical diagnosis.",
+        missing: [],
+      },
+      explanation: null,
     };
+    mockAppContext.liveCheckinResult = responseWithRisk;
 
-    render(<PatientRiskCard risk={okRisk} emergency={false} />);
+    // 1. Verify on RiskResultScreen
+    const { unmount } = render(<RiskResultScreen />);
 
-    const card = screen.getByTestId("patient-risk-card");
-    const text = card.textContent || "";
+    expect(screen.queryByTestId("patient-risk-card")).toBeNull();
+    expect(screen.queryByTestId("patient-risk-badge")).toBeNull();
 
-    // 1. No percent character
-    expect(text.includes("%")).toBe(false);
+    // Ensure no risk band wording leaked
+    const textContent = document.body.textContent || "";
+    expect(textContent).not.toContain("High Risk");
+    expect(textContent).not.toContain("Moderate Risk");
+    expect(textContent).not.toContain("Low Risk");
+    expect(textContent).not.toContain("Health Risk Advisory");
+    expect(textContent).not.toContain("Advisory risk assessment");
+    expect(textContent).not.toContain("history of high blood pressure");
 
-    // 2. No floating-point or integer probabilities
-    expect(/\b0\.\d+\b/.test(text)).toBe(false);
-    expect(/\b\d+(\.\d+)?%/.test(text)).toBe(false);
+    // The release scope note must be displayed unconditionally
+    expect(screen.getByText(translations.en.riskScoringOmittedNote)).toBeTruthy();
 
-    // 3. No internal machine-learning terminology
-    expect(text.toLowerCase()).not.toContain("nhanes");
-    expect(text.toLowerCase()).not.toContain("model");
-    expect(text.toLowerCase()).not.toContain("version");
-    expect(text.toLowerCase()).not.toContain("logit");
+    unmount();
+
+    // 2. Verify on RoutedToReviewScreen
+    responseWithRisk.requires_review = true;
+    responseWithRisk.max_severity = "moderate";
+    mockAppContext.liveCheckinResult = responseWithRisk;
+
+    render(<RoutedToReviewScreen />);
+
+    expect(screen.queryByTestId("patient-risk-card")).toBeNull();
+    expect(screen.queryByTestId("patient-risk-badge")).toBeNull();
+
+    const reviewText = document.body.textContent || "";
+    expect(reviewText).not.toContain("High Risk");
+    expect(reviewText).not.toContain("Moderate Risk");
+    expect(reviewText).not.toContain("Health Risk Advisory");
+    expect(reviewText).not.toContain("history of high blood pressure");
   });
 
   // -------------------------------------------------------------------------
-  // 4. ExplanationBox: Collapsed/Expand, Sources, Keyboard & Template Mode
+  // 3. ExplanationBox: Collapsed/Expand, Sources, Keyboard & Template Mode
   // -------------------------------------------------------------------------
   describe("ExplanationBox functionality", () => {
     const sampleExplanation: PatientExplanation = {
@@ -368,14 +274,9 @@ describe("Patient Risk Card & Explanation Box (I3 Day 2)", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 5. Emergency Invariant: NEVER shown during an emergency
+  // 4. Emergency Invariant: NEVER shown during an emergency
   // -------------------------------------------------------------------------
-  it("never renders risk card or explanation box during an emergency check-in", () => {
-    const okRisk: PatientRisk = {
-      status: "ok",
-      band: "high",
-      reasons: [{ feature: "sbp", label: { en: "crisis bp", ur: "شدید بلڈ پریشر" } }],
-    };
+  it("never renders explanation box during an emergency check-in", () => {
     const sampleExplanation: PatientExplanation = {
       status: "ok",
       sentences: [{ text: "Emergency vitals require immediate intervention." }],
@@ -385,34 +286,19 @@ describe("Patient Risk Card & Explanation Box (I3 Day 2)", () => {
     // Explicitly pass emergency=true
     render(
       <div>
-        <PatientRiskCard risk={okRisk} emergency={true} />
         <ExplanationBox explanation={sampleExplanation} emergency={true} />
       </div>
     );
 
-    expect(screen.queryByTestId("patient-risk-card")).toBeNull();
     expect(screen.queryByTestId("patient-explanation-box")).toBeNull();
   });
 
   // -------------------------------------------------------------------------
-  // 6. Urdu Language, RTL, and Nastaliq Typography
+  // 5. Urdu Language, RTL, and Nastaliq Typography
   // -------------------------------------------------------------------------
-  it("renders risk card and explanation box in Urdu with dir='rtl', font-urdu, and <bdi> protection", () => {
+  it("renders explanation box in Urdu with dir='rtl', font-urdu", () => {
     mockAppContext.isUrdu = true;
     mockAppContext.t = translations.ur;
-
-    const urduRisk: PatientRisk = {
-      status: "ok",
-      band: "moderate",
-      reasons: [
-        {
-          feature: "told_high_bp",
-          contribution: 0.156,
-          label: { en: "history of high blood pressure", ur: "ہائی بلڈ پریشر کی تاریخ" },
-        },
-      ],
-      advisory: "مشاورتی خطرے کا تخمینہ، طبی تشخیص نہیں۔ اپنے ہیلتھ کیئر فراہم کنندہ سے مشورہ کریں۔",
-    };
 
     const urduExplanation: PatientExplanation = {
       status: "ok",
@@ -433,20 +319,9 @@ describe("Patient Risk Card & Explanation Box (I3 Day 2)", () => {
 
     render(
       <div>
-        <PatientRiskCard risk={urduRisk} emergency={false} />
         <ExplanationBox explanation={urduExplanation} emergency={false} />
       </div>
     );
-
-    const card = screen.getByTestId("patient-risk-card");
-    expect(card.getAttribute("dir")).toBe("rtl");
-    expect(card.className).toContain("font-urdu");
-
-    // Urdu badge and reasons
-    expect(screen.getByTestId("patient-risk-badge").textContent).toContain("معتدل خطرہ");
-    const reasonItem = screen.getByTestId("patient-risk-reason-item");
-    expect(reasonItem.textContent).toContain("ہائی بلڈ پریشر کی تاریخ");
-    expect(reasonItem.querySelector("bdi")?.textContent).toBe("ہائی بلڈ پریشر کی تاریخ");
 
     // Explanation Box in Urdu
     const explBox = screen.getByTestId("patient-explanation-box");
@@ -461,16 +336,11 @@ describe("Patient Risk Card & Explanation Box (I3 Day 2)", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 7. Live Mode Never Shows Fixed Demo Example
+  // 6. Live Mode Never Shows Fixed Demo Example
   // -------------------------------------------------------------------------
   it("never shows the 'Example' demo label when in live mode", () => {
     mockAppContext.isLiveMode = true;
 
-    const okRisk: PatientRisk = {
-      status: "ok",
-      band: "low",
-      reasons: [{ feature: "age", label: { en: "your age", ur: "آپ کی عمر" } }],
-    };
     const expl: PatientExplanation = {
       status: "ok",
       sentences: [{ text: "Reading is in target." }],
@@ -479,18 +349,12 @@ describe("Patient Risk Card & Explanation Box (I3 Day 2)", () => {
 
     render(
       <div>
-        <PatientRiskCard risk={okRisk} emergency={false} isDemo={false} />
         <ExplanationBox explanation={expl} emergency={false} isDemo={false} />
       </div>
     );
-
-    const card = screen.getByTestId("patient-risk-card");
-    expect(card.textContent).not.toContain("Example");
-    expect(card.textContent).not.toContain("مثال");
 
     const toggleBtn = screen.getByTestId("explanation-toggle-btn");
     expect(toggleBtn.textContent).not.toContain("Example");
     expect(toggleBtn.textContent).not.toContain("مثال");
   });
 });
-

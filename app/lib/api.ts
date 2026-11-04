@@ -329,26 +329,6 @@ export interface CheckinAnswerResponse {
   safety_note?: string | null;
 }
 
-export interface PatientRiskReasonLabel {
-  en: string;
-  ur: string;
-  roman_ur?: string;
-}
-
-export interface PatientRiskReason {
-  feature: string;
-  contribution?: number;
-  label: PatientRiskReasonLabel;
-}
-
-export interface PatientRisk {
-  status: "ok" | "not_enough_information" | "error" | "not_applicable" | string;
-  band?: "low" | "moderate" | "high" | null;
-  reasons?: PatientRiskReason[];
-  advisory?: string;
-  missing?: string[];
-}
-
 export interface PatientExplanationSentence {
   text: string;
   cites?: string[];
@@ -378,7 +358,6 @@ export interface CheckinCompleteResponse {
   triage?: Record<string, any> | null;
   record_source_label?: string | null;
   safety_note?: string | null;
-  risk?: PatientRisk | null;
   explanation?: PatientExplanation | null;
 }
 

@@ -512,11 +512,7 @@ export interface Translations {
   ocrInvalidItemBanner: string;
   ocrFixOrRemoveHint: string;
 
-  // Patient Risk & Explanation (I3 Day 2)
-  patientRiskTitle: string;
-  patientRiskAdvisory: string;
-  patientRiskMissingWaist: string;
-  patientRiskTopReasons: string;
+  // Patient Explanation (I3 Day 2)
   whyThisResultBtn: string;
   hideWhyThisResultBtn: string;
   explanationSourcesTitle: string;
@@ -1026,11 +1022,7 @@ export const translations: Record<Language, Translations> = {
     ocrInvalidItemBanner: "Please fix or remove the highlighted invalid item before saving.",
     ocrFixOrRemoveHint: "Value is invalid. Click Fix to correct or Remove to discard.",
 
-    // Patient Risk & Explanation (I3 Day 2)
-    patientRiskTitle: "Health Risk Advisory",
-    patientRiskAdvisory: "Advisory risk assessment, not a clinical diagnosis. Consult your healthcare provider.",
-    patientRiskMissingWaist: "To help assess your health trends, please record your waist circumference in your profile settings.",
-    patientRiskTopReasons: "Contributing factors from your records:",
+    // Patient Explanation (I3 Day 2)
     whyThisResultBtn: "Why this result?",
     hideWhyThisResultBtn: "Hide explanation",
     explanationSourcesTitle: "Clinical Sources",
@@ -1540,11 +1532,7 @@ export const translations: Record<Language, Translations> = {
     ocrInvalidItemBanner: "براہ کرم محفوظ کرنے سے پہلے نمایاں کیے گئے غلط اندراج کو درست کریں یا ہٹا دیں۔",
     ocrFixOrRemoveHint: "یہ اندراج درست نہیں ہے۔ درست کرنے کے لیے 'درست کریں' یا خارج کرنے کے لیے 'ہٹائیں' کا بٹن دبائیں۔",
 
-    // Patient Risk & Explanation (I3 Day 2)
-    patientRiskTitle: "صحت کے خطرے کی ایڈوائزری",
-    patientRiskAdvisory: "مشاورتی خطرے کا تخمینہ، طبی تشخیص نہیں۔ اپنے ہیلتھ کیئر فراہم کنندہ سے مشورہ کریں۔",
-    patientRiskMissingWaist: "اپنی صحت کے رجحانات کا اندازہ لگانے کے لیے، براہ کرم اپنے پروفائل کی ترتیبات میں اپنی کمر کی پیمائش درج کریں۔",
-    patientRiskTopReasons: "آپ کے ریکارڈ سے اثر انداز ہونے والے عوامل:",
+    // Patient Explanation (I3 Day 2)
     whyThisResultBtn: "یہ نتیجہ کیوں؟",
     hideWhyThisResultBtn: "وضاحت چھپائیں",
     explanationSourcesTitle: "طبی ذرائع",
