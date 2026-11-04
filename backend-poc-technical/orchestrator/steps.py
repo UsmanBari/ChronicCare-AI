@@ -88,27 +88,19 @@ def _build_patient_risk_view(risk: Optional[Dict[str, Any]]) -> Optional[Dict[st
 
 
 def _build_patient_explain_view(explanation: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Patient-facing explanation view: sentences + sources + mode/reason."""
+    """Patient-facing explanation view: sentences + sources. Strictly excludes mode, reason, and error traces."""
     if not explanation or not isinstance(explanation, dict):
         return None
     if explanation.get("status") == "error":
-        res = {
+        return {
             "status": "error",
             "sentences": [],
             "sources": [],
-            "mode": "template",
-            "reason": explanation.get("reason", "error"),
         }
-        return res
-    view = {
+    return {
         "sentences": explanation.get("sentences", []),
         "sources": explanation.get("sources", []),
     }
-    if "mode" in explanation:
-        view["mode"] = explanation["mode"]
-    if "reason" in explanation:
-        view["reason"] = explanation["reason"]
-    return view
 
 
 def _sanitize_trace_for_persistence(trace: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:

@@ -113,7 +113,7 @@ The presentation of the explanation is strictly segregated between patient and p
 | **Citations** | Shown with public titles (e.g. ADA 2024 Glycemic Targets). | Includes full chunk IDs, section paths, and guideline editions. |
 | **Probability & ML** | **Strictly absent.** Never includes percentages or logits. | Includes full quantitative probability, model versions, and caveats. |
 | **Rejection Audit** | Not shown (returns pre-verified template without error traces). | `rejected_reasons` array details any validator checks that failed. |
-| **Mode & Reason** | Present (`mode` and `reason` if fallback). | Full explainer metadata including delivery mode and reason code. |
+| **Mode & Reason** | **Strictly absent.** (sentences + sources only). | Full explainer metadata including delivery mode and reason code. |
 
 ---
 

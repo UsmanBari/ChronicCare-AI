@@ -226,8 +226,9 @@ def run_benchmark(explain_enabled: bool, rsa_key, client: TestClient) -> Dict[st
         assert resp.status_code == 200, f"Checkin failed with {resp.status_code}: {resp.text}"
         latencies.append(elapsed)
 
-        expl = resp.json().get("explanation")
-        if expl:
+        stored = app_store.get_checkin_result(cid)
+        if stored and stored.get("explanation"):
+            expl = stored["explanation"]
             m = expl.get("mode", "unknown")
             mode_counts[m] = mode_counts.get(m, 0) + 1
             if m == "template":
