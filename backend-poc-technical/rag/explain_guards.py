@@ -668,7 +668,7 @@ def guarded_explain(
 
     # 6. Check Time Budget before spawning worker
     time_left = deadline - time.monotonic()
-    if time_left < 0.5:
+    if time_left <= 0.0:
         circ_breaker.record_failure(is_rate_limit=False)
         return _make_template_fallback("budget_timeout", ["Insufficient budget before LLM dispatch"])
 
@@ -681,34 +681,33 @@ def guarded_explain(
     record_llm_call()
 
     worker_result: Dict[str, Any] = {}
-    worker_error: Dict[str, Exception] = {}
+    worker_error: Dict[str, Any] = {}
     worker_tokens: Dict[str, int] = {"count": 0}
     timed_out_flag = threading.Event()
 
     def _worker():
         try:
-            # We call explain() or custom prompt with deadline timeout
             from rag.explainer import explain
 
-            # Wrap llm to capture usage if chat_with_usage is available
-            worker_time_left = max(0.5, deadline - time.monotonic())
-
             def _timed_llm(**kwargs):
-                kwargs["timeout"] = max(0.5, deadline - time.monotonic())
-                if hasattr(llm, "chat_with_usage"):
-                    text, tokens = llm.chat_with_usage(**kwargs)
-                    worker_tokens["count"] += tokens
-                    return text
-                elif callable(llm):
-                    res = llm(**kwargs)
-                    # If mock returns tuple (text, tokens)
-                    if isinstance(res, tuple) and len(res) == 2 and isinstance(res[1], int):
-                        worker_tokens["count"] += res[1]
-                        return res[0]
-                    return res
-                elif hasattr(llm, "chat"):
-                    return llm.chat(**kwargs)
-                raise TypeError("Invalid LLM callable")
+                try:
+                    kwargs["timeout"] = max(0.1, deadline - time.monotonic())
+                    if hasattr(llm, "chat_with_usage"):
+                        text, tokens = llm.chat_with_usage(**kwargs)
+                        worker_tokens["count"] += tokens
+                        return text
+                    elif callable(llm):
+                        res = llm(**kwargs)
+                        if isinstance(res, tuple) and len(res) == 2 and isinstance(res[1], int):
+                            worker_tokens["count"] += res[1]
+                            return res[0]
+                        return res
+                    elif hasattr(llm, "chat"):
+                        return llm.chat(**kwargs)
+                    raise TypeError("Invalid LLM callable")
+                except Exception as exc:
+                    worker_error["error"] = exc
+                    raise
 
             res = explain(
                 triage_result=triage_copy,
@@ -756,10 +755,28 @@ def guarded_explain(
         circ_breaker.record_failure(is_rate_limit=False)
         return _make_template_fallback("error", ["No response received from explainer worker"])
 
-    # Check if explanation was rejected by clinical validators
+    # Check if explanation was rejected by clinical validators or failed due to LLM error
     if res_data.get("mode") == "template":
+        if "error" in worker_error:
+            err = worker_error["error"]
+            err_str = str(err).lower()
+            is_429 = "rate limit" in err_str or "429" in err_str or type(err).__name__ == "RateLimitError"
+            circ_breaker.record_failure(is_rate_limit=is_429)
+            reason = "rate_limited" if is_429 else "error"
+            res_data["reason"] = reason
+            record_fallback(reason)
+            return res_data
+
+        rej_list = res_data.get("rejected_reasons", [])
+        if any("LLM execution error" in r for r in rej_list):
+            is_429 = any("rate limit" in r.lower() or "429" in r.lower() for r in rej_list)
+            circ_breaker.record_failure(is_rate_limit=is_429)
+            reason = "rate_limited" if is_429 else "error"
+            res_data["reason"] = reason
+            record_fallback(reason)
+            return res_data
+
         # Clinical validator rejection does NOT count as breaker failure
-        # Ensure reason is set
         res_data["reason"] = "validation_failed"
         record_fallback("validation_failed")
         return res_data
