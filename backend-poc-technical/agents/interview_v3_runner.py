@@ -31,6 +31,8 @@ from agents.answer_understanding import (
     parse_yes_no,
     parse_number,
     parse_bp,
+    detect_caregiver_phrase,
+    is_unclear_adherence_answer,
 )
 from agents.answer_validation import (
     ValidationResult,
@@ -192,6 +194,10 @@ def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots
         adh_en = "Medication: Missed doses reported"
         adh_ur = "ادویات: خوراک چھوٹنے کی اطلاع"
         adh_ro = "Dawai: Dose miss hone ki ittila"
+    elif adh == "unclear":
+        adh_en = "Medication: Adherence unclear"
+        adh_ur = "ادویات: استعمال واضح نہیں"
+        adh_ro = "Dawai: Istemal wazeh nahi"
     else:
         adh_en = "Medication: Not recorded"
         adh_ur = "ادویات: درج نہیں"
@@ -415,6 +421,18 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             session_state.setdefault("wordgroup_hits", []).append({"group": wg_hit.group, "step": current_slot})
             session_state["safety_note"] = get_safety_note(lang)
 
+    # G-14: Caregiver detection across Urdu, Roman Urdu, and English
+    if detect_caregiver_phrase(clean_answer):
+        session_state["answered_by"] = "caregiver"
+        session_state.setdefault("known_slots", {})["answered_by"] = "caregiver"
+        if triage_res.category != "odd_input":
+            triage_res = TriageInputResult(
+                category="odd_input",
+                odd_class="third_party_report",
+                response_key="third_party_report",
+                is_off_topic=True,
+            )
+
     if triage_res.category == "odd_input":
         odd_count = session_state.get("consecutive_odd_count", 0) + 1
         session_state["consecutive_odd_count"] = odd_count
@@ -613,8 +631,58 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
 
     if is_yes_no:
         yn_res = parse_yes_no(clean_answer, lang=lang)
+        target_slot = bank_item.slot if bank_item else current_slot
+        is_adh_slot = (
+            current_slot in ("adherence_diabetes", "adherence_hypertension", "diabetes_adherence", "hypertension_adherence")
+            or (bank_item and bank_item.slot in ("adherence_diabetes", "adherence_hypertension"))
+        )
+
+        # G-02: Adherence clarification flow
+        if is_adh_slot and session_state.get("awaiting_adherence_clarification") == current_slot:
+            session_state["awaiting_adherence_clarification"] = None
+            if is_unclear_adherence_answer(clean_answer):
+                known_slots[target_slot] = "unclear"
+                known_slots[f"{target_slot}__evidence"] = clean_answer
+                known_slots[f"{target_slot}__partial"] = False
+                session_state["needs_clinician_flag"] = True
+                session_state.setdefault("patient_notes", []).append("Medication adherence answer was unclear after clarification. Flagged for review.")
+            else:
+                yn_clarified = parse_yes_no(clean_answer, lang=lang)
+                if yn_clarified["value"] == "yes":
+                    known_slots[target_slot] = True
+                    known_slots[f"{target_slot}__evidence"] = clean_answer
+                elif yn_clarified["value"] == "no":
+                    known_slots[target_slot] = False
+                    known_slots[f"{target_slot}__evidence"] = clean_answer
+                else:
+                    known_slots[target_slot] = "unclear"
+                    known_slots[f"{target_slot}__evidence"] = clean_answer
+                    session_state["needs_clinician_flag"] = True
+                    session_state.setdefault("patient_notes", []).append("Medication adherence answer was unclear after clarification. Flagged for review.")
+        elif is_adh_slot:
+            if is_unclear_adherence_answer(clean_answer):
+                session_state["awaiting_adherence_clarification"] = current_slot
+                session_state["current_question"] = get_message("adherence_clarification_question", lang)
+                session_state["why_text"] = get_message("adherence_clarification_why", lang)
+                session_state["options"] = ["yes", "no"]
+                session_state["option_items"] = [
+                    {"value": "yes", "label": "ہاں" if lang == "ur" else ("haan" if lang == "roman_ur" else "yes")},
+                    {"value": "no", "label": "نہیں" if lang == "ur" else ("nahi" if lang == "roman_ur" else "no")},
+                ]
+                return session_state
+            else:
+                yn_res = parse_yes_no(clean_answer, lang=lang)
+                if yn_res["value"] == "yes":
+                    known_slots[target_slot] = True
+                elif yn_res["value"] == "no":
+                    known_slots[target_slot] = False
+                else:
+                    known_slots[target_slot] = "unclear"
+                    session_state["needs_clinician_flag"] = True
+                known_slots[f"{target_slot}__evidence"] = yn_res.get("evidence", clean_answer)
+                known_slots[f"{target_slot}__partial"] = yn_res.get("partial", False)
         # B3: Safety-class item answered unknown -> re-ask ONCE with clarification
-        if bank_item and bank_item.priority_class == "safety" and yn_res["value"] == "unknown":
+        elif bank_item and bank_item.priority_class == "safety" and parse_yes_no(clean_answer, lang=lang)["value"] == "unknown":
             if session_state.get("safety_clarify_slot") == current_slot:
                 # Second time unknown -> keep unknown, set needs_clinician_flag, move on
                 session_state["safety_clarify_slot"] = None
@@ -957,6 +1025,8 @@ def finish_v3_session(session_state: Dict[str, Any]) -> Dict[str, Any]:
             session_state.get("possible_severe_low")
             or (not cond_readings and cond_symptom_reported)
             or (cond_readings and session_state.get("needs_clinician_flag"))
+            or known_slots.get("adherence_diabetes") == "unclear"
+            or known_slots.get("adherence_hypertension") == "unclear"
         )
 
         intakes.append({

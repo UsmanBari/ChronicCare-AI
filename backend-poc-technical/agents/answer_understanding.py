@@ -109,10 +109,15 @@ _UNKNOWN_PHRASES = [
     ["maloom", "nahi"],
     ["maloom", "nahin"],
     ["shayad"],
+    ["yad", "nahi"],
+    ["yad", "nahin"],
+    ["yaad", "nahi"],
+    ["yaad", "nahin"],
     # Urdu script
     ["معلوم", "نہیں"],
     ["پتہ", "نہیں"],
     ["شاید"],
+    ["یاد", "نہیں"],
 ]
 
 _PARTIAL_PHRASES = [
@@ -779,3 +784,94 @@ def parse_bp(text: str) -> Dict[str, Any]:
             return {"value": [sys_val, dia_val], "evidence": evidence}
 
     return {"value": None, "evidence": evidence}
+
+
+# -----------------------------------------------------------------------------
+# A5: Caregiver & Adherence Understanding (Stage 9A G-02, G-14)
+# -----------------------------------------------------------------------------
+_KINSHIP_WORDS = r"(?:ammi|abbu|abu|walida|walid(?: sahab)?|bhai|behan|baji|dadi|dada|nani|nana|ami|والدہ|والد|امی|ابو|باجی|بھائی|بہن|دادا|دادی|نانا|نانی)"
+
+_CAREGIVER_PATTERNS = [
+    re.compile(rf"\b{_KINSHIP_WORDS}\s+ki\s+taraf\s+se\b", re.IGNORECASE),
+    re.compile(r"(?:امی|والدہ|والد|ابو|باجی|بھائی|بہن|دادا|دادی|نانا|نانی)\s+کی\s+طرف\s+سے", re.IGNORECASE),
+    re.compile(rf"\b(?:main|mein|hum)\s+apn[ie]\s+{_KINSHIP_WORDS}\s+ke\s+liye\b", re.IGNORECASE),
+    re.compile(rf"\b{_KINSHIP_WORDS}\s+ke\s+liye\s+(?:jawab|check[\s-]?in|checking|kar\s+raha)\b", re.IGNORECASE),
+    re.compile(r"(?:امی|والدہ|والد|ابو|باجی|بھائی|بہن)\s+کے\s+لیے\s+(?:جواب|چیک\s*ان)", re.IGNORECASE),
+    re.compile(rf"^\s*(?:main\s+)?{_KINSHIP_WORDS}\s+ke\s+liye\s*$", re.IGNORECASE),
+    re.compile(rf"\bmer[ei]\s+{_KINSHIP_WORDS}\s+ki\s+(?:checking|check[\s-]?in)\b", re.IGNORECASE),
+    re.compile(r"میں\s+اپن[یے]\s+(?:امی|والدہ|والد|ابو)\s+کے\s+لیے\s+جواب\s+دے\s+رہا", re.IGNORECASE),
+    re.compile(r"میں\s+اپنے\s+والد\s+کے\s+لیے", re.IGNORECASE),
+]
+
+_LOOKALIKE_EXCLUSIONS = [
+    re.compile(rf"\b{_KINSHIP_WORDS}\s+(?:ne\s+(?:kaha|bola|kaha\s+tha|mangwai)|kehti\s+hain|bolte\s+hain)\b", re.IGNORECASE),
+    re.compile(r"(?:امی|والدہ|والد|ابو)\s+نے\s+(?:کہا|بولا)", re.IGNORECASE),
+]
+
+
+def detect_caregiver_phrase(text: str) -> bool:
+    """
+    Detects whether a free-text response indicates third-party caregiver proxy
+    in English, Roman Urdu, or Urdu script (G-14).
+    Rejects look-alike advisory statements (e.g. 'ammi ne kaha tha dawai lo').
+    """
+    if not text:
+        return False
+    norm = normalise_text(text)
+    for excl in _LOOKALIKE_EXCLUSIONS:
+        if excl.search(norm):
+            return False
+    for pat in _CAREGIVER_PATTERNS:
+        if pat.search(norm):
+            return True
+    return False
+
+
+_ADHERENCE_UNCLEAR_CUES = [
+    ["maybe"],
+    ["shayad"],
+    ["pata", "nahi"],
+    ["pata", "nahin"],
+    ["pta", "nahi"],
+    ["pta", "nahin"],
+    ["maloom", "nahi"],
+    ["maloom", "nahin"],
+    ["kal", "tha"],
+    ["kabhi", "kabhi"],
+    ["not", "sure"],
+    ["yad", "nahi"],
+    ["yad", "nahin"],
+    ["yaad", "nahi"],
+    ["yaad", "nahin"],
+    ["dont", "know"],
+    ["don't", "know"],
+    ["dont", "remember"],
+    ["don't", "remember"],
+    ["یاد", "نہیں"],
+    ["پتہ", "نہیں"],
+    ["معلوم", "نہیں"],
+    ["شاید"],
+    ["کبھی", "کبھی"],
+    ["sometimes"],
+    ["thora", "sa"],
+    ["thoda", "sa"],
+]
+
+
+def is_unclear_adherence_answer(text: str) -> bool:
+    """
+    Determines if an answer to a medication adherence question is unclear,
+    hedged, partial, or non-affirmative (G-02).
+    Unclear answers must NOT be recorded as adherent.
+    """
+    if not text:
+        return True
+    norm = normalise_text(text)
+    tokens = _tokenize(norm)
+    for cue in _ADHERENCE_UNCLEAR_CUES:
+        if _contains_subsequence(tokens, cue):
+            return True
+    yn = parse_yes_no(text)
+    if yn["value"] == "unknown" or yn.get("partial") is True:
+        return True
+    return False
