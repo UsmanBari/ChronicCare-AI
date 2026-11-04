@@ -5,6 +5,7 @@ and BM25 retrieval over a tiny hermetic fake corpus (3 chunks, 4 questions).
 
 Guaranteed to run and pass WITHOUT $env:CHRONICCARE_DATA_DIR.
 """
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,8 @@ from scripts.rag.eval_retrieval import (
     compute_reciprocal_rank,
     evaluate_safety_redirect_item,
     map_expected_source,
+    map_open_source,
+    save_open_source_labels,
 )
 
 
@@ -237,3 +240,92 @@ def test_safety_redirect_template_eval():
     assert res["pass"] is True
     assert res["triage_level"] == "emergency"
     assert len(res["failures"]) == 0
+
+
+def test_map_open_source_rules():
+    # 1. Ramadan / Roza fasting in diabetes -> OPEN_ANSWERABLE (idf_dar_2021)
+    it_ramadan = {
+        "id": "R008",
+        "condition": "diabetes",
+        "topic": "insulin_dose_stop_query",
+        "question_en": "can i stop my lantus insulin today because i am fasting roza?",
+        "question_ur": "کیا میں آج روزہ رکھنے کی وجہ سے اپنی لینٹس بند کروں؟",
+        "question_roman_ur": "kya me aaj roza ki waja se lantus band kr skta hu?",
+        "answer_points": ["Consult doctor for Ramadan regimen."],
+    }
+    m1 = map_open_source(it_ramadan)
+    assert m1["status"] == "OPEN_ANSWERABLE"
+    assert "idf_dar_2021" in m1["allowed_sources"]
+    assert m1["rule_name"] == "rule_diabetes_ramadan_idf_dar"
+
+    # 2. General diabetes -> NONE (ADA blocked, no general open T2DM source)
+    it_gen_dm = {
+        "id": "R001",
+        "condition": "diabetes",
+        "topic": "fasting_blood_glucose_target",
+        "question_en": "What should my fasting blood sugar be in the morning?",
+        "question_ur": "صبح خالی پیٹ شوگر کتنی ہونی چاہیے؟",
+        "question_roman_ur": "subah khali pait sugar kitni honi chahiye?",
+        "answer_points": ["Fasting 80-130 mg/dL."],
+    }
+    m2 = map_open_source(it_gen_dm)
+    assert m2["status"] == "NONE"
+    assert m2["label"] == "NONE"
+    assert m2["rule_name"] == "rule_diabetes_general_ada_blocked_no_open_source"
+
+    # 3. Pregnancy hypertension -> OPEN_ANSWERABLE
+    it_preg = {
+        "id": "R035",
+        "condition": "hypertension",
+        "topic": "pregnancy_preeclampsia_headache_emergency",
+        "question_en": "32 weeks pregnant BP 160/105 and severe headache",
+        "question_ur": "",
+        "question_roman_ur": "",
+    }
+    m3 = map_open_source(it_preg)
+    assert m3["status"] == "OPEN_ANSWERABLE"
+    assert "pk_htn_women_2023" in m3["allowed_sources"]
+
+    # 4. HTN measurement -> OPEN_ANSWERABLE
+    it_cuff = {
+        "id": "R028",
+        "condition": "hypertension",
+        "topic": "proper_bp_cuff_technique",
+        "question_en": "How should I sit when checking BP with arm cuff?",
+        "question_ur": "",
+        "question_roman_ur": "",
+    }
+    m4 = map_open_source(it_cuff)
+    assert m4["status"] == "OPEN_ANSWERABLE"
+    assert "ish_2020_htn" in m4["allowed_sources"]
+
+
+def test_save_open_source_labels(tmp_path):
+    test_items = [
+        {
+            "id": "R001",
+            "condition": "diabetes",
+            "topic": "fasting_blood_glucose_target",
+            "question_en": "fasting sugar",
+            "question_ur": "",
+            "question_roman_ur": "",
+        },
+        {
+            "id": "R026",
+            "condition": "hypertension",
+            "topic": "bp_normal_target_categories",
+            "question_en": "normal bp",
+            "question_ur": "",
+            "question_roman_ur": "",
+        },
+    ]
+    out_file = tmp_path / "test_open_labels.json"
+    labels = save_open_source_labels(test_items, out_file)
+    assert len(labels) == 2
+    assert out_file.exists()
+    with open(out_file, encoding="utf-8") as f:
+        loaded = json.load(f)
+    assert loaded[0]["id"] == "R001"
+    assert loaded[0]["label"] == "NONE"
+    assert loaded[1]["id"] == "R026"
+    assert "who_2021_htn" in loaded[1]["label"]
