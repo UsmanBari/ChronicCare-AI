@@ -134,6 +134,12 @@ def detect_meter_lo_hi(text: str) -> Optional[str]:
     lo_match = bool(re.search(r"(?<![a-zA-Z])lo(?![a-zA-Z])", norm, re.IGNORECASE))
     hi_match = bool(re.search(r"(?<![a-zA-Z])hi(?![a-zA-Z])", norm, re.IGNORECASE))
 
+    # Urdu script transliterations: ایل او / ایچ آئی (with or without meter/screen cue)
+    if not lo_match:
+        lo_match = bool(re.search(r"(?:^|[^\w])ایل\s*او(?:[^\w]|$)", norm))
+    if not hi_match:
+        hi_match = bool(re.search(r"(?:^|[^\w])ایچ\s*[آا]ئی?(?:[^\w]|$)", norm))
+
     if has_meter_screen:
         # If meter or screen is explicitly mentioned, also accept "low" or "high"
         if not lo_match and re.search(r"\b(low)\b", norm, re.IGNORECASE):

@@ -52,6 +52,13 @@ def test_detect_meter_lo_hi_urdu():
     assert detect_meter_lo_hi("اسکرین پر HI") == "HI"
     assert detect_meter_lo_hi("میٹر پر LO لکھا ہے") == "LO"
     assert detect_meter_lo_hi("اسکرین پر HI لکھا آ رہا ہے") == "HI"
+    # Urdu-script transliteration tests (with and without meter/screen cue)
+    assert detect_meter_lo_hi("ایل او") == "LO"
+    assert detect_meter_lo_hi("ایچ آئی") == "HI"
+    assert detect_meter_lo_hi("میٹر پر ایل او") == "LO"
+    assert detect_meter_lo_hi("میٹر پر ایچ آئی") == "HI"
+    assert detect_meter_lo_hi("اسکرین پر ایل او") == "LO"
+    assert detect_meter_lo_hi("اسکرین پر ایچ آئی") == "HI"
 
 
 def test_detect_meter_lo_hi_roman_urdu():
