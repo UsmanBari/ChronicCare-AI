@@ -372,8 +372,8 @@ MUTATIONS = [
         "id": "M-U7-2",
         "name": "Explain step mutates clinical triage decision",
         "file": BACKEND_DIR / "orchestrator" / "steps.py",
-        "target": '        explain_res = explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n        )\n        return explain_res',
-        "replacement": '        explain_res = explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n        )\n        triage_decision["final_triage_level"] = "routine"\n        return explain_res',
+        "target": '        explain_res = guarded_explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n            condition=active_cond,\n        )\n        return explain_res',
+        "replacement": '        explain_res = guarded_explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n            condition=active_cond,\n        )\n        triage_decision["final_triage_level"] = "routine"\n        return explain_res',
         "test_node": "backend-poc-technical/test_checkin_risk_explain.py::test_mutation_proof_m_u7_2_explain_never_modifies_triage",
     },
     # --- Day 2 Danger Word Groups Mutations (M-U-WG-1 to M-U-WG-4) ---
@@ -432,6 +432,30 @@ MUTATIONS = [
         "target": "            if symptom_reported:\n                narrative_review = True",
         "replacement": "            if False and symptom_reported:\n                narrative_review = True",
         "test_node": "backend-poc-technical/test_r8_no_readings.py::test_r8_v2_no_readings_with_symptom_is_review",
+    },
+    {
+        "id": "M-U-G1",
+        "name": "Explain Guards: Disable time budget deadline enforcement",
+        "file": BACKEND_DIR / "rag" / "explain_guards.py",
+        "target": "    if thread.is_alive():\n        # Hard budget timeout",
+        "replacement": "    if False and thread.is_alive():\n        # Hard budget timeout",
+        "test_node": "backend-poc-technical/test_explain_guards.py::test_mutation_proof_budget_deadline_killed",
+    },
+    {
+        "id": "M-U-G2",
+        "name": "Explain Guards: Disable cache number re-validation",
+        "file": BACKEND_DIR / "rag" / "explain_guards.py",
+        "target": "        v3_errs = validate_number_grounding(resolved_sentences, allowed_nums)\n        if v3_errs:\n            with self._lock:\n                self.misses += 1\n            return None",
+        "replacement": "        v3_errs = validate_number_grounding(resolved_sentences, allowed_nums)\n        if False and v3_errs:\n            with self._lock:\n                self.misses += 1\n            return None",
+        "test_node": "backend-poc-technical/test_explain_guards.py::test_mutation_proof_cache_revalidation_killed",
+    },
+    {
+        "id": "M-U-G3",
+        "name": "Explain Guards: Circuit breaker never opens on failure threshold",
+        "file": BACKEND_DIR / "rag" / "explain_guards.py",
+        "target": "            if is_rate_limit or self._consecutive_failures >= self._threshold or self._state == self.HALF_OPEN:\n                self._state = self.OPEN",
+        "replacement": "            if False and (is_rate_limit or self._consecutive_failures >= self._threshold or self._state == self.HALF_OPEN):\n                self._state = self.OPEN",
+        "test_node": "backend-poc-technical/test_explain_guards.py::test_mutation_proof_breaker_never_opens_killed",
     },
 ]
 

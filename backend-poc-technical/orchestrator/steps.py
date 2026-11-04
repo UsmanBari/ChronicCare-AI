@@ -88,7 +88,7 @@ def _build_patient_risk_view(risk: Optional[Dict[str, Any]]) -> Optional[Dict[st
 
 
 def _build_patient_explain_view(explanation: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Patient-facing explanation view: sentences + sources."""
+    """Patient-facing explanation view: sentences + sources. Strictly excludes mode, reason, and error traces."""
     if not explanation or not isinstance(explanation, dict):
         return None
     if explanation.get("status") == "error":
@@ -830,28 +830,35 @@ def step_explain(
 
         if llm is None:
             try:
-                from llm.groq_client import chat as groq_chat, is_configured
-                if is_configured():
-                    llm = groq_chat
+                import llm.groq_client as groq_client
+                if groq_client.is_configured():
+                    llm = groq_client.chat_with_usage
             except Exception:
                 llm = None
 
+        active_cond = "diabetes"
+        if state and getattr(state, "conditions_on_file", None):
+            active_cond = state.conditions_on_file[0]
+        elif state and getattr(state, "active_condition", None):
+            active_cond = state.active_condition
+
         import copy
-        from rag.explainer import explain
+        from rag.explain_guards import guarded_explain
         triage_copy = copy.deepcopy(triage_decision.get("triage_dict") or {"level": triage_decision.get("final_triage_level", "routine")})
 
-        explain_res = explain(
+        explain_res = guarded_explain(
             triage_result=triage_copy,
             readings=readings,
             language=language,
             store=store,
             llm=llm,
+            condition=active_cond,
         )
         return explain_res
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning("Explain step error: %s", type(e).__name__)
-        return {"status": "error", "error_type": type(e).__name__}
+        return {"status": "error", "error_type": type(e).__name__, "mode": "template", "reason": "error"}
 
 
 def build_direct_trace(

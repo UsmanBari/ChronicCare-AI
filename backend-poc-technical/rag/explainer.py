@@ -346,6 +346,7 @@ def explain(
     store: ChunkStore | None = None,
     llm: Any = None,
     model: str | None = None,
+    retriever: Any = None,
 ) -> dict[str, Any]:
     """
     Generate a grounded clinical explanation for an already decided triage level.
@@ -361,11 +362,20 @@ def explain(
     # Determine query mapping
     query_mapping = build_query_from_triage(triage_copy, readings_copy)
 
-    # Chunk retrieval
+    # Chunk retrieval (reuses cached retriever or builds once)
     candidate_chunks: list[dict[str, Any]] = []
-    if store is not None:
-        retriever = BM25Retriever(store)
-        candidate_chunks = retriever.retrieve(
+    retriever_obj = retriever
+    if retriever_obj is None and store is not None:
+        try:
+            from rag.explain_guards import get_or_build_retriever
+            retriever_obj = get_or_build_retriever(store)
+        except Exception:
+            retriever_obj = BM25Retriever(store)
+        if retriever_obj is None:
+            retriever_obj = BM25Retriever(store)
+
+    if retriever_obj is not None:
+        candidate_chunks = retriever_obj.retrieve(
             query=query_mapping.query_text,
             top_k=3,
             condition=query_mapping.condition,
@@ -373,7 +383,7 @@ def explain(
         )
         if len(candidate_chunks) < 2:
             # Fallback without condition filter
-            candidate_chunks = retriever.retrieve(
+            candidate_chunks = retriever_obj.retrieve(
                 query=query_mapping.query_text,
                 top_k=3,
                 min_priority=query_mapping.min_priority,
