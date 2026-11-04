@@ -282,3 +282,85 @@ def test_explain_urdu_translation_pipeline(mock_chunk_store: JsonlChunkStore):
     assert res["language"] == "ur"
     assert "185/125" in res["sentences"][0]["text"]
     assert res["rejected_reasons"] == []
+
+
+def test_explainer_prompt_contains_decided_level_and_level_words_constraint(mock_chunk_store: JsonlChunkStore):
+    """
+    Review Item 2: Asserts the LLM prompt clearly states the decided level
+    and strictly forbids using any other clinical level words ('routine', 'review', 'urgent', 'emergency').
+    """
+    captured_messages = []
+
+    def mock_spy_llm(**kwargs):
+        captured_messages.extend(kwargs.get("messages", []))
+        return json.dumps({
+            "sentences": [
+                {"text": "Your blood pressure of 145/92 mmHg requires clinical review within seven days [S1].", "cites": ["S1"]},
+                {"text": "A clinician should review your medication plan to ensure targets are achieved [S1].", "cites": ["S1"]},
+            ]
+        })
+
+    triage = {
+        "level": "review",
+        "trigger_category": "bp_moderate",
+        "systolic": 145,
+        "diastolic": 92,
+    }
+    readings = {"blood_pressure_systolic": 145, "blood_pressure_diastolic": 92}
+
+    res = explain(triage, readings, language="en", store=mock_chunk_store, llm=mock_spy_llm)
+    assert res["mode"] == "llm"
+    assert res["rejected_reasons"] == []
+
+    # Verify prompt contents
+    all_prompt_text = " ".join([m.get("content", "") for m in captured_messages])
+    assert "review" in all_prompt_text
+    # Asserts forbidden level words are listed as negative constraints in the prompt
+    for lvl in ["routine", "urgent", "emergency"]:
+        assert lvl in all_prompt_text
+    # Asserts the prompt specifically instructs never to use other level words
+    assert "NEVER use any other" in all_prompt_text or "never use any other" in all_prompt_text.lower()
+
+
+def test_explainer_max_tokens_is_250_and_four_sentences_fit(mock_chunk_store: JsonlChunkStore):
+    """
+    Review Item 4: Asserts explainer passes max_tokens=250 to LLM and verifies
+    that a 4-sentence clinical explanation safely fits well under 250 tokens.
+    """
+    passed_kwargs = {}
+
+    def mock_llm_kwargs(**kwargs):
+        passed_kwargs.update(kwargs)
+        return json.dumps({
+            "sentences": [
+                {"text": "Your systolic blood pressure of 145 mmHg is elevated above guideline recommendations for hypertension [S1].", "cites": ["S1"]},
+                {"text": "A healthcare provider should review your blood pressure pattern within seven days to update your care plan [S1].", "cites": ["S1"]},
+            ]
+        })
+
+    triage = {
+        "level": "review",
+        "trigger_category": "bp_moderate",
+        "systolic": 145,
+        "diastolic": 92,
+    }
+    readings = {"blood_pressure_systolic": 145, "blood_pressure_diastolic": 92}
+
+    res = explain(triage, readings, language="en", store=mock_chunk_store, llm=mock_llm_kwargs)
+    assert res["mode"] == "llm"
+    assert passed_kwargs.get("max_tokens") == 250
+
+    # Test 4-sentence answer length
+    four_sentence_json = json.dumps({
+        "sentences": [
+            {"text": "Your systolic blood pressure reading of 145 mmHg is elevated above the recommended clinical threshold for hypertension [S1].", "cites": ["S1"]},
+            {"text": "A clinician should review your blood pressure pattern within seven days to ensure your treatment plan remains safe and effective [S1].", "cites": ["S1"]},
+            {"text": "Please continue monitoring your daily readings at home and note down any accompanying symptoms such as headaches or dizziness [S1].", "cites": ["S1"]},
+            {"text": "If you experience any chest pain, shortness of breath, or sudden visual disturbances, seek immediate medical attention promptly [S1].", "cites": ["S1"]},
+        ]
+    })
+    # Word count estimation: 1 word ~ 1.33 tokens in standard BPE; JSON tokens typically word count * 1.4
+    word_count = len(four_sentence_json.split())
+    estimated_tokens = word_count * 1.4
+    assert estimated_tokens < 200, f"4-sentence answer estimated tokens ({estimated_tokens}) exceeds 200"
+    assert len(four_sentence_json) < 1000

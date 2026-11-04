@@ -128,6 +128,9 @@ def setup_guards_test_env(tmp_path, monkeypatch, cert_pem):
     monkeypatch.setenv("FIREBASE_PROJECT_ID", TEST_PROJECT_ID)
     monkeypatch.setenv("REQUIRE_INCLUSION", "0")
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    import llm.gemini_client as gemini_client
+    monkeypatch.setattr(gemini_client, "is_configured", lambda: False)
 
     app_store.migrate(db_path=db_file, backend="sqlite")
     local_store.init_db(db_path=db_file)
@@ -703,11 +706,15 @@ def test_docs_env_table_matches_code_constants():
     from rag.explain_guards import (
         DEFAULT_BUDGET_SECONDS,
         DEFAULT_DAILY_TOKEN_CAP,
+        DEFAULT_DAILY_TOKEN_CAP_GEMINI,
         DEFAULT_CACHE_MAX,
         DEFAULT_CACHE_TTL_SECONDS,
         DEFAULT_BREAKER_FAILURES,
         DEFAULT_BREAKER_COOLDOWN_SECONDS,
         DEFAULT_MAX_WORKERS,
+        DEFAULT_LLM_PROVIDER,
+        DEFAULT_LLM_PROVIDER_ORDER,
+        DEFAULT_LLM_CONDITIONS,
     )
 
     doc_path = Path(__file__).resolve().parent.parent / "docs" / "EXPLAIN_GUARDS.md"
@@ -733,11 +740,17 @@ def test_docs_env_table_matches_code_constants():
         "EXPLAIN_ENABLED": ("bool", "false"),
         "EXPLAIN_BUDGET_SECONDS": ("float", str(DEFAULT_BUDGET_SECONDS)),
         "EXPLAIN_DAILY_TOKEN_CAP": ("int", str(DEFAULT_DAILY_TOKEN_CAP)),
+        "EXPLAIN_DAILY_TOKEN_CAP_GEMINI": ("int", str(DEFAULT_DAILY_TOKEN_CAP_GEMINI)),
         "EXPLAIN_CACHE_MAX": ("int", str(DEFAULT_CACHE_MAX)),
         "EXPLAIN_CACHE_TTL_SECONDS": ("float", str(DEFAULT_CACHE_TTL_SECONDS)),
         "EXPLAIN_BREAKER_FAILURES": ("int", str(DEFAULT_BREAKER_FAILURES)),
         "EXPLAIN_BREAKER_COOLDOWN_SECONDS": ("float", str(DEFAULT_BREAKER_COOLDOWN_SECONDS)),
         "EXPLAIN_POOL_MAX_WORKERS": ("int", str(DEFAULT_MAX_WORKERS)),
+        "LLM_PROVIDER": ("str", DEFAULT_LLM_PROVIDER),
+        "LLM_PROVIDER_ORDER": ("str", DEFAULT_LLM_PROVIDER_ORDER),
+        "GEMINI_MODEL": ("str", '""'),
+        "GEMINI_THINKING_BUDGET": ("str", '""'),
+        "EXPLAIN_LLM_CONDITIONS": ("str", DEFAULT_LLM_CONDITIONS),
     }
 
     for env_var, (exp_type, exp_val) in expected.items():

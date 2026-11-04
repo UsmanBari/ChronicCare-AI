@@ -95,17 +95,33 @@ def chat_with_usage(
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            usage_obj = getattr(response, "usage", None)
-            total_tokens = getattr(usage_obj, "total_tokens", 0) if usage_obj else 0
+            if isinstance(response, dict):
+                usage_obj = response.get("usage")
+                choices = response.get("choices", [])
+            else:
+                usage_obj = getattr(response, "usage", None)
+                choices = getattr(response, "choices", [])
 
-            choices = getattr(response, "choices", [])
+            total_tokens = 0
+            if usage_obj is not None:
+                if isinstance(usage_obj, dict):
+                    total_tokens = int(usage_obj.get("total_tokens", 0) or 0)
+                else:
+                    total_tokens = int(getattr(usage_obj, "total_tokens", 0) or 0)
+
             if not choices:
                 return "", total_tokens
             
             first_choice = choices[0]
-            message = getattr(first_choice, "message", None)
-            if message and getattr(message, "content", None):
-                return message.content.strip(), total_tokens
+            if isinstance(first_choice, dict):
+                msg_obj = first_choice.get("message", {})
+                content = msg_obj.get("content", "") if isinstance(msg_obj, dict) else getattr(msg_obj, "content", "")
+            else:
+                msg_obj = getattr(first_choice, "message", None)
+                content = getattr(msg_obj, "content", "") if msg_obj else ""
+
+            if content:
+                return str(content).strip(), total_tokens
             return "", total_tokens
         except (APIConnectionError, RateLimitError, InternalServerError, APITimeoutError) as e:
             attempts += 1
