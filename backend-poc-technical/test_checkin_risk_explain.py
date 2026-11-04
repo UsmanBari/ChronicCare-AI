@@ -85,8 +85,11 @@ def setup_test_env(tmp_path, monkeypatch, cert_pem):
     monkeypatch.setenv("DEMO_ROLE_MAP", "provider@demo.com:provider")
     monkeypatch.setenv("REQUIRE_INCLUSION", "0")
 
-    # Guard: ensure no accidental real Groq calls
+    # Guard: ensure no accidental real Groq / Gemini calls
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    import llm.gemini_client as gemini_client
+    monkeypatch.setattr(gemini_client, "is_configured", lambda: False)
 
     app_store.migrate(db_path=db_file, backend="sqlite")
     local_store.init_db(db_path=db_file)

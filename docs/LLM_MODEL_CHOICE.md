@@ -187,7 +187,8 @@ Based on empirical data across all candidate open-weight models:
 
 1. **If LLM Explanations Are Enabled (`EXPLAIN_ENABLED=on`):**
    - **Recommended Model:** `qwen/qwen3.8-27b`.
-   - **Justification:** It is the only evaluated model achieving **zero clinical validator violations (0 errors across V1–V5)**, fast single-call generation ($p50 = 0.52\text{s}$), and complete fluency in Urdu and Roman Urdu under a fully open Apache 2.0 license.
+   - **Rate Limit & Capacity Guidance:** Pick a Groq model whose output-tokens-per-minute limit on console.groq.com/settings/limits is at least 6000.
+   - **Justification:** It is the only evaluated model achieving **zero clinical validator violations (0 errors across V1–V5)**, fast single-call generation ($p50 = 0.52\text{s}$), and complete fluency in Urdu and Roman Urdu under a fully open Apache 2.0 license. Explainer generation `max_tokens` is set to 250 (a 4-sentence clinical explanation occupies ~100-140 tokens).
    - **Secondary Candidates:**
      - `openai/gpt-oss-120b`: Poor validator adherence (19 violations on V1 length and V5 level contradiction); heavy single-call latency ($p50 = 11.81\text{s}$).
      - `openai/gpt-oss-20b`: Reasoning tokens consume excessive quota, triggering daily TPD limits and intermittent JSON truncation.
@@ -209,7 +210,7 @@ To expand daily token capacity and prevent single-provider service disruption, C
 - **Extra Daily Capacity:** Provides an independent daily token allowance (`EXPLAIN_DAILY_TOKEN_CAP_GEMINI`, default 150,000 tokens) completely separate from Groq.
 - **Failover Routing:** When `LLM_PROVIDER=auto` (default), the explainer routes requests to the primary provider (Groq) and automatically fails over to Gemini within the same request time budget if Groq encounters an HTTP 429 rate limit, network timeout, or connection failure.
 - **Model Configuration:** The model is not hardcoded; it is chosen by the `GEMINI_MODEL` environment variable (e.g. `gemini-2.5-flash`). If `GEMINI_MODEL` is unset, Gemini fails cleanly without crashing.
-- **Optional Reasoning Configuration:** Supports `GEMINI_THINKING_BUDGET` (e.g. `0` to disable thinking on models that support it).
+- **Optional Reasoning Configuration:** Supports `GEMINI_THINKING_BUDGET`. Defaults to `0` when unset (`thinkingConfig.thinkingBudget = 0`) to eliminate thinking latency; set explicitly to `none` to omit `thinkingConfig`.
 
 ### 2. Privacy, Free-Tier Data Advisory, and Licence Restrictions
 > [!IMPORTANT]

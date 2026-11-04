@@ -504,13 +504,15 @@ def explain(
         "6. DO NOT tell the patient to start, stop, increase, decrease, or change their medicines.\n"
         "7. DO NOT diagnose any disease (e.g., never say 'you have diabetes').\n"
         "8. NEVER say 'nothing to worry', 'you are fine', or 'no need to see a doctor' if the level is review, urgent, or emergency.\n"
-        "9. Output valid JSON only with structure:\n"
+        f"9. CLINICAL LEVEL CONSISTENCY: The decided triage level for this patient is '{decided_level}'. You MUST NEVER use any other clinical level words ('routine', 'review', 'urgent', 'emergency') anywhere in the explanation text except '{decided_level}'. Do not mention routine care or routine follow-up unless the decided level is specifically 'routine'.\n"
+        "10. Output valid JSON only with structure:\n"
         '{"sentences": [{"text": "sentence text with citation [S1].", "cites": ["S1"]}]}'
     )
 
     user_prompt = (
         f"Patient Readings: {json.dumps(readings_copy)}\n"
-        f"Triage Result: Level = '{decided_level}', Trigger = '{query_mapping.trigger_category}'\n\n"
+        f"Decided Triage Level: '{decided_level}' (Trigger: '{query_mapping.trigger_category}')\n"
+        f"CLINICAL INSTRUCTION: The decided level is '{decided_level}'. Never use any other level word ('routine', 'review', 'urgent', 'emergency') except '{decided_level}'.\n\n"
         f"Guideline Passages:\n{passages_text}\n\n"
         "Generate the explanation in English."
     )
@@ -523,7 +525,7 @@ def explain(
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": 0.0,
-            "max_tokens": 400,
+            "max_tokens": 250,
             "timeout": 8.0,
         }
         if model:

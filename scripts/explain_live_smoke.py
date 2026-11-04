@@ -113,6 +113,12 @@ def main():
         default="auto",
         help="LLM provider routing mode (default: auto)",
     )
+    parser.add_argument(
+        "--budget",
+        type=float,
+        default=3.0,
+        help="Time budget in seconds per check-in for LLM explanations (default: 3.0)",
+    )
     args = parser.parse_args()
 
     print("=" * 90)
@@ -123,6 +129,7 @@ def main():
     gemini_set = "SET" if os.getenv("GEMINI_API_KEY", "").strip() else "NOT SET"
 
     print(f"Provider mode requested: {args.provider}")
+    print(f"Time Budget:             {args.budget:.1f} s")
     print(f"GROQ_API_KEY:            {groq_set}")
     print(f"GEMINI_API_KEY:          {gemini_set}")
 
@@ -138,6 +145,7 @@ def main():
 
     os.environ["EXPLAIN_ENABLED"] = "true"
     os.environ["LLM_PROVIDER"] = args.provider
+    os.environ["EXPLAIN_BUDGET_SECONDS"] = str(args.budget)
     os.environ["EXPLAIN_LLM_CONDITIONS"] = "hypertension"
     reset_explain_guards()
 
@@ -163,8 +171,8 @@ def main():
     ]
 
     print("\nRunning 10 pipeline check-ins (Hypertension only, en / ur / roman_ur)...\n")
-    print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Time (s)':<10}")
-    print("-" * 90)
+    print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Elapsed':<10} | {'Provider Latency':<25}")
+    print("-" * 115)
 
     try:
         run_id = int(time.time())
@@ -239,29 +247,42 @@ def main():
             provider_used = explanation.get("provider", "-") or "-"
 
             curr_metrics = get_explain_guard_metrics()
-            curr_groq = curr_metrics.get("groq", {}).get("tokens_used_today", 0)
-            curr_gemini = curr_metrics.get("gemini", {}).get("tokens_used_today", 0)
+            curr_groq = curr_metrics.get("groq", {}).get("tokens_used_today", 0) if "groq" in curr_metrics else curr_metrics.get("tokens_used_by_provider", {}).get("groq", 0)
+            curr_gemini = curr_metrics.get("gemini", {}).get("tokens_used_today", 0) if "gemini" in curr_metrics else curr_metrics.get("tokens_used_by_provider", {}).get("gemini", 0)
             tokens_delta = (curr_groq - prev_tokens_groq) + (curr_gemini - prev_tokens_gemini)
             prev_tokens_groq = curr_groq
             prev_tokens_gemini = curr_gemini
 
+            timings = explanation.get("provider_timings", {})
+            if timings:
+                prov_timing_str = ", ".join(f"{p}: {t:.2f}s" for p, t in timings.items())
+            else:
+                prov_timing_str = "-"
+
             print(
                 f"{idx:<3} | {item['lang']:<8} | {triage_level:<10} | {provider_used:<10} | "
-                f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {elapsed:<10.3f}"
+                f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {elapsed:<10.3f} | {prov_timing_str:<25}"
             )
 
         final_metrics = get_explain_guard_metrics()
+        final_groq_calls = final_metrics.get("groq", {}).get("llm_calls", 0) if "groq" in final_metrics else final_metrics.get("llm_calls_by_provider", {}).get("groq", 0)
+        final_groq_tokens = final_metrics.get("groq", {}).get("tokens_used_today", 0) if "groq" in final_metrics else final_metrics.get("tokens_used_by_provider", {}).get("groq", 0)
+        final_groq_breaker = final_metrics.get("groq", {}).get("breaker_state", "-") if "groq" in final_metrics else final_metrics.get("breaker_states", {}).get("groq", "-")
+        final_gemini_calls = final_metrics.get("gemini", {}).get("llm_calls", 0) if "gemini" in final_metrics else final_metrics.get("llm_calls_by_provider", {}).get("gemini", 0)
+        final_gemini_tokens = final_metrics.get("gemini", {}).get("tokens_used_today", 0) if "gemini" in final_metrics else final_metrics.get("tokens_used_by_provider", {}).get("gemini", 0)
+        final_gemini_breaker = final_metrics.get("gemini", {}).get("breaker_state", "-") if "gemini" in final_metrics else final_metrics.get("breaker_states", {}).get("gemini", "-")
+
         print("\n" + "=" * 90)
         print("LIVE SMOKE TEST SUMMARY")
         print("=" * 90)
         print(f"Cache Hits:            {final_metrics.get('cache_hits', 0)}")
         print(f"Cache Misses:          {final_metrics.get('cache_misses', 0)}")
-        print(f"Groq LLM Calls:        {final_metrics.get('groq', {}).get('llm_calls', 0)}")
-        print(f"Groq Tokens Used:      {final_metrics.get('groq', {}).get('tokens_used_today', 0)} / {MAX_TOKEN_BUDGET_PER_PROVIDER}")
-        print(f"Groq Breaker State:    {final_metrics.get('groq', {}).get('breaker_state', '-')}")
-        print(f"Gemini LLM Calls:      {final_metrics.get('gemini', {}).get('llm_calls', 0)}")
-        print(f"Gemini Tokens Used:    {final_metrics.get('gemini', {}).get('tokens_used_today', 0)} / {MAX_TOKEN_BUDGET_PER_PROVIDER}")
-        print(f"Gemini Breaker State:  {final_metrics.get('gemini', {}).get('breaker_state', '-')}")
+        print(f"Groq LLM Calls:        {final_groq_calls}")
+        print(f"Groq Tokens Used:      {final_groq_tokens} / {MAX_TOKEN_BUDGET_PER_PROVIDER}")
+        print(f"Groq Breaker State:    {final_groq_breaker}")
+        print(f"Gemini LLM Calls:      {final_gemini_calls}")
+        print(f"Gemini Tokens Used:    {final_gemini_tokens} / {MAX_TOKEN_BUDGET_PER_PROVIDER}")
+        print(f"Gemini Breaker State:  {final_gemini_breaker}")
         print(f"Template Fallbacks:    {final_metrics.get('template_fallbacks_by_reason', {})}")
         print("=" * 90)
         return 0
