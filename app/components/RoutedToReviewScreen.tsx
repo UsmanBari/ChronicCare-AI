@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { AlertCircle, UserCheck, Home, ArrowLeft, Clock, ShieldCheck, Calendar, CheckCircle2, Pill, AlertTriangle, ShieldAlert } from "lucide-react";
 import { describeMedicationItem } from "../lib/presentation";
+import { PatientRiskCard } from "./PatientRiskCard";
+import { ExplanationBox } from "./ExplanationBox";
 
 export const RoutedToReviewScreen = () => {
   const { returnToHomeAndClearRun, appointment, setAppointment, isLiveMode, liveCheckinResult, checkIn, t, isUrdu } = useApp();
@@ -186,6 +188,12 @@ export const RoutedToReviewScreen = () => {
           </span>
           <span className="font-bold">Pending Provider Review</span>
         </div>
+
+        {/* Patient Risk Advisory (flags on) */}
+        <PatientRiskCard />
+
+        {/* Guideline Explanation Box (flags on) */}
+        <ExplanationBox />
 
         {/* Request Follow-Up Appointment CTA - Mock Mode Only */}
         {!isLiveMode && (
