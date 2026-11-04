@@ -38,7 +38,6 @@ if str(ML_DIR) not in sys.path:
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from llm import groq_client
 from ml.evaluation import bootstrap_ci
 from rag.explain_guards import (
     CircuitBreaker,
@@ -128,7 +127,14 @@ class TokenTrackingLLM:
         token_cap: int = DEFAULT_DAILY_TOKEN_LIMIT,
         model: str = RECOMMENDED_MODEL,
     ):
-        self.real_client_fn = real_client_fn or groq_client.chat_with_usage
+        if real_client_fn is None:
+            try:
+                from llm import groq_client
+
+                real_client_fn = groq_client.chat_with_usage
+            except ImportError:
+                real_client_fn = None
+        self.real_client_fn = real_client_fn
         self.token_cap = token_cap
         self.model = model
         self.cumulative_prompt_tokens = 0
@@ -138,6 +144,8 @@ class TokenTrackingLLM:
         self.cap_reached = False
 
     def __call__(self, messages: Any, **kwargs: Any) -> tuple[str, int]:
+        if self.real_client_fn is None:
+            raise RuntimeError("No LLM client configured")
         if self.cumulative_total_tokens >= self.token_cap:
             self.cap_reached = True
             raise RuntimeError(f"Token cap reached: cumulative {self.cumulative_total_tokens} >= {self.token_cap}")
@@ -497,14 +505,22 @@ def main() -> None:
         print(f"Notice: Corpus chunks file not found at {chunks_file}; running in template/no-chunk mode.")
 
     # Check Groq configuration
-    is_groq_set = groq_client.is_configured()
-    print(f"GROQ_API_KEY: {'SET' if is_groq_set else 'NOT SET'}")
+    is_groq_set = False
+    configured_model = RECOMMENDED_MODEL
+    llm_callable = None
+    try:
+        from llm import groq_client
 
-    configured_model = groq_client.get_configured_model() or RECOMMENDED_MODEL
+        is_groq_set = groq_client.is_configured()
+        configured_model = groq_client.get_configured_model() or RECOMMENDED_MODEL
+        llm_callable = groq_client.chat_with_usage if is_groq_set else None
+    except ImportError:
+        pass
+
+    print(f"GROQ_API_KEY: {'SET' if is_groq_set else 'NOT SET'}")
     print(f"Model: {configured_model}")
 
     run_llm = is_groq_set and not args.baseline_only
-    llm_callable = groq_client.chat_with_usage if is_groq_set else None
 
     summary = run_evaluation(
         cases=cases,
