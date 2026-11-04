@@ -511,6 +511,11 @@ export interface Translations {
   reasonAllergyTooLong: string;
   ocrInvalidItemBanner: string;
   ocrFixOrRemoveHint: string;
+
+  // Patient Explanation (I3 Day 2)
+  whyThisResultBtn: string;
+  hideWhyThisResultBtn: string;
+  explanationSourcesTitle: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -1016,6 +1021,11 @@ export const translations: Record<Language, Translations> = {
     reasonAllergyTooLong: "Reaction text too long",
     ocrInvalidItemBanner: "Please fix or remove the highlighted invalid item before saving.",
     ocrFixOrRemoveHint: "Value is invalid. Click Fix to correct or Remove to discard.",
+
+    // Patient Explanation (I3 Day 2)
+    whyThisResultBtn: "Why this result?",
+    hideWhyThisResultBtn: "Hide explanation",
+    explanationSourcesTitle: "Clinical Sources",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1521,5 +1531,10 @@ export const translations: Record<Language, Translations> = {
     reasonAllergyTooLong: "ردعمل کی تفصیل بہت طویل ہے",
     ocrInvalidItemBanner: "براہ کرم محفوظ کرنے سے پہلے نمایاں کیے گئے غلط اندراج کو درست کریں یا ہٹا دیں۔",
     ocrFixOrRemoveHint: "یہ اندراج درست نہیں ہے۔ درست کرنے کے لیے 'درست کریں' یا خارج کرنے کے لیے 'ہٹائیں' کا بٹن دبائیں۔",
+
+    // Patient Explanation (I3 Day 2)
+    whyThisResultBtn: "یہ نتیجہ کیوں؟",
+    hideWhyThisResultBtn: "وضاحت چھپائیں",
+    explanationSourcesTitle: "طبی ذرائع",
   }
 };
