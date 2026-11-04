@@ -35,6 +35,7 @@ from agents.answer_understanding import (
 from agents.answer_validation import (
     ValidationResult,
     check_contradiction,
+    detect_meter_lo_hi,
     validate_bp_input,
     validate_glucose_input,
 )
@@ -333,6 +334,51 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     # =========================================================================
     # 1. INPUT TRIAGE & RED-FLAG SCREEN FIRST (Authoritative Deterministic Safety)
     # =========================================================================
+    if session_state.get("awaiting_vomiting_followup"):
+        session_state.pop("awaiting_vomiting_followup", None)
+        yn_res = parse_yes_no(clean_answer, lang=lang)
+        if yn_res["value"] == "yes":
+            session_state["emergency"] = True
+            session_state["emergency_reason"] = "unable_to_keep_fluids"
+            session_state["completed"] = True
+            session_state["step"] = "COMPLETE"
+            session_state["current_question"] = None
+            session_state["system_note"] = get_message("emergency_red_flag_note", lang)
+            from agents.danger_wordgroups import get_safety_note
+            session_state["safety_note"] = get_safety_note(lang)
+            return session_state
+        else:
+            session_state["needs_clinician_flag"] = True
+            session_state["urgent"] = True
+            session_state["completed"] = True
+            session_state["step"] = "COMPLETE"
+            session_state["current_question"] = None
+            session_state["system_note"] = "Check-in flagged for urgent clinician review."
+            return session_state
+
+    from agents.adaptive_interview_agent import run_stage1_red_flag_screen
+    rf_screen_flagged, rf_screen_reason = run_stage1_red_flag_screen(clean_answer)
+    if rf_screen_flagged:
+        if rf_screen_reason == "non_stop_vomiting":
+            session_state["awaiting_vomiting_followup"] = True
+            session_state["current_question"] = get_message("vomiting_followup_question", lang)
+            session_state["options"] = ["yes", "no"]
+            session_state["option_items"] = [
+                {"value": "yes", "label": "ہاں" if lang == "ur" else ("haan" if lang == "roman_ur" else "yes")},
+                {"value": "no", "label": "نہیں" if lang == "ur" else ("nahi" if lang == "roman_ur" else "no")},
+            ]
+            return session_state
+        elif rf_screen_reason == "unable_to_keep_fluids":
+            session_state["emergency"] = True
+            session_state["emergency_reason"] = "unable_to_keep_fluids"
+            session_state["completed"] = True
+            session_state["step"] = "COMPLETE"
+            session_state["current_question"] = None
+            session_state["system_note"] = get_message("emergency_red_flag_note", lang)
+            from agents.danger_wordgroups import get_safety_note
+            session_state["safety_note"] = get_safety_note(lang)
+            return session_state
+
     triage_res: TriageInputResult = classify_input(
         clean_answer,
         consecutive_odd_count=session_state.get("consecutive_odd_count", 0),
@@ -455,6 +501,44 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             session_state["needs_clinician_flag"] = True
 
     elif "glucose_reading" in current_slot or current_slot == "diabetes_glucose_reading":
+        if session_state.get("awaiting_meter_lo_hi_confirmation"):
+            token = session_state.pop("awaiting_meter_lo_hi_confirmation")
+            yn_res = parse_yes_no(clean_answer, lang=lang)
+            if yn_res["value"] == "yes":
+                reason = "meter_lo" if token == "LO" else "meter_hi"
+                session_state["emergency"] = True
+                session_state["emergency_reason"] = reason
+                session_state["completed"] = True
+                session_state["step"] = "COMPLETE"
+                session_state["current_question"] = None
+                session_state["system_note"] = get_message("emergency_red_flag_note", lang)
+                from agents.danger_wordgroups import get_safety_note
+                session_state["safety_note"] = get_safety_note(lang)
+                if token == "LO":
+                    session_state["possible_severe_low"] = True
+                    session_state["possible_severe_low_guidance"] = get_message("glucose_unclear_unit_safety_guidance", lang)
+                return session_state
+            else:
+                session_state["current_question"] = (
+                    "براہ کرم شوگر کی ریڈنگ نمبر میں بتائیں (mg/dL یا mmol/L)۔" if lang == "ur"
+                    else ("Barah-e-karam sugar ki reading number mein batayein (mg/dL ya mmol/L)." if lang == "roman_ur"
+                    else "Please enter your numeric blood sugar reading in mg/dL (or mmol/L).")
+                )
+                session_state["options"] = None
+                session_state["option_items"] = None
+                return session_state
+
+        meter_token = detect_meter_lo_hi(clean_answer)
+        if meter_token:
+            session_state["awaiting_meter_lo_hi_confirmation"] = meter_token
+            session_state["current_question"] = get_message("meter_lo_hi_confirmation", lang)
+            session_state["options"] = ["yes", "no"]
+            session_state["option_items"] = [
+                {"value": "yes", "label": "ہاں" if lang == "ur" else ("haan" if lang == "roman_ur" else "yes")},
+                {"value": "no", "label": "نہیں" if lang == "ur" else ("nahi" if lang == "roman_ur" else "no")},
+            ]
+            return session_state
+
         p_num = parse_number(clean_answer)
         cleaned_for_val = clean_answer
         if p_num["value"] is not None and p_num["kind"] == "words":
@@ -468,7 +552,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         if val_res.needs_unit_clarification:
             session_state["awaiting_glucose_unit"] = True
             session_state["raw_unclarified_glucose"] = val_res.value
-            session_state["current_question"] = get_message("unit_clarification_question", lang, value=f"{val_res.value:g}")
+            session_state["current_question"] = get_message("unit_clarification_question", lang)
             session_state["why_text"] = get_message("unit_clarification_why", lang)
             session_state["options"] = ["mmol/L", "mg/dL"]
             session_state["option_items"] = [
@@ -482,7 +566,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             if not has_unit and 41.0 <= float(val_res.value) <= 54.0:
                 session_state["awaiting_glucose_unit"] = True
                 session_state["raw_unclarified_glucose"] = val_res.value
-                session_state["current_question"] = get_message("unit_clarification_question", lang, value=f"{val_res.value:g}")
+                session_state["current_question"] = get_message("unit_clarification_question", lang)
                 session_state["why_text"] = get_message("unit_clarification_why", lang)
                 session_state["options"] = ["mmol/L", "mg/dL"]
                 session_state["option_items"] = [
@@ -788,6 +872,8 @@ def finish_v3_session(session_state: Dict[str, Any]) -> Dict[str, Any]:
     conditions = session_state.get("conditions_on_file", ["diabetes"])
     readings_dict = session_state.get("readings", {})
     raw_answers = session_state.get("raw_answers", {})
+    known_slots = session_state.get("known_slots", {})
+    lang = session_state.get("language") or "en"
     answered_by = session_state.get("answered_by", "patient")
     intakes = []
 
@@ -852,8 +938,30 @@ def finish_v3_session(session_state: Dict[str, Any]) -> Dict[str, Any]:
         for pn in session_state.get("patient_notes", []):
             cond_notes.append(pn)
 
+        # Rule R8: symptom reported evaluation
+        cond_symptom_reported = False
+        if cond_symptoms:
+            for s in cond_symptoms:
+                from agents.adaptive_interview_agent import _looks_affirmative
+                if parse_yes_no(str(s), lang=lang).get("value") == "yes" or _looks_affirmative(str(s)) is True:
+                    cond_symptom_reported = True
+                    break
+        for sk in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems", "sick_vomiting_diarrhea"):
+            if known_slots.get(sk) is True:
+                cond_symptom_reported = True
+                break
+        if session_state.get("findings"):
+            cond_symptom_reported = True
+
+        cond_requires_review = bool(
+            session_state.get("possible_severe_low")
+            or (not cond_readings and cond_symptom_reported)
+            or (cond_readings and session_state.get("needs_clinician_flag"))
+        )
+
         intakes.append({
             "condition": cond,
+            "level": "review" if cond_requires_review else "routine",
             "readings": cond_readings,
             "symptoms": cond_symptoms,
             "notes": cond_notes,
@@ -861,6 +969,7 @@ def finish_v3_session(session_state: Dict[str, Any]) -> Dict[str, Any]:
             "emergency_reason": session_state.get("emergency_reason"),
             "confidence": confidence,
             "answered_by": answered_by,
+            "requires_review": cond_requires_review,
         })
 
     return {

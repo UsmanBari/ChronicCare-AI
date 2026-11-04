@@ -67,7 +67,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from data_sources.models import NormalizedObservation, NormalizedPatient
-from agents.answer_validation import validate_glucose_input
+from agents.answer_validation import validate_glucose_input, detect_meter_lo_hi
+from agents.interview_bank.loader import get_message
 
 # -----------------------------------------------------------------------------
 # Configuration
@@ -158,8 +159,11 @@ class InterviewState:
 # The Urdu phrases are UNREVIEWED: they need a native-speaker / clinical check before
 # anyone relies on them. Urdu negation is NOT handled, so an Urdu match always flags.
 RED_FLAG_LEVELS: Dict[str, str] = {
-    "unable_to_keep_fluids": "urgent",
+    "unable_to_keep_fluids": "emergency",
+    "non_stop_vomiting": "urgent",
     "dka_vomiting_high_glucose": "urgent",
+    "meter_lo": "emergency",
+    "meter_hi": "emergency",
 }
 
 
@@ -207,13 +211,24 @@ RED_FLAG_PATTERNS: Dict[str, List[str]] = {
         "unable to keep fluids down", "not able to keep fluids down",
         "can't keep water down", "cant keep water down",
         "cannot keep water down", "can not keep water down",
+        "unable to keep water down", "not able to keep water down",
+        "can't keep medicines down", "cant keep medicines down",
+        "can't keep my medicines down", "cant keep my medicines down",
+        "cannot keep medicines down", "can not keep medicines down",
+        "unable to keep medicines down", "not able to keep medicines down",
         "won't stay down", "wont stay down",
         "throwing up everything",
         "keep nothing down",
+        "paani bhi nahi rukta", "paani bhi nahi ruk raha",
+        "dawa nahi ruk rahi", "dawa ulti mein nikal jati hai", "dawai nahi ruk rahi",
+        "پانی بھی نہیں رک رہا", "پانی بھی نہیں رکتا",
+        "دوائی نہیں رک رہی", "دوا نہیں رک رہی",
+    ],
+    "non_stop_vomiting": [
         "vomiting all day",
         "vomiting nonstop", "vomiting non-stop", "vomiting with high sugar",
-        "musalsal ultiyan", "ulti ruk nahi rahi", "paani bhi nahi rukta",
-        "مسلسل الٹیاں", "الٹی رک نہیں رہی", "پانی بھی نہیں رک رہا",
+        "musalsal ultiyan", "ulti ruk nahi rahi",
+        "مسلسل الٹیاں", "الٹی رک نہیں رہی",
     ],
     "severe_headache": ["worst headache", "severe headache", "thunderclap headache", "worst headache of my life", "sudden severe headache"],
     "vision_loss": ["sudden vision loss", "lost my vision", "went blind",
@@ -249,6 +264,7 @@ def _is_past_event(clause: str) -> bool:
 
 def run_stage1_red_flag_screen(free_text: str) -> Tuple[bool, Optional[str]]:
     """Returns (triggered, category). Runs before any other processing of an answer."""
+    candidates = []
     for clause in _CLAUSE_BREAK.split(_normalize(free_text)):
         if not clause.strip():
             continue
@@ -258,8 +274,14 @@ def run_stage1_red_flag_screen(free_text: str) -> Tuple[bool, Optional[str]]:
             for pattern in patterns:
                 for match in re.finditer(re.escape(pattern), clause):
                     if not _is_negated(clause, match.start()):
-                        return True, category
-    return False, None
+                        candidates.append(category)
+                        break
+    if not candidates:
+        return False, None
+    for cat in candidates:
+        if get_red_flag_level(cat) == "emergency":
+            return True, cat
+    return True, candidates[0]
 
 
 # -----------------------------------------------------------------------------
@@ -408,6 +430,15 @@ def get_current_question(state: InterviewState) -> Optional[str]:
     """The question the UI should show now, or None if not started / finished."""
     if not state.step or state.step == INTERVIEW_COMPLETE:
         return None
+    if state.answers.get("_pending_meter_lo_hi"):
+        lang = state.answers.get("language") or "en"
+        return get_message("meter_lo_hi_confirmation", lang)
+    if state.answers.get("_pending_vomiting_followup"):
+        lang = state.answers.get("language") or "en"
+        return get_message("vomiting_followup_question", lang)
+    if state.step == DiabetesStep.MISSING_DATA_CHECKPOINT.value and state.answers.get("_glucose_pending_raw"):
+        lang = state.answers.get("language") or "en"
+        return get_message("unit_clarification_question", lang)
     if state.active_condition == "diabetes":
         return _diabetes_next_question(DiabetesStep(state.step))
     return _hypertension_next_question(HypertensionStep(state.step))
@@ -453,10 +484,10 @@ def _process_glucose_input(answer: str, previously_asked: bool = False) -> Tuple
             guidance = None
             reason = None
             if conv_mg < 54.0:
-                guidance = "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume 15g fast-acting sugar immediately."
+                guidance = "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
                 reason = "glucose_very_low"
             elif conv_mg < 70.0:
-                guidance = "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume fast-acting sugar."
+                guidance = "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
                 reason = "glucose_low"
             return conv_mg, "mg/dL", False, guidance, reason
 
@@ -472,12 +503,12 @@ def _process_glucose_input(answer: str, previously_asked: bool = False) -> Tuple
                 return None, None, True, None, None
             else:
                 val = float(num_val)
-                guidance = "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume 15g fast-acting sugar immediately."
+                guidance = "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
                 reason = "glucose value unit unclear, possible low"
                 return val, "unclear", False, guidance, reason
 
     # 3. Standard validate_glucose_input flow
-    if v_res.valid:
+    if v_res.valid and v_res.value is not None:
         val = v_res.value
         if v_res.unit == "mmol/L":
             if not previously_asked:
@@ -491,7 +522,7 @@ def _process_glucose_input(answer: str, previously_asked: bool = False) -> Tuple
 
     if v_res.is_possible_severe_low or (previously_asked and v_res.value is not None and float(v_res.value) <= 54):
         val = float(v_res.value) if v_res.value is not None else 35.0
-        guidance = v_res.safety_guidance or "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume 15g fast-acting sugar immediately."
+        guidance = v_res.safety_guidance or "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
         reason = v_res.review_reason or "glucose value unit unclear, possible low"
         return val, "unclear", False, guidance, reason
 
@@ -499,6 +530,16 @@ def _process_glucose_input(answer: str, previously_asked: bool = False) -> Tuple
 
 
 def _diabetes_advance_v2_3(state: InterviewState, answer: str) -> InterviewState:
+    if state.answers.get("_pending_vomiting_followup"):
+        state.answers.pop("_pending_vomiting_followup", None)
+        state.stage1_red_flag = True
+        if _looks_affirmative(answer) is True:
+            state.stage1_reason = "unable_to_keep_fluids"
+        else:
+            state.stage1_reason = "non_stop_vomiting"
+        state.step = DiabetesStep.COMPLETE.value
+        return state
+
     step = DiabetesStep(state.step)
     answers = state.answers
 
@@ -506,6 +547,31 @@ def _diabetes_advance_v2_3(state: InterviewState, answer: str) -> InterviewState
         answers["greeting_response"] = answer
         state.step = DiabetesStep.GLUCOSE_READING.value
     elif step == DiabetesStep.GLUCOSE_READING:
+        if state.answers.get("_pending_meter_lo_hi"):
+            token = state.answers.pop("_pending_meter_lo_hi")
+            lang = state.answers.get("language") or "en"
+            if _looks_affirmative(answer) is True:
+                reason = "meter_lo" if token == "LO" else "meter_hi"
+                state.stage1_red_flag = True
+                state.stage1_reason = reason
+                if token == "LO":
+                    state.answers["possible_severe_low"] = True
+                    state.answers["safety_guidance"] = get_message("glucose_unclear_unit_safety_guidance", lang)
+                    state.answers["review_reason"] = "meter_lo"
+                else:
+                    state.answers["review_reason"] = "meter_hi"
+                state.step = DiabetesStep.COMPLETE.value
+                return state
+            else:
+                state.missing_data_asked_once = True
+                state.step = DiabetesStep.MISSING_DATA_CHECKPOINT.value
+                return state
+
+        meter_token = detect_meter_lo_hi(answer)
+        if meter_token:
+            state.answers["_pending_meter_lo_hi"] = meter_token
+            return state
+
         reading, unit, needs_clarify, guidance, rev_reason = _process_glucose_input(answer, previously_asked=False)
         if needs_clarify and not state.missing_data_asked_once:
             state.missing_data_asked_once = True
@@ -662,8 +728,21 @@ def _hypertension_advance_v2_3(state: InterviewState, answer: str) -> InterviewS
 
 
 def _diabetes_advance(state: InterviewState, answer: str) -> InterviewState:
+    if state.answers.get("_pending_vomiting_followup"):
+        state.answers.pop("_pending_vomiting_followup", None)
+        state.stage1_red_flag = True
+        if _looks_affirmative(answer) is True:
+            state.stage1_reason = "unable_to_keep_fluids"
+        else:
+            state.stage1_reason = "non_stop_vomiting"
+        state.step = DiabetesStep.COMPLETE.value
+        return state
+
     triggered, reason = run_stage1_red_flag_screen(answer)
     if triggered:
+        if reason == "non_stop_vomiting":
+            state.answers["_pending_vomiting_followup"] = True
+            return state
         state.stage1_red_flag = True
         state.stage1_reason = reason
         state.step = DiabetesStep.COMPLETE.value
@@ -678,6 +757,31 @@ def _diabetes_advance(state: InterviewState, answer: str) -> InterviewState:
         answers["greeting_response"] = answer
         state.step = DiabetesStep.GLUCOSE_READING.value
     elif step == DiabetesStep.GLUCOSE_READING:
+        if state.answers.get("_pending_meter_lo_hi"):
+            token = state.answers.pop("_pending_meter_lo_hi")
+            lang = state.answers.get("language") or "en"
+            if _looks_affirmative(answer) is True:
+                reason = "meter_lo" if token == "LO" else "meter_hi"
+                state.stage1_red_flag = True
+                state.stage1_reason = reason
+                if token == "LO":
+                    state.answers["possible_severe_low"] = True
+                    state.answers["safety_guidance"] = get_message("glucose_unclear_unit_safety_guidance", lang)
+                    state.answers["review_reason"] = "meter_lo"
+                else:
+                    state.answers["review_reason"] = "meter_hi"
+                state.step = DiabetesStep.COMPLETE.value
+                return state
+            else:
+                state.missing_data_asked_once = True
+                state.step = DiabetesStep.MISSING_DATA_CHECKPOINT.value
+                return state
+
+        meter_token = detect_meter_lo_hi(answer)
+        if meter_token:
+            state.answers["_pending_meter_lo_hi"] = meter_token
+            return state
+
         reading, unit, needs_clarify, guidance, rev_reason = _process_glucose_input(answer, previously_asked=False)
         if needs_clarify and not state.missing_data_asked_once:
             state.missing_data_asked_once = True
@@ -732,8 +836,21 @@ def _diabetes_advance(state: InterviewState, answer: str) -> InterviewState:
 
 
 def _hypertension_advance(state: InterviewState, answer: str) -> InterviewState:
+    if state.answers.get("_pending_vomiting_followup"):
+        state.answers.pop("_pending_vomiting_followup", None)
+        state.stage1_red_flag = True
+        if _looks_affirmative(answer) is True:
+            state.stage1_reason = "unable_to_keep_fluids"
+        else:
+            state.stage1_reason = "non_stop_vomiting"
+        state.step = HypertensionStep.COMPLETE.value
+        return state
+
     triggered, reason = run_stage1_red_flag_screen(answer)
     if triggered:
+        if reason == "non_stop_vomiting":
+            state.answers["_pending_vomiting_followup"] = True
+            return state
         state.stage1_red_flag = True
         state.stage1_reason = reason
         state.step = HypertensionStep.COMPLETE.value
@@ -853,12 +970,46 @@ def _finalize_intake(state: InterviewState) -> InterviewState:
             confidence = Confidence.LOW.value
 
         narrative_review = False
-        hypo_week = answers.get("hypo_events_past_week")
-        if hypo_week is not None and _looks_affirmative(str(hypo_week)) is True:
-            narrative_review = True
-        assoc_symp = answers.get("associated_symptoms")
-        if assoc_symp is not None and _looks_affirmative(str(assoc_symp)) is True:
-            narrative_review = True
+        symptom_reported = False
+
+        if missing:
+            # Rule R8: check-in with no readings - symptom reported evaluation
+            symptom_slot_keys = (
+                "hyperglycemia_symptoms",
+                "hypoglycemia_symptoms",
+                "hypo_events_past_week",
+                "sick_day_flags",
+                "associated_symptoms",
+                "foot_problems",
+            )
+            for sk in symptom_slot_keys:
+                val = answers.get(sk)
+                if val is not None and _looks_affirmative(str(val)) is True:
+                    symptom_reported = True
+                    break
+
+            if answers.get("symptom_only_note"):
+                from agents.interview_findings import extract_findings_from_answer
+                note = str(answers["symptom_only_note"]).strip()
+                if extract_findings_from_answer(note) or (_looks_affirmative(note) is True):
+                    symptom_reported = True
+
+            greeting = answers.get("greeting_response")
+            if greeting:
+                from agents.interview_findings import extract_findings_from_answer
+                fnds = extract_findings_from_answer(greeting)
+                if fnds:
+                    symptom_reported = True
+
+            if symptom_reported:
+                narrative_review = True
+        else:
+            hypo_week = answers.get("hypo_events_past_week")
+            if hypo_week is not None and _looks_affirmative(str(hypo_week)) is True:
+                narrative_review = True
+            assoc_symp = answers.get("associated_symptoms")
+            if assoc_symp is not None and _looks_affirmative(str(assoc_symp)) is True:
+                narrative_review = True
 
         requires_review = bool(answers.get("possible_severe_low") or narrative_review)
         intake = {

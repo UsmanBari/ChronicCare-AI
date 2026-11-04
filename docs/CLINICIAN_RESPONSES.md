@@ -115,4 +115,49 @@ Source: replies relayed by Usman. Title, hospital and permission to be named: no
 - Sent docs/clinical/ChronicCare_Doctor_Review_Pack_2026-11-02.pdf by WhatsApp on 2 Nov 2026 to Dr Shaiza Jabbar, Capt Dr Talha Yasin and Dr Anam Zafar.
 - 11 decisions: the 9 in DOCTOR_REVIEW_PACK_W2.md plus (10) v2 bare sugar number 2-40 with unclear unit and (11) a check-in with no readings.
 - Replies: none yet.
+---
 
+## Update 3 Nov 2026: replies to the Week 2 doctor pack
+
+Sources: Dr Shaiza Jabbar: voice note (relayed by Usman). Dr Anam Zafar: marked PDF pages 2-5 (items 3-11), signed "Dr. Anam", 3 Nov 2026, plus a voice note on item 5; page 1 (items 1-2) not received. Doctor C (asked not to be named): voice note. Doctor C's answers are used but he is not named anywhere.
+
+### Dr Shaiza Jabbar
+- Low / high sugar (item 2): low sugar is an emergency if it is below 40 and comes with the item-3 symptoms (shaky, drowsy, dizzy). High sugar around 250 or above 300 without symptoms: diabetics usually just need diet control advice and to re-chart for at least 5 days; if it stays high after 250, or with blurred vision, headache, drowsiness or a change in consciousness, it is an emergency.
+- BP (item 4): these are the right thresholds; add symptoms to the message with 180/120 (blurred vision, headache, numbness of one arm or leg, or the arm and leg on one side), because people say their BP is always high.
+- Vomiting (item 5): very old patients are an emergency (risk to the kidneys' blood supply); a young patient below 50 is an urgent review, not an emergency.
+- HbA1c (item 6): HbA1c reflects about 3 months; ideally test every 3 months, at most 6-9 months if delayed, never a full year without it.
+- Risk panel (item 7): good, because diabetes and hypertension now appear early, around 35-40.
+- Items 8 and 9: fine as they are.
+- Item 10: glucometers show mg/dL, not mmol/L; ask once just in case.
+- Item 11: review only if a symptom is reported, otherwise routine.
+
+### Dr Anam Zafar
+- Item 3: option B.
+- Item 4: tick next to the first option (cite the 2025 AHA/ACC guideline, thresholds unchanged).
+- Item 5 (voice note): option C, emergency when the patient vomits so much they cannot keep fluids down (needs IV; risk of death from low volume).
+- Item 6: tick next to 12 months; wording approved.
+- Item 7: not marked.
+- Item 8: top of the hip bone (current); range 40-200 cm OK.
+- Item 9: approve 10 / 5 / 20 and 5 readings.
+- Item 10: ask once more; if still unclear, send to Review without saving a number.
+- Item 11: routine if there are no symptoms; review if any symptom is reported.
+- Items 1 and 2: page not received.
+
+### Doctor C (asked not to be named)
+- Item 1: approve the word-group approach: raise to review and show the call 1122 line; whether it is an emergency is the patient's call.
+- Item 2: LO should be an emergency (the patient can become confused or faint); HI should be an emergency (risk of DKA).
+- Item 3: replace with option B.
+- Item 4: use the 2025 AHA guideline; don't change the thresholds.
+- Item 5: urgent, unless there are signs of severe dehydration (sunken eyes, dry tongue), blood in the vomit, a change of colour (green / bilious), a severe persistent headache, high-grade fever, confusion, vertigo or dizziness, or vomiting for 24 hours / the patient cannot keep medicines down: then emergency.
+- Item 6: approved, but the doctor decides, not the machine; send for review; if symptoms appear (numbness of feet or hands, confusion, persistent headache, slow wound healing) it should be reviewed and an HbA1c done.
+- Item 7: approve, doctors only, experimental, never changing a level.
+- Item 8: for medical use, measure at the WHO midpoint (between the lowest rib and the top of the iliac bone, about 2 inches above the navel); the hip-bone landmark is for clothing.
+- Item 9: approved, but use 10 mg/dL for sugar instead of 20.
+- Item 10: keep it (safer to over-react); meters use mg/dL; a reading of 1-20 could be treated as mmol/L and above about 25-30 as mg/dL, but his decision is to keep the safer path.
+- Item 11: routine if no symptoms; review if any symptom is reported (for example severe headache for days or in episodes, migraine episodes, numbness in both feet or both hands, slow wound healing).
+
+### Not answered (not followed up)
+- Item 1: Dr Shaiza (not mentioned), Dr Anam (page 1 not received).
+- Item 2: Dr Anam (page 1 not received).
+- Item 3: Dr Shaiza (not mentioned).
+- Item 5: Dr Shaiza gave no exact age cut-off ("very old" vs "below 50").

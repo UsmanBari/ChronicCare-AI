@@ -4112,6 +4112,8 @@ def answer_checkin_endpoint(
     protocol_state = TriageProtocolState.from_dict(protocol_state_dict) if protocol_state_dict else None
     med_state_dict = checkin.get("med_state")
     med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
+    user_profile = get_patient_profile(current_user["user_id"]) or {}
+    lang = (raw_state.get("language") if isinstance(raw_state, dict) else None) or getattr(current_state, "language", None) or (current_state.answers.get("language") if hasattr(current_state, "answers") and isinstance(current_state.answers, dict) else None) or user_profile.get("language") or "en"
 
     # Clinical Safety Rule: Typed pregnancy statement stops check-in immediately
     answer_raw = (body.answer or "").strip()
@@ -4614,6 +4616,9 @@ def answer_checkin_endpoint(
             )
 
     try:
+        if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
+            current_state.answers = {}
+        current_state.answers["language"] = lang
         next_state = adaptive_interview_node(current_state, patient_response=body.answer)
     except ValueError as e:
         raise HTTPException(
@@ -4644,6 +4649,8 @@ def answer_checkin_endpoint(
         (next_state.stage1_red_flag and rf_level == "emergency")
         or (next_state.intake and next_state.intake.get("emergency"))
     )
+    if is_emergency and not v2_safety_note:
+        v2_safety_note = get_safety_note(lang)
     is_urgent_stage1 = bool(next_state.stage1_red_flag and rf_level == "urgent")
 
     if is_emergency or is_urgent_stage1:

@@ -409,6 +409,30 @@ MUTATIONS = [
         "replacement": 'def is_danger_wordgroups_enabled() -> bool:\n    """Flag guard: DANGER_WORDGROUPS_ENABLED=\'true\' (case-insensitive). OFF by default."""\n    return True',
         "test_node": "backend-poc-technical/test_danger_wordgroups.py::test_c5_flag_off_invariant_behavior_identical_to_baseline",
     },
+    {
+        "id": "M-U-R1",
+        "name": "R1 Meter LO/HI: Disable meter LO detection in answer_validation",
+        "file": BACKEND_DIR / "agents" / "answer_validation.py",
+        "target": 'def detect_meter_lo_hi(text: str) -> Optional[str]:\n    """',
+        "replacement": 'def detect_meter_lo_hi(text: str) -> Optional[str]:\n    return None\n    """',
+        "test_node": "backend-poc-technical/test_meter_lo_hi.py::test_v2_affirmative_confirmation_lo",
+    },
+    {
+        "id": "M-U-R4",
+        "name": "R4 Vomiting Fluids: Revert unable_to_keep_fluids from emergency to urgent",
+        "file": BACKEND_DIR / "agents" / "adaptive_interview_agent.py",
+        "target": '    "unable_to_keep_fluids": "emergency",',
+        "replacement": '    "unable_to_keep_fluids": "urgent",',
+        "test_node": "backend-poc-technical/test_vomiting_fluids_red_flags.py::test_v2_unable_to_keep_fluids_immediate_emergency",
+    },
+    {
+        "id": "M-U-R8",
+        "name": "R8 No Readings: Disable symptom reported review escalation",
+        "file": BACKEND_DIR / "agents" / "adaptive_interview_agent.py",
+        "target": "            if symptom_reported:\n                narrative_review = True",
+        "replacement": "            if False and symptom_reported:\n                narrative_review = True",
+        "test_node": "backend-poc-technical/test_r8_no_readings.py::test_r8_v2_no_readings_with_symptom_is_review",
+    },
 ]
 
 

@@ -197,6 +197,7 @@ def step_parse_and_validate_intake(
                     answered_by_val = it["answered_by"]
                     break
             # Emergency early return for v3 (reproducing main.py:3373-3383)
+            from agents.danger_wordgroups import get_safety_note
             return {}, CheckinCompleteResponse(
                 emergency=True,
                 intakes=intakes,
@@ -207,6 +208,7 @@ def step_parse_and_validate_intake(
                 triage=None,
                 record_source_label=record_label,
                 answered_by=answered_by_val,
+                safety_note=get_safety_note(raw_state.get("language") or "en"),
             )
 
         v3_summary = finish_v3_session(raw_state)
@@ -315,6 +317,7 @@ def step_parse_and_validate_intake(
                     answered_by_val = it["answered_by"]
                     break
             # Emergency early return for v2 (reproducing main.py:3491-3501)
+            from agents.danger_wordgroups import get_safety_note
             return {}, CheckinCompleteResponse(
                 emergency=True,
                 intakes=intakes,
@@ -325,6 +328,7 @@ def step_parse_and_validate_intake(
                 triage=triage_dict,
                 record_source_label=record_label,
                 answered_by=answered_by_val,
+                safety_note=get_safety_note(state.answers.get("language") or "en"),
             )
 
     return {
@@ -587,7 +591,30 @@ def step_decide_triage(
 
         review_status = "open" if final_requires_review else "resolved"
         final_max_sev = "high" if final_triage_level == "urgent" else ("moderate" if (final_requires_review and verif_max_severity == "none") else verif_max_severity)
-        if stroke_eval:
+        all_no_readings = all(not it.get("readings") for it in (state.intakes or []))
+        if all_no_readings:
+            # Rule R8: check-in with no readings
+            if intake_requires_review:
+                final_requires_review = True
+                final_triage_level = "review"
+                review_status = "open"
+                final_max_sev = "moderate"
+                triage_dict = {
+                    "level": "review",
+                    "guidance": "Check-in flagged for clinician review.",
+                    "summary": "Check-in flagged for clinician review.",
+                }
+            else:
+                final_requires_review = False
+                final_triage_level = "routine"
+                review_status = "resolved"
+                final_max_sev = "none"
+                triage_dict = {
+                    "level": "routine",
+                    "guidance": "Continue routine self-monitoring and care plan.",
+                    "summary": "Routine check-in completed.",
+                }
+        elif stroke_eval:
             triage_dict = {
                 "level": stroke_eval["level"],
                 "guidance": stroke_eval.get("advice", "Check-in flagged for clinician review."),
@@ -595,9 +622,18 @@ def step_decide_triage(
                 "summary": stroke_eval.get("advice", "Stroke extras evaluation: clinician review required."),
             }
         elif intake_requires_review:
+            is_severe_low = any(
+                (isinstance(it.get("symptoms"), dict) and it.get("symptoms", {}).get("possible_severe_low"))
+                for it in (state.intakes or [])
+            )
+            guidance = (
+                "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
+                if is_severe_low
+                else "Check-in flagged for clinician review."
+            )
             triage_dict = {
                 "level": "review",
-                "guidance": "Low blood sugar safety review required. If you feel shaky, sweaty, or confused, consume fast-acting sugar immediately.",
+                "guidance": guidance,
                 "summary": "Check-in flagged for clinician review.",
             }
         else:

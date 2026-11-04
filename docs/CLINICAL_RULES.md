@@ -18,7 +18,7 @@ A single number never decides an emergency. A numeric trigger starts the confirm
 
 | Priority | Protocol | Starts when | Constants | Source |
 |---|---|---|---|---|
-| 1 | bp_severe | systolic >= 180 or diastolic >= 120 | `DANGEROUS_BP_SYSTOLIC_MMHG`, `DANGEROUS_BP_DIASTOLIC_MMHG` | ACC/AHA 2017 blood-pressure guideline; Project Proposal Section 27 |
+| 1 | bp_severe | systolic >= 180 or diastolic >= 120 | `DANGEROUS_BP_SYSTOLIC_MMHG`, `DANGEROUS_BP_DIASTOLIC_MMHG` | 2025 AHA/ACC Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults (replaces 2017; thresholds unchanged: Stage 2 from 140/90, crisis at 180/120); Project Proposal Section 27 |
 | 2 | glucose_high | glucose >= 250 mg/dL | `GLUCOSE_HIGH_MG_DL` | Project Proposal Section 15 |
 | 3 | glucose_low | glucose < 70 mg/dL | `GLUCOSE_LOW_MG_DL` | ADA Standards of Care (current edition) |
 | 4 | bp_low | systolic < 90 or diastolic < 60 | `BP_LOW_SYSTOLIC_MMHG`, `BP_LOW_DIASTOLIC_MMHG` | Project team, illustrative (no guideline cited) |
@@ -136,7 +136,7 @@ The system gives **no treatment advice** in any protocol. The only advice it sho
 ## 4. Age, inclusion and exclusions
 
 - Adults only: age below `MIN_ADULT_AGE` (18) is refused at onboarding; above `MAX_PLAUSIBLE_AGE` (120) is treated as an invalid date of birth.
-- For adults the ACC/AHA categories and the crisis limits do not change with age. Age band changes the questions only: from `OLDER_ADULT_AGE` (65) the bp_change and bp_low protocols add one question each (dizziness on standing, falls).
+- For adults the 2025 AHA/ACC categories and the crisis limits do not change with age (thresholds identical to 2017). Age band changes the questions only: from `OLDER_ADULT_AGE` (65) the bp_change and bp_low protocols add one question each (dizziness on standing, falls).
 - The patient confirms at onboarding that they are 18 or older and not pregnant. Pregnancy has different blood-pressure limits and is **out of scope**.
 - Not for children, pregnancy, anyone who cannot answer for themselves, or any emergency. The system does not consider kidney disease, heart failure or other conditions that change the targets.
 
@@ -151,7 +151,8 @@ The system gives **no treatment advice** in any protocol. The only advice it sho
 | confusion | slurred speech; can't speak clearly; cant speak clearly; don't know where i am; do not know where i am; samajh nahi aa raha main kahan hoon; main kahan hoon; disoriented; سمجھ نہیں آ رہا میں کہاں ہوں; کہاں ہوں | emergency | Word "confused" alone removed ("confused by my morning pills" not emergency); acute disorientation wording triggers emergency. |
 | loss_of_consciousness | fainted; passed out; lost consciousness; blacked out; بے ہوش | emergency | |
 | one_sided_weakness | one side weak; one-sided weakness; can't move one side; cant move one side; face drooping | emergency | |
-| unable_to_keep_fluids | can't keep anything down; cant keep anything down; can't keep fluids down; vomiting nonstop; vomiting non-stop; musalsal ultiyan; ulti ruk nahi rahi; paani bhi nahi rukta; مسلسل الٹیاں; الٹی رک نہیں رہی; پانی بھی نہیں رک رہا | urgent | Moved from emergency to urgent by clinician review. |
+| unable_to_keep_fluids | can't keep anything down; can't keep fluids down; can't keep water down; can't keep medicines down; dawa nahi ruk rahi; dawa ulti mein nikal jati hai; paani bhi nahi rukta; پانی بھی نہیں رک رہا; دوائی نہیں رک رہی | emergency | Elevated from urgent to emergency by clinician consensus (3 Nov 2026). Acute dehydration, AKI, and DKA risk. |
+| non_stop_vomiting | vomiting nonstop; vomiting non-stop; vomiting all day; musalsal ultiyan; ulti ruk nahi rahi; مسلسل الٹیاں; الٹی رک نہیں رہی | urgent | Stays urgent by default; prompts one follow-up question regarding severe warning signs (blood/dark material, confusion, dizziness, >24h) which elevates to emergency if positive. |
 | severe_headache | worst headache; severe headache; thunderclap headache | emergency | |
 | vision_loss | sudden vision loss; lost my vision; went blind; can't see at all; cannot see at all | emergency | |
 
@@ -160,6 +161,71 @@ The Urdu phrases have been reviewed; Urdu negation is handled for danger screeni
 **Readings.** A glucose must be one number from 20 to 600 mg/dL (`GLUCOSE_RANGE_MG_DL`); a blood pressure one pair with systolic 60 to 260 (`SYSTOLIC_RANGE_MMHG`), diastolic 30 to 160 (`DIASTOLIC_RANGE_MMHG`) and systolic greater than diastolic. Several plausible numbers, a negative number, a value in mmol/L or an out-of-range value count as **missing**; the patient is asked one clarifying question and the intake is tagged Low confidence. A meter that shows 'HI' is not understood (known limitation).
 
 **Hand-off.** `check_dangerous_bp` reports a crisis-range pair; the interview keeps the reading and the protocol in section 3 decides.
+
+### Update 3 Nov 2026: Vomiting and Unable to Keep Fluids / Medicines (Rule R4)
+
+- **Consensus decision (all 3 doctors):** 'Unable to keep fluids down' or 'unable to keep medicines down' in adult chronic disease patients is elevated from URGENT to **EMERGENCY** (`unable_to_keep_fluids` -> `level: emergency`). This covers phrases like:
+  - 'can't keep fluids down', 'can't keep anything down', 'can't keep medicines down', 'cannot keep water down', 'dawa nahi ruk rahi', 'paani bhi nahi ruk raha', 'dawa ulti mein nikal jati hai', 'پانی بھی نہیں رک رہا', 'دوائی نہیں رک رہی'.
+  - Clinical rationale: Acute dehydration, electrolyte derangements, acute kidney injury risk, inability to retain essential diabetes/hypertension medications, and rapid progression to diabetic ketoacidosis (DKA) or hyperosmolar state.
+- **Other non-stop vomiting (Rule R4 Part 2):** Non-stop vomiting without stated fluid/medication inability remains **URGENT** by default (`non_stop_vomiting` -> `level: urgent`), but prompts ONE follow-up question:
+  - English: *"Are you vomiting blood or dark material, feeling confused or very dizzy, or have you been unable to keep fluids down for more than 24 hours?"*
+  - Urdu: *"کیا آپ کو الٹی میں خون یا گہرے رنگ کا مواد آ رہا ہے، چکر یا الجھن ہے، یا 24 گھنٹے سے پانی بھی نہیں رک رہا؟"*
+  - Roman Urdu: *"Kya aap ko ulti mein khoon ya gehre rang ka mawad aa raha hai, chakkar ya uljhan hai, ya 24 ghante se paani bhi nahi ruk raha?"*
+  - An affirmative answer elevates triage to **EMERGENCY**. A negative answer maintains **URGENT**.
+- **Age consideration (Dr Shaiza suggestion):** Dr Shaiza suggested considering age (more aggressive elevation in older adults). **Status: Suggested, not adopted** (no specific age cut-off provided; all adult patients elevated per consensus on severe warning signs).
+
+### Update 3 Nov 2026: HbA1c 365-Day Preventive Screening Interval (Rule R5)
+
+- **Approved by consensus (all 3 doctors):** Annual (365-day) screening reminder interval for stable hypertensive patients meeting treatment goals without diagnosed diabetes (`SCREENING_REMINDER_INTERVAL_DAYS = 365`).
+- Suggests consulting a clinician for an HbA1c test if none has been performed within the past 365 days or if no records are available.
+- Controlled via `SCREENING_REMINDER_INTERVAL_DAYS` environment variable; dormant when unconfigured.
+
+### Update 3 Nov 2026: Provider-Only Experimental Risk Panel (Rule R6)
+
+- **Approved by consensus (all 3 doctors):** Provider-only experimental risk panel (PR #90) with mandatory "Experimental / decision-support only" labelling.
+- Available exclusively in the authenticated clinician review queue; never exposed to patients.
+- Strictly decision-support only; cannot lower triage levels and never provides automatic medical diagnoses.
+
+### Update 3 Nov 2026: Bare Glucose 2-40 Unit Re-Ask (Rule R7)
+
+- **Consensus decision (2 doctors requested, approved):** On a bare glucose reading between 2.0 and 40.0 with no unit, the interview asks ONCE for the unit before treating the reading as possible severe hypoglycemia:
+  - English: *"Is that number in mg/dL (most meters) or mmol/L?"*
+  - Urdu: *"کیا یہ نمبر mg/dL میں ہے (زیادہ تر میٹر) یا mmol/L میں؟"*
+  - Roman Urdu: *"Kya yeh number mg/dL mein hai (zyada tar meter) ya mmol/L mein?"*
+- If the patient provides the unit (e.g. mmol/L), the engine converts to mg/dL (multiplied by 18.0) and evaluates against clinical thresholds.
+- If STILL unclear after the re-ask (e.g. "don't know", no unit, or repeated bare number), the engine routes to the safe path: flagged for clinician review, attaches low-sugar guidance, never lowers triage level.
+
+### Update 3 Nov 2026: Check-in With No Readings (Rule R8)
+
+- **Consensus decision (3 doctors approved: Dr Shaiza Jabbar, Dr Anam Zafar, Doctor C (asked not to be named)):**
+  - If a patient completes a check-in with **no blood glucose and no blood pressure reading**:
+    - **ROUTINE** (`level: "routine"`, `requires_review: False`): when no symptoms were reported (all symptom questions answered negative, and no clinical symptoms extracted in free text).
+    - **REVIEW** (`level: "review"`, `requires_review: True`): when any symptom is reported (affirmative answer to any symptom question, or symptom finding extracted in free text).
+  - Both engines (v2 and v3) implement this rule identically across direct and graph modes.
+  - *Note:* In v2 this lowers previous behavior (which held missing data in review or flagged review unconditionally) for symptom-free check-ins; this reflects the unanimous clinical decision of all three reviewing physicians.
+
+#### Symptoms Gap Table (Reported by Doctors but not currently in Question Bank)
+
+The doctors identified symptoms that should mandate clinician review, which are not currently explicitly probed as standalone questions in today's Question Bank:
+
+| Symptom Identified by Doctors | Doctor Source | Today's Question Bank Status | Interim Safety Handling |
+|---|---|---|---|
+| Severe headache for days or repeated episodes / migraine episodes | Dr Shaiza Jabbar, Doctor C (asked not to be named) | Not asked as duration/episodes; only severe acute headache in `associated_symptoms` | Free text parsed via `extract_findings_from_answer` flags `headache` -> routes to `review` |
+| Numbness in both feet or both hands | Dr Shaiza Jabbar, Doctor C (asked not to be named) | Feet sores/cuts asked in v2/v3; bilateral hand numbness not asked | Hand/limb numbness caught if acute (stroke extras); otherwise free text note routes to `review` |
+| Slow wound healing | Doctor C (asked not to be named) | Not asked in current question bank | Captured via patient free-text note; requires future question bank expansion |
+| Blurred vision (standalone / persistent outside acute context) | Dr Shaiza Jabbar, Doctor C (asked not to be named) | Included only inside acute composite symptom list (`hyperglycemia_symptoms`) | Captured if patient affirms composite question or reports in free text |
+
+### Doctor review 3 Nov 2026: pending or not adopted
+
+- **D1 word groups**: approved by Doctor C (asked not to be named) (raise to review + 1122 line). Dr Shaiza did not answer it; Dr Anam's page 1 was not received. Stays off in production until Release 2 decision.
+- **D8 waist**: keep top of the hip bone and 40-200 cm (Dr Anam, Dr Shaiza). Doctor C (asked not to be named) prefers the WHO midpoint for medical use. Not changed (the risk model was trained on the hip-bone landmark).
+- **D9 trend arrows**: keep 10 / 5 / 20 and 5 readings (Dr Anam, Dr Shaiza). Doctor C (asked not to be named) suggested 10 mg/dL for sugar. Not changed.
+- **Dr Shaiza (vomiting age threshold)**: age-dependent threshold on vomiting (younger <50 = urgent; older = emergency). Location: `backend-poc-technical/agents/triage_protocol.py` lines 270-285 (`_decide_vomiting` / age checks), where age is currently read as `>=65` for extra questions but does not split triage level. Pending explicit cut-off consensus.
+- **Dr Shaiza (high glucose >=250)**: high glucose >=250 without symptoms -> advise diet control and re-chart for 5 days. Location: `backend-poc-technical/agents/triage_protocol.py` lines 180-210 (`_decide_glucose_high`), where glucose 250 without symptoms is currently `review`. Not adopted (conflicts with clinical protocol rules).
+- **Dr Shaiza (BP >=180/120 symptoms)**: BP >=180/120 message should list symptoms (headache, blurred vision, numbness) because patients say their BP is always high. Location: `backend-poc-technical/agents/triage_protocol.py` lines 120-140 (`_decide_bp_severe`), where asymptomatic 180/120 currently re-measures. Pending clinical consensus on re-measure vs immediate symptom inquiry.
+- **Doctor C (asked not to be named) (waist WHO midpoint)**: waist measurement at WHO midpoint (between lowest rib and top of hip bone). Location: `backend-poc-technical/main.py` profile validation and `backend-poc-technical/agents/interview_bank/messages.json` waist landmark instructions. Not adopted (risk model NHANES training aligned with top of iliac crest).
+- **Doctor C (asked not to be named) (sugar trend absolute delta)**: fasting blood glucose trend threshold of 10 mg/dL rather than 10%. Location: `backend-poc-technical/agents/trend_agent.py` and `backend-poc-technical/main.py` trend calculations. Not adopted (consensus of Dr Anam and Dr Shaiza kept 10%).
+- **Doctor C (asked not to be named) (bilateral / recurrent symptoms)**: bilateral symptoms (feet/hands numbness) and recurrent headache mandate review. Location: `backend-poc-technical/agents/adaptive_interview_agent.py` symptom checks (recorded in R8 gap table; pending Question Bank addition in Release 2).
 
 ## 6. Medication confirmation
 
@@ -186,8 +252,8 @@ After the interview (and the protocol, if one was needed) the patient is asked a
 | `SYSTOLIC_RANGE_MMHG` | `60, 260` | adaptive_interview_agent.py | Project team, illustrative (no guideline cited) | A systolic outside this range is treated as a missing reading. |
 | `DIASTOLIC_RANGE_MMHG` | `30, 160` | adaptive_interview_agent.py | Project team, illustrative (no guideline cited) | A diastolic outside this range is treated as a missing reading. |
 | `NEGATION_WINDOW_WORDS` | `3` | adaptive_interview_agent.py | Project team, illustrative (no guideline cited) | A negation within this many words before a danger phrase cancels it. |
-| `DANGEROUS_BP_SYSTOLIC_MMHG` | `180` | adaptive_interview_agent.py | ACC/AHA 2017 blood-pressure guideline (hypertensive crisis); Project Proposal Section 27 | Crisis-range limit; starts the confirmation protocol, never an emergency by itself. |
-| `DANGEROUS_BP_DIASTOLIC_MMHG` | `120` | adaptive_interview_agent.py | ACC/AHA 2017 blood-pressure guideline (hypertensive crisis); Project Proposal Section 27 | Same as above, diastolic limit. |
+| `DANGEROUS_BP_SYSTOLIC_MMHG` | `180` | adaptive_interview_agent.py | 2025 AHA/ACC Guideline (hypertensive crisis, replaces 2017, thresholds unchanged); Project Proposal Section 27 | Crisis-range limit; starts the confirmation protocol, never an emergency by itself. |
+| `DANGEROUS_BP_DIASTOLIC_MMHG` | `120` | adaptive_interview_agent.py | 2025 AHA/ACC Guideline (hypertensive crisis, replaces 2017, thresholds unchanged); Project Proposal Section 27 | Same as above, diastolic limit. |
 | `RED_FLAG_PATTERNS` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Implementation detail. |
 | `RED_FLAG_LEVELS` | `unable_to_keep_fluids=urgent; dka_vomiting_high_glucose=urgent` | adaptive_interview_agent.py | Clinician review decision (13 Oct 2026) | Maps red-flag categories to urgent or emergency. |
 | `_NEGATION_CUES` | (see the sections above) | adaptive_interview_agent.py | Implementation detail (matching rule, no clinical threshold) | Matching rule or label; no clinical threshold of its own. |
@@ -204,8 +270,8 @@ After the interview (and the protocol, if one was needed) the patient is asked a
 | `MIN_ADULT_AGE` | `18` | triage_protocol.py | Scope decision (adults only) | Younger patients are refused: paediatric blood pressure is judged against age, sex and height percentiles. |
 | `OLDER_ADULT_AGE` | `65` | triage_protocol.py | Project team, illustrative (no guideline cited) | From this age two extra questions are asked (standing dizziness, falls). |
 | `MAX_PLAUSIBLE_AGE` | `120` | triage_protocol.py | Project team, illustrative (no guideline cited) | Upper limit for a plausible age. |
-| `BP_STAGE2_SYSTOLIC_MMHG` | `140` | triage_protocol.py | ACC/AHA 2017 blood-pressure guideline (stage 2 hypertension) | After a re-measure, at or above this the first reading is judged 'improved but still high'. |
-| `BP_STAGE2_DIASTOLIC_MMHG` | `90` | triage_protocol.py | ACC/AHA 2017 blood-pressure guideline (stage 2 hypertension) | Same as above, diastolic limit. |
+| `BP_STAGE2_SYSTOLIC_MMHG` | `140` | triage_protocol.py | 2025 AHA/ACC Guideline (stage 2 hypertension, replaces 2017, thresholds unchanged: 140/90) | After a re-measure, at or above this the first reading is judged 'improved but still high'. |
+| `BP_STAGE2_DIASTOLIC_MMHG` | `90` | triage_protocol.py | 2025 AHA/ACC Guideline (stage 2 hypertension, replaces 2017, thresholds unchanged: 140/90) | Same as above, diastolic limit. |
 | `BP_LOW_SYSTOLIC_MMHG` | `90` | triage_protocol.py | Project team, illustrative (no guideline cited) | Common clinical convention for low blood pressure; starts the low-pressure questions. |
 | `BP_LOW_DIASTOLIC_MMHG` | `60` | triage_protocol.py | Project team, illustrative (no guideline cited) | Same as above, diastolic limit. |
 | `BP_CHANGE_NOTABLE_MMHG` | `20` | triage_protocol.py | Project team, illustrative (no guideline cited); supervisor feedback, October 2026 | Rise over the patient's own median that starts the change questions. |
