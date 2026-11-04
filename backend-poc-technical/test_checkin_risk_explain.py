@@ -219,7 +219,7 @@ class LLMSpy:
         sbp_match = re.search(r'"blood_pressure_systolic":\s*(\d+)', user_msg)
         sbp = sbp_match.group(1) if sbp_match else "135"
 
-        return json.dumps({
+        text = json.dumps({
             "sentences": [
                 {
                     "text": f"Your systolic blood pressure reading of {sbp} mmHg is slightly elevated according to clinical guidelines.",
@@ -231,6 +231,7 @@ class LLMSpy:
                 }
             ]
         })
+        return (text, 60)
 
 
 # ---------------------------------------------------------------------------
@@ -275,7 +276,7 @@ def test_flags_on_safety_fields_identical_when_can_raise_false(rsa_key, monkeypa
     monkeypatch.setenv("RISK_CAN_RAISE", "false")
 
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -318,7 +319,7 @@ def test_risk_can_raise_true_escalates_routine_to_review(rsa_key, monkeypatch):
     monkeypatch.setenv("RISK_CAN_RAISE", "true")
 
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     # Force risk agent to return band 'high'
@@ -400,7 +401,7 @@ def test_explainer_failure_safe_fallback(rsa_key, monkeypatch):
     # LLM throws an unhandled runtime error
     def broken_llm(*args, **kwargs):
         raise RuntimeError("Groq upstream connection failed")
-    monkeypatch.setattr(groq_client, "chat", broken_llm)
+    monkeypatch.setattr(groq_client, "chat_with_usage", broken_llm)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -432,7 +433,7 @@ def test_emergency_intake_bypasses_risk_and_explain(rsa_key, monkeypatch):
     monkeypatch.setenv("EXPLAIN_ENABLED", "true")
 
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -461,7 +462,7 @@ def test_idempotency_calls_llm_only_once(rsa_key, monkeypatch):
     monkeypatch.setenv("EXPLAIN_ENABLED", "true")
 
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -493,7 +494,7 @@ def test_privacy_views_and_trace_sanitization(rsa_key, monkeypatch):
     monkeypatch.setenv("EXPLAIN_ENABLED", "true")
 
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -546,7 +547,7 @@ def test_orchestrator_modes_completion(rsa_key, monkeypatch, orch_mode):
     monkeypatch.setenv("EXPLAIN_ENABLED", "true")
 
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -569,9 +570,9 @@ def test_network_guard_zero_real_external_calls(rsa_key, monkeypatch):
     monkeypatch.setenv("RISK_ENABLED", "true")
     monkeypatch.setenv("EXPLAIN_ENABLED", "true")
 
-    # In strict sandbox, groq_client.chat is replaced by spy
+    # In strict sandbox, groq_client.chat_with_usage is replaced by spy
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)

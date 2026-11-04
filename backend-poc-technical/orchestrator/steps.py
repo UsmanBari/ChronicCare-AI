@@ -88,19 +88,27 @@ def _build_patient_risk_view(risk: Optional[Dict[str, Any]]) -> Optional[Dict[st
 
 
 def _build_patient_explain_view(explanation: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Patient-facing explanation view: sentences + sources."""
+    """Patient-facing explanation view: sentences + sources + mode/reason."""
     if not explanation or not isinstance(explanation, dict):
         return None
     if explanation.get("status") == "error":
-        return {
+        res = {
             "status": "error",
             "sentences": [],
             "sources": [],
+            "mode": "template",
+            "reason": explanation.get("reason", "error"),
         }
-    return {
+        return res
+    view = {
         "sentences": explanation.get("sentences", []),
         "sources": explanation.get("sources", []),
     }
+    if "mode" in explanation:
+        view["mode"] = explanation["mode"]
+    if "reason" in explanation:
+        view["reason"] = explanation["reason"]
+    return view
 
 
 def _sanitize_trace_for_persistence(trace: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:
@@ -832,11 +840,7 @@ def step_explain(
             try:
                 import llm.groq_client as groq_client
                 if groq_client.is_configured():
-                    # If tests monkeypatched groq_client.chat:
-                    if getattr(groq_client.chat, "__module__", None) != "llm.groq_client" or hasattr(groq_client.chat, "call_count"):
-                        llm = groq_client.chat
-                    else:
-                        llm = getattr(groq_client, "chat_with_usage", groq_client.chat)
+                    llm = groq_client.chat_with_usage
             except Exception:
                 llm = None
 

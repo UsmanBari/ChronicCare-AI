@@ -583,7 +583,7 @@ def test_c6_emergency_intakes_bypass_explainer(rsa_key, monkeypatch):
     monkeypatch.setenv("RISK_ENABLED", "false")
 
     spy_called = []
-    monkeypatch.setattr(groq_client, "chat", lambda **k: spy_called.append("called"))
+    monkeypatch.setattr(groq_client, "chat_with_usage", lambda **k: spy_called.append("called"))
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -688,3 +688,160 @@ def test_mutation_proof_breaker_never_opens_killed():
         breaker.record_failure(is_rate_limit=False)
     assert breaker.state() == CircuitBreaker.OPEN
     assert breaker.allow_call() is False
+
+
+# =============================================================================
+# Review Follow-ups: Docs Env Table, Retries Disabled, Token Race Fix
+# =============================================================================
+def test_docs_env_table_matches_code_constants():
+    """
+    Review Item 1: Parses ## 3. Environment Variables Reference in docs/EXPLAIN_GUARDS.md
+    and asserts every env var name and default equals the constants in explain_guards.py.
+    """
+    import re
+    from pathlib import Path
+    from rag.explain_guards import (
+        DEFAULT_BUDGET_SECONDS,
+        DEFAULT_DAILY_TOKEN_CAP,
+        DEFAULT_CACHE_MAX,
+        DEFAULT_CACHE_TTL_SECONDS,
+        DEFAULT_BREAKER_FAILURES,
+        DEFAULT_BREAKER_COOLDOWN_SECONDS,
+        DEFAULT_MAX_WORKERS,
+    )
+
+    doc_path = Path(__file__).resolve().parent.parent / "docs" / "EXPLAIN_GUARDS.md"
+    assert doc_path.exists(), f"docs/EXPLAIN_GUARDS.md not found at {doc_path}"
+    doc_content = doc_path.read_text(encoding="utf-8")
+
+    section3 = re.search(r"## 3\. Environment Variables Reference(.*?)(?:\n## |\Z)", doc_content, re.DOTALL)
+    assert section3, "Section 3 not found in docs/EXPLAIN_GUARDS.md"
+
+    table_lines = [l.strip() for l in section3.group(1).split("\n") if l.strip().startswith("|")]
+    assert len(table_lines) >= 3, "Table in Section 3 must have header, separator, and data rows"
+
+    parsed_table = {}
+    for row in table_lines[2:]:
+        cols = [c.strip() for c in row.split("|")[1:-1]]
+        if len(cols) >= 3:
+            var_name = cols[0].replace("`", "").strip()
+            var_type = cols[1].strip()
+            default_val = cols[2].replace("`", "").strip()
+            parsed_table[var_name] = (var_type, default_val)
+
+    expected = {
+        "EXPLAIN_ENABLED": ("bool", "false"),
+        "EXPLAIN_BUDGET_SECONDS": ("float", str(DEFAULT_BUDGET_SECONDS)),
+        "EXPLAIN_DAILY_TOKEN_CAP": ("int", str(DEFAULT_DAILY_TOKEN_CAP)),
+        "EXPLAIN_CACHE_MAX": ("int", str(DEFAULT_CACHE_MAX)),
+        "EXPLAIN_CACHE_TTL_SECONDS": ("float", str(DEFAULT_CACHE_TTL_SECONDS)),
+        "EXPLAIN_BREAKER_FAILURES": ("int", str(DEFAULT_BREAKER_FAILURES)),
+        "EXPLAIN_BREAKER_COOLDOWN_SECONDS": ("float", str(DEFAULT_BREAKER_COOLDOWN_SECONDS)),
+        "EXPLAIN_POOL_MAX_WORKERS": ("int", str(DEFAULT_MAX_WORKERS)),
+    }
+
+    for env_var, (exp_type, exp_val) in expected.items():
+        assert env_var in parsed_table, f"Missing {env_var} in docs/EXPLAIN_GUARDS.md table"
+        actual_type, actual_val = parsed_table[env_var]
+        assert actual_type == exp_type, f"{env_var} type mismatch in docs: {actual_type} != {exp_type}"
+        if exp_type == "float":
+            assert float(actual_val) == float(exp_val), f"{env_var} default mismatch: {actual_val} != {exp_val}"
+        else:
+            assert actual_val == exp_val, f"{env_var} default mismatch: {actual_val} != {exp_val}"
+
+
+def test_retries_disabled_and_timeout_bounded(mock_store):
+    """
+    Review Item 2: Asserts that _timed_llm strictly passes max_retries=0,
+    sdk_max_retries=0, and timeout <= budget to the underlying LLM.
+    """
+    recorded_kwargs = {}
+
+    def spy_llm(**kwargs):
+        recorded_kwargs.update(kwargs)
+        return (json.dumps({
+            "sentences": [
+                {"text": "Your fasting glucose reading of 105 mg/dL is within target [S1].", "cites": ["S1"]},
+                {"text": "Regular monitoring supports diabetes management [S1].", "cites": ["S1"]},
+            ]
+        }), 45)
+
+    budget = 2.5
+    res = guarded_explain(
+        triage_result={"level": "routine", "reasons": ["Normal"]},
+        readings={"glucose": 105.0},
+        language="en",
+        store=mock_store,
+        llm=spy_llm,
+        budget_seconds=budget,
+    )
+
+    assert res["mode"] == "llm"
+    assert "max_retries" in recorded_kwargs
+    assert recorded_kwargs["max_retries"] == 0, f"Expected max_retries=0, got {recorded_kwargs['max_retries']}"
+    assert "sdk_max_retries" in recorded_kwargs
+    assert recorded_kwargs["sdk_max_retries"] == 0, f"Expected sdk_max_retries=0, got {recorded_kwargs['sdk_max_retries']}"
+    assert "timeout" in recorded_kwargs
+    assert 0.0 < recorded_kwargs["timeout"] <= budget, f"Timeout {recorded_kwargs['timeout']} exceeded budget {budget}"
+
+
+def test_token_race_condition_counted_exactly_once(mock_store):
+    """
+    Review Item 5: Under lock with recorded / consumed_by_caller flag, late-finishing
+    or timed-out worker tokens are counted exactly once without race or double-counting.
+    """
+    guard = TokenCapGuard(cap=100000)
+
+    # 1. Late-finishing worker: budget is 0.2s, LLM sleeps 0.5s and returns 150 tokens.
+    def late_llm(**kwargs):
+        time.sleep(0.5)
+        return (json.dumps({
+            "sentences": [
+                {"text": "Late result [S1].", "cites": ["S1"]},
+                {"text": "Should not be displayed [S1].", "cites": ["S1"]},
+            ]
+        }), 150)
+
+    triage = {"level": "routine", "reasons": ["Normal"]}
+    res = guarded_explain(
+        triage_result=triage,
+        readings={"glucose": 105.0},
+        language="en",
+        store=mock_store,
+        llm=late_llm,
+        budget_seconds=0.2,
+        daily_token_guard=guard,
+    )
+
+    # Fallback returned immediately within ~0.2s
+    assert res["mode"] == "template"
+    assert res["reason"] == "budget_timeout"
+
+    # Wait for the background worker to finish execution
+    time.sleep(0.6)
+
+    # Tokens from late result MUST be recorded exactly once
+    assert guard.get_tokens_used_today() == 150
+
+    # 2. On-time completion: ensures tokens are counted once (not twice by caller and worker)
+    def fast_llm(**kwargs):
+        return (json.dumps({
+            "sentences": [
+                {"text": "Fast result [S1].", "cites": ["S1"]},
+                {"text": "Guideline targets met [S1].", "cites": ["S1"]},
+            ]
+        }), 80)
+
+    res_fast = guarded_explain(
+        triage_result=triage,
+        readings={"glucose": 105.0},
+        language="en",
+        store=mock_store,
+        llm=fast_llm,
+        budget_seconds=3.0,
+        daily_token_guard=guard,
+    )
+
+    assert res_fast["mode"] == "llm"
+    # Cumulative tokens: 150 + 80 = 230 (exactly once, never double-counted to 310)
+    assert guard.get_tokens_used_today() == 230

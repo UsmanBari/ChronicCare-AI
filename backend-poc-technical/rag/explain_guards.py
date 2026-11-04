@@ -14,6 +14,7 @@ Enforces:
 from __future__ import annotations
 
 import copy
+import inspect
 import logging
 import os
 import threading
@@ -548,6 +549,19 @@ def get_or_build_retriever(store: Optional[ChunkStore]) -> Optional[BM25Retrieve
 # =============================================================================
 # Guarded Explanation Runner
 # =============================================================================
+def _call_with_supported_kwargs(func: Any, **call_kwargs: Any) -> Any:
+    """Calls func with supported kwargs, filtering out unsupported parameters if no **kwargs."""
+    try:
+        sig = inspect.signature(func)
+        has_var_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        if has_var_kwargs:
+            return func(**call_kwargs)
+        filtered = {k: v for k, v in call_kwargs.items() if k in sig.parameters}
+        return func(**filtered)
+    except (ValueError, TypeError):
+        return func(**call_kwargs)
+
+
 def guarded_explain(
     triage_result: Dict[str, Any],
     readings: Dict[str, Any],
@@ -683,7 +697,16 @@ def guarded_explain(
     worker_result: Dict[str, Any] = {}
     worker_error: Dict[str, Any] = {}
     worker_tokens: Dict[str, int] = {"count": 0}
-    timed_out_flag = threading.Event()
+    token_lock = threading.Lock()
+    token_state: Dict[str, bool] = {"recorded": False, "consumed_by_caller": False}
+
+    def _record_tokens_locked() -> None:
+        with token_lock:
+            if not token_state["recorded"]:
+                cnt = worker_tokens["count"]
+                if cnt > 0:
+                    token_guard.record_usage(cnt)
+                token_state["recorded"] = True
 
     def _worker():
         try:
@@ -692,18 +715,20 @@ def guarded_explain(
             def _timed_llm(**kwargs):
                 try:
                     kwargs["timeout"] = max(0.1, deadline - time.monotonic())
+                    kwargs["max_retries"] = 0
+                    kwargs["sdk_max_retries"] = 0
                     if hasattr(llm, "chat_with_usage"):
-                        text, tokens = llm.chat_with_usage(**kwargs)
+                        text, tokens = _call_with_supported_kwargs(llm.chat_with_usage, **kwargs)
                         worker_tokens["count"] += tokens
                         return text
                     elif callable(llm):
-                        res = llm(**kwargs)
+                        res = _call_with_supported_kwargs(llm, **kwargs)
                         if isinstance(res, tuple) and len(res) == 2 and isinstance(res[1], int):
                             worker_tokens["count"] += res[1]
                             return res[0]
                         return res
                     elif hasattr(llm, "chat"):
-                        return llm.chat(**kwargs)
+                        return _call_with_supported_kwargs(llm.chat, **kwargs)
                     raise TypeError("Invalid LLM callable")
                 except Exception as exc:
                     worker_error["error"] = exc
@@ -721,10 +746,8 @@ def guarded_explain(
             worker_error["error"] = exc
         finally:
             _WORKER_SEMAPHORE.release()
-            # User Correction 2: Discarded late result still costs tokens
-            if timed_out_flag.is_set():
-                if worker_tokens["count"] > 0:
-                    token_guard.record_usage(worker_tokens["count"])
+            # Late-finishing or timed-out worker tokens counted safely under lock
+            _record_tokens_locked()
 
     thread = threading.Thread(target=_worker, daemon=True)
     thread.start()
@@ -734,12 +757,15 @@ def guarded_explain(
 
     if thread.is_alive():
         # Hard budget timeout
-        timed_out_flag.set()
+        with token_lock:
+            token_state["consumed_by_caller"] = False
         circ_breaker.record_failure(is_rate_limit=False)
         return _make_template_fallback("budget_timeout", ["LLM execution exceeded time budget"])
 
-    # Worker finished within budget; record token usage
-    token_guard.record_usage(worker_tokens["count"])
+    # Worker finished within budget; record token usage safely under lock
+    with token_lock:
+        token_state["consumed_by_caller"] = True
+    _record_tokens_locked()
 
     # Check worker exception
     if "error" in worker_error:

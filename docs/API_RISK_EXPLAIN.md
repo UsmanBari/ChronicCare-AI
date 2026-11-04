@@ -46,8 +46,8 @@ When `EXPLAIN_ENABLED=true`, the `explanation` object contains metadata indicati
   - `'cache'`: Served from the in-memory cache and re-grounded against the current check-in's allowed numbers, citations, and triage level.
   - `'template'`: Deterministic clinical fallback template returned when guards trigger or LLM is unavailable.
 - **`reason`**: Present whenever `mode == 'template'` to explain the fallback cause:
-  - `'budget_timeout'`: LLM execution exceeded hard time budget (`EXPLAIN_BUDGET_MS`, default 2500 ms).
-  - `'token_cap'`: Daily Groq token ceiling exceeded (`EXPLAIN_DAILY_TOKEN_CAP`, default 100,000 tokens).
+  - `'budget_timeout'`: LLM execution exceeded hard time budget (`EXPLAIN_BUDGET_SECONDS`, default 3.0 s).
+  - `'token_cap'`: Daily Groq token ceiling exceeded (`EXPLAIN_DAILY_TOKEN_CAP`, default 150,000 tokens).
   - `'breaker_open'`: Circuit breaker open due to consecutive upstream failures.
   - `'rate_limited'`: Groq upstream returned HTTP 429 Too Many Requests.
   - `'validation_failed'`: Generated LLM text failed one of clinical safety validators V1–V5.
