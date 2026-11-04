@@ -17,8 +17,20 @@ from __future__ import annotations
 import json
 import sys
 import time
+import types
 from pathlib import Path
 from typing import Any
+
+# Hermetic ML runner environment: ensure missing optional packages do not block offline test collection
+for _pkg in ("dotenv", "requests"):
+    if sys.modules.get(_pkg) is None:
+        try:
+            __import__(_pkg)
+        except ImportError:
+            _mock = types.ModuleType(_pkg)
+            if _pkg == "dotenv":
+                _mock.load_dotenv = lambda *args, **kwargs: None
+            sys.modules[_pkg] = _mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
