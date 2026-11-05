@@ -152,7 +152,11 @@ def main():
 
     print(f"Provider mode requested: {args.provider}")
     print(f"Explain mode:            {args.mode}")
-    print(f"Time Budget:             {args.budget:.1f} s")
+    if args.mode == "background":
+        job_deadline = float(os.getenv("EXPLAIN_JOB_DEADLINE_SECONDS", "45.0"))
+        print(f"Job Deadline:            {job_deadline:.1f} s")
+    else:
+        print(f"Time Budget:             {args.budget:.1f} s")
     print(f"Pause between calls:     {pause:.1f} s")
     print(f"Poll timeout:            {args.poll_timeout:.1f} s")
     print(f"GROQ_API_KEY:            {groq_set}")
