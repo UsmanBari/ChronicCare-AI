@@ -40,7 +40,13 @@ from rag.explainer import (
     validate_level_consistency,
     validate_number_grounding,
 )
-from rag.query_map import build_query_from_triage
+from rag.licences import (
+    get_restricted_gemini_sources,
+    has_complete_attribution,
+    is_llm_allowed_for_source,
+    is_source_expired,
+)
+from rag.query_map import build_query_from_triage, is_ramadan_text
 from rag.retriever import BM25Retriever
 from rag.store import ChunkStore
 
@@ -48,19 +54,10 @@ logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Guideline Corpus Licensing Restrictions (G3)
-# Source IDs with allowed_for_rag == FALSE in docs/GUIDELINE_CORPUS.md.
-# These guidelines carry text/data mining prohibitions or copyright restrictions.
-# Chunks derived from these sources must NEVER be sent to Google Gemini under any circumstances.
+# Source IDs that must NEVER be sent to Google Gemini under any circumstances.
+# Backed by single machine-readable source of truth in rag.licences.
 # =============================================================================
-LICENCE_RESTRICTED_SOURCES: Set[str] = {
-    "ada_2026_sec02",
-    "ada_2026_sec05",
-    "ada_2026_sec06",
-    "ada_2026_sec10",
-    "ada_2026_sec11",
-    "ada_2026_sec13",
-    "aha_acc_2025",
-}
+LICENCE_RESTRICTED_SOURCES: Set[str] = get_restricted_gemini_sources()
 
 # =============================================================================
 # Configuration & Defaults
@@ -338,7 +335,7 @@ class ExplainCache:
         if store is not None:
             for cid in cited_cids:
                 if cid not in existing_chunks_by_id:
-                    chunk = store.get(cid)
+                    chunk = store.get_chunk(cid) if hasattr(store, "get_chunk") else store.get(cid)
                     if not chunk:
                         with self._lock:
                             self.misses += 1
@@ -1065,11 +1062,50 @@ def guarded_explain(
     if not candidate_chunks and store is not None:
         return _make_template_fallback("no_chunks", ["No matching clinical guideline chunks found"])
 
-    # 5. Check G3 Licence Restriction across chunks
+    # Filter expired chunks at runtime (X2)
+    if candidate_chunks:
+        candidate_chunks = [c for c in candidate_chunks if not is_source_expired(c.get("source_id", ""))]
+
+    is_ramadan_checkin = (
+        trigger_category == "ramadan_fasting"
+        or is_ramadan_text(query_mapping.query_text)
+        or any(is_ramadan_text(str(r)) for r in triage_copy.get("reasons", []))
+    )
+
+    # Point 1: IDF-DAR (idf_dar_2021) chunks may be used only for Ramadan check-ins
+    if cond_str == "diabetes" and not is_ramadan_checkin and candidate_chunks:
+        candidate_chunks = [
+            c for c in candidate_chunks
+            if not str(c.get("source_id", "")).strip().lower().startswith("idf_dar")
+        ]
+
+    # 5. Check G3 Licence Restriction across chunks (Gemini prohibited if ANY candidate chunk is restricted)
     has_restricted_chunk = any(
         str(c.get("source_id", "")).strip().lower() in LICENCE_RESTRICTED_SOURCES
         for c in candidate_chunks
     )
+
+    # Attribution check (X4): sources requiring attribution cannot be used if citation or DOI is missing or 'TO FILL BY USMAN'
+    if candidate_chunks:
+        attribution_valid_chunks = [
+            c for c in candidate_chunks
+            if has_complete_attribution(c.get("source_id", ""), chunk=c)
+        ]
+        if len(attribution_valid_chunks) < len(candidate_chunks) and not attribution_valid_chunks and store is not None:
+            return _make_template_fallback("licence_restricted", ["Sources require full citation and DOI attribution before use"])
+        candidate_chunks = attribution_valid_chunks
+
+    # Point 1: Diabetes, non-Ramadan check-ins: if no ADA chunk survives attribution/licence filters, do NOT send other chunks to LLM
+    if cond_str == "diabetes" and not is_ramadan_checkin and store is not None:
+        has_surviving_ada = any(
+            str(c.get("source_id", "")).strip().lower().startswith("ada_2026")
+            for c in candidate_chunks
+        )
+        if not has_surviving_ada:
+            return _make_template_fallback(
+                "licence_restricted",
+                ["No valid ADA guideline chunks available for non-Ramadan diabetes explanation"]
+            )
 
     # 6. Resolve Candidate Providers
     active_mode = (provider or get_llm_provider()).strip().lower()
@@ -1083,6 +1119,27 @@ def guarded_explain(
     # Filter by licence restriction: G3 forbids Gemini if any restricted chunk
     if has_restricted_chunk:
         provider_candidates = [p for p in provider_candidates if p != "gemini"]
+
+    # Filter by licence restrictions (X3 enforces provider permissions)
+    filtered_provider_candidates: List[str] = []
+    licence_skipped: List[str] = []
+
+    for p in provider_candidates:
+        if candidate_chunks:
+            allowed_chunks = [
+                c for c in candidate_chunks
+                if is_llm_allowed_for_source(c.get("source_id", ""), provider=p)
+            ]
+            if not allowed_chunks:
+                licence_skipped.append(p)
+                continue
+
+        filtered_provider_candidates.append(p)
+
+    if (not provider_candidates and has_restricted_chunk) or (not filtered_provider_candidates and licence_skipped):
+        return _make_template_fallback("licence_restricted", ["Retrieved chunks restricted by guideline licence for configured LLM provider"])
+
+    provider_candidates = filtered_provider_candidates
 
     # Filter by configuration, breakers, and token caps
     eligible_providers: List[str] = []
@@ -1273,12 +1330,18 @@ def guarded_explain(
                                 worker_error["error"] = exc
                                 raise
 
+                        allowed_for_curr = [
+                            c for c in candidate_chunks
+                            if is_llm_allowed_for_source(c.get("source_id", ""), provider=current_provider)
+                        ]
                         res = explain(
                             triage_result=triage_copy,
                             readings=readings_copy,
                             language=target_lang,
                             store=store,
                             llm=_timed_llm,
+                            candidate_chunks=allowed_for_curr,
+                            provider=current_provider,
                         )
                         worker_result["data"] = res
                     except Exception as exc:

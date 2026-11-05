@@ -5,70 +5,84 @@
 
 ## Corpus Inventory & Licence Status
 
-| Source ID | Title | Ed. | Priority | Pages | Allowed for RAG? | Status / Reason | Download Date | SHA-256 (first 12) | Terms of Use |
-|---|---|---|---|---|---|---|---|---|---|
-| `ada_2026_sec02` | ADA Standards of Care in Diabetes 2026 - Section 2: Diagnosis and Classification of Diabetes | 2026 | 2 | 23 | **FALSE** | BLOCKED: licence (ADA/AHA permission pending since 27 Oct 2026) | 2026-10-27 | `b393a4c91ac1` | TO FILL BY USMAN |
-| `ada_2026_sec05` | ADA Standards of Care in Diabetes 2026 - Section 5: Facilitating Positive Health Behaviors and Well-being to Improve Health Outcomes | 2026 | 2 | 43 | **FALSE** | BLOCKED: licence (ADA/AHA permission pending since 27 Oct 2026) | 2026-10-27 | `e537eaf1a8a8` | TO FILL BY USMAN |
-| `ada_2026_sec06` | ADA Standards of Care in Diabetes 2026 - Section 6: Glycemic Goals, Hypoglycemia, and Hyperglycemic Crises | 2026 | 2 | 18 | **FALSE** | BLOCKED: licence (ADA/AHA permission pending since 27 Oct 2026) | 2026-10-27 | `ff05e98837e7` | TO FILL BY USMAN |
-| `ada_2026_sec10` | ADA Standards of Care in Diabetes 2026 - Section 10: Cardiovascular Disease and Risk Management | 2026 | 2 | 30 | **FALSE** | BLOCKED: licence (ADA/AHA permission pending since 27 Oct 2026) | 2026-10-27 | `4bf96af77261` | TO FILL BY USMAN |
-| `ada_2026_sec11` | ADA Standards of Care in Diabetes 2026 - Section 11: Chronic Kidney Disease and Risk Management | 2026 | 2 | 15 | **FALSE** | BLOCKED: licence (ADA/AHA permission pending since 27 Oct 2026) | 2026-10-27 | `a07be43925bb` | TO FILL BY USMAN |
-| `ada_2026_sec13` | ADA Standards of Care in Diabetes 2026 - Section 13: Older Adults | 2026 | 2 | 20 | **FALSE** | BLOCKED: licence (ADA/AHA permission pending since 27 Oct 2026) | 2026-10-27 | `49a36603341a` | TO FILL BY USMAN |
-| `aha_acc_2025` | 2025 AHA/ACC Clinical Practice Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults | 2025 | 2 | 105 | **FALSE** | BLOCKED: licence (ADA/AHA permission pending since 27 Oct 2026) | 2026-10-27 | `68a80057e6ba` | TO FILL BY USMAN |
-| `who_2021_htn` | Guideline for the Pharmacological Treatment of Hypertension in Adults | 2021 | 3 | 61 | **TRUE** | ALLOWED (CHECK: no TDM prohibition on pages 1-2) | 2026-10-27 | `57f6376d5c9b` | TO FILL BY USMAN |
-| `ish_2020_htn` | 2020 International Society of Hypertension Global Hypertension Practice Guidelines | 2020 | 3 | 24 | **TRUE** | ALLOWED (CHECK: no TDM prohibition on pages 1-2) | 2026-10-27 | `ef877c7b8a2b` | TO FILL BY USMAN |
-| `idf_dar_2021` | IDF-DAR Diabetes and Ramadan: Practical Guidelines 2021 | 2021 | 4 | 333 | **TRUE** | ALLOWED (CHECK: no TDM prohibition on pages 1-2) | 2026-10-27 | `615246041d28` | TO FILL BY USMAN |
-| `pk_htn_women_2023` | Management of Hypertension in Women: Pakistan Hypertension Clinical Practice Guidelines | 2023 | 4 | 22 | **TRUE** | ALLOWED (CHECK: no TDM prohibition on pages 1-2) | 2026-10-27 | `57111036bb42` | TO FILL BY USMAN |
-| `aku_diabetes_pk_2023` | Adolopment of Adult Diabetes Mellitus Management Guidelines for a Pakistani Context: Methodology and Challenges | 2023 | 4 | 12 | **TRUE** | ALLOWED (Creative Commons / Open Access) | 2026-10-27 | `b69d36aeb094` | TO FILL BY USMAN |
+| Source ID | Title | Ed. | Priority | Pages | Allowed for RAG? | Status / Reason | Download Date | SHA-256 (first 12) | Terms of Use | Full Citation | DOI |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `ada_2026_sec02` | ADA Standards of Care in Diabetes 2026 - Section 2: Diagnosis and Classification of Diabetes | 2026 | 2 | 23 | **TRUE** | ALLOWED: ADA written permission 5 Nov 2026, conditions in docs/licences/ADA_2026_PERMISSION.md, expires 2027-06-30 | 2026-10-27 | `b393a4c91ac1` | Academic evaluation (expires 2027-06-30) | American Diabetes Association Professional Practice Committee for Diabetes. 2. Diagnosis and classification of diabetes: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S27–S49. | https://doi.org/10.2337/dc26-S002 |
+| `ada_2026_sec05` | ADA Standards of Care in Diabetes 2026 - Section 5: Facilitating Positive Health Behaviors and Well-being to Improve Health Outcomes | 2026 | 2 | 43 | **TRUE** | ALLOWED: ADA written permission 5 Nov 2026, conditions in docs/licences/ADA_2026_PERMISSION.md, expires 2027-06-30 | 2026-10-27 | `e537eaf1a8a8` | Academic evaluation (expires 2027-06-30) | American Diabetes Association Professional Practice Committee for Diabetes. 5. Facilitating positive health behaviors and well-being to improve health outcomes: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S89–S131. | https://doi.org/10.2337/dc26-S005 |
+| `ada_2026_sec06` | ADA Standards of Care in Diabetes 2026 - Section 6: Glycemic Goals, Hypoglycemia, and Hyperglycemic Crises | 2026 | 2 | 18 | **TRUE** | ALLOWED: ADA written permission 5 Nov 2026, conditions in docs/licences/ADA_2026_PERMISSION.md, expires 2027-06-30 | 2026-10-27 | `ff05e98837e7` | Academic evaluation (expires 2027-06-30) | American Diabetes Association Professional Practice Committee for Diabetes. 6. Glycemic goals, hypoglycemia, and hyperglycemic crises: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S132–S149. | https://doi.org/10.2337/dc26-S006 |
+| `ada_2026_sec10` | ADA Standards of Care in Diabetes 2026 - Section 10: Cardiovascular Disease and Risk Management | 2026 | 2 | 30 | **TRUE** | ALLOWED: ADA written permission 5 Nov 2026, conditions in docs/licences/ADA_2026_PERMISSION.md, expires 2027-06-30 | 2026-10-27 | `4bf96af77261` | Academic evaluation (expires 2027-06-30) | American Diabetes Association Professional Practice Committee for Diabetes. 10. Cardiovascular disease and risk management: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S216–S245. | https://doi.org/10.2337/dc26-S010 |
+| `ada_2026_sec11` | ADA Standards of Care in Diabetes 2026 - Section 11: Chronic Kidney Disease and Risk Management | 2026 | 2 | 15 | **TRUE** | ALLOWED: ADA written permission 5 Nov 2026, conditions in docs/licences/ADA_2026_PERMISSION.md, expires 2027-06-30 | 2026-10-27 | `a07be43925bb` | Academic evaluation (expires 2027-06-30) | American Diabetes Association Professional Practice Committee for Diabetes. 11. Chronic kidney disease and risk management: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S246–S260. | https://doi.org/10.2337/dc26-S011 |
+| `ada_2026_sec13` | ADA Standards of Care in Diabetes 2026 - Section 13: Older Adults | 2026 | 2 | 20 | **TRUE** | ALLOWED: ADA written permission 5 Nov 2026, conditions in docs/licences/ADA_2026_PERMISSION.md, expires 2027-06-30 | 2026-10-27 | `49a36603341a` | Academic evaluation (expires 2027-06-30) | American Diabetes Association Professional Practice Committee for Diabetes. 13. Older adults: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S277–S296. | https://doi.org/10.2337/dc26-S013 |
+| `aha_acc_2025` | 2025 AHA/ACC Clinical Practice Guideline for the Prevention, Detection, Evaluation, and Management of High Blood Pressure in Adults | 2025 | 2 | 105 | **FALSE** | BLOCKED: licence (no permission granted) | 2026-10-27 | `68a80057e6ba` | Prohibited | TO FILL BY USMAN | TO FILL BY USMAN |
+| `who_2021_htn` | Guideline for the Pharmacological Treatment of Hypertension in Adults | 2021 | 3 | 61 | **TRUE** | ALLOWED (CHECK: no TDM prohibition on pages 1-2) | 2026-10-27 | `57f6376d5c9b` | TO FILL BY USMAN | TO FILL BY USMAN | TO FILL BY USMAN |
+| `ish_2020_htn` | 2020 International Society of Hypertension Global Hypertension Practice Guidelines | 2020 | 3 | 24 | **TRUE** | ALLOWED (CHECK: no TDM prohibition on pages 1-2) | 2026-10-27 | `ef877c7b8a2b` | TO FILL BY USMAN | TO FILL BY USMAN | TO FILL BY USMAN |
+| `idf_dar_2021` | IDF-DAR Diabetes and Ramadan: Practical Guidelines 2021 | 2021 | 4 | 333 | **TRUE** | ALLOWED (CHECK: no TDM prohibition on pages 1-2) | 2026-10-27 | `615246041d28` | TO FILL BY USMAN | TO FILL BY USMAN | TO FILL BY USMAN |
+| `pk_htn_women_2023` | Management of Hypertension in Women: Pakistan Hypertension Clinical Practice Guidelines | 2023 | 4 | 22 | **TRUE** | ALLOWED (CHECK: no TDM prohibition on pages 1-2) | 2026-10-27 | `57111036bb42` | TO FILL BY USMAN | TO FILL BY USMAN | TO FILL BY USMAN |
+| `aku_diabetes_pk_2023` | Adolopment of Adult Diabetes Mellitus Management Guidelines for a Pakistani Context: Methodology and Challenges | 2023 | 4 | 12 | **TRUE** | ALLOWED (Creative Commons / Open Access) | 2026-10-27 | `b69d36aeb094` | TO FILL BY USMAN | TO FILL BY USMAN | TO FILL BY USMAN |
 
 ## Detailed Licence Snippets (First 2 Pages)
 
 ### `ada_2026_sec02` — ada2026_sec02_diagnosis.pdf
 - **Publisher:** American Diabetes Association
 - **URL / DOI:** https://doi.org/10.2337/dc26-S002
-- **Allowed for RAG:** No (BLOCKED)
-- **Licence Notice:** *"This publication and its contents may not be reproduced, distributed, or used for text or data mining, machine learning, or similar technologies without prior written permission."*
+- **Allowed for RAG:** Yes (ADA written permission 5 Nov 2026, conditions in docs/licences/ADA_2026_PERMISSION.md, expires 2027-06-30)
+- **Full Citation:** American Diabetes Association Professional Practice Committee for Diabetes. 2. Diagnosis and classification of diabetes: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S27–S49.
+- **DOI:** https://doi.org/10.2337/dc26-S002
+- **Licence Notice:** *"This publication and its contents may not be reproduced, distributed, or used for text or data mining, machine learning, or similar technologies without prior written permission."* (Permission granted 5 Nov 2026 for academic evaluation through 30 June 2027).
 - **Full SHA-256:** `b393a4c91ac1b9af696268b3bcd161862ada66b5312e46e0f21b5949a9798f05`
 
 ### `ada_2026_sec05` — ada2026_sec05_lifestyle.pdf
 - **Publisher:** American Diabetes Association
 - **URL / DOI:** https://doi.org/10.2337/dc26-S005
-- **Allowed for RAG:** No (BLOCKED)
-- **Licence Notice:** *"This publication and its contents may not be reproduced, distributed, or used for text or data mining, machine learning, or similar technologies without prior written permission."*
+- **Allowed for RAG:** Yes (ADA written permission 5 Nov 2026, conditions in docs/licences/ADA_2026_PERMISSION.md, expires 2027-06-30)
+- **Full Citation:** American Diabetes Association Professional Practice Committee for Diabetes. 5. Facilitating positive health behaviors and well-being to improve health outcomes: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S89–S131.
+- **DOI:** https://doi.org/10.2337/dc26-S005
+- **Licence Notice:** *"This publication and its contents may not be reproduced, distributed, or used for text or data mining, machine learning, or similar technologies without prior written permission."* (Permission granted 5 Nov 2026 for academic evaluation through 30 June 2027).
 - **Full SHA-256:** `e537eaf1a8a8a0e5f3f75678f646cb39ac379a6ed46caaa8481fa929aca63361`
 
 ### `ada_2026_sec06` — ada2026_sec06_glycemic_goals_hypoglycemia.pdf
 - **Publisher:** American Diabetes Association
 - **URL / DOI:** https://doi.org/10.2337/dc26-S006
-- **Allowed for RAG:** No (BLOCKED)
-- **Licence Notice:** *"This publication and its contents may not be reproduced, distributed, or used for text or data mining, machine learning, or similar technologies without prior written permission."*
+- **Allowed for RAG:** Yes (ADA written permission 5 Nov 2026, conditions in docs/licences/ADA_2026_PERMISSION.md, expires 2027-06-30)
+- **Full Citation:** American Diabetes Association Professional Practice Committee for Diabetes. 6. Glycemic goals, hypoglycemia, and hyperglycemic crises: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S132–S149.
+- **DOI:** https://doi.org/10.2337/dc26-S006
+- **Licence Notice:** *"This publication and its contents may not be reproduced, distributed, or used for text or data mining, machine learning, or similar technologies without prior written permission."* (Permission granted 5 Nov 2026 for academic evaluation through 30 June 2027).
 - **Full SHA-256:** `ff05e98837e70b0fea8b78434e6a6202a23e5dd7ba445e3fac11657e0b6f6e76`
 
 ### `ada_2026_sec10` — ada2026_sec10_cvd_risk.pdf
 - **Publisher:** American Diabetes Association
 - **URL / DOI:** https://doi.org/10.2337/dc26-S010
-- **Allowed for RAG:** No (BLOCKED)
-- **Licence Notice:** *"This publication and its contents may not be reproduced, distributed, or used for text or data mining, machine learning, or similar technologies without prior written permission."*
+- **Allowed for RAG:** Yes (ADA written permission 5 Nov 2026, conditions in docs/licences/ADA_2026_PERMISSION.md, expires 2027-06-30)
+- **Full Citation:** American Diabetes Association Professional Practice Committee for Diabetes. 10. Cardiovascular disease and risk management: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S216–S245.
+- **DOI:** https://doi.org/10.2337/dc26-S010
+- **Licence Notice:** *"This publication and its contents may not be reproduced, distributed, or used for text or data mining, machine learning, or similar technologies without prior written permission."* (Permission granted 5 Nov 2026 for academic evaluation through 30 June 2027).
 - **Full SHA-256:** `4bf96af77261d4d8b75c2be9c7f3040061e2f00dbf246bf9f3b16c982cdad040`
 
 ### `ada_2026_sec11` — ada2026_sec11_ckd.pdf
 - **Publisher:** American Diabetes Association
 - **URL / DOI:** https://doi.org/10.2337/dc26-S011
-- **Allowed for RAG:** No (BLOCKED)
-- **Licence Notice:** *"This publication and its contents may not be reproduced, distributed, or used for text or data mining, machine learning, or similar technologies without prior written permission."*
+- **Allowed for RAG:** Yes (ADA written permission 5 Nov 2026, conditions in docs/licences/ADA_2026_PERMISSION.md, expires 2027-06-30)
+- **Full Citation:** American Diabetes Association Professional Practice Committee for Diabetes. 11. Chronic kidney disease and risk management: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S246–S260.
+- **DOI:** https://doi.org/10.2337/dc26-S011
+- **Licence Notice:** *"This publication and its contents may not be reproduced, distributed, or used for text or data mining, machine learning, or similar technologies without prior written permission."* (Permission granted 5 Nov 2026 for academic evaluation through 30 June 2027).
 - **Full SHA-256:** `a07be43925bb7e0f1c3e4cfbeafc6be0e607b0b909eed451ff2e8810f0433157`
 
 ### `ada_2026_sec13` — ada2026_sec13_older_adults.pdf
 - **Publisher:** American Diabetes Association
 - **URL / DOI:** https://doi.org/10.2337/dc26-S013
-- **Allowed for RAG:** No (BLOCKED)
-- **Licence Notice:** *"This publication and its contents may not be reproduced, distributed, or used for text or data mining, machine learning, or similar technologies without prior written permission."*
+- **Allowed for RAG:** Yes (ADA written permission 5 Nov 2026, conditions in docs/licences/ADA_2026_PERMISSION.md, expires 2027-06-30)
+- **Full Citation:** American Diabetes Association Professional Practice Committee for Diabetes. 13. Older adults: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S277–S296.
+- **DOI:** https://doi.org/10.2337/dc26-S013
+- **Licence Notice:** *"This publication and its contents may not be reproduced, distributed, or used for text or data mining, machine learning, or similar technologies without prior written permission."* (Permission granted 5 Nov 2026 for academic evaluation through 30 June 2027).
 - **Full SHA-256:** `49a36603341af5eee7c182a959771cccfbf94e25755d99f1b8b37d495ab915de`
 
 ### `aha_acc_2025` — aha_acc_2025_hbp_guideline.pdf
 - **Publisher:** American Heart Association / American College of Cardiology
 - **URL / DOI:** https://doi.org/10.1161/HYP.0000000000000249
 - **Allowed for RAG:** No (BLOCKED)
-- **Licence Notice:** *"doi: 10.1161/HYP.0000000000000249 © 2025 by the American Heart Association, Inc."*
+- **Full Citation:** TO FILL BY USMAN
+- **DOI:** TO FILL BY USMAN
+- **Licence Notice:** *"doi: 10.1161/HYP.0000000000000249 © 2025 by the American Heart Association, Inc."* (Open question: check DOI against guideline PDF cover to verify whether 10.1161/HYPERTENSIONAHA.120.15026 belongs to ISH 2020 rather than AHA/ACC 2025).
 - **Full SHA-256:** `68a80057e6ba83d2e261e92cce4c20b5b13e47aff747226bb7832cf7f4557380`
 
 ### `who_2021_htn` — who_2021_htn_pharmacological.pdf

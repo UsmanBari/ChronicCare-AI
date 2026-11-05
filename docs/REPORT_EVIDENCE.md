@@ -47,7 +47,7 @@ Per Saad's Day 4 prompt in `docs/tasks/WEEK3_SAAD.md` (Part A, lines 621–633),
 | **P0 Safety Invariant: Emergency Never Calls LLM** | Emergency early return bypasses step 10 explainer & queue entirely | `backend-poc-technical/orchestrator/steps.py:166-211,286-324`, `backend-poc-technical/orchestrator/graph.py:81`, `backend-poc-technical/main.py:4839-4841` | `pytest backend-poc-technical/test_explain_guards.py::test_c6_emergency_intakes_bypass_explainer` | 2026-11-05 |
 
 > **Guideline Permission Status (ADA & AHA/ACC)**:  
-> ADA Standards of Care 2026, Sections 2, 5, 6, 10, 11 and 13: written permission received on 5 Nov 2026 for academic evaluation (Nov 2026 to Jun 2027), with conditions; integration is a separate PR (Day 6b). Until it is merged and evaluated, diabetes explanations are templates. AHA/ACC 2025: not permitted, blocked.
+> ADA Standards of Care in Diabetes—2026, Sections 2, 5, 6, 10, 11 and 13: written permission received on 5 Nov 2026 for academic evaluation (Nov 2026 to Jun 2027) with conditions (details in `docs/licences/ADA_2026_PERMISSION.md`). Plain-language explanations are generated from these sections exclusively via Groq and never sent to Google Gemini (G3); all stored ADA material is scheduled for permanent deletion on 30 June 2027. AHA/ACC 2025: not permitted, blocked.
 
 ---
 

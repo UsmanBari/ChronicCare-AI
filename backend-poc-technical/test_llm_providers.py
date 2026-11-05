@@ -474,22 +474,26 @@ def test_routing_provider_isolation_flags(monkeypatch):
 # PART I3 — Rules G3, H1, H2, H3
 # =============================================================================
 def test_g3_constant_matches_guideline_corpus_doc():
-    """G3: Assert LICENCE_RESTRICTED_SOURCES exactly matches every source marked allowed_for_rag FALSE in GUIDELINE_CORPUS.md."""
-    manifest_path = REPO_ROOT / "docs" / "GUIDELINE_CORPUS.md"
-    assert manifest_path.exists(), f"Missing {manifest_path}"
-    content = manifest_path.read_text(encoding="utf-8")
+    """G3: Assert LICENCE_RESTRICTED_SOURCES matches every source with allowed_for_gemini false in licences (all 6 ADA ids + aha_acc_2025)."""
+    from rag.licences import get_all_licence_specs, get_restricted_gemini_sources
+    specs = get_all_licence_specs()
+    expected_restricted = {sid for sid, s in specs.items() if not s.get("allowed_for_gemini", False)}
 
-    # Parse table rows for Allowed for RAG? column == FALSE
-    table_pattern = re.compile(r"^\|\s*`([^`]+)`\s*\|.*?\|\s*(\*\*FALSE\*\*|FALSE)\s*\|", re.MULTILINE | re.IGNORECASE)
-    blocked_sources_in_doc = set()
-    for match in table_pattern.finditer(content):
-        blocked_sources_in_doc.add(match.group(1).strip())
-
-    assert len(blocked_sources_in_doc) == 7
-    assert blocked_sources_in_doc == LICENCE_RESTRICTED_SOURCES, (
-        f"Drift detected between docs/GUIDELINE_CORPUS.md ({blocked_sources_in_doc}) "
+    assert len(expected_restricted) == 7
+    assert expected_restricted == LICENCE_RESTRICTED_SOURCES, (
+        f"Drift detected between licence specs ({expected_restricted}) "
         f"and explain_guards.LICENCE_RESTRICTED_SOURCES ({LICENCE_RESTRICTED_SOURCES})"
     )
+    ada_ids = {
+        "ada_2026_sec02",
+        "ada_2026_sec05",
+        "ada_2026_sec06",
+        "ada_2026_sec10",
+        "ada_2026_sec11",
+        "ada_2026_sec13",
+    }
+    assert ada_ids.issubset(LICENCE_RESTRICTED_SOURCES), "All 6 ADA IDs must remain in LICENCE_RESTRICTED_SOURCES"
+    assert "aha_acc_2025" in LICENCE_RESTRICTED_SOURCES, "aha_acc_2025 must remain in LICENCE_RESTRICTED_SOURCES"
 
 
 def test_g3_licence_restricted_chunk_never_calls_gemini(monkeypatch):

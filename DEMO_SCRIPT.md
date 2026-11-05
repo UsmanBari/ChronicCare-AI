@@ -123,3 +123,14 @@ flowchart LR
   2. **Deterministic Fallback**: If LLM infrastructure goes down or rate limits are reached, the system seamlessly falls back to 100% safe, pre-approved clinical templates.
   3. **Verified Traceability**: Every requirement from the proposal is backed by automated regression tests in CI and documented in `docs/TRACEABILITY.md`.
   4. **Closing Disclaimer**: *"ChronicCare AI is a research decision-support prototype. Doctor review is not clinical validation."*
+
+---
+
+## 8. Guideline Licensing & Presentation Compliance Rules (Rule Y2)
+
+To comply with written academic permissions granted on 5 November 2026:
+1. **No Verbatim ADA Excerpt Text:** Presenters, authors, and slides must **never** display raw or verbatim excerpt text from ADA guidelines in slides, posters, reports, or papers.
+2. **Standard Academic Citations:** In references and bibliography slides, cite ADA Standards of Care normally.
+3. **No Promotional Logos:** The ADA logo and branding must **never** be used in slides, UI mockups, posters, or demo visuals.
+4. **Demonstration Screenshots:** Screenshots of patient explanations in slides must come exclusively from **hypertension** check-ins (WHO 2021 / ISH 2020) or show only our own synthesized plain-language text.
+5. **Release 2 Plan:** Release 2 sets `EXPLAIN_LLM_CONDITIONS=hypertension,diabetes` on Render; ADA material will be permanently purged on 30 June 2027 (`scripts/rag/delete_source.py --licence ada_2026 --yes`).
