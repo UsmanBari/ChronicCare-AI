@@ -65,7 +65,11 @@ def get_client(api_key: Optional[str] = None, timeout: float = 30.0, max_retries
     return Groq(**client_kwargs)
 
 
-def chat_with_usage(
+_DEFAULT_CHAT_WITH_USAGE = None
+_DEFAULT_CHAT = None
+
+
+def chat_with_detailed_usage(
     messages: List[Dict[str, str]],
     model: Optional[str] = None,
     temperature: float = 0.2,
@@ -73,11 +77,39 @@ def chat_with_usage(
     timeout: float = 30.0,
     max_retries: int = 2,
     sdk_max_retries: Optional[int] = None,
-) -> Tuple[str, int]:
+) -> Tuple[str, Dict[str, int]]:
     """
-    Executes a chat completion request with the Groq client and returns (text, total_tokens).
+    Executes a chat completion request with the Groq client and returns (text, usage_dict)
+    where usage_dict has 'total_tokens' and 'completion_tokens'.
     Preserves all error handling, credential checks, and transient retry semantics.
     """
+    if _DEFAULT_CHAT_WITH_USAGE is not None and chat_with_usage is not _DEFAULT_CHAT_WITH_USAGE:
+        res = chat_with_usage(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=timeout,
+            max_retries=max_retries,
+            sdk_max_retries=sdk_max_retries,
+        )
+        if isinstance(res, tuple) and len(res) == 2:
+            t, u = res
+            if isinstance(u, dict):
+                return t, u
+            return t, {"total_tokens": int(u or 0), "completion_tokens": int(u or 0)}
+        return str(res or ""), {"total_tokens": 0, "completion_tokens": 0}
+
+    if _DEFAULT_CHAT is not None and chat is not _DEFAULT_CHAT:
+        t = chat(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
+        return str(t or ""), {"total_tokens": 0, "completion_tokens": 0}
     target_model = model or get_configured_model()
     if not target_model:
         raise ValueError("GROQ_MODEL environment variable is missing and no model parameter was provided.")
@@ -103,14 +135,19 @@ def chat_with_usage(
                 choices = getattr(response, "choices", [])
 
             total_tokens = 0
+            completion_tokens = 0
             if usage_obj is not None:
                 if isinstance(usage_obj, dict):
                     total_tokens = int(usage_obj.get("total_tokens", 0) or 0)
+                    completion_tokens = int(usage_obj.get("completion_tokens", 0) or 0)
                 else:
                     total_tokens = int(getattr(usage_obj, "total_tokens", 0) or 0)
+                    completion_tokens = int(getattr(usage_obj, "completion_tokens", 0) or 0)
+
+            usage_dict = {"total_tokens": total_tokens, "completion_tokens": completion_tokens}
 
             if not choices:
-                return "", total_tokens
+                return "", usage_dict
             
             first_choice = choices[0]
             if isinstance(first_choice, dict):
@@ -121,8 +158,8 @@ def chat_with_usage(
                 content = getattr(msg_obj, "content", "") if msg_obj else ""
 
             if content:
-                return str(content).strip(), total_tokens
-            return "", total_tokens
+                return str(content).strip(), usage_dict
+            return "", usage_dict
         except (APIConnectionError, RateLimitError, InternalServerError, APITimeoutError) as e:
             attempts += 1
             last_error = e
@@ -132,14 +169,14 @@ def chat_with_usage(
             if attempts <= max_retries:
                 time.sleep(0.5 * attempts)
             else:
-                raise RuntimeError(f"Groq API call failed after {max_retries} retries: {e}") from e
+                raise RuntimeError(f"Groq API call failed after {max_retries} retries: {type(e).__name__}") from e
         except Exception as e:
             err_str = str(e).lower()
             if any(term in err_str for term in ["rate limit", "timeout", "503", "500", "connection error"]):
                 attempts += 1
                 last_error = e
                 logger.warning(
-                    f"Transient error calling Groq API (attempt {attempts}/{max_retries + 1}): {e}"
+                    f"Transient error calling Groq API (attempt {attempts}/{max_retries + 1}): {type(e).__name__}"
                 )
                 if attempts <= max_retries:
                     time.sleep(0.5 * attempts)
@@ -149,6 +186,31 @@ def chat_with_usage(
     if last_error:
         raise last_error
     raise RuntimeError("Unexpected failure in chat completion execution.")
+
+
+def chat_with_usage(
+    messages: List[Dict[str, str]],
+    model: Optional[str] = None,
+    temperature: float = 0.2,
+    max_tokens: int = 512,
+    timeout: float = 30.0,
+    max_retries: int = 2,
+    sdk_max_retries: Optional[int] = None,
+) -> Tuple[str, int]:
+    """
+    Executes a chat completion request with the Groq client and returns (text, total_tokens).
+    Preserves all error handling, credential checks, and transient retry semantics.
+    """
+    text, usage_dict = chat_with_detailed_usage(
+        messages=messages,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=timeout,
+        max_retries=max_retries,
+        sdk_max_retries=sdk_max_retries,
+    )
+    return text, usage_dict.get("total_tokens", 0)
 
 
 def chat(
@@ -186,3 +248,6 @@ def chat(
         max_retries=max_retries,
     )
     return text
+
+_DEFAULT_CHAT_WITH_USAGE = chat_with_usage
+_DEFAULT_CHAT = chat

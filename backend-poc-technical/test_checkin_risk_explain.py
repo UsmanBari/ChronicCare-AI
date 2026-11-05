@@ -84,6 +84,7 @@ def setup_test_env(tmp_path, monkeypatch, cert_pem):
     monkeypatch.setenv("FIREBASE_PROJECT_ID", TEST_PROJECT_ID)
     monkeypatch.setenv("DEMO_ROLE_MAP", "provider@demo.com:provider")
     monkeypatch.setenv("REQUIRE_INCLUSION", "0")
+    monkeypatch.setenv("EXPLAIN_MODE", "inline")
 
     # Guard: ensure no accidental real Groq / Gemini calls
     monkeypatch.delenv("GROQ_API_KEY", raising=False)

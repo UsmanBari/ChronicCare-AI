@@ -319,6 +319,8 @@ def node_explain(state: CheckinState) -> Dict[str, Any]:
     t0 = time.perf_counter()
     start_iso = _utc_now_iso()
     user = state["user"]
+    checkin = state.get("checkin") or {}
+    cid = checkin.get("checkin_id")
     parsed_context = state["parsed_context"]
     interview_st = parsed_context["state"]
     triage_dec = state["triage_decision"]
@@ -329,6 +331,7 @@ def node_explain(state: CheckinState) -> Dict[str, Any]:
         state=interview_st,
         triage_decision=triage_dec,
         trace=trace,
+        checkin_id=cid,
     )
 
     mode_str = explain_res.get("mode") if explain_res else "skipped"

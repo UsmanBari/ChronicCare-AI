@@ -160,6 +160,8 @@ from data_sources.app_store import (
     apply_checkin_answer_atomic,
     create_checkin_result,
     get_checkin_result,
+    get_checkin_explanation,
+    update_checkin_explanation,
     get_user_checkins,
     get_user_baseline_history,
     get_user_reading_history,
@@ -829,8 +831,17 @@ class ConfigItem(BaseModel):
     set: bool
 
 
+class CheckinExplanationResponse(BaseModel):
+    status: str
+    sentences: Optional[List[Dict[str, Any]]] = None
+    sources: Optional[List[Dict[str, Any]]] = None
+
+
 class ConfigStatusResponse(BaseModel):
     settings: List[ConfigItem]
+    flags: Optional[Dict[str, Any]] = None
+    keys_and_models: Optional[Dict[str, str]] = None
+    explainer_metrics: Optional[Dict[str, Any]] = None
 
 
 # --- Check-in & Review Schemas ---
@@ -884,6 +895,7 @@ class CheckinAnswerResponse(BaseModel):
 
 
 from orchestrator.steps import (
+    _build_patient_explain_view,
     CheckinCompleteResponse,
     step_check_idempotency,
     step_parse_and_validate_intake,
@@ -3826,7 +3838,8 @@ def delete_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(requir
 @app.get("/api/admin/config-status", response_model=ConfigStatusResponse, tags=["Admin"])
 def get_config_status_endpoint(current_user: Dict[str, Any] = Depends(require_role("admin"))):
     """
-    Returns configured status (name and set boolean only, never values) for critical server settings.
+    Returns configured status (name and set boolean only, never values) for critical server settings,
+    feature flags, model key presence, and explainer guard metrics.
     Restricted to admin role only.
     """
     db_backend = os.environ.get("DB_BACKEND", "").strip().lower()
@@ -3851,7 +3864,39 @@ def get_config_status_endpoint(current_user: Dict[str, Any] = Depends(require_ro
         ConfigItem(name=k, set=bool(os.environ.get(k, "").strip()))
         for k in keys
     ]
-    return ConfigStatusResponse(settings=settings)
+
+    flags = {
+        "RISK_ENABLED": os.environ.get("RISK_ENABLED", "").strip().lower() == "true",
+        "RISK_CAN_RAISE": os.environ.get("RISK_CAN_RAISE", "").strip().lower() == "true",
+        "EXPLAIN_ENABLED": os.environ.get("EXPLAIN_ENABLED", "").strip().lower() == "true",
+        "EXPLAIN_MODE": os.environ.get("EXPLAIN_MODE", "background").strip().lower(),
+        "OCR_ENABLED": os.environ.get("OCR_ENABLED", "").strip().lower() == "true",
+        "DANGER_WORDGROUPS_ENABLED": os.environ.get("DANGER_WORDGROUPS_ENABLED", "").strip().lower() == "true",
+        "ORCHESTRATOR": os.environ.get("ORCHESTRATOR", "direct").strip().lower(),
+        "INTERVIEW_ENGINE": os.environ.get("INTERVIEW_ENGINE", "v2").strip().lower(),
+        "LLM_PROVIDER": os.environ.get("LLM_PROVIDER", "auto").strip().lower(),
+        "SCREENING_REMINDER_INTERVAL_DAYS": os.environ.get("SCREENING_REMINDER_INTERVAL_DAYS", "90").strip(),
+    }
+
+    def _status_val(env_var: str) -> str:
+        return "SET" if os.environ.get(env_var, "").strip() else "NOT SET"
+
+    keys_and_models = {
+        "GROQ_API_KEY": _status_val("GROQ_API_KEY"),
+        "GROQ_MODEL": _status_val("GROQ_MODEL"),
+        "GEMINI_API_KEY": _status_val("GEMINI_API_KEY"),
+        "GEMINI_MODEL": _status_val("GEMINI_MODEL"),
+    }
+
+    from rag.explain_guards import get_explain_guard_metrics
+    explainer_metrics = get_explain_guard_metrics()
+
+    return ConfigStatusResponse(
+        settings=settings,
+        flags=flags,
+        keys_and_models=keys_and_models,
+        explainer_metrics=explainer_metrics,
+    )
 
 
 def _compute_age_years(dob_str: Optional[str]) -> Optional[float]:
@@ -4832,6 +4877,7 @@ def complete_checkin_endpoint(
         state=state,
         triage_decision=triage_decision,
         get_patient_profile_fn=get_patient_profile,
+        checkin_id=checkin_id,
     )
 
     # 11. Trace Construction (Direct Mode)
@@ -4912,6 +4958,30 @@ def get_user_checkin_detail_endpoint(
         state=checkin["state"],
         result=result,
         record_source_label=record_label,
+    )
+
+
+@app.get("/api/checkins/{checkin_id}/explanation", response_model=CheckinExplanationResponse, tags=["Check-in"])
+def get_checkin_explanation_endpoint(
+    checkin_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Retrieves patient-facing clinical guideline explanation for a check-in."""
+    checkin = get_checkin_by_id(checkin_id)
+    if not checkin or checkin["user_id"] != current_user["user_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Check-in session not found",
+        )
+
+    expl = get_checkin_explanation(checkin_id)
+    patient_view = _build_patient_explain_view(expl)
+    if not patient_view:
+        return CheckinExplanationResponse(status="ready", sentences=[], sources=[])
+    return CheckinExplanationResponse(
+        status=patient_view.get("status", "ready"),
+        sentences=patient_view.get("sentences", []),
+        sources=patient_view.get("sources", []),
     )
 
 
