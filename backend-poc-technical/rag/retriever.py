@@ -12,6 +12,7 @@ import re
 from typing import Any, Optional
 
 from rag.licences import is_source_expired
+from rag.query_map import is_ramadan_text
 from rag.store import ChunkStore
 
 logger = logging.getLogger(__name__)
@@ -114,14 +115,17 @@ class BM25Retriever:
         norm_cond = condition.lower().strip() if condition else None
 
         is_diabetes = (norm_cond == "diabetes")
-        fasting_keywords = {"ramadan", "roza", "fasting", "fast", "sehri", "iftar", "suhur"}
-        is_fasting = any(k in q_tokens for k in fasting_keywords)
+        is_ramadan = is_ramadan_text(query)
 
         for idx, doc in enumerate(self.corpus):
             # X2: Runtime licence expiry check
             src_id = str(doc.get("source_id", "")).strip().lower()
             if src_id and is_source_expired(src_id, as_of=as_of_date):
                 logger.warning("Filtered expired guideline chunk for source: %s", src_id)
+                continue
+
+            # IDF-DAR (idf_dar_2021) chunks may be used only for Ramadan check-ins
+            if is_diabetes and not is_ramadan and src_id.startswith("idf_dar"):
                 continue
 
             # 1. Condition filter
@@ -153,19 +157,25 @@ class BM25Retriever:
                     denom = freq + self.k1 * (1.0 - self.b + self.b * (dl / self.avgdl))
                     score += idf_val * (freq * (self.k1 + 1.0)) / denom
 
-            # Z2: For non-fasting diabetes check-ins, prefer ADA sections over idf_dar_2021
-            if is_diabetes and not is_fasting:
+            # Z2: Preference weighting (ADA for non-Ramadan diabetes, IDF for Ramadan diabetes)
+            if is_diabetes and not is_ramadan:
                 if src_id.startswith("ada_2026"):
                     pref = 2
-                elif src_id.startswith("idf_dar"):
-                    pref = 0
                 else:
                     pref = 1
+                candidates.append((score, pref, doc_pri, doc))
+            elif is_diabetes and is_ramadan:
+                if src_id.startswith("idf_dar"):
+                    pref = 2
+                elif src_id.startswith("ada_2026"):
+                    pref = 1
+                else:
+                    pref = 0
                 candidates.append((score, pref, doc_pri, doc))
             else:
                 candidates.append((score, 0, doc_pri, doc))
 
-        if is_diabetes and not is_fasting:
+        if is_diabetes:
             # Sort by match (score > 0), preference, score, priority
             candidates.sort(key=lambda item: (1 if item[0] > 0.0 else 0, item[1], item[0], item[2]), reverse=True)
         else:

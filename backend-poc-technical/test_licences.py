@@ -38,8 +38,10 @@ from rag.licences import (
     is_source_allowed_for_rag,
     is_source_expired,
     set_llm_derived_text_override,
+    set_attribution_override,
     reset_licence_overrides,
 )
+from rag.query_map import build_query_from_triage, is_ramadan_text
 from rag.retriever import BM25Retriever
 from rag.store import ChunkStore
 
@@ -316,8 +318,13 @@ def test_x3_mix_of_allowed_and_restricted_chunks_filters_restricted_before_llm(m
 # =============================================================================
 def test_x4_incomplete_attribution_excludes_source_from_patient():
     """X4: Sources with 'TO FILL BY USMAN' citation or DOI are excluded from patient sources."""
-    assert has_complete_attribution("ada_2026_sec02") is False
+    assert has_complete_attribution("aha_acc_2025") is False
     assert has_complete_attribution("who_2021_htn") is True
+    assert has_complete_attribution("ada_2026_sec02") is True
+
+    # Override to simulate incomplete attribution for ADA
+    set_attribution_override("ada_2026_sec02", "TO FILL BY USMAN", "TO FILL BY USMAN")
+    assert has_complete_attribution("ada_2026_sec02") is False
 
     # When attribution is incomplete, explainer falls back to template or excludes source
     chunks = [
@@ -452,9 +459,9 @@ def test_z2_diabetes_retrieval_prefers_ada_over_idf_dar_unless_fasting():
     store = MockStore(chunks)
     retriever = BM25Retriever(store)
 
-    # 1. Non-fasting query: ADA must rank ahead of IDF-DAR
+    # 1. Non-fasting query: ADA must rank ahead of IDF-DAR (IDF-DAR excluded for non-Ramadan)
     res_normal = retriever.retrieve("blood glucose monitoring targets", condition="diabetes")
-    assert len(res_normal) == 2
+    assert len(res_normal) == 1
     assert res_normal[0]["chunk_id"] == "ada_c1", "ADA must be preferred over IDF-DAR for standard diabetes check-in"
 
     # 2. Fasting / Ramadan query: IDF-DAR ranks ahead due to term match / normal priority
@@ -553,3 +560,112 @@ def test_z4_diabetes_checkin_with_ada_and_groq(monkeypatch):
     assert src["chunk_id"] == "ada_test_c1"
     assert src["full_citation"] == "American Diabetes Association. Standards of Care in Diabetes 2026."
     assert src["doi"] == "https://doi.org/10.2337/dc26-S002"
+
+
+# =============================================================================
+# Review Points 1-3 Tests
+# =============================================================================
+def test_review_point1_diabetes_non_ramadan_without_ada_citation_yields_template(monkeypatch):
+    """
+    Review Point 1: Diabetes, non-Ramadan check-ins:
+    If ADA citation is not filled (or no ADA chunk survives), do NOT send other chunks (e.g. IDF-DAR) to the LLM.
+    Use the template, reason 'licence_restricted', and zero LLM calls.
+    """
+    monkeypatch.setenv("EXPLAIN_LLM_CONDITIONS", "hypertension,diabetes")
+    # Simulate ADA citation not filled
+    set_attribution_override("ada_2026_sec02", "TO FILL BY USMAN", "TO FILL BY USMAN")
+
+    chunks = [
+        {
+            "chunk_id": "ada_c1",
+            "source_id": "ada_2026_sec02",
+            "title": "ADA Diagnostic Targets",
+            "condition": "diabetes",
+            "priority": 2,
+            "text": "Target glucose levels for adults with diabetes.",
+        },
+        {
+            "chunk_id": "idf_c1",
+            "source_id": "idf_dar_2021",
+            "title": "IDF-DAR Ramadan Guidelines",
+            "condition": "diabetes",
+            "priority": 2,
+            "text": "Fasting and diabetes management during Ramadan.",
+        },
+    ]
+    store = MockStore(chunks)
+
+    llm_called = []
+    def fake_llm(**kw):
+        llm_called.append(True)
+        return json.dumps({"sentences": [{"text": "Sample explanation [idf_c1].", "cites": ["idf_c1"]}]})
+
+    res = guarded_explain(
+        triage_result={"level": "routine"},
+        readings={"glucose": 250.0},
+        language="en",
+        store=store,
+        llm=fake_llm,
+        provider="groq",
+        condition="diabetes",
+    )
+
+    assert len(llm_called) == 0, "LLM must NOT be called when no ADA chunk survives attribution for non-Ramadan diabetes"
+    assert res["mode"] == "template"
+    assert res["reason"] == "licence_restricted"
+
+
+def test_review_point2_ramadan_detection_and_retrieval_preferences():
+    """
+    Review Point 2: Ramadan detection only uses real Ramadan words.
+    - glucose_low query -> ADA preferred.
+    - fasting glucose reading -> ADA preferred.
+    - 'roza mein sugar 60' -> IDF allowed.
+    """
+    chunks = [
+        {
+            "chunk_id": "ada_hypo",
+            "source_id": "ada_2026_sec06",
+            "title": "ADA Hypoglycemia Management",
+            "condition": "diabetes",
+            "priority": 2,
+            "text": "Hypoglycemia rule of 15 fast acting carbohydrate 15 grams glucose.",
+        },
+        {
+            "chunk_id": "idf_ramadan",
+            "source_id": "idf_dar_2021",
+            "title": "IDF-DAR Ramadan Fasting",
+            "condition": "diabetes",
+            "priority": 2,
+            "text": "Ramadan fasting risk management hypoglycemia roza iftar sehri sugar 60.",
+        },
+    ]
+    store = MockStore(chunks)
+    retriever = BM25Retriever(store)
+
+    # 1. glucose_low query (contains 'fast acting carbohydrate') -> ADA preferred over IDF
+    query_low = "glucose hypoglycemia 70 54 mgdl fast acting carbohydrate 15 grams rule of 15"
+    res_low = retriever.retrieve(query_low, condition="diabetes")
+    assert len(res_low) > 0
+    assert res_low[0]["source_id"].startswith("ada_2026"), "ADA must be preferred for glucose_low query"
+
+    # 2. Fasting glucose reading (e.g. 'fasting glucose 110 mg/dL') -> ADA preferred over IDF
+    query_fasting = "fasting glucose 110 mgdl normal targets"
+    res_fasting = retriever.retrieve(query_fasting, condition="diabetes")
+    assert len(res_fasting) > 0
+    assert res_fasting[0]["source_id"].startswith("ada_2026"), "ADA must be preferred for fasting glucose reading"
+
+    # 3. 'roza mein sugar 60' (real Ramadan term 'roza') -> IDF allowed
+    query_roza = "roza mein sugar 60"
+    res_roza = retriever.retrieve(query_roza, condition="diabetes")
+    assert any(c["source_id"].startswith("idf_dar") for c in res_roza), "IDF-DAR must be allowed for Ramadan query ('roza')"
+
+
+def test_review_point3_reason_fasting_glucose_does_not_map_to_ramadan():
+    """Review Point 3: Reason containing 'fasting glucose 145' does NOT map to ramadan_fasting query."""
+    triage_result = {
+        "level": "routine",
+        "reasons": ["fasting glucose 145"],
+    }
+    mapping = build_query_from_triage(triage_result, readings={"glucose": 145.0})
+    assert mapping.trigger_category != "ramadan_fasting", "Fasting glucose must NOT map to ramadan_fasting"

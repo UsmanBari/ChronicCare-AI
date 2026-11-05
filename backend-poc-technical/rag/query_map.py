@@ -6,7 +6,29 @@ without relying on unconstrained user free text.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
+
+
+RAMADAN_WORDS: set[str] = {
+    "ramadan", "roza", "rozay", "sehri", "suhur", "iftar",
+    "رمضان", "روزہ", "سحری", "افطار",
+}
+
+
+def is_ramadan_text(text: str) -> bool:
+    """Return True if text explicitly mentions Ramadan fasting terms."""
+    if not text:
+        return False
+    t = str(text).lower()
+    for w in RAMADAN_WORDS:
+        if w.isascii():
+            if re.search(r"\b" + re.escape(w) + r"\b", t):
+                return True
+        else:
+            if w in t:
+                return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -138,7 +160,7 @@ def build_query_from_triage(
             return TRIAGE_QUERY_TABLE["bp_low"]
         if "bp_change" in r:
             return TRIAGE_QUERY_TABLE["bp_change"]
-        if "ramadan" in r or "fasting" in r:
+        if is_ramadan_text(r):
             return TRIAGE_QUERY_TABLE["ramadan_fasting"]
         if "pregnancy" in r:
             return TRIAGE_QUERY_TABLE["pregnancy_hypertension"]

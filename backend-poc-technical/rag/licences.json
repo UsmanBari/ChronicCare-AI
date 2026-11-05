@@ -10,8 +10,8 @@
     "requires_citation_and_doi": true,
     "llm_derived_text_allowed": true,
     "allowed_llm_providers": ["groq"],
-    "full_citation": "TO FILL BY USMAN",
-    "doi": "TO FILL BY USMAN"
+    "full_citation": "American Diabetes Association Professional Practice Committee for Diabetes. 2. Diagnosis and classification of diabetes: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S27–S49.",
+    "doi": "https://doi.org/10.2337/dc26-S002"
   },
   "ada_2026_sec05": {
     "source_id": "ada_2026_sec05",
@@ -24,8 +24,8 @@
     "requires_citation_and_doi": true,
     "llm_derived_text_allowed": true,
     "allowed_llm_providers": ["groq"],
-    "full_citation": "TO FILL BY USMAN",
-    "doi": "TO FILL BY USMAN"
+    "full_citation": "American Diabetes Association Professional Practice Committee for Diabetes. 5. Facilitating positive health behaviors and well-being to improve health outcomes: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S89–S131.",
+    "doi": "https://doi.org/10.2337/dc26-S005"
   },
   "ada_2026_sec06": {
     "source_id": "ada_2026_sec06",
@@ -38,8 +38,8 @@
     "requires_citation_and_doi": true,
     "llm_derived_text_allowed": true,
     "allowed_llm_providers": ["groq"],
-    "full_citation": "TO FILL BY USMAN",
-    "doi": "TO FILL BY USMAN"
+    "full_citation": "American Diabetes Association Professional Practice Committee for Diabetes. 6. Glycemic goals, hypoglycemia, and hyperglycemic crises: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S132–S149.",
+    "doi": "https://doi.org/10.2337/dc26-S006"
   },
   "ada_2026_sec10": {
     "source_id": "ada_2026_sec10",
@@ -52,8 +52,8 @@
     "requires_citation_and_doi": true,
     "llm_derived_text_allowed": true,
     "allowed_llm_providers": ["groq"],
-    "full_citation": "TO FILL BY USMAN",
-    "doi": "TO FILL BY USMAN"
+    "full_citation": "American Diabetes Association Professional Practice Committee for Diabetes. 10. Cardiovascular disease and risk management: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S216–S245.",
+    "doi": "https://doi.org/10.2337/dc26-S010"
   },
   "ada_2026_sec11": {
     "source_id": "ada_2026_sec11",
@@ -66,8 +66,8 @@
     "requires_citation_and_doi": true,
     "llm_derived_text_allowed": true,
     "allowed_llm_providers": ["groq"],
-    "full_citation": "TO FILL BY USMAN",
-    "doi": "TO FILL BY USMAN"
+    "full_citation": "American Diabetes Association Professional Practice Committee for Diabetes. 11. Chronic kidney disease and risk management: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S246–S260.",
+    "doi": "https://doi.org/10.2337/dc26-S011"
   },
   "ada_2026_sec13": {
     "source_id": "ada_2026_sec13",
@@ -80,8 +80,8 @@
     "requires_citation_and_doi": true,
     "llm_derived_text_allowed": true,
     "allowed_llm_providers": ["groq"],
-    "full_citation": "TO FILL BY USMAN",
-    "doi": "TO FILL BY USMAN"
+    "full_citation": "American Diabetes Association Professional Practice Committee for Diabetes. 13. Older adults: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl. 1):S277–S296.",
+    "doi": "https://doi.org/10.2337/dc26-S013"
   },
   "aha_acc_2025": {
     "source_id": "aha_acc_2025",

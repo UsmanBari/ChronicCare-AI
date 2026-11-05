@@ -46,7 +46,7 @@ from rag.licences import (
     is_llm_allowed_for_source,
     is_source_expired,
 )
-from rag.query_map import build_query_from_triage
+from rag.query_map import build_query_from_triage, is_ramadan_text
 from rag.retriever import BM25Retriever
 from rag.store import ChunkStore
 
@@ -1066,6 +1066,19 @@ def guarded_explain(
     if candidate_chunks:
         candidate_chunks = [c for c in candidate_chunks if not is_source_expired(c.get("source_id", ""))]
 
+    is_ramadan_checkin = (
+        trigger_category == "ramadan_fasting"
+        or is_ramadan_text(query_mapping.query_text)
+        or any(is_ramadan_text(str(r)) for r in triage_copy.get("reasons", []))
+    )
+
+    # Point 1: IDF-DAR (idf_dar_2021) chunks may be used only for Ramadan check-ins
+    if cond_str == "diabetes" and not is_ramadan_checkin and candidate_chunks:
+        candidate_chunks = [
+            c for c in candidate_chunks
+            if not str(c.get("source_id", "")).strip().lower().startswith("idf_dar")
+        ]
+
     # 5. Check G3 Licence Restriction across chunks (Gemini prohibited if ANY candidate chunk is restricted)
     has_restricted_chunk = any(
         str(c.get("source_id", "")).strip().lower() in LICENCE_RESTRICTED_SOURCES
@@ -1081,6 +1094,18 @@ def guarded_explain(
         if len(attribution_valid_chunks) < len(candidate_chunks) and not attribution_valid_chunks and store is not None:
             return _make_template_fallback("licence_restricted", ["Sources require full citation and DOI attribution before use"])
         candidate_chunks = attribution_valid_chunks
+
+    # Point 1: Diabetes, non-Ramadan check-ins: if no ADA chunk survives attribution/licence filters, do NOT send other chunks to LLM
+    if cond_str == "diabetes" and not is_ramadan_checkin and store is not None:
+        has_surviving_ada = any(
+            str(c.get("source_id", "")).strip().lower().startswith("ada_2026")
+            for c in candidate_chunks
+        )
+        if not has_surviving_ada:
+            return _make_template_fallback(
+                "licence_restricted",
+                ["No valid ADA guideline chunks available for non-Ramadan diabetes explanation"]
+            )
 
     # 6. Resolve Candidate Providers
     active_mode = (provider or get_llm_provider()).strip().lower()

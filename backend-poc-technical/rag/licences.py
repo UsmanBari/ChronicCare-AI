@@ -134,11 +134,14 @@ def has_complete_attribution(source_id: str, chunk: Optional[Dict[str, Any]] = N
     if not spec.get("requires_citation_and_doi", False):
         return True
 
-    # 1. Check test override
+    # 1. Check test override (takes precedence over spec and chunk)
     if sid in _OVERRIDE_ATTRIBUTION:
         cit, doi = _OVERRIDE_ATTRIBUTION[sid]
-        if cit and cit.upper() != "TO FILL BY USMAN" and doi and doi.upper() != "TO FILL BY USMAN":
-            return True
+        if not cit or cit.upper() == "TO FILL BY USMAN":
+            return False
+        if not doi or doi.upper() == "TO FILL BY USMAN":
+            return False
+        return True
 
     # 2. Check chunk metadata if provided
     if chunk:
