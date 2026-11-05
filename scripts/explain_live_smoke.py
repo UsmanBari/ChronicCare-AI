@@ -97,6 +97,10 @@ def setup_db(db_file: str, cert_pem: str):
          "Target blood pressure for adults with hypertension is below 130/80 mmHg.", now),
         ("c_htn_2", "who_2021_htn", "Stage 2 Targets", "hypertension",
          "Blood pressure 140/90 mmHg or higher requires clinical management.", now),
+        ("c_dm_1", "ada_2026_sec02", "Classification and Diagnosis", "diabetes",
+         "Fasting plasma glucose 126 mg/dL or higher or HbA1c 6.5 percent or higher confirms diabetes.", now),
+        ("c_dm_2", "ada_2026_sec06", "Glycemic Goals", "diabetes",
+         "Target fasting blood glucose for nonpregnant adults is 80-130 mg/dL.", now),
     ]
     with app_store.get_db_cursor(backend="sqlite", db_path=db_file) as (cur, be, ph):
         for cid, src, title, cond, text, updated in chunks:
@@ -139,18 +143,25 @@ def main():
         default=30.0,
         help="Poll timeout for background explanation in seconds (default: 30.0)",
     )
+    parser.add_argument(
+        "--condition",
+        choices=["hypertension", "diabetes", "both"],
+        default="hypertension",
+        help="Condition focus for smoke test check-ins (default: hypertension)",
+    )
     args = parser.parse_args()
 
     pause = args.pause if args.pause is not None else (2.0 if args.provider == "groq" else 0.0)
 
-    print("=" * 105)
+    print("=" * 115)
     print("CHRONICCARE AI - LIVE EXPLAINER SMOKE TEST (Groq & Gemini Dual Provider)")
-    print("=" * 105)
+    print("=" * 115)
 
     groq_set = "SET" if os.getenv("GROQ_API_KEY", "").strip() else "NOT SET"
     gemini_set = "SET" if os.getenv("GEMINI_API_KEY", "").strip() else "NOT SET"
 
     print(f"Provider mode requested: {args.provider}")
+    print(f"Condition:               {args.condition}")
     print(f"Explain mode:            {args.mode}")
     if args.mode == "background":
         job_deadline = float(os.getenv("EXPLAIN_JOB_DEADLINE_SECONDS", "45.0"))
@@ -176,7 +187,7 @@ def main():
     os.environ["EXPLAIN_MODE"] = args.mode
     os.environ["LLM_PROVIDER"] = args.provider
     os.environ["EXPLAIN_BUDGET_SECONDS"] = str(args.budget)
-    os.environ["EXPLAIN_LLM_CONDITIONS"] = "hypertension"
+    os.environ["EXPLAIN_LLM_CONDITIONS"] = "hypertension,diabetes" if args.condition in ("diabetes", "both") else "hypertension"
     reset_explain_guards()
 
     rsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -186,27 +197,46 @@ def main():
 
     client = TestClient(app)
 
-    # 10 test check-ins across en, ur, roman_ur with repeated readings to test cache
-    test_checkins = [
-        {"bp_sys": 135.0, "bp_dia": 85.0, "lang": "en"},
-        {"bp_sys": 135.0, "bp_dia": 85.0, "lang": "en"},        # Cache hit
-        {"bp_sys": 145.0, "bp_dia": 92.0, "lang": "en"},
-        {"bp_sys": 132.0, "bp_dia": 84.0, "lang": "ur"},
-        {"bp_sys": 132.0, "bp_dia": 84.0, "lang": "ur"},        # Cache hit
-        {"bp_sys": 150.0, "bp_dia": 95.0, "lang": "ur"},
-        {"bp_sys": 125.0, "bp_dia": 82.0, "lang": "roman_ur"},
-        {"bp_sys": 125.0, "bp_dia": 82.0, "lang": "roman_ur"},  # Cache hit
-        {"bp_sys": 142.0, "bp_dia": 91.0, "lang": "roman_ur"},
-        {"bp_sys": 135.0, "bp_dia": 85.0, "lang": "en"},        # Cache hit
+    htn_checkins = [
+        {"cond": "hypertension", "bp_sys": 135.0, "bp_dia": 85.0, "glucose": None, "lang": "en"},
+        {"cond": "hypertension", "bp_sys": 135.0, "bp_dia": 85.0, "glucose": None, "lang": "en"},        # Cache hit
+        {"cond": "hypertension", "bp_sys": 145.0, "bp_dia": 92.0, "glucose": None, "lang": "en"},
+        {"cond": "hypertension", "bp_sys": 132.0, "bp_dia": 84.0, "glucose": None, "lang": "ur"},
+        {"cond": "hypertension", "bp_sys": 132.0, "bp_dia": 84.0, "glucose": None, "lang": "ur"},        # Cache hit
+        {"cond": "hypertension", "bp_sys": 150.0, "bp_dia": 95.0, "glucose": None, "lang": "ur"},
+        {"cond": "hypertension", "bp_sys": 125.0, "bp_dia": 82.0, "glucose": None, "lang": "roman_ur"},
+        {"cond": "hypertension", "bp_sys": 125.0, "bp_dia": 82.0, "glucose": None, "lang": "roman_ur"},  # Cache hit
+        {"cond": "hypertension", "bp_sys": 142.0, "bp_dia": 91.0, "glucose": None, "lang": "roman_ur"},
+        {"cond": "hypertension", "bp_sys": 135.0, "bp_dia": 85.0, "glucose": None, "lang": "en"},        # Cache hit
     ]
 
-    print("\nRunning 10 pipeline check-ins (Hypertension only, en / ur / roman_ur)...\n")
-    if args.mode == "background":
-        print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Lat.Pend':<10} | {'Lat.Ready':<10} | {'Provider Latency':<25}")
-        print("-" * 130)
+    diabetes_checkins = [
+        {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 115.0, "lang": "en"},
+        {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 115.0, "lang": "en"},        # Cache hit
+        {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 195.0, "lang": "en"},
+        {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 145.0, "lang": "ur"},
+        {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 145.0, "lang": "ur"},        # Cache hit
+        {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 260.0, "lang": "ur"},
+        {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 125.0, "lang": "roman_ur"},
+        {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 125.0, "lang": "roman_ur"},  # Cache hit
+        {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 65.0, "lang": "roman_ur"},
+        {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 115.0, "lang": "en"},        # Cache hit
+    ]
+
+    if args.condition == "hypertension":
+        test_checkins = htn_checkins
+    elif args.condition == "diabetes":
+        test_checkins = diabetes_checkins
     else:
-        print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Elapsed':<10} | {'Provider Latency':<25}")
-        print("-" * 115)
+        test_checkins = [htn_checkins[i] if i % 2 == 0 else diabetes_checkins[i] for i in range(10)]
+
+    print(f"\nRunning 10 pipeline check-ins (Condition: {args.condition}, en / ur / roman_ur)...\n")
+    if args.mode == "background":
+        print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Lat.Pend':<10} | {'Lat.Ready':<10} | {'Provider Latency':<20} | {'Cited Sources':<16}")
+        print("-" * 145)
+    else:
+        print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Elapsed':<10} | {'Provider Latency':<20} | {'Cited Sources':<16}")
+        print("-" * 130)
 
     try:
         run_id = int(time.time())
@@ -231,22 +261,30 @@ def main():
             local_store.add_local_patient_if_missing(f"local-{uid}", name=f"Smoke User {idx}", date_of_birth="1980-01-01")
             client.post("/api/me/consent", headers=headers, json={"granted": True, "provider_notification": True})
             client.post("/api/me/provider-notification-consent", headers=headers, json={"granted": True})
+            cond = item.get("cond", "hypertension")
             client.put(
                 "/api/me/profile",
                 headers=headers,
                 json={
-                    "conditions": ["hypertension"],
+                    "conditions": [cond],
                     "date_of_birth": "1980-01-01",
                     "inclusion_confirmed": True,
                     "language": item["lang"],
                 },
             )
 
+            readings_dict = {}
+            if item.get("bp_sys") is not None:
+                readings_dict["blood_pressure_systolic"] = item["bp_sys"]
+                readings_dict["blood_pressure_diastolic"] = item["bp_dia"]
+            if item.get("glucose") is not None:
+                readings_dict["glucose"] = item["glucose"]
+
             raw_state = {
                 "engine": "v3",
                 "completed": True,
-                "conditions_on_file": ["hypertension"],
-                "readings": {"blood_pressure_systolic": item["bp_sys"], "blood_pressure_diastolic": item["bp_dia"]},
+                "conditions_on_file": [cond],
+                "readings": readings_dict,
                 "findings": [],
             }
             app_store.create_checkin(
@@ -309,15 +347,17 @@ def main():
             else:
                 prov_timing_str = "-"
 
+            cited_ids = ", ".join(sorted(set(str(s.get("chunk_id", "")) for s in explanation.get("sources", [])))) or "-"
+
             if args.mode == "background":
                 print(
                     f"{idx:<3} | {item['lang']:<8} | {triage_level:<10} | {provider_used:<10} | "
-                    f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {lat_ready:<10.3f} | {prov_timing_str:<25}"
+                    f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {lat_ready:<10.3f} | {prov_timing_str:<20} | {cited_ids:<16}"
                 )
             else:
                 print(
                     f"{idx:<3} | {item['lang']:<8} | {triage_level:<10} | {provider_used:<10} | "
-                    f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {prov_timing_str:<25}"
+                    f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {prov_timing_str:<20} | {cited_ids:<16}"
                 )
 
             if pause > 0 and idx < len(test_checkins):

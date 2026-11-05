@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
+from rag.licences import has_complete_attribution, get_source_attribution, is_llm_allowed_for_source
 from rag.query_map import build_query_from_triage
 from rag.retriever import BM25Retriever, tokenize
 from rag.store import ChunkStore, JsonlChunkStore
@@ -400,13 +401,24 @@ def get_template_explanation(
     # Sources metadata
     sources = []
     for c in candidate_chunks[:3]:
-        sources.append({
+        src_id = c.get("source_id", "")
+        if src_id and not has_complete_attribution(src_id, chunk=c):
+            continue
+        attrib = get_source_attribution(src_id, chunk=c) if src_id else {}
+        entry = {
             "chunk_id": c["chunk_id"],
             "title": c.get("title", ""),
             "edition": c.get("edition", ""),
             "section_path": c.get("section_path", ""),
             "page_start": c.get("page_start", 1),
-        })
+        }
+        citation = c.get("full_citation") or attrib.get("full_citation")
+        doi = c.get("doi") or attrib.get("doi")
+        if citation and str(citation).upper() != "TO FILL BY USMAN":
+            entry["full_citation"] = citation
+        if doi and str(doi).upper() != "TO FILL BY USMAN":
+            entry["doi"] = doi
+        sources.append(entry)
 
     res = {
         "sentences": formatted_sentences,
@@ -429,6 +441,8 @@ def explain(
     llm: Any = None,
     model: str | None = None,
     retriever: Any = None,
+    candidate_chunks: list[dict[str, Any]] | None = None,
+    provider: str | None = None,
 ) -> dict[str, Any]:
     """
     Generate a grounded clinical explanation for an already decided triage level.
@@ -445,31 +459,41 @@ def explain(
     query_mapping = build_query_from_triage(triage_copy, readings_copy)
 
     # Chunk retrieval (reuses cached retriever or builds once)
-    candidate_chunks: list[dict[str, Any]] = []
-    retriever_obj = retriever
-    if retriever_obj is None and store is not None:
-        try:
-            from rag.explain_guards import get_or_build_retriever
-            retriever_obj = get_or_build_retriever(store)
-        except Exception:
-            retriever_obj = BM25Retriever(store)
-        if retriever_obj is None:
-            retriever_obj = BM25Retriever(store)
+    if candidate_chunks is not None:
+        chunks: list[dict[str, Any]] = [dict(c) for c in candidate_chunks]
+    else:
+        chunks = []
+        retriever_obj = retriever
+        if retriever_obj is None and store is not None:
+            try:
+                from rag.explain_guards import get_or_build_retriever
+                retriever_obj = get_or_build_retriever(store)
+            except Exception:
+                retriever_obj = BM25Retriever(store)
+            if retriever_obj is None:
+                retriever_obj = BM25Retriever(store)
 
-    if retriever_obj is not None:
-        candidate_chunks = retriever_obj.retrieve(
-            query=query_mapping.query_text,
-            top_k=3,
-            condition=query_mapping.condition,
-            min_priority=query_mapping.min_priority,
-        )
-        if len(candidate_chunks) < 2:
-            # Fallback without condition filter
-            candidate_chunks = retriever_obj.retrieve(
+        if retriever_obj is not None:
+            chunks = retriever_obj.retrieve(
                 query=query_mapping.query_text,
                 top_k=3,
+                condition=query_mapping.condition,
                 min_priority=query_mapping.min_priority,
             )
+            if len(chunks) < 2:
+                # Fallback without condition filter
+                chunks = retriever_obj.retrieve(
+                    query=query_mapping.query_text,
+                    top_k=3,
+                    min_priority=query_mapping.min_priority,
+                )
+
+    # Attribution & licensing checks (X3, X4)
+    chunks = [c for c in chunks if has_complete_attribution(c.get("source_id", ""), chunk=c)]
+    if provider:
+        chunks = [c for c in chunks if is_llm_allowed_for_source(c.get("source_id", ""), provider=provider)]
+
+    candidate_chunks = chunks
 
     rejected_reasons: list[str] = []
 
@@ -628,13 +652,24 @@ def explain(
         # Sources metadata list
         sources = []
         for c in candidate_chunks:
-            sources.append({
+            src_id = c.get("source_id", "")
+            if src_id and not has_complete_attribution(src_id, chunk=c):
+                continue
+            attrib = get_source_attribution(src_id, chunk=c) if src_id else {}
+            entry = {
                 "chunk_id": c["chunk_id"],
                 "title": c.get("title", ""),
                 "edition": c.get("edition", ""),
                 "section_path": c.get("section_path", ""),
                 "page_start": c.get("page_start", 1),
-            })
+            }
+            citation = c.get("full_citation") or attrib.get("full_citation")
+            doi = c.get("doi") or attrib.get("doi")
+            if citation and str(citation).upper() != "TO FILL BY USMAN":
+                entry["full_citation"] = citation
+            if doi and str(doi).upper() != "TO FILL BY USMAN":
+                entry["doi"] = doi
+            sources.append(entry)
 
         return {
             "sentences": final_sentences,

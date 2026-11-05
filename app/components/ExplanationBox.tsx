@@ -182,22 +182,38 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
               className="pt-2 border-t border-slate-200/60 flex items-start gap-2 text-[11px] text-slate-500"
             >
               <BookOpen className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
+              <div className="space-y-1 w-full">
                 <span className="font-semibold text-slate-600 block">
                   {t.explanationSourcesTitle}:
                 </span>
-                <span className="italic block">
-                  {sources
-                    .map((src) => {
-                      const parts: string[] = [];
-                      if (src.edition) parts.push(src.edition);
-                      else parts.push("ADA 2026");
-                      if (src.section_path) parts.push(src.section_path);
-                      if (src.title) parts.push(src.title);
-                      return parts.join(", ");
-                    })
-                    .join(" • ")}
-                </span>
+                <ul className="space-y-1">
+                  {sources.map((src, idx) => {
+                    const citationText = src.full_citation || (
+                      [src.edition, src.section_path, src.title].filter(Boolean).join(", ")
+                    );
+                    const rawDoi = src.doi?.trim();
+                    const doiUrl = rawDoi && rawDoi.toUpperCase() !== "TO FILL BY USMAN"
+                      ? (rawDoi.startsWith("http://") || rawDoi.startsWith("https://") ? rawDoi : `https://doi.org/${rawDoi}`)
+                      : null;
+
+                    return (
+                      <li key={idx} data-testid="explanation-source-item" className="text-slate-600 leading-normal">
+                        <span>{citationText}</span>
+                        {doiUrl && (
+                          <a
+                            href={doiUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            data-testid="explanation-source-doi"
+                            className="inline-flex items-center ml-1.5 text-teal-700 hover:text-teal-900 underline font-medium"
+                          >
+                            ({t.explanationDoiLabel || "DOI"})
+                          </a>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             </div>
           )}
