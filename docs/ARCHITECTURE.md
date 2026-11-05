@@ -19,37 +19,9 @@ The system architecture is partitioned into two clear views plus reference table
 
 End-to-end check-in processing: Patient Entry & Adaptive Interview $\rightarrow$ Safety Screens $\rightarrow$ Dual Orchestrator $\rightarrow$ Deterministic Clinical Decision & Risk Gate $\rightarrow$ Checkin Save & Async Job Enqueue $\rightarrow$ Immediate Response & Clinician Review Queue.
 
-```mermaid
-flowchart TB
-    subgraph Row1 ["Stage 1: Patient Intake, Adaptive Interview & Safety Screening"]
-        direction LR
-        A1["<b>1. Patient Entry</b><br/>Voice Input (audio stream)<br/>Bilingual Web UI (EN / UR)"]
-        A2["<b>2. Adaptive Interview</b><br/>Default Engine: v2 (deterministic)<br/>Shadow Engine: v3 (Roman Urdu)"]
-        A3["<b>3. Red-Flag Screen</b><br/>Emergency Keyword Intercept<br/>agents/input_triage.py"]
-        A4["<b>4. Urdu Word Groups</b><br/>Vernacular Symptom Screen<br/>agents/danger_wordgroups.py"]
-        A1 --> A2 --> A3 --> A4
-    end
+![Check-In Lifecycle Overview](img/architecture_overview.png)
 
-    subgraph Row2 ["Stage 2: Dual Orchestration, Clinical Decision & Risk Model"]
-        direction LR
-        A5["<b>5. Dual Orchestrator</b><br/>Direct Execution (steps.py)<br/>LangGraph StateGraph (graph.py)"]
-        A6["<b>6. Intake & Prior Data</b><br/>fetch_prior & build_bundles<br/>Local SQLite / EHR FHIR"]
-        A7["<b>7. Reconcile & Verify</b><br/>Reconciliation Agent (trust/sev)<br/>Verification Agent (ground truth)"]
-        A8["<b>8. Rule Register & Risk</b><br/>CLINICAL_RULES.md (Raise-Only)<br/>NHANES Model (risk_agent.py)"]
-        A5 --> A6 --> A7 --> A8
-    end
-
-    subgraph Row3 ["Stage 3: Explain Pending, Persist, Async Enqueue & Clinician Oversight"]
-        direction LR
-        A9["<b>9. step_explain (steps.py:779)</b><br/>Sets mode: 'pending'<br/><i>No background job queued yet</i>"]
-        A10["<b>10. step_persist_and_respond</b><br/>create_checkin_result (line 1047)<br/>Saves row to application store"]
-        A11["<b>11. Async Job Enqueue</b><br/>enqueue_job (steps.py:1064)<br/>Called immediately after save"]
-        A12["<b>12. Response & Review</b><br/>Immediate HTTP 200 (Patient)<br/>Provider Review Queue & Trace"]
-        A9 --> A10 --> A11 --> A12
-    end
-
-    Row1 --> Row2 --> Row3
-```
+*¹ = behind a feature flag, off by default.*
 
 *Visual renderings available in repository: [PNG](img/architecture_overview.png) | [SVG](img/architecture_overview.svg)*
 
@@ -59,39 +31,24 @@ flowchart TB
 
 End-to-end background explanation path: Bounded FIFO Queue $\rightarrow$ Daemon Worker $\rightarrow$ Multi-Provider LLM Loop with HTTP 429 Retry $\rightarrow$ Clinical Output Validators $\rightarrow$ Fallback Template Path (with H2 Consistency Guard) $\rightarrow$ Result Storage $\rightarrow$ Polling & Review Endpoints.
 
-```mermaid
-flowchart TB
-    subgraph Row1 ["Stage 1: Async Job Enqueue, Bounded FIFO Queue & Background Worker"]
-        direction LR
-        B1["<b>1. Async Enqueue</b><br/>enqueue_job called after row saved<br/>orchestrator/steps.py:1064"]
-        B2["<b>2. Bounded Job Queue</b><br/>queue.Queue(maxsize=50)<br/>FIFO · Drops to template on full"]
-        B3["<b>3. Async Daemon Worker</b><br/>Lazy background worker thread<br/>Calls guarded_explain(mode='background')"]
-        B4["<b>4. Immediate Response</b><br/>POST /complete returns HTTP 200<br/>mode: 'pending' (Patient)"]
-        B1 --> B2 --> B3 --> B4
-    end
+![Resilient Explainer Path](img/architecture_explainer.png)
 
-    subgraph Row2 ["Stage 2: Rate Limiting, Multi-Provider LLM & Clinical Validators"]
-        direction LR
-        B5["<b>5. Pre-Checks & Breaker</b><br/>H1 condition filter · Cache check<br/>3-strike breaker (600s cooldown)"]
-        B6["<b>6. Retrieval & Pacer</b><br/>BM25 chunks (top 3) · Groq OTPM<br/>1,000 output tokens/min wait"]
-        B7["<b>7. Multi-Provider Invocation</b><br/>Groq (GROQ_MODEL = qwen/qwen3.8-27b)<br/>/ Gemini (GEMINI_MODEL) · 429 wait"]
-        B8["<b>8. Clinical Output Validators</b><br/>V1 Banned · V2 Grounding · V3 Citations<br/>V4 Banned Phrases · V5 Consistency"]
-        B5 --> B6 --> B7 --> B8
-    end
-
-    subgraph Row3 ["Stage 3: Fallback Template (H2 Guard), Result Storage & Endpoints"]
-        direction LR
-        B9["<b>9. Fallback Template Engine</b><br/>Activated on guard/LLM/validator rejection<br/>rag/explainer.py"]
-        B10["<b>10. H2 Consistency Guard</b><br/>is_template_consistent (explainer.py:285)<br/>Replaces contradictory with neutral routine"]
-        B11["<b>11. Checkin Result Store</b><br/>update_checkin_explanation<br/>Updates row: 'pending' → 'ready'/'fallback'"]
-        B12["<b>12. Patient & Provider Endpoints</b><br/>Patient: GET .../explanation (poll ≤ 90s)<br/>Provider: GET .../review/{id} (audit trace)"]
-        B9 --> B10 --> B11 --> B12
-    end
-
-    Row1 --> Row2 --> Row3
-```
+*¹ = behind a feature flag, off by default.*
 
 *Visual renderings available in repository: [PNG](img/architecture_explainer.png) | [SVG](img/architecture_explainer.svg)*
+
+---
+
+### Re-rendering the Diagrams
+
+To re-render the PNG and SVG diagrams from their source files in `docs/img/src/`:
+
+```bash
+mmdc -i docs/img/src/<name>.mmd -o docs/img/<name>.png -c docs/img/src/mermaid_config.json -b white -s 3
+mmdc -i docs/img/src/<name>.mmd -o docs/img/<name>.svg -c docs/img/src/mermaid_config.json -b white
+```
+
+*(replace `<name>` with `architecture_overview` or `architecture_explainer`)*
 
 ---
 
