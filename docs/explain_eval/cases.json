@@ -138,18 +138,18 @@
     "persona_id": "p41_side_effects_stopping_meds",
     "condition": "hypertension",
     "language": "en",
-    "triage_level": "routine",
+    "triage_level": "review",
     "readings": {
       "blood_pressure_systolic": 148,
       "blood_pressure_diastolic": 94
     },
     "triage_result": {
-      "level": "routine",
+      "level": "review",
       "reasons": [
-        "Check-in evaluated as routine"
+        "Stage 2 blood pressure elevation flagged for clinician review"
       ],
-      "guidance": "Follow regular medical plan",
-      "trigger_category": "bp_routine"
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "bp_urgent"
     },
     "description": "Side Effects Causing Adherence Drop"
   },
@@ -158,18 +158,18 @@
     "persona_id": "p42_felt_well_stopped_meds",
     "condition": "hypertension",
     "language": "en",
-    "triage_level": "routine",
+    "triage_level": "review",
     "readings": {
       "blood_pressure_systolic": 158,
       "blood_pressure_diastolic": 98
     },
     "triage_result": {
-      "level": "routine",
+      "level": "review",
       "reasons": [
-        "Check-in evaluated as routine"
+        "Stage 2 blood pressure elevation flagged for clinician review"
       ],
-      "guidance": "Follow regular medical plan",
-      "trigger_category": "bp_routine"
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "bp_urgent"
     },
     "description": "Stopped Meds Because Felt Well"
   },
@@ -178,17 +178,17 @@
     "persona_id": "p43_htn_severe_headache",
     "condition": "hypertension",
     "language": "en",
-    "triage_level": "routine",
+    "triage_level": "urgent",
     "readings": {
       "blood_pressure_systolic": 172,
       "blood_pressure_diastolic": 104
     },
     "triage_result": {
-      "level": "routine",
+      "level": "urgent",
       "reasons": [
-        "Check-in evaluated as routine"
+        "Marked Stage 2 blood pressure elevation requiring prompt review"
       ],
-      "guidance": "Follow regular medical plan",
+      "guidance": "Prompt clinician review scheduled.",
       "trigger_category": "bp_urgent"
     },
     "description": "Hypertension with Severe Headache"
@@ -218,18 +218,18 @@
     "persona_id": "p52_swollen_ankles_salty_diet",
     "condition": "hypertension",
     "language": "roman_ur",
-    "triage_level": "routine",
+    "triage_level": "review",
     "readings": {
       "blood_pressure_systolic": 146,
       "blood_pressure_diastolic": 92
     },
     "triage_result": {
-      "level": "routine",
+      "level": "review",
       "reasons": [
-        "Check-in evaluated as routine"
+        "Stage 2 blood pressure elevation flagged for clinician review"
       ],
-      "guidance": "Follow regular medical plan",
-      "trigger_category": "bp_routine"
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "bp_urgent"
     },
     "description": "Swollen Ankles with High Sodium"
   },
@@ -238,18 +238,18 @@
     "persona_id": "p50_urdu_script_htn_elevated",
     "condition": "hypertension",
     "language": "ur",
-    "triage_level": "routine",
+    "triage_level": "review",
     "readings": {
       "blood_pressure_systolic": 155,
       "blood_pressure_diastolic": 95
     },
     "triage_result": {
-      "level": "routine",
+      "level": "review",
       "reasons": [
-        "Check-in evaluated as routine"
+        "Stage 2 blood pressure elevation flagged for clinician review"
       ],
-      "guidance": "Follow regular medical plan",
-      "trigger_category": "bp_routine"
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "bp_urgent"
     },
     "description": "Urdu Script Elevated BP and NSAIDs"
   },
@@ -669,19 +669,19 @@
     "persona_id": "p02_anxious_overreporter",
     "condition": "both",
     "language": "en",
-    "triage_level": "routine",
+    "triage_level": "review",
     "readings": {
       "glucose": 142.0,
       "blood_pressure_systolic": 145,
       "blood_pressure_diastolic": 92
     },
     "triage_result": {
-      "level": "routine",
+      "level": "review",
       "reasons": [
-        "Check-in evaluated as routine"
+        "Stage 2 blood pressure elevation flagged for clinician review"
       ],
-      "guidance": "Follow regular medical plan",
-      "trigger_category": "bp_routine"
+      "guidance": "Check-in flagged for clinician review.",
+      "trigger_category": "bp_urgent"
     },
     "description": "Anxious Over-Reporter"
   },
