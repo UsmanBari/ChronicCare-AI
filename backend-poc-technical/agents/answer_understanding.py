@@ -90,6 +90,89 @@ def _contains_subsequence(tokens: List[str], phrase_tokens: List[str]) -> bool:
     return False
 
 
+# -----------------------------------------------------------------------------
+# Caregiver & Kinship Definitions (G-14, English, Roman Urdu, Urdu Script)
+# Defined before parse_yes_no so parse_yes_no can isolate clinical content.
+# -----------------------------------------------------------------------------
+_KINSHIP_WORDS = r"(?:ammi|abbu|abu|walida|walid(?: sahab)?|bhai|behan|baji|dadi|dada|nani|nana|ami|والدہ|والد|امی|ابو|باجی|بھائی|بہن|دادا|دادی|نانا|نانی)"
+_EN_KINSHIP_WORDS = r"(?:mother|father|mom|dad|brother|sister|grandmother|grandfather|grandma|grandpa|parent|parents|relative|relatives|wife|husband|son|daughter|uncle|aunt)"
+_ALL_KINSHIP_WORDS = rf"(?:ammi|abbu|abu|walida|walid(?: sahab)?|bhai|behan|baji|dadi|dada|nani|nana|ami|{_EN_KINSHIP_WORDS})"
+
+_CAREGIVER_PATTERNS = [
+    # English caregiver proxy phrases
+    re.compile(rf"\b(?:i\s+am\s+|i'm\s+)?answering\s+for\s+my\s+{_ALL_KINSHIP_WORDS}\b", re.IGNORECASE),
+    re.compile(rf"\bon\s+behalf\s+of\s+my\s+{_ALL_KINSHIP_WORDS}\b", re.IGNORECASE),
+    re.compile(rf"\b(?:i\s+am\s+|i'm\s+)?(?:filling|doing)\s+(?:this\s+)?(?:checkin|check-in|out)\s+for\s+my\s+{_ALL_KINSHIP_WORDS}\b", re.IGNORECASE),
+    # Urdu / Roman Urdu caregiver proxy phrases
+    re.compile(rf"\b(?:main\s+)?{_KINSHIP_WORDS}\s+ki\s+taraf\s+se\b", re.IGNORECASE),
+    re.compile(r"(?:میں\s+(?:اپنی\s+)?)?(?:امی|والدہ|والد|ابو|باجی|بھائی|بہن|دادا|دادی|نانا|نانی)\s+کی\s+طرف\s+سے", re.IGNORECASE),
+    re.compile(rf"\b(?:main|mein|hum)\s+apn[ie]\s+{_KINSHIP_WORDS}\s+ke\s+liye(?:\s+jawab(?:\s+de\s+raha\s+hoon)?)?\b", re.IGNORECASE),
+    re.compile(rf"\b(?:main\s+)?(?:apn[ie]\s+)?{_KINSHIP_WORDS}\s+ke\s+liye(?:\s+(?:check[\s-]?in|checking))?(?:\s+(?:jawab|kar\s+raha(?:\s+hoon)?|de\s+raha(?:\s+hoon)?))?\b", re.IGNORECASE),
+    re.compile(r"(?:میں\s+(?:اپنے|اپنی)\s+)?(?:امی|والدہ|والد|ابو|باجی|بھائی|بہن)\s+کے\s+لیے(?:\s+(?:جواب|چیک\s*ان|جواب\s+دے\s+رہا(?:\s+ہوں)?))?", re.IGNORECASE),
+    re.compile(rf"^\s*(?:main\s+)?{_KINSHIP_WORDS}\s+ke\s+liye\s*$", re.IGNORECASE),
+    re.compile(rf"\bmer[ei]\s+{_KINSHIP_WORDS}\s+ki\s+(?:checking|check[\s-]?in)(?:\s+hai)?\b", re.IGNORECASE),
+    re.compile(r"میں\s+اپن[یے]\s+(?:امی|والدہ|والد|ابو)\s+کے\s+لیے(?:\s+جواب\s+دے\s+رہا(?:\s+ہوں)?)?", re.IGNORECASE),
+    re.compile(r"میں\s+اپنے\s+والد\s+کے\s+لیے(?:\s+جواب\s+دے\s+رہا(?:\s+ہوں)?)?", re.IGNORECASE),
+]
+
+_LOOKALIKE_EXCLUSIONS = [
+    re.compile(rf"\b{_KINSHIP_WORDS}\s+(?:ne\s+(?:kaha|bola|kaha\s+tha|mangwai)|kehti\s+hain|bolte\s+hain)\b", re.IGNORECASE),
+    re.compile(r"(?:امی|والدہ|والد|ابو)\s+نے\s+(?:کہا|بولا)", re.IGNORECASE),
+    re.compile(rf"\b{_KINSHIP_WORDS}\s+ke\s+liye\s+(?:dawai|medicine|sauda|khana|kuch|madad)\b", re.IGNORECASE),
+    re.compile(r"\b(?:dawai|medicine)\s+(?:lata|laata|late|lana|kharid)\b", re.IGNORECASE),
+]
+
+
+def detect_caregiver_phrase(text: str) -> bool:
+    """
+    Detects whether a free-text response indicates third-party caregiver proxy
+    in English, Roman Urdu, or Urdu script (G-14).
+    Rejects look-alike advisory statements (e.g. 'ammi ne kaha tha dawai lo').
+    """
+    if not text:
+        return False
+    norm = normalise_text(text)
+    for excl in _LOOKALIKE_EXCLUSIONS:
+        if excl.search(norm):
+            return False
+    for pat in _CAREGIVER_PATTERNS:
+        if pat.search(norm):
+            return True
+    return False
+
+
+def strip_caregiver_phrase(text: str) -> str:
+    """
+    Strips detected caregiver phrases from text to isolate clinical content (G-14).
+    Returns cleaned remainder (or empty string if text was only a caregiver intro).
+    """
+    if not text:
+        return ""
+    norm = normalise_text(text)
+    for excl in _LOOKALIKE_EXCLUSIONS:
+        if excl.search(norm):
+            return text
+
+    stripped = text
+    for pat in _CAREGIVER_PATTERNS:
+        stripped = pat.sub("", stripped)
+
+    cleaned = re.sub(r"^[\s,;:.-]+|[\s,;:.-]+$", "", stripped).strip()
+    return cleaned
+
+
+def is_only_caregiver_statement(text: str) -> bool:
+    """
+    Returns True if the text contains a caregiver phrase and NO clinical content,
+    readings, symptoms, or answers (i.e. it is purely an introductory caregiver notice).
+    """
+    if not text or not detect_caregiver_phrase(text):
+        return False
+    remainder = strip_caregiver_phrase(text)
+    clean = re.sub(r"[^\w\u0600-\u06FF]", "", remainder).strip()
+    return len(clean) == 0
+
+
 _UNKNOWN_PHRASES = [
     # English
     ["i", "don't", "know"],
@@ -212,6 +295,19 @@ def parse_yes_no(text: str, lang: Optional[str] = None) -> Dict[str, Any]:
             "confidence": "High",
             "matched_rule": "empty_input",
         }
+
+    # G-14 Caregiver intro strip: prevent false 'yes' match on 'i am answering for...'
+    if detect_caregiver_phrase(trimmed):
+        remainder = strip_caregiver_phrase(trimmed)
+        if not remainder or len(re.sub(r"[^\w\u0600-\u06FF]", "", remainder).strip()) == 0:
+            return {
+                "value": "unknown",
+                "partial": False,
+                "evidence": trimmed,
+                "confidence": "Low",
+                "matched_rule": "caregiver_intro_only",
+            }
+        trimmed = remainder
 
     # Emoji checks
     if "👍" in trimmed or "✔️" in trimmed or "✅" in trimmed:
@@ -789,46 +885,7 @@ def parse_bp(text: str) -> Dict[str, Any]:
 # -----------------------------------------------------------------------------
 # A5: Caregiver & Adherence Understanding (Stage 9A G-02, G-14)
 # -----------------------------------------------------------------------------
-_KINSHIP_WORDS = r"(?:ammi|abbu|abu|walida|walid(?: sahab)?|bhai|behan|baji|dadi|dada|nani|nana|ami|والدہ|والد|امی|ابو|باجی|بھائی|بہن|دادا|دادی|نانا|نانی)"
-
-_CAREGIVER_PATTERNS = [
-    re.compile(rf"\b(?:main\s+)?{_KINSHIP_WORDS}\s+ki\s+taraf\s+se\b", re.IGNORECASE),
-    re.compile(r"(?:میں\s+(?:اپنی\s+)?)?(?:امی|والدہ|والد|ابو|باجی|بھائی|بہن|دادا|دادی|نانا|نانی)\s+کی\s+طرف\s+سے", re.IGNORECASE),
-    re.compile(rf"\b(?:main|mein|hum)\s+apn[ie]\s+{_KINSHIP_WORDS}\s+ke\s+liye(?:\s+jawab(?:\s+de\s+raha\s+hoon)?)?\b", re.IGNORECASE),
-    re.compile(rf"\b(?:main\s+)?(?:apn[ie]\s+)?{_KINSHIP_WORDS}\s+ke\s+liye(?:\s+(?:check[\s-]?in|checking))?(?:\s+(?:jawab|kar\s+raha(?:\s+hoon)?|de\s+raha(?:\s+hoon)?))?\b", re.IGNORECASE),
-    re.compile(r"(?:میں\s+(?:اپنے|اپنی)\s+)?(?:امی|والدہ|والد|ابو|باجی|بھائی|بہن)\s+کے\s+لیے(?:\s+(?:جواب|چیک\s*ان|جواب\s+دے\s+رہا(?:\s+ہوں)?))?", re.IGNORECASE),
-    re.compile(rf"^\s*(?:main\s+)?{_KINSHIP_WORDS}\s+ke\s+liye\s*$", re.IGNORECASE),
-    re.compile(rf"\bmer[ei]\s+{_KINSHIP_WORDS}\s+ki\s+(?:checking|check[\s-]?in)(?:\s+hai)?\b", re.IGNORECASE),
-    re.compile(r"میں\s+اپن[یے]\s+(?:امی|والدہ|والد|ابو)\s+کے\s+لیے(?:\s+جواب\s+دے\s+رہا(?:\s+ہوں)?)?", re.IGNORECASE),
-    re.compile(r"میں\s+اپنے\s+والد\s+کے\s+لیے(?:\s+جواب\s+دے\s+رہا(?:\s+ہوں)?)?", re.IGNORECASE),
-]
-
-_LOOKALIKE_EXCLUSIONS = [
-    re.compile(rf"\b{_KINSHIP_WORDS}\s+(?:ne\s+(?:kaha|bola|kaha\s+tha|mangwai)|kehti\s+hain|bolte\s+hain)\b", re.IGNORECASE),
-    re.compile(r"(?:امی|والدہ|والد|ابو)\s+نے\s+(?:کہا|بولا)", re.IGNORECASE),
-    re.compile(rf"\b{_KINSHIP_WORDS}\s+ke\s+liye\s+(?:dawai|medicine|sauda|khana|kuch|madad)\b", re.IGNORECASE),
-    re.compile(r"\b(?:dawai|medicine)\s+(?:lata|laata|late|lana|kharid)\b", re.IGNORECASE),
-]
-
-
-def detect_caregiver_phrase(text: str) -> bool:
-    """
-    Detects whether a free-text response indicates third-party caregiver proxy
-    in English, Roman Urdu, or Urdu script (G-14).
-    Rejects look-alike advisory statements (e.g. 'ammi ne kaha tha dawai lo').
-    """
-    if not text:
-        return False
-    norm = normalise_text(text)
-    for excl in _LOOKALIKE_EXCLUSIONS:
-        if excl.search(norm):
-            return False
-    for pat in _CAREGIVER_PATTERNS:
-        if pat.search(norm):
-            return True
-    return False
-
-
+# Note: Caregiver definitions located above parse_yes_no.
 _ADHERENCE_UNCLEAR_CUES = [
     ["maybe"],
     ["shayad"],
@@ -877,18 +934,3 @@ def is_unclear_adherence_answer(text: str) -> bool:
     if yn["value"] == "unknown" or yn.get("partial") is True:
         return True
     return False
-
-
-def is_only_caregiver_statement(text: str) -> bool:
-    """
-    Returns True if the text contains a caregiver phrase and NO clinical content,
-    readings, symptoms, or answers (i.e. it is purely an introductory caregiver notice).
-    """
-    if not text or not detect_caregiver_phrase(text):
-        return False
-    t = text
-    for pat in _CAREGIVER_PATTERNS:
-        t = pat.sub("", t)
-    # Remove punctuation, symbols, whitespace
-    clean = re.sub(r"[^\w؀-ۿ]", "", t).strip()
-    return len(clean) == 0

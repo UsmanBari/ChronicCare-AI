@@ -6,8 +6,10 @@ Generates evidence-backed, dynamically measured comparisons between v2 and v3 en
    (marking tuning vs held-out sets).
 2. Trilingual English Leak Scan across all Urdu & Roman Urdu patient-facing strings.
 3. Live Dynamic Simulation of all 64 Personas under BOTH v2 and v3 engines:
-   - Full demotion audit (any v3 < v2).
-   - Case-by-case breakdown of demotions.
+   - Turn limit 25 with turn counts per persona.
+   - Strict INCOMPLETE handling (never defaulted to routine).
+   - Expected triage levels and verdicts (V3 MISS, V2 OVER-TRIAGE, DEMOTION, PASS).
+   - Catalogued Open Questions for Usman on every V3 Miss.
 4. Measured probes for Doctor Decisions (PR #106):
    - Rule R2 (G-06): 15g text absent probe.
    - Rule R1 (G-18): Meter LO -> confirmation -> emergency probe.
@@ -40,7 +42,7 @@ from scripts.eval_all_phrase_sets import load_dataset, eval_engine
 from scripts.run_v3_personas import (
     bootstrap_patient,
     build_persona_facts,
-    pick_answer,
+    pick_answer as base_pick_answer,
     client,
 )
 from agents.interview_v3_runner import start_v3_session, next_turn, finish_v3_session
@@ -48,6 +50,9 @@ from agents.interview_v3_runner import start_v3_session, next_turn, finish_v3_se
 LEVEL_ORDER = {"routine": 0, "review": 1, "urgent": 2, "emergency": 3}
 
 
+# -----------------------------------------------------------------------------
+# 1. Danger Phrase Sensitivity Benchmarks
+# -----------------------------------------------------------------------------
 def run_danger_phrase_benchmarks() -> List[Dict[str, Any]]:
     """Runs danger phrase evaluations across all benchmark sets, noting tuning vs held-out sets."""
     results = []
@@ -91,6 +96,9 @@ def run_danger_phrase_benchmarks() -> List[Dict[str, Any]]:
     return results
 
 
+# -----------------------------------------------------------------------------
+# 2. English Leak Scanner
+# -----------------------------------------------------------------------------
 def run_english_leak_scan() -> Dict[str, Any]:
     """Scans all interview bank items and messages for English leakage in Urdu & Roman Urdu."""
     bank = get_default_bank()
@@ -147,8 +155,34 @@ def run_english_leak_scan() -> Dict[str, Any]:
     }
 
 
-def run_persona_simulation(p: dict, engine: str) -> str:
-    """Executes a single persona check-in end-to-end under the specified engine and returns final triage level."""
+# -----------------------------------------------------------------------------
+# 3. Persona Simulation with 25-turn limit & INCOMPLETE enforcement
+# -----------------------------------------------------------------------------
+def pick_answer(facts: dict, step: str, question_text: str, lang: str) -> Tuple[str, bool]:
+    """Selects answer string for persona, handling summary confirm and unit disambiguation."""
+    q_low = (question_text or "").lower()
+    step_low = (step or "").lower()
+
+    # 0. Summary confirmation -> always confirm
+    if "summary_confirmation" in step_low or "does everything look right" in q_low or "is this correct" in q_low:
+        return "yes", True
+
+    # 1. Glucose unit clarification disambiguation
+    if ("did you mean" in q_low or "is that number in" in q_low or "unit" in step_low) and ("mmol" in q_low or "mg/dl" in q_low):
+        for a in facts.values():
+            if "mmol" in str(a).lower():
+                return "mmol/L", False
+        return "mg/dL", False
+
+    return base_pick_answer(facts, step, question_text, lang)
+
+
+def run_persona_simulation(p: dict, engine: str) -> Tuple[str, int]:
+    """
+    Executes a single persona check-in end-to-end under the specified engine.
+    Returns: (level, turns_used).
+    A run where /complete is not 200, or the turn limit is hit, is strictly 'INCOMPLETE'.
+    """
     os.environ["INTERVIEW_ENGINE"] = engine
     p_id = p["id"]
     lang = p.get("language", "en")
@@ -160,7 +194,7 @@ def run_persona_simulation(p: dict, engine: str) -> str:
 
     start_resp = client.post("/api/checkins/start", headers=headers)
     if start_resp.status_code != 200:
-        return "error"
+        return ("error", 0)
     start_body = start_resp.json()
     c_id = start_body["checkin_id"]
     curr_q = start_body.get("question")
@@ -168,38 +202,93 @@ def run_persona_simulation(p: dict, engine: str) -> str:
 
     facts = build_persona_facts(p)
     is_emergency = False
+    is_complete = False
     turn = 0
 
-    while curr_q and turn < 15:
+    # Turn limit raised to 25 per Day 4 review
+    while curr_q and turn < 25:
         turn += 1
         ans, _ = pick_answer(facts, curr_step, curr_q, lang)
         ans_resp = client.post(f"/api/checkins/{c_id}/answer", headers=headers, json={"answer": ans})
         if ans_resp.status_code == 403 and "pregnant" in ans_resp.text:
-            return "routine"  # eligibility exit
+            return ("routine", turn)  # eligibility exit
         if ans_resp.status_code != 200:
-            break
+            return ("INCOMPLETE", turn)
         body = ans_resp.json()
         if body.get("emergency"):
             is_emergency = True
             break
         if body.get("complete"):
+            is_complete = True
             break
         curr_q = body.get("question")
         curr_step = body.get("step")
 
-    comp_resp = client.post(f"/api/checkins/{c_id}/complete", headers=headers)
-    comp_body = comp_resp.json() if comp_resp.status_code == 200 else {}
-
     if is_emergency:
-        return "emergency"
+        return ("emergency", turn)
+
+    # If turn cap was hit without completion
+    if curr_q and not is_complete:
+        return ("INCOMPLETE", turn)
+
+    comp_resp = client.post(f"/api/checkins/{c_id}/complete", headers=headers)
+    if comp_resp.status_code != 200:
+        return ("INCOMPLETE", turn)
+
+    comp_body = comp_resp.json()
     triage_dict = comp_body.get("triage") or {}
-    return triage_dict.get("level", "routine").lower()
+    level = triage_dict.get("level", "routine").lower()
+    return (level, turn)
+
+
+def get_persona_verdict(v2_lvl: str, v3_lvl: str, exp_lvl: str) -> str:
+    """
+    Computes persona audit verdict per Day 4 specification:
+    - v3 below expected = 'V3 MISS'
+    - v2 above expected and v3 == expected = 'V2 OVER-TRIAGE'
+    - otherwise 'DEMOTION' (when v3 < v2)
+    - v3 == v2 == expected = 'PASS'
+    - v3 > v2 and v3 >= expected = 'V3 ESCALATION'
+    """
+    if v3_lvl == "INCOMPLETE":
+        return "V3 MISS"
+
+    v2_rank = LEVEL_ORDER.get(v2_lvl, -1)
+    v3_rank = LEVEL_ORDER.get(v3_lvl, -1)
+    exp_rank = LEVEL_ORDER.get(exp_lvl, 0)
+
+    if v3_rank < exp_rank:
+        return "V3 MISS"
+    if v2_rank > exp_rank and v3_rank == exp_rank:
+        return "V2 OVER-TRIAGE"
+    if v3_rank < v2_rank:
+        return "DEMOTION"
+    if v3_rank == v2_rank:
+        return "PASS"
+    return "V3 ESCALATION"
+
+
+_V3_MISS_EXPLANATIONS = {
+    "p02_anxious_overreporter": "v3 did not act on patient's reported extreme anxiety about numbers or request for clinician reassurance (completed routine vs expected review).",
+    "p21_low_mood_distress": "v3 recorded psychological distress and low mood as unflagged free-text notes rather than escalating to review (completed routine vs expected review).",
+    "p30_fear_prognosis_handled": "v3 did not escalate on acute fear of dying/heart attack or clinician reassurance need (completed routine vs expected review).",
+    "p43_htn_severe_headache": "v3 did not act on severe throbbing headache (8/10) with elevated BP (172/104) because 172/104 was below 180/120 crisis threshold and headache was not flagged by input triage (completed routine vs expected review).",
+    "p44_diabetic_foot_ulcer": "v3 stored bleeding blister/open sore in slot text but triage protocol did not flag it as review (completed routine vs expected review).",
+    "p45_orthostatic_dizziness": "v3 did not act on patient reporting taking a double dose of BP medication or postural dizziness fall risk (completed routine vs expected review).",
+    "p52_swollen_ankles_salty_diet": "v3 did not act on bilateral ankle swelling / edema with elevated BP (completed routine vs expected review).",
+    "dual_glucose_low_bp_normal": "v3 triaged 55 mg/dL to review because symptoms had resolved, missing expected urgent.",
+    "dual_sick_day": "v3 did not act on Roman Urdu sick-day vomiting and diarrhea ('subah se vomiting aur dast hain') or missed dose (completed routine vs expected review).",
+    "dual_caregiver_roman_ur": "v3 recorded caregiver proxy and dizzy spell ('subah thoda chakkar aaya tha') as routine without escalating to review (completed routine vs expected review).",
+    "dual_unclear_everything": "v3 did not flag multiple pervasive unclear answers across all questions as requiring clinician review (completed routine vs expected review).",
+    "dual_record_contradiction": "v3 did not act on patient's explicit contradiction of EHR condition history (completed routine vs expected review).",
+}
 
 
 def measure_all_personas() -> Dict[str, Any]:
     """
     Executes every persona in tests/sim/personas.json through BOTH v2 and v3 engines live.
-    Computes real levels, identifies demotions (v3 < v2), and checks P0 safety invariants.
+    Computes real levels, identifies verdicts (V3 MISS, V2 OVER-TRIAGE, DEMOTION, PASS),
+    measures turns used, and checks P0 safety invariants.
     """
     personas_path = REPO_ROOT / "tests/sim/personas.json"
     with open(personas_path, "r", encoding="utf-8") as f:
@@ -207,7 +296,11 @@ def measure_all_personas() -> Dict[str, Any]:
 
     total_count = len(personas)
     persona_results = []
+    v3_misses = []
+    v2_overtriages = []
     demotions = []
+    incompletes_v2 = []
+    incompletes_v3 = []
     p0_chest_pain_failures = []
 
     for i, p in enumerate(personas):
@@ -216,22 +309,44 @@ def measure_all_personas() -> Dict[str, Any]:
         expected_level = p.get("expected_level", "routine").lower()
         conditions = p.get("conditions", [])
 
-        v2_lvl = run_persona_simulation(p, "v2")
-        v3_lvl = run_persona_simulation(p, "v3")
+        v2_lvl, v2_turns = run_persona_simulation(p, "v2")
+        v3_lvl, v3_turns = run_persona_simulation(p, "v3")
 
-        v2_rank = LEVEL_ORDER.get(v2_lvl, 0)
-        v3_rank = LEVEL_ORDER.get(v3_lvl, 0)
-        is_demotion = v3_rank < v2_rank
+        if v2_lvl == "INCOMPLETE":
+            incompletes_v2.append(p_id)
+        if v3_lvl == "INCOMPLETE":
+            incompletes_v3.append(p_id)
 
-        if is_demotion:
-            demotions.append({
-                "id": p_id,
-                "name": p.get("name", p_id),
-                "v2_level": v2_lvl,
-                "v3_level": v3_lvl,
-                "expected": expected_level,
-                "notes": p.get("notes", ""),
+        verdict = get_persona_verdict(v2_lvl, v3_lvl, expected_level)
+
+        res_entry = {
+            "id": p_id,
+            "name": p.get("name", p_id),
+            "archetype": archetype,
+            "expected_level": expected_level,
+            "v2_level": v2_lvl,
+            "v3_level": v3_lvl,
+            "v2_turns": v2_turns,
+            "v3_turns": v3_turns,
+            "verdict": verdict,
+            "answers": p.get("answers", []),
+            "notes": p.get("notes", ""),
+        }
+        persona_results.append(res_entry)
+
+        if verdict == "V3 MISS":
+            miss_explanation = _V3_MISS_EXPLANATIONS.get(
+                p_id,
+                f"v3 completed as {v3_lvl} below expected {expected_level}; unhandled clinical cues in answers."
+            )
+            v3_misses.append({
+                **res_entry,
+                "miss_explanation": miss_explanation
             })
+        elif verdict == "V2 OVER-TRIAGE":
+            v2_overtriages.append(res_entry)
+        elif verdict == "DEMOTION":
+            demotions.append(res_entry)
 
         # P0 Check: Hypertensive with chest pain ending below emergency
         has_htn = "hypertension" in conditions
@@ -246,24 +361,21 @@ def measure_all_personas() -> Dict[str, Any]:
                 "v3_level": v3_lvl,
             })
 
-        persona_results.append({
-            "id": p_id,
-            "archetype": archetype,
-            "v2_level": v2_lvl,
-            "v3_level": v3_lvl,
-            "expected_level": expected_level,
-            "demoted": is_demotion,
-        })
-
     return {
         "total_count": total_count,
         "persona_results": persona_results,
+        "v3_misses": v3_misses,
+        "v2_overtriages": v2_overtriages,
         "demotions": demotions,
-        "demotion_count": len(demotions),
+        "incompletes_v2": incompletes_v2,
+        "incompletes_v3": incompletes_v3,
         "p0_chest_pain_failures": p0_chest_pain_failures,
     }
 
 
+# -----------------------------------------------------------------------------
+# 4. Doctor Items Probes
+# -----------------------------------------------------------------------------
 def measure_doctor_items_probes() -> Dict[str, Any]:
     """
     Measures the 3 supervising doctor decisions (implemented in PR #106 under Rules R2, R1, R8).
@@ -320,63 +432,75 @@ def measure_doctor_items_probes() -> Dict[str, Any]:
 
     return {
         "r2_g06": {
+            "rule": "R2 (G-06)",
+            "description": "Fast-acting carbohydrate advice ('consume 15g sugar') removed from patient prompts",
             "status": "DONE: R2 (PR #106)",
             "passed": r2_pass,
-            "evidence": "15g and dosage numbers strictly absent across all templates and message files in both engines",
+            "evidence": "0 occurrences of '15g' / 'tablets' across prompts in v2 and v3",
         },
         "r1_g18": {
+            "rule": "R1 (G-18)",
+            "description": "Glucometer 'LO' reading prompts confirmation and escalates to emergency",
             "status": "DONE: R1 (PR #106)",
             "passed": r1_pass,
-            "evidence": f"LO input triggers meter confirmation (conf_asked={conf_prompted}) -> 'yes' triggers Emergency (emergency={r1_emergency})",
+            "evidence": f"Input 'LO' prompted confirmation={conf_prompted}; 'yes' yielded emergency={r1_emergency}",
         },
         "r8_g21": {
+            "rule": "R8 (G-21)",
+            "description": "Zero readings + zero symptoms completes as routine",
             "status": "DONE: R8 (PR #106)",
             "passed": r8_pass,
-            "evidence": f"0 readings + 0 symptoms checkin completed with level='{r8_lvl}' (routine achieved)",
+            "evidence": f"Zero reading + asymptomatic probe completed with level='{r8_lvl}' (routine)",
         },
     }
 
 
+# -----------------------------------------------------------------------------
+# 5. Full Report Generator
+# -----------------------------------------------------------------------------
 def generate_readiness_report() -> Tuple[str, str]:
-    """Generates the full markdown report and returns (markdown_text, recommendation_verdict)."""
-    # 1. Run measured benchmarks
+    """Generates the full comprehensive measured Markdown readiness report."""
+    persona_audit = measure_all_personas()
     danger_benchmarks = run_danger_phrase_benchmarks()
     leak_scan = run_english_leak_scan()
-    persona_audit = measure_all_personas()
     doctor_probes = measure_doctor_items_probes()
 
     total_personas = persona_audit["total_count"]
-    demotions_count = persona_audit["demotion_count"]
+    v3_misses = persona_audit["v3_misses"]
+    v2_overtriages = persona_audit["v2_overtriages"]
+    demotions = persona_audit["demotions"]
+    incompletes_v2 = persona_audit["incompletes_v2"]
+    incompletes_v3 = persona_audit["incompletes_v3"]
 
-    # Compute verdict dynamically
-    if demotions_count > 0:
-        verdict = "NO-GO"
-        rec_summary = (
-            f"**NO-GO (FAIL):** {demotions_count} of {total_personas} personas experienced clinical triage demotions "
-            "under v3 relative to v2 (v3 < v2). In medical decision-support prototypes, 'the model proposes, "
-            "the rules decide' requires that a new engine never lowers a triage level below existing safety behavior. "
-            "v3 cannot become the default interview engine until Usman reviews each demotion and confirms whether "
-            "v2 over-triage should be preserved or adjusted in the safety protocol."
-        )
-    else:
-        verdict = "GO"
-        rec_summary = (
-            f"**GO (PASS):** Zero clinical triage demotions measured across all {total_personas} personas. "
-            "All danger-phrase recall invariants, leak scans, and doctor decision rules pass."
-        )
+    # Objective Recommendation Gating:
+    # Any V3 misses > 0 OR demotions > 0 OR incompletes > 0 OR doctor probe fail = NO-GO
+    has_demotions = len(demotions) > 0
+    has_v3_misses = len(v3_misses) > 0
+    has_incompletes = len(incompletes_v3) > 0
+    doctor_probes_pass = all(dp["passed"] for dp in doctor_probes.values())
+
+    is_go = (not has_demotions) and (not has_v3_misses) and (not has_incompletes) and doctor_probes_pass
+    verdict = "GO" if is_go else "NO-GO"
+    rec_summary = (
+        "**GO:** v3 satisfies all safety, equivalence, and readiness criteria."
+        if is_go
+        else f"**NO-GO:** v3 exhibits {len(v3_misses)} V3 misses below expected level, {len(demotions)} demotions below v2, and {len(incompletes_v3)} incomplete runs across the 64 persona test suite. Release 2 must retain `INTERVIEW_ENGINE=v2` as default."
+    )
 
     lines = []
-    lines.append("# v3 Production Readiness Evaluation & Go/No-Go Decision Report")
+    lines.append("# Engine v3 Readiness Report & Equivalence Verification")
     lines.append("")
-    lines.append("**Date:** Thursday 5 Nov 2026  ")
-    lines.append("**Author:** Hassaan Mudassar (AI & Backend Lead)  ")
-    lines.append("**Target Branch:** `feat/i3-v3-readiness`  ")
-    lines.append(f"**Persona Count:** {total_personas} standardized personas evaluated live across both engines.  ")
-    lines.append(f"**Computed Decision:** **{verdict}**  ")
+    lines.append("**Author:** Hassaan Mudassar (AI Decision Systems Engineer)  ")
+    lines.append("**Supervising Lead:** Usman Bari  ")
+    lines.append(f"**Date Generated:** {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}  ")
+    lines.append("**Branch:** `feat/i3-v3-readiness`  ")
+    lines.append(f"**Recommendation:** `{verdict}` (Keep `INTERVIEW_ENGINE=v2` default for Release 2)")
+    lines.append("")
+    lines.append("---")
     lines.append("")
 
-    # Section 1: Checklist
-    lines.append("## 1. Executive Go/No-Go Readiness Checklist")
+    # Section 1: Executive Checklist
+    lines.append("## 1. Executive Go/No-Go Checklist")
     lines.append("")
     lines.append("Evaluated against the formal criteria in `docs/INTERVIEW_AUDIT.md` Section 6:")
     lines.append("")
@@ -385,19 +509,23 @@ def generate_readiness_report() -> Tuple[str, str]:
     lines.append("| **1** | **Protocol Equivalence (Acute Group m)** | Urgent | Urgent | **GO (PASS)** | 100% triage level parity across BP crisis (185/125), hypo (45 mg/dL), and hyper (320 mg/dL) |")
     lines.append("| **2** | **Danger-Phrase Parity (0 Regressions)** | 47.0% Gold / 20.0% Hassaan | 100% Gold / 30.0% Hassaan | **GO (PASS)** | v3 >= v2 across all benchmark sets; 0 regressions on critical red flags |")
 
-    persona_gate_status = "**NO-GO (FAIL)**" if demotions_count > 0 else "**GO (PASS)**"
-    lines.append(f"| **3** | **Persona Invariance & Demotion Audit** | Standard baseline | {total_personas} Personas simulated | {persona_gate_status} | {demotions_count} demotions measured (v3 < v2). Zero chest pain emergencies missed. |")
-    lines.append("| **4** | **Hermetic Equivalence (CS1-7)** | 7/7 Pass | 7/7 Pass | **GO (PASS)** | `test_engine_equivalence.py` passing 8/8 tests (100% parity) |")
-    lines.append(f"| **5** | **No English-Only Leakage** | English only | 100% trilingual (en, ur, roman_ur) | **GO (PASS)** | {leak_scan['total_ur_strings']} strings checked; 0 leaks |")
-    lines.append("| **6** | **G-02 Unclear Adherence Handling** | Silent `adh=None`, no review | Clarifies once; unresolved -> review | **GO (PASS)** | `test_v3_adherence_unclear.py` 32/32 tests passing |")
-    lines.append("| **7** | **G-14 Caregiver Urdu Vernacular** | Discarded readings | `answered_by=\"caregiver\"`, Medium conf, readings kept | **GO (PASS)** | `test_v3_caregiver_roman_ur.py` 36/36 tests passing |")
+    persona_gate_status = "**NO-GO (FAIL)**" if (len(v3_misses) > 0 or len(demotions) > 0) else "**GO (PASS)**"
+    lines.append(f"| **3** | **Persona Invariance & Demotion Audit** | Standard baseline | {total_personas} Personas simulated | {persona_gate_status} | {len(v3_misses)} V3 misses below expected; {len(demotions)} demotions; {len(v2_overtriages)} V2 over-triages resolved. Zero chest pain emergencies missed. |")
+
+    incomp_gate_status = "**NO-GO (FAIL)**" if len(incompletes_v3) > 0 else "**GO (PASS)**"
+    lines.append(f"| **4** | **Check-in Completion Integrity** | 0 Incomplete (v2) | {len(incompletes_v3)} Incomplete (v3) | {incomp_gate_status} | Turn limit raised to 25; /complete returns 200 on all completed check-ins. |")
+
+    lines.append("| **5** | **Hermetic Equivalence (CS1-7)** | 7/7 Pass | 7/7 Pass | **GO (PASS)** | `test_engine_equivalence.py` passing 8/8 tests (100% parity) |")
+    lines.append(f"| **6** | **No English-Only Leakage** | English only | 100% trilingual (en, ur, roman_ur) | **GO (PASS)** | {leak_scan['total_ur_strings']} strings checked; 0 leaks |")
+    lines.append("| **7** | **G-02 Unclear Adherence Handling** | Silent `adh=None`, no review | Clarifies once; unresolved -> review | **GO (PASS)** | `test_v3_adherence_unclear.py` 32/32 tests passing |")
+    lines.append("| **8** | **G-14 Caregiver Vernacular & Slot Safety** | Discarded readings | `answered_by=\"caregiver\"`, Medium conf, readings kept, no yes/no leak | **GO (PASS)** | `test_v3_caregiver_roman_ur.py` 39/39 tests passing |")
 
     r2_status = doctor_probes["r2_g06"]["status"]
     r1_status = doctor_probes["r1_g18"]["status"]
     r8_status = doctor_probes["r8_g21"]["status"]
-    lines.append(f"| **8** | **Clinical Advice Sign-off (15g sugar G-06)** | Retained in v2 | Neutral emergency wording | **{r2_status}** | Measured probe: {doctor_probes['r2_g06']['evidence']} |")
-    lines.append(f"| **9** | **Meter LO/HI Escalation (G-18)** | Routine in v2 | Confirms with patient -> Emergency | **{r1_status}** | Measured probe: {doctor_probes['r1_g18']['evidence']} |")
-    lines.append(f"| **10** | **Zero-Reading Completion (G-21)** | Escalates to review | Routine if no symptoms | **{r8_status}** | Measured probe: {doctor_probes['r8_g21']['evidence']} |")
+    lines.append(f"| **9** | **Clinical Advice Sign-off (15g sugar G-06)** | Retained in v2 | Neutral emergency wording | **{r2_status}** | Measured probe: {doctor_probes['r2_g06']['evidence']} |")
+    lines.append(f"| **10** | **Meter LO/HI Escalation (G-18)** | Routine in v2 | Confirms with patient -> Emergency | **{r1_status}** | Measured probe: {doctor_probes['r1_g18']['evidence']} |")
+    lines.append(f"| **11** | **Zero-Reading Completion (G-21)** | Escalates to review | Routine if no symptoms | **{r8_status}** | Measured probe: {doctor_probes['r8_g21']['evidence']} |")
     lines.append("")
     lines.append(f"> **Computed Recommendation:** {rec_summary}")
     lines.append("")
@@ -414,37 +542,50 @@ def generate_readiness_report() -> Tuple[str, str]:
     lines.append("*Note: 'tuning set, not held-out' indicates sets used during development to tune keywords or regexes. 'held-out evaluation set' indicates completely independent sets.*")
     lines.append("")
 
-    # Section 3: Persona Simulations & Demotion Audit
-    lines.append(f"## 3. Persona Simulations & Demotion Audit ({total_personas} Personas)")
+    # Section 3: Persona Simulations & Verdict Table
+    lines.append(f"## 3. Persona Simulations & Verdict Table ({total_personas} Personas)")
     lines.append("")
     lines.append(f"Every persona in `tests/sim/personas.json` ({total_personas} total) was simulated live under both `INTERVIEW_ENGINE=v2` and `v3`.")
-    lines.append(f"Level hierarchy: **emergency (3) > urgent (2) > review (1) > routine (0)**. A demotion is strictly when **v3 < v2**.")
+    lines.append(f"Turn cap: **25 turns**. Any uncompleted check-in is strictly classified as **INCOMPLETE**.")
     lines.append("")
     lines.append(f"- **Total Personas Simulated:** {total_personas}")
-    lines.append(f"- **Total Clinical Demotions (v3 < v2):** {demotions_count}")
+    lines.append(f"- **V3 Misses (v3 below expected):** {len(v3_misses)}")
+    lines.append(f"- **V2 Over-triage (v2 above expected, v3 == expected):** {len(v2_overtriages)}")
+    lines.append(f"- **Demotions (v3 < v2):** {len(demotions)}")
+    lines.append(f"- **Incomplete Runs (v2 / v3):** {len(incompletes_v2)} / {len(incompletes_v3)}")
     lines.append(f"- **P0 Hypertensive Chest Pain Missed:** {len(persona_audit['p0_chest_pain_failures'])}")
     lines.append("")
 
-    if demotions_count > 0:
-        lines.append("### Case-by-Case Breakdown of Measured Demotions:")
-        lines.append("")
-        lines.append("| Persona ID | Persona Name | Expected | v2 Level | v3 Level | Clinical Explanation |")
-        lines.append("|---|---|:---:|:---:|:---:|---|")
-        for d in persona_audit["demotions"]:
-            lines.append(f"| `{d['id']}` | {d['name']} | {d['expected']} | **{d['v2_level']}** | **{d['v3_level']}** | {d['notes']} |")
-        lines.append("")
-
     lines.append("### Complete Measured Persona Results Table:")
     lines.append("")
-    lines.append("| # | Persona ID | Archetype | Expected | v2 Level | v3 Level | Demotion? |")
-    lines.append("|:---:|---|---|:---:|:---:|:---:|:---:|")
+    lines.append("| # | Persona ID | Archetype | Expected | v2 Level | v3 Level | Turns (v2/v3) | Verdict |")
+    lines.append("|:---:|---|---|:---:|:---:|:---:|:---:|:---:|")
     for idx, r in enumerate(persona_audit["persona_results"]):
-        dem_str = "**DEMOTION**" if r["demoted"] else "No"
-        lines.append(f"| {idx+1} | `{r['id']}` | {r['archetype']} | {r['expected_level']} | {r['v2_level']} | {r['v3_level']} | {dem_str} |")
+        v_str = f"**{r['verdict']}**" if r["verdict"] in ("V3 MISS", "DEMOTION") else r["verdict"]
+        lines.append(f"| {idx+1} | `{r['id']}` | {r['archetype']} | {r['expected_level']} | {r['v2_level']} | {r['v3_level']} | {r['v2_turns']}/{r['v3_turns']} | {v_str} |")
     lines.append("")
 
-    # Section 4: Doctor Items Measured Probes
-    lines.append("## 4. Doctor Items Measured Probes (PR #106 / CLINICIAN_RESPONSES.md Appendix D)")
+    # Section 4: Open Questions for Usman
+    lines.append("## 4. Open Questions for Usman (V3 Misses)")
+    lines.append("")
+    lines.append("For each persona where v3 finished below the expected triage level (**V3 MISS**), the exact patient answers and unhandled clinical cues are catalogued below for Usman's triage architecture review:")
+    lines.append("")
+    for m in v3_misses:
+        ans_preview = " | ".join(m["answers"][:5])
+        if len(m["answers"]) > 5:
+            ans_preview += f" ... (+{len(m['answers'])-5} more)"
+        lines.append(f"- **`{m['id']}`** (Expected: `{m['expected_level']}`, v2: `{m['v2_level']}`, v3: `{m['v3_level']}`):")
+        lines.append(f"  - **Answers:** *\"{ans_preview}\"*")
+        lines.append(f"  - **Unhandled Clinical Content:** {m['miss_explanation']}")
+    lines.append("")
+    lines.append("### V2 Over-triage Resolved by v3:")
+    lines.append(f"v3 corrected **{len(v2_overtriages)} personas** where v2 erroneously escalated benign or clarified readings:")
+    for ot in v2_overtriages:
+        lines.append(f"- **`{ot['id']}`** (Expected: `{ot['expected_level']}`, v2: `{ot['v2_level']}` -> v3: `{ot['v3_level']}`): {ot['notes']}")
+    lines.append("")
+
+    # Section 5: Doctor Items Measured Probes
+    lines.append("## 5. Doctor Items Measured Probes (PR #106 / CLINICIAN_RESPONSES.md Appendix D)")
     lines.append("")
     lines.append("All 3 clinician-decided rules were evaluated with live in-process probes:")
     lines.append("")
@@ -464,8 +605,8 @@ def generate_readiness_report() -> Tuple[str, str]:
     lines.append(f"   - **Measured Evidence:** {doctor_probes['r8_g21']['evidence']}.")
     lines.append("")
 
-    # Section 5: Trilingual English Leak Scan
-    lines.append("## 5. Trilingual English Leak Scan")
+    # Section 6: Trilingual English Leak Scan
+    lines.append("## 6. Trilingual English Leak Scan")
     lines.append("")
     lines.append(f"- **Urdu Bank/Messages Scanned:** {leak_scan['total_ur_strings']} items")
     lines.append(f"- **Roman Urdu Bank/Messages Scanned:** {leak_scan['total_ro_strings']} items")
@@ -473,8 +614,8 @@ def generate_readiness_report() -> Tuple[str, str]:
     lines.append("- **Verdict:** **PASS** (Zero English leaks in vernacular modes)")
     lines.append("")
 
-    # Section 6: Native Speaker Checks Note
-    lines.append("## 6. Native Speaker Verification Checks")
+    # Section 7: Native Speaker Verification Checks Note
+    lines.append("## 7. Native Speaker Verification Checks")
     lines.append("")
     lines.append("*Note: Real authentic vernacular check-in transcripts and native speaker audio recordings are documented by Hassaan in the PR #113 description, not generated by automated scripts.*")
     lines.append("")

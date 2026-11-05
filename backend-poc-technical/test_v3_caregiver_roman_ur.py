@@ -242,3 +242,45 @@ def test_caregiver_only_statement_never_triggers_strike_rule():
         assert state.get("ended_early_off_topic") is False, f"Ended early on turn {i+1}!"
         assert state.get("answered_by") == "caregiver"
         assert state.get("options") != ["Continue check-in", "Need urgent help", "Finish later"]
+
+
+def test_caregiver_intro_alone_for_whole_checkin_records_no_yes_no():
+    """Usman R2: An intro alone for a whole check-in must never record yes/no for any slot."""
+    intro = "I am answering for my mother"
+    s = start_v3_session("chk-cg-intro-only", "pat-intro-1", ["diabetes"], language="en")
+    for _ in range(6):
+        if s.get("completed"):
+            break
+        s = next_turn(s, intro)
+
+    assert s.get("answered_by") == "caregiver"
+    known = s.get("known_slots", {})
+    # No slot should be set to boolean True or False from the intro
+    for slot, val in known.items():
+        if slot == "answered_by":
+            continue
+        assert val not in (True, False), f"Slot '{slot}' was incorrectly recorded as {val} from caregiver intro!"
+
+
+def test_caregiver_english_adherence_affirmative():
+    """Usman R2: 'I'm answering for my mother, yes she took her medicine' -> adherent + caregiver."""
+    state = start_v3_session("chk-cg-adh-en", "pat-adh-en", ["diabetes"], language="en")
+    state["step"] = "adherence_diabetes"
+    state["current_question"] = "Did you take your diabetes medication as prescribed?"
+
+    next_st = next_turn(state, "I'm answering for my mother, yes she took her medicine")
+    assert next_st.get("answered_by") == "caregiver"
+    assert next_st["known_slots"].get("adherence_diabetes") is True
+    assert next_st.get("awaiting_adherence_clarification") is None
+
+
+def test_caregiver_english_glucose_45():
+    """Usman R2: 'I am answering for my father, sugar 45' -> glucose 45."""
+    s = start_v3_session("chk-cg-g45-en", "pat-g45-en", ["diabetes"], language="en")
+    s = next_turn(s, "hello")
+    s = next_turn(s, "I am answering for my father, sugar 45")
+    assert s.get("answered_by") == "caregiver"
+    if s.get("awaiting_glucose_unit"):
+        s = next_turn(s, "mg/dL")
+    assert s["readings"].get("glucose") == 45.0
+    assert s.get("possible_severe_low") is True
