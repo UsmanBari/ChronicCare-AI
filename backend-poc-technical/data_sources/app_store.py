@@ -2001,7 +2001,7 @@ def get_checkin_explanation(
     """
     Retrieves the clinical explanation for a checkin.
     Applies the stale rule:
-    If status is pending and older than EXPLAIN_JOB_DEADLINE_SECONDS + 30s,
+    If status is pending and older than EXPLAIN_JOB_DEADLINE_SECONDS + 15s (60s default),
     substitutes the stored template with reason='job_lost', persists it, and returns it.
     """
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
@@ -2029,7 +2029,7 @@ def get_checkin_explanation(
         from rag.explain_guards import get_job_deadline_seconds
         queued_at_str = explanation.get("queued_at")
         is_stale = False
-        stale_threshold = get_job_deadline_seconds() + 30.0
+        stale_threshold = get_job_deadline_seconds() + 15.0
         if queued_at_str:
             try:
                 if queued_at_str.endswith("Z"):

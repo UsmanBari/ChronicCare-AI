@@ -573,6 +573,12 @@ class TokenPacer:
         with self._lock:
             self._records.append((now, int(tokens)))
 
+    def get_current_usage(self, clock_fn: Optional[Callable[[], float]] = None) -> int:
+        now = (clock_fn or time.monotonic)()
+        with self._lock:
+            cutoff = now - self._window
+            return sum(r[1] for r in self._records if r[0] > cutoff)
+
     def reset(self) -> None:
         with self._lock:
             self._records.clear()
@@ -585,6 +591,62 @@ def _parse_retry_after(error_text: str) -> float:
     import re
     if not error_text:
         return 5.0
+
+    # 1. Match milliseconds format first: e.g. "600ms", "500 ms", "1200 milliseconds" -> min 1.0s
+    m_ms = re.search(
+        r"(?:try again in|retry after|wait|in)\s*([0-9]+(?:\.[0-9]+)?)\s*(?:ms|milliseconds?)(?:\b|$)",
+        error_text,
+        re.IGNORECASE,
+    )
+    if m_ms:
+        val_sec = float(m_ms.group(1)) / 1000.0
+        return max(1.0, min(val_sec, 30.0))
+
+    # 2. Match minutes and optional seconds: e.g. "1m30s", "1m 30s", "2m", "1 minute 30 seconds"
+    m_min = re.search(
+        r"(?:try again in|retry after|wait|in)\s*([0-9]+)\s*(?:m(?!s)|min|minutes?)\s*(?:([0-9]+(?:\.[0-9]+)?)\s*(?:s|sec|seconds?)?)?",
+        error_text,
+        re.IGNORECASE,
+    )
+    if m_min:
+        mins = float(m_min.group(1) or 0)
+        secs = float(m_min.group(2) or 0)
+        total = mins * 60.0 + secs
+        return max(1.0, min(total, 30.0))
+
+    # 3. Match seconds format: e.g. "4.5s", "5 seconds", "10"
+    m_sec = re.search(r"(?:try again in|retry after|wait|in)\s*([0-9]+(?:\.[0-9]+)?)\s*(?:s|sec|seconds)?(?:\b|$)", error_text, re.IGNORECASE)
+    if m_sec:
+        try:
+            val = float(m_sec.group(1))
+            return max(1.0, min(val, 30.0))
+        except (ValueError, TypeError):
+            pass
+    return 5.0
+
+    # 1. Match minutes and optional seconds: e.g. "1m30s", "1m 30s", "2m", "1 minute 30 seconds"
+    m_min = re.search(
+        r"(?:try again in|retry after|wait|in)\s*([0-9]+)\s*(?:m|min|minutes?)\s*(?:([0-9]+(?:\.[0-9]+)?)\s*(?:s|sec|seconds?)?)?",
+        error_text,
+        re.IGNORECASE,
+    )
+    if m_min:
+        mins = float(m_min.group(1) or 0)
+        secs = float(m_min.group(2) or 0)
+        total = mins * 60.0 + secs
+        return max(1.0, min(total, 30.0))
+
+    # 2. Match milliseconds format: e.g. "600ms", "500 ms", "1200 milliseconds" -> min 1.0s
+    m_ms = re.search(
+        r"(?:try again in|retry after|wait|in)\s*([0-9]+(?:\.[0-9]+)?)\s*(?:ms|milliseconds?)(?:\b|$)",
+        error_text,
+        re.IGNORECASE,
+    )
+    if m_ms:
+        val_sec = float(m_ms.group(1)) / 1000.0
+        return max(1.0, min(val_sec, 30.0))
+
+    # 3. Match seconds format: e.g. "4.5s", "5 seconds", "10"
     m = re.search(r"(?:try again in|retry after|wait|in)\s*([0-9]+(?:\.[0-9]+)?)\s*(?:s|sec|seconds)?(?:\b|$)", error_text, re.IGNORECASE)
     if m:
         try:
@@ -968,7 +1030,11 @@ def guarded_explain(
     def _make_template_fallback(reason: str, rejected: Optional[List[str]] = None) -> Dict[str, Any]:
         reasons_list = [f"Guard fallback: {reason}"]
         if rejected:
-            reasons_list.extend(rejected)
+            for r in rejected:
+                clean_r = str(r)
+                if "org_" in clean_r or "{" in clean_r:
+                    clean_r = "rate_limited: HTTP 429" if ("429" in clean_r or "rate" in clean_r.lower()) else "LLM execution error"
+                reasons_list.append(clean_r)
         tmpl = get_template_explanation(
             trigger_category=trigger_category,
             readings=readings_copy,
@@ -983,6 +1049,11 @@ def guarded_explain(
         tmpl["provider"] = None
         tmpl["providers_tried"] = list(providers_tried)
         tmpl["provider_timings"] = dict(provider_timings)
+        # Strip any provider bodies or org IDs from stored rejected reasons
+        tmpl["rejected_reasons"] = [
+            ("rate_limited: HTTP 429" if ("org_" in str(r) or "{" in str(r)) else str(r))
+            for r in tmpl.get("rejected_reasons", [])
+        ]
         record_fallback(final_reason)
         return tmpl
 
@@ -1145,33 +1216,59 @@ def guarded_explain(
                     try:
                         def _timed_llm(**kwargs):
                             try:
+                                # Check pacer before every Groq call (English and translation) in background mode
+                                if active_explain_mode == "background" and current_provider == "groq":
+                                    wait_sec = _GLOBAL_GROQ_PACER.get_wait_seconds(
+                                        tokens_needed=250,
+                                        otpm_limit=get_groq_otpm(),
+                                        clock_fn=now_fn,
+                                    )
+                                    if wait_sec > 0.0:
+                                        if (now_fn() + wait_sec + 1.0) <= prov_deadline:
+                                            nap_fn(wait_sec)
+                                        else:
+                                            raise TimeoutError("Pacer wait exceeds deadline")
+
                                 kwargs["timeout"] = max(0.1, prov_deadline - now_fn())
                                 kwargs["max_retries"] = 0
                                 kwargs["sdk_max_retries"] = 0
+
+                                text_out = None
+                                c_tok = 0
+                                tot_tok = 0
+
                                 if hasattr(prov_callable, "chat_with_detailed_usage"):
-                                    text, u_dict = _call_with_supported_kwargs(prov_callable.chat_with_detailed_usage, **kwargs)
-                                    worker_tokens["count"] += u_dict.get("total_tokens", 0)
-                                    worker_tokens["completion"] += u_dict.get("completion_tokens", 0)
-                                    return text
+                                    text_out, u_dict = _call_with_supported_kwargs(prov_callable.chat_with_detailed_usage, **kwargs)
+                                    tot_tok = u_dict.get("total_tokens", 0)
+                                    c_tok = u_dict.get("completion_tokens", 0)
                                 elif hasattr(prov_callable, "chat_with_usage"):
-                                    text, tokens = _call_with_supported_kwargs(prov_callable.chat_with_usage, **kwargs)
-                                    worker_tokens["count"] += tokens
-                                    worker_tokens["completion"] += tokens
-                                    return text
+                                    text_out, tokens = _call_with_supported_kwargs(prov_callable.chat_with_usage, **kwargs)
+                                    tot_tok = tokens
+                                    c_tok = tokens
                                 elif callable(prov_callable):
                                     res = _call_with_supported_kwargs(prov_callable, **kwargs)
                                     if isinstance(res, tuple) and len(res) == 2:
                                         if isinstance(res[1], dict):
-                                            worker_tokens["count"] += res[1].get("total_tokens", 0)
-                                            worker_tokens["completion"] += res[1].get("completion_tokens", 0)
+                                            tot_tok = res[1].get("total_tokens", 0)
+                                            c_tok = res[1].get("completion_tokens", 0)
                                         elif isinstance(res[1], int):
-                                            worker_tokens["count"] += res[1]
-                                            worker_tokens["completion"] += res[1]
-                                        return res[0]
-                                    return res
+                                            tot_tok = res[1]
+                                            c_tok = res[1]
+                                        text_out = res[0]
+                                    else:
+                                        text_out = res
                                 elif hasattr(prov_callable, "chat"):
-                                    return _call_with_supported_kwargs(prov_callable.chat, **kwargs)
-                                raise TypeError(f"Invalid callable for provider {current_provider}")
+                                    text_out = _call_with_supported_kwargs(prov_callable.chat, **kwargs)
+                                else:
+                                    raise TypeError(f"Invalid callable for provider {current_provider}")
+
+                                # Record tokens immediately on EVERY call that returned usage
+                                worker_tokens["count"] += tot_tok
+                                worker_tokens["completion"] += c_tok
+                                if current_provider == "groq" and c_tok > 0:
+                                    _GLOBAL_GROQ_PACER.record_tokens(c_tok, clock_fn=now_fn)
+
+                                return text_out
                             except Exception as exc:
                                 worker_error["error"] = exc
                                 raise
@@ -1209,28 +1306,32 @@ def guarded_explain(
                     err = worker_error["error"]
                     err_str = str(err).lower()
                     is_429 = "rate limit" in err_str or "429" in err_str or type(err).__name__ in ("RateLimitError", "GeminiRateLimitError")
+                    exc_type = type(err).__name__
                     if is_429:
+                        sanitized_reason = f"rate_limited: {exc_type}: HTTP 429"
                         if active_explain_mode == "background":
                             # In background mode, 429 does NOT trip circuit breaker!
                             if prov_attempt < max_prov_attempts - 1:
-                                wait_dur = _parse_retry_after(err_str)
+                                wait_dur = _parse_retry_after(str(err))
                                 if (now_fn() + wait_dur + 1.0) <= deadline:
                                     nap_fn(wait_dur)
                                     continue
                             # If already retried or not enough time:
                             if has_next:
                                 break
-                            return _make_template_fallback("rate_limited", [f"LLM rate limited: {err_str}"])
+                            return _make_template_fallback("rate_limited", [sanitized_reason])
                         else:
                             p_breaker.record_failure(is_rate_limit=True)
                             if has_next:
                                 break
-                            return _make_template_fallback("rate_limited", [f"LLM rate limited: {err_str}"])
+                            return _make_template_fallback("rate_limited", [sanitized_reason])
                     else:
                         p_breaker.record_failure(is_rate_limit=False)
                         if has_next:
                             break
-                        return _make_template_fallback("error", [f"LLM exception: {type(err).__name__}"])
+                        code = getattr(err, "status_code", None) or getattr(err, "status", None)
+                        code_str = f": HTTP {code}" if code else ""
+                        return _make_template_fallback("error", [f"error: {exc_type}{code_str}"])
 
                 res_data = worker_result.get("data")
                 if not res_data:
@@ -1291,9 +1392,6 @@ def guarded_explain(
 
                 # Successful LLM generation!
                 p_breaker.record_success()
-                if current_provider == "groq":
-                    comp_tokens = worker_tokens.get("completion") or worker_tokens.get("count", 0)
-                    _GLOBAL_GROQ_PACER.record_tokens(comp_tokens, clock_fn=now_fn)
 
                 res_data["mode"] = "llm"
                 res_data["provider"] = current_provider

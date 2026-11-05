@@ -658,3 +658,216 @@ def test_l2_provider_error_log_sanitization(caplog):
     assert "org_secret_leak_123" not in str(exc_info.value)
     for record in caplog.records:
         assert "org_secret_leak_123" not in record.message
+
+
+# =============================================================================
+# Review Additions: Order, Pacer, Retry-After, Sanitize Reasons, Pending Mode
+# =============================================================================
+def test_order_delayed_save_never_results_in_job_lost(client, rsa_key, monkeypatch, mock_store):
+    """Order: Injected 3s delay in saving checkin result row -> job still ends 'ready', never 'job_lost'."""
+    import time, data_sources.app_store as app_store
+    import orchestrator.steps as steps
+    monkeypatch.setenv("EXPLAIN_ENABLED", "true")
+    monkeypatch.setenv("EXPLAIN_MODE", "background")
+
+    # Mock groq
+    import llm.groq_client as groq_client
+    monkeypatch.setattr(groq_client, "is_configured", lambda: True)
+    valid_sentences = [
+        {"text": "Your blood pressure reading of 130.0/80.0 mmHg is within target ranges.", "cites": ["aha_chunk_1"]},
+        {"text": "Regular monitoring supports heart health.", "cites": ["aha_chunk_1"]},
+    ]
+    monkeypatch.setattr(groq_client, "chat_with_usage", lambda **kw: (json.dumps({"sentences": valid_sentences}), 60))
+
+    # Inject delay into create_checkin_result in steps
+    orig_create = steps.create_checkin_result
+    save_delayed = []
+    def delayed_create_checkin_result(*args, **kwargs):
+        save_delayed.append(True)
+        time.sleep(1.0)
+        return orig_create(*args, **kwargs)
+    monkeypatch.setattr(steps, "create_checkin_result", delayed_create_checkin_result)
+
+    uid = "pat_delay_01"
+    cid = "chk_delay_01"
+    token = _create_token(rsa_key, uid=uid)
+    headers = auth_header(token)
+
+    client.post("/api/auth/session", headers=headers)
+    local_store.add_local_patient_if_missing(f"local-{uid}", name="Delay Patient", date_of_birth="1980-01-01")
+    client.post("/api/me/consent", headers=headers, json={"granted": True, "provider_notification": True})
+    client.post("/api/me/provider-notification-consent", headers=headers, json={"granted": True})
+    client.put(
+        "/api/me/profile",
+        headers=headers,
+        json={"conditions": ["hypertension"], "date_of_birth": "1980-01-01", "inclusion_confirmed": True},
+    )
+
+    raw_state = {
+        "engine": "v3",
+        "completed": True,
+        "conditions_on_file": ["hypertension"],
+        "readings": {"blood_pressure_systolic": 130.0, "blood_pressure_diastolic": 80.0},
+        "findings": [],
+    }
+    app_store.create_checkin(
+        checkin_id=cid,
+        user_id=uid,
+        mode="isolated",
+        record_patient_id=f"local-{uid}",
+        state_dict=raw_state,
+        status="in_progress",
+    )
+
+    resp = client.post(f"/api/checkins/{cid}/complete", headers=headers)
+    assert resp.status_code == 200
+    assert len(save_delayed) == 1
+
+    # Wait for background worker to finish processing
+    for _ in range(50):
+        row = app_store.get_checkin_result(cid)
+        if row and (row.get("explanation") or row.get("explanation_json")):
+            exp = row.get("explanation") or row.get("explanation_json")
+            if exp.get("status") == "ready":
+                break
+        time.sleep(0.05)
+
+    final_row = app_store.get_checkin_result(cid)
+    final_exp = final_row.get("explanation") or final_row.get("explanation_json")
+    assert final_exp["status"] == "ready"
+    assert final_exp.get("reason") != "job_lost"
+
+
+def test_retry_after_ms_and_min_sec_parsing():
+    """Retry-After: handles 'ms' (600ms -> 1.0s min) and '1m30s' (-> 30s cap)."""
+    assert _parse_retry_after("Please try again in 600ms.") == 1.0
+    assert _parse_retry_after("try again in 500ms") == 1.0
+    assert _parse_retry_after("try again in 1200ms") == 1.2
+    assert _parse_retry_after("try again in 1m30s") == 30.0
+    assert _parse_retry_after("try again in 2m") == 30.0
+    assert _parse_retry_after("wait 15s") == 15.0
+
+
+def test_stored_reasons_never_leak_provider_body_or_org_id(mock_store):
+    """Stored reasons: never store provider error text in explanation_json / rejected_reasons."""
+    leaky_body = "Rate limit reached for org_secretcorp_999888 on model qwen/qwen3.8-27b"
+    def leaky_llm(**kwargs):
+        raise RuntimeError(leaky_body)
+
+    res = guarded_explain(
+        triage_result={"level": "routine"},
+        readings={"blood_pressure_systolic": 130.0, "blood_pressure_diastolic": 80.0},
+        store=mock_store,
+        llm=leaky_llm,
+        provider="groq",
+        mode="inline",
+    )
+
+    assert res["mode"] == "template"
+    assert res["reason"] == "rate_limited"
+    dumped = json.dumps(res)
+    assert "org_secretcorp_999888" not in dumped
+    assert "org_" not in dumped
+    for rej in res.get("rejected_reasons", []):
+        assert "org_" not in rej
+
+
+def test_provider_view_of_pending_job_has_mode_pending(client, rsa_key, monkeypatch):
+    """Provider view of a pending job: mode 'pending', not 'background'."""
+    monkeypatch.setenv("EXPLAIN_ENABLED", "true")
+    monkeypatch.setenv("EXPLAIN_MODE", "background")
+
+    # Mock groq as configured so check-in is eligible for background queue
+    import llm.groq_client as groq_client
+    monkeypatch.setattr(groq_client, "is_configured", lambda: True)
+
+    now_iso = "2026-11-05T00:00:00Z"
+    with app_store.get_db_cursor(backend="sqlite") as (cur, be, ph):
+        cur.execute(
+            f"INSERT OR REPLACE INTO guideline_chunks (chunk_id, source_id, title, condition, text, loaded_at) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+            ("chk_1", "ish_2020_htn", "BP Targets", "hypertension", "Target blood pressure is 130/80.", now_iso),
+        )
+
+    from rag.explain_jobs import get_job_queue
+    # Stop and prevent background worker from consuming immediately
+    get_job_queue().stop_worker()
+    monkeypatch.setattr(get_job_queue(), "start_worker_if_needed", lambda: None)
+
+    uid = "pat_pending_prov"
+    cid = "chk_pending_prov"
+    token = _create_token(rsa_key, uid=uid)
+    headers = auth_header(token)
+
+    client.post("/api/auth/session", headers=headers)
+    local_store.add_local_patient_if_missing(f"local-{uid}", name="Pending Patient", date_of_birth="1980-01-01")
+    client.post("/api/me/consent", headers=headers, json={"granted": True, "provider_notification": True})
+    client.post("/api/me/provider-notification-consent", headers=headers, json={"granted": True})
+    client.put(
+        "/api/me/profile",
+        headers=headers,
+        json={"conditions": ["hypertension"], "date_of_birth": "1980-01-01", "inclusion_confirmed": True},
+    )
+
+    raw_state = {
+        "engine": "v3",
+        "completed": True,
+        "conditions_on_file": ["hypertension"],
+        "readings": {"blood_pressure_systolic": 130.0, "blood_pressure_diastolic": 80.0},
+        "findings": [],
+    }
+    app_store.create_checkin(
+        checkin_id=cid,
+        user_id=uid,
+        mode="isolated",
+        record_patient_id=f"local-{uid}",
+        state_dict=raw_state,
+        status="in_progress",
+    )
+
+    resp = client.post(f"/api/checkins/{cid}/complete", headers=headers)
+    assert resp.status_code == 200
+
+    # Read provider review endpoint
+    prov_token = _create_token(rsa_key, "prov_user_pend", role="provider")
+    prov_headers = auth_header(prov_token)
+    client.post("/api/auth/session", headers=prov_headers)
+    with app_store.get_db_cursor(backend="sqlite") as (cur, be, ph):
+        cur.execute(f"UPDATE users SET role = 'provider' WHERE user_id = {ph}", ("prov_user_pend",))
+
+    rev_resp = client.get(f"/api/provider/review/{cid}", headers=prov_headers)
+    assert rev_resp.status_code == 200
+    rev_data = rev_resp.json()
+    prov_exp = rev_data.get("explanation")
+    print("\n=== DEBUG PROV_EXP ===", prov_exp)
+    assert prov_exp is not None
+    assert prov_exp["status"] == "pending"
+    assert prov_exp["mode"] == "pending"
+    assert prov_exp["mode"] != "background"
+
+
+def test_pacer_records_tokens_on_every_groq_call(mock_store):
+    """Pacer: records Groq completion tokens after EVERY Groq call that returned usage (including validation failed)."""
+    _GLOBAL_GROQ_PACER.reset()
+
+    # Call returns valid JSON but with hallucinated numbers -> triggers validation failure
+    hallucinated_json = json.dumps({
+        "sentences": [
+            {"text": "Your blood pressure is 220/140 mmHg.", "cites": ["aha_chunk_1"]}
+        ]
+    })
+    bad_llm = lambda **kw: (hallucinated_json, {"completion_tokens": 45, "total_tokens": 70})
+
+    clock = 1000.0
+    res = guarded_explain(
+        triage_result={"level": "routine"},
+        readings={"blood_pressure_systolic": 130.0, "blood_pressure_diastolic": 80.0},
+        store=mock_store,
+        llm=bad_llm,
+        provider="groq",
+        mode="inline",
+        clock_fn=lambda: clock,
+    )
+    assert res["reason"] == "validation_failed"
+
+    # Assert pacer recorded the 45 completion tokens despite validation_failed!
+    assert _GLOBAL_GROQ_PACER.get_current_usage(clock_fn=lambda: clock) == 45

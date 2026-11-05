@@ -49,12 +49,15 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
 
     let isMounted = true;
     let pollCount = 0;
-    const maxPolls = 20; // 20 * 3s = 60s timeout
+    const maxPolls = 30; // 30 * 3s = 90s timeout
 
     const intervalId = setInterval(async () => {
       pollCount += 1;
       if (pollCount > maxPolls) {
         clearInterval(intervalId);
+        if (isMounted) {
+          setExplanation(null);
+        }
         return;
       }
 
@@ -66,12 +69,13 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
           setExplanation(polled);
           clearInterval(intervalId);
         } else if (polled && polled.status === "error") {
-          setExplanation(polled);
+          setExplanation(null);
           clearInterval(intervalId);
         }
       } catch (err) {
-        // Stop polling on terminal error
+        // Stop polling and hide banner on error
         if (isMounted) {
+          setExplanation(null);
           clearInterval(intervalId);
         }
       }

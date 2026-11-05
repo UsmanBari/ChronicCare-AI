@@ -565,7 +565,20 @@ def run_mutation(mut: dict) -> dict:
 
     try:
         # Run pytest subprocess on exact test node with -B and PYTHONDONTWRITEBYTECODE
-        cmd = [sys.executable, "-B", "-m", "pytest", mut["test_node"], "-x", "--tb=line", "-q"]
+        cmd = [
+            sys.executable,
+            "-B",
+            "-m",
+            "pytest",
+            mut["test_node"],
+            "-c",
+            str(BACKEND_DIR / "pytest.ini"),
+            "-o",
+            "norecursedirs=node_modules .next",
+            "-x",
+            "--tb=line",
+            "-q",
+        ]
         sub_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
         proc = subprocess.run(
             cmd,

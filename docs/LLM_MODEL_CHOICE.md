@@ -106,7 +106,7 @@ Model: openai/gpt-oss-20b
 | :--- | :---: | :---: | :---: | :---: |
 | **License** | Apache 2.0 | Apache 2.0 | Apache 2.0 | Llama Community |
 | **Evaluations Attempted** | 36 / 36 | 36 / 36 | 36 / 36 | 0 (API 404) |
-| **Single-Call Latency (p50)** | **0.52s – 7.81s** | 11.81s | 2.42s – 2.69s | N/A |
+| **Single-Call Latency (p50)** | **7.81s** | 11.81s | 2.42s – 2.69s | N/A |
 | **Single-Call Latency (p95)** | 29.66s | 22.83s | 2.69s | N/A |
 | **Calls Per Case (Mean)** | 1.63 calls | 1.41 calls | 1.00 calls | N/A |
 | **Whole Case Latency (p50)** | 14.78s | 18.29s | 2.69s | N/A |
@@ -159,9 +159,9 @@ Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen
 
 ### Latency Gate Evaluation:
 - **Single-Call vs Whole-Case Latency:**
-  - Single-call latency measures the isolated generation time of a single prompt (e.g. English explanation: $0.52\text{s}$ to $7.81\text{s}$).
+  - Single-call latency measures the isolated generation time of a single prompt (e.g. English explanation: measured p50 $7.81\text{s}$ on whole-case test set).
   - Whole-case latency for Urdu and Roman Urdu requires **two sequential calls** (English generation + translated output validation), doubling the network duration.
-  - While single calls on `qwen/qwen3.8-27b` easily beat the 8.0s threshold ($p50 = 0.52\text{s}–7.81\text{s}$), whole-case end-to-end evaluation under cloud queueing fails the strict $p95 \le 8.0\text{s}$ gate.
+  - While single calls on `qwen/qwen3.8-27b` can meet the 8.0s threshold (measured p50 $7.81\text{s}$), whole-case end-to-end evaluation under cloud queueing fails the strict $p95 \le 8.0\text{s}$ gate.
 
 ### Production Guardrail:
 In production deployment on Render, **`EXPLAIN_ENABLED=off`** remains the default setting.
@@ -195,7 +195,7 @@ The table below summarizes verified token and rate limits across candidate LLM e
 | **Gemini** | `gemini-2.5-flash` | 15 | 1,500 | 1,000,000 | 1,500,000 | N/A (1M TPM pool) |
 
 > [!NOTE]
-> `qwen/qwen3.8-27b` on Groq's free tier has an output token limit of **1,000 OTPM**. At ~120-150 completion tokens per explanation, more than 6-7 requests within a single minute will encounter HTTP 429 rate limits unless explicitly paced.
+> `qwen/qwen3.8-27b` on Groq's free tier has an output token limit of **1,000 OTPM**, which encounters HTTP 429 rate limits unless explicitly paced (especially for multilingual Urdu and Roman Urdu check-ins requiring two sequential calls).
 
 ### 7.2 Usman's Day 5 Decision: "Best Answer, Not Fastest Answer"
 

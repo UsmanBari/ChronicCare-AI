@@ -222,6 +222,14 @@ def get_queue_length() -> int:
     return _GLOBAL_JOB_QUEUE.qsize()
 
 
+def get_explain_queue():
+    return _GLOBAL_JOB_QUEUE._get_queue()
+
+
+def get_job_queue():
+    return _GLOBAL_JOB_QUEUE
+
+
 def enqueue_job(
     checkin_id: str,
     user_id: str,

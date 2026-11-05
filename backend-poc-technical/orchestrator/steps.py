@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 from typing import Dict, Any, Optional, Tuple, List
 from fastapi import HTTPException, status
@@ -917,28 +918,26 @@ def step_explain(
             fallback_tmpl["provider_timings"] = {}
             fallback_tmpl["tokens_used"] = 0
 
-            from rag.explain_jobs import enqueue_job
-            cid = checkin_id or getattr(state, "checkin_id", None) or getattr(state, "session_id", None) or "temp_checkin_id"
-            enqueued = enqueue_job(
-                checkin_id=cid,
-                user_id=user_id,
-                condition=active_cond,
-                readings=readings,
-                language=language,
-                fallback_template=fallback_tmpl,
-                store=store,
-            )
-            if not enqueued:
-                # Queue full: immediately return template
+            from rag.explain_jobs import get_explain_queue
+            from rag.explain_guards import get_queue_max
+            if get_explain_queue().qsize() >= get_queue_max():
                 fallback_tmpl["reason"] = "queue_full"
                 record_fallback("queue_full")
                 return fallback_tmpl
 
             return {
                 "status": "pending",
+                "mode": "pending",
                 "queued_at": _utc_now_iso(),
                 "template": fallback_tmpl,
-                "mode": "background",
+                "_job_params": {
+                    "user_id": user_id,
+                    "condition": active_cond,
+                    "readings": readings,
+                    "language": language,
+                    "fallback_template": fallback_tmpl,
+                    "store": store,
+                },
             }
 
         # Inline execution mode
@@ -1039,6 +1038,12 @@ def step_persist_and_respond(
 
     sanitized_trace = _sanitize_trace_for_persistence(trace)
 
+    job_params = None
+    stored_explanation = explanation
+    if explanation and isinstance(explanation, dict) and "_job_params" in explanation:
+        stored_explanation = copy.deepcopy(explanation)
+        job_params = stored_explanation.pop("_job_params")
+
     create_checkin_result(
         checkin_id=checkin_id,
         emergency=False,
@@ -1051,9 +1056,27 @@ def step_persist_and_respond(
         triage_level=final_triage_level,
         triage=triage_dict,
         risk=risk,
-        explanation=explanation,
+        explanation=stored_explanation,
         trace=sanitized_trace,
     )
+    if job_params:
+        from rag.explain_jobs import enqueue_job
+        enqueued = enqueue_job(
+            checkin_id=checkin_id,
+            user_id=job_params["user_id"],
+            condition=job_params["condition"],
+            readings=job_params["readings"],
+            language=job_params["language"],
+            fallback_template=job_params["fallback_template"],
+            store=job_params.get("store"),
+        )
+        if not enqueued:
+            from data_sources.app_store import update_checkin_explanation
+            from rag.explain_guards import record_fallback
+            fallback_tmpl = copy.deepcopy(job_params["fallback_template"])
+            fallback_tmpl["reason"] = "queue_full"
+            record_fallback("queue_full")
+            update_checkin_explanation(checkin_id, fallback_tmpl)
     update_checkin_state(
         checkin_id=checkin_id,
         state_dict=state.to_dict(),

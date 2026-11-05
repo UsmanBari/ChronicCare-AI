@@ -437,4 +437,84 @@ describe("Patient Explanation Box & Strict Patient Risk Suppression (I3 Day 2)",
 
     vi.useRealTimers();
   });
+
+  it("stops showing the pending banner and renders nothing after 90s timeout cap", async () => {
+    vi.useFakeTimers();
+
+    const pendingExplanation: PatientExplanation = {
+      status: "pending",
+      sentences: [],
+      sources: [],
+    };
+
+    const spyGetExplanation = vi
+      .spyOn(api, "getCheckinExplanation")
+      .mockResolvedValue({
+        status: "pending",
+        sentences: [],
+        sources: [],
+      });
+
+    render(
+      <div>
+        <ExplanationBox
+          explanation={pendingExplanation}
+          emergency={false}
+          checkinId="chk_poll_timeout"
+        />
+      </div>
+    );
+
+    expect(screen.getByTestId("explanation-pending")).toBeTruthy();
+
+    // Advance beyond 90s (31 polls * 3s = 93s)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(94000);
+    });
+
+    expect(spyGetExplanation).toHaveBeenCalled();
+    // After 90s cap, pending banner is removed and nothing is rendered
+    expect(screen.queryByTestId("explanation-pending")).toBeNull();
+    expect(screen.queryByTestId("patient-explanation-box")).toBeNull();
+
+    vi.useRealTimers();
+  });
+
+  it("stops showing the pending banner and renders nothing on polling error", async () => {
+    vi.useFakeTimers();
+
+    const pendingExplanation: PatientExplanation = {
+      status: "pending",
+      sentences: [],
+      sources: [],
+    };
+
+    const spyGetExplanation = vi
+      .spyOn(api, "getCheckinExplanation")
+      .mockRejectedValueOnce(new Error("500 Internal Server Error"));
+
+    render(
+      <div>
+        <ExplanationBox
+          explanation={pendingExplanation}
+          emergency={false}
+          checkinId="chk_poll_error"
+        />
+      </div>
+    );
+
+    expect(screen.getByTestId("explanation-pending")).toBeTruthy();
+
+    // Advance 1 poll
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3500);
+    });
+
+    expect(spyGetExplanation).toHaveBeenCalledWith("chk_poll_error");
+    // On error, pending banner is removed and nothing is rendered
+    expect(screen.queryByTestId("explanation-pending")).toBeNull();
+    expect(screen.queryByTestId("patient-explanation-box")).toBeNull();
+
+    vi.useRealTimers();
+  });
 });
