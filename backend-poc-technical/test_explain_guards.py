@@ -638,6 +638,7 @@ def test_mutation_proof_budget_deadline_killed():
         readings={"glucose": 110.0},
         language="en",
         llm=sleeping_llm,
+        provider="groq",
         budget_seconds=0.5,
     )
     assert res["reason"] == "budget_timeout"
@@ -715,6 +716,11 @@ def test_docs_env_table_matches_code_constants():
         DEFAULT_LLM_PROVIDER,
         DEFAULT_LLM_PROVIDER_ORDER,
         DEFAULT_LLM_CONDITIONS,
+        DEFAULT_EXPLAIN_MODE,
+        DEFAULT_QUEUE_MAX,
+        DEFAULT_JOB_DEADLINE_SECONDS,
+        DEFAULT_CALL_TIMEOUT_SECONDS,
+        DEFAULT_GROQ_OTPM,
     )
 
     doc_path = Path(__file__).resolve().parent.parent / "docs" / "EXPLAIN_GUARDS.md"
@@ -751,6 +757,11 @@ def test_docs_env_table_matches_code_constants():
         "GEMINI_MODEL": ("str", '""'),
         "GEMINI_THINKING_BUDGET": ("str", '""'),
         "EXPLAIN_LLM_CONDITIONS": ("str", DEFAULT_LLM_CONDITIONS),
+        "EXPLAIN_MODE": ("str", DEFAULT_EXPLAIN_MODE),
+        "EXPLAIN_QUEUE_MAX": ("int", str(DEFAULT_QUEUE_MAX)),
+        "EXPLAIN_JOB_DEADLINE_SECONDS": ("float", str(DEFAULT_JOB_DEADLINE_SECONDS)),
+        "EXPLAIN_CALL_TIMEOUT_SECONDS": ("float", str(DEFAULT_CALL_TIMEOUT_SECONDS)),
+        "EXPLAIN_GROQ_OTPM": ("int", str(DEFAULT_GROQ_OTPM)),
     }
 
     for env_var, (exp_type, exp_val) in expected.items():

@@ -372,8 +372,8 @@ MUTATIONS = [
         "id": "M-U7-2",
         "name": "Explain step mutates clinical triage decision",
         "file": BACKEND_DIR / "orchestrator" / "steps.py",
-        "target": '        explain_res = guarded_explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n            condition=active_cond,\n        )\n        return explain_res',
-        "replacement": '        explain_res = guarded_explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n            condition=active_cond,\n        )\n        triage_decision["final_triage_level"] = "routine"\n        return explain_res',
+        "target": '        explain_res = guarded_explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n            condition=active_cond,\n            mode="inline",\n        )\n        if "status" not in explain_res:\n            explain_res["status"] = "ready"\n        return explain_res',
+        "replacement": '        explain_res = guarded_explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n            condition=active_cond,\n            mode="inline",\n        )\n        triage_decision["final_triage_level"] = "routine"\n        if "status" not in explain_res:\n            explain_res["status"] = "ready"\n        return explain_res',
         "test_node": "backend-poc-technical/test_checkin_risk_explain.py::test_mutation_proof_m_u7_2_explain_never_modifies_triage",
     },
     # --- Day 2 Danger Word Groups Mutations (M-U-WG-1 to M-U-WG-4) ---
@@ -437,8 +437,8 @@ MUTATIONS = [
         "id": "M-U-G1",
         "name": "Explain Guards: Disable time budget deadline enforcement",
         "file": BACKEND_DIR / "rag" / "explain_guards.py",
-        "target": "            if thread.is_alive():\n                # Provider timed out",
-        "replacement": "            if False and thread.is_alive():\n                # Provider timed out",
+        "target": "                if thread.is_alive():\n                    # Provider timed out",
+        "replacement": "                if False and thread.is_alive():\n                    # Provider timed out",
         "test_node": "backend-poc-technical/test_explain_guards.py::test_mutation_proof_budget_deadline_killed",
     },
     {
@@ -480,6 +480,31 @@ MUTATIONS = [
         "target": "        for idx, current_provider in enumerate(eligible_providers):",
         "replacement": "        for idx, current_provider in enumerate(eligible_providers[:1]):",
         "test_node": "backend-poc-technical/test_llm_providers.py::test_routing_auto_groq_429_falls_back_to_gemini",
+    },
+    # --- Day 5 Background Explainer Mutations (M-U-BG-1 to M-U-BG-3) ---
+    {
+        "id": "M-U-BG-1",
+        "name": "Background Explainer: Queue overflow returns True on over-capacity",
+        "file": BACKEND_DIR / "rag" / "explain_jobs.py",
+        "target": "        try:\n            q.put_nowait(job)\n        except queue.Full:\n            logger.warning(\"Explain background queue full (capacity %d); dropping to template\", q.maxsize)\n            return False",
+        "replacement": "        try:\n            q.put_nowait(job)\n        except queue.Full:\n            logger.warning(\"Explain background queue full (capacity %d); dropping to template\", q.maxsize)\n            return True",
+        "test_node": "backend-poc-technical/test_explain_background.py::test_o4_bounded_queue_overflow",
+    },
+    {
+        "id": "M-U-BG-2",
+        "name": "Background Explainer: Disable OTPM pacer wait calculation",
+        "file": BACKEND_DIR / "rag" / "explain_guards.py",
+        "target": "            total_used = sum(r[1] for r in self._records)\n            if total_used + tokens_needed <= otpm_limit:\n                return 0.0",
+        "replacement": "            total_used = sum(r[1] for r in self._records)\n            if True:\n                return 0.0",
+        "test_node": "backend-poc-technical/test_explain_background.py::test_o6_groq_otpm_pacer_wait_calculation",
+    },
+    {
+        "id": "M-U-BG-3",
+        "name": "Background Explainer: Disable 429 retry in background mode",
+        "file": BACKEND_DIR / "rag" / "explain_guards.py",
+        "target": "                        if active_explain_mode == \"background\":\n                            # In background mode, 429 does NOT trip circuit breaker!\n                            if prov_attempt < max_prov_attempts - 1:",
+        "replacement": "                        if False and active_explain_mode == \"background\":\n                            # In background mode, 429 does NOT trip circuit breaker!\n                            if prov_attempt < max_prov_attempts - 1:",
+        "test_node": "backend-poc-technical/test_explain_background.py::test_o7_429_retry_in_background_mode",
     },
 ]
 
@@ -540,7 +565,20 @@ def run_mutation(mut: dict) -> dict:
 
     try:
         # Run pytest subprocess on exact test node with -B and PYTHONDONTWRITEBYTECODE
-        cmd = [sys.executable, "-B", "-m", "pytest", mut["test_node"], "-x", "--tb=line", "-q"]
+        cmd = [
+            sys.executable,
+            "-B",
+            "-m",
+            "pytest",
+            mut["test_node"],
+            "-c",
+            str(BACKEND_DIR / "pytest.ini"),
+            "-o",
+            "norecursedirs=node_modules .next",
+            "-x",
+            "--tb=line",
+            "-q",
+        ]
         sub_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
         proc = subprocess.run(
             cmd,

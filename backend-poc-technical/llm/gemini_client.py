@@ -110,7 +110,11 @@ def _build_payload(
     return payload
 
 
-def chat_with_usage(
+_DEFAULT_CHAT_WITH_USAGE = None
+_DEFAULT_CHAT = None
+
+
+def chat_with_detailed_usage(
     messages: List[Dict[str, str]],
     model: Optional[str] = None,
     temperature: float = 0.2,
@@ -118,12 +122,39 @@ def chat_with_usage(
     timeout: float = 30.0,
     max_retries: int = 2,
     sdk_max_retries: Optional[int] = None,
-) -> Tuple[str, int]:
+) -> Tuple[str, Dict[str, int]]:
     """
-    Executes a chat completion request with the Gemini REST API and returns (text, total_tokens).
+    Executes a chat completion request with the Gemini REST API and returns (text, usage_dict).
     Sends API key in x-goog-api-key header ONLY (never in URL or query params).
     Treats HTTP 4xx/5xx, empty responses, finishReason != STOP/MAX_TOKENS, and rate limits as failures.
     """
+    if _DEFAULT_CHAT_WITH_USAGE is not None and chat_with_usage is not _DEFAULT_CHAT_WITH_USAGE:
+        res = chat_with_usage(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=timeout,
+            max_retries=max_retries,
+            sdk_max_retries=sdk_max_retries,
+        )
+        if isinstance(res, tuple) and len(res) == 2:
+            t, u = res
+            if isinstance(u, dict):
+                return t, u
+            return t, {"total_tokens": int(u or 0), "completion_tokens": int(u or 0)}
+        return str(res or ""), {"total_tokens": 0, "completion_tokens": 0}
+
+    if _DEFAULT_CHAT is not None and chat is not _DEFAULT_CHAT:
+        t = chat(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
+        return str(t or ""), {"total_tokens": 0, "completion_tokens": 0}
     api_key = get_api_key()
     if not api_key:
         raise ValueError("GEMINI_API_KEY environment variable is missing or empty.")
@@ -149,14 +180,16 @@ def chat_with_usage(
             resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
             
             if resp.status_code == 429:
-                raise GeminiRateLimitError(f"Gemini API 429 rate limit exceeded: {resp.text[:200]}")
+                raise GeminiRateLimitError("Gemini API 429 rate limit exceeded")
             
             if resp.status_code >= 400:
-                raise GeminiAPIError(f"Gemini API HTTP {resp.status_code} error: {resp.text[:200]}")
+                raise GeminiAPIError(f"Gemini API HTTP {resp.status_code} error")
 
             data = resp.json()
             usage = data.get("usageMetadata", {})
             total_tokens = int(usage.get("totalTokenCount", 0))
+            completion_tokens = int(usage.get("candidatesTokenCount", 0))
+            usage_dict = {"total_tokens": total_tokens, "completion_tokens": completion_tokens}
 
             candidates = data.get("candidates", [])
             if not candidates or not isinstance(candidates, list):
@@ -176,7 +209,7 @@ def chat_with_usage(
             if not text:
                 raise GeminiAPIError("Gemini returned empty text response")
 
-            return text, total_tokens
+            return text, usage_dict
 
         except GeminiRateLimitError:
             # Rate limit trips breaker immediately without retry
@@ -188,21 +221,47 @@ def chat_with_usage(
             if attempts <= effective_retries:
                 time.sleep(0.5 * attempts)
             else:
-                raise GeminiAPIError(f"Gemini API call failed after {effective_retries} retries: {e}") from e
+                raise GeminiAPIError(f"Gemini API call failed after {effective_retries} retries: {type(e).__name__}") from e
         except GeminiAPIError:
             raise
         except Exception as e:
             attempts += 1
             last_error = e
-            logger.warning("Unexpected error calling Gemini API (attempt %d/%d): %s", attempts, effective_retries + 1, e)
+            logger.warning("Unexpected error calling Gemini API (attempt %d/%d): %s", attempts, effective_retries + 1, type(e).__name__)
             if attempts <= effective_retries:
                 time.sleep(0.5 * attempts)
             else:
-                raise GeminiAPIError(f"Gemini API call failed: {e}") from e
+                raise GeminiAPIError(f"Gemini API call failed: {type(e).__name__}") from e
 
     if last_error:
         raise last_error
     raise GeminiAPIError("Unexpected failure in Gemini chat completion execution.")
+
+
+def chat_with_usage(
+    messages: List[Dict[str, str]],
+    model: Optional[str] = None,
+    temperature: float = 0.2,
+    max_tokens: int = 512,
+    timeout: float = 30.0,
+    max_retries: int = 2,
+    sdk_max_retries: Optional[int] = None,
+) -> Tuple[str, int]:
+    """
+    Executes a chat completion request with the Gemini REST API and returns (text, total_tokens).
+    Sends API key in x-goog-api-key header ONLY (never in URL or query params).
+    Treats HTTP 4xx/5xx, empty responses, finishReason != STOP/MAX_TOKENS, and rate limits as failures.
+    """
+    text, usage_dict = chat_with_detailed_usage(
+        messages=messages,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=timeout,
+        max_retries=max_retries,
+        sdk_max_retries=sdk_max_retries,
+    )
+    return text, usage_dict.get("total_tokens", 0)
 
 
 def chat(
@@ -224,3 +283,5 @@ def chat(
     )
     return text
 
+_DEFAULT_CHAT_WITH_USAGE = chat_with_usage
+_DEFAULT_CHAT = chat

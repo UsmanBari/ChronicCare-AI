@@ -1,12 +1,14 @@
 """
-Live Smoke Test Script for Explainer Guards (D2 / Day 4b).
+Live Smoke Test Script for Explainer Guards (D2 / Day 4b / Day 5).
 
 For USMAN to run (with real API keys):
 - Supports --provider groq|gemini|auto (default auto)
+- Supports --mode background|inline (default background)
+- Supports --pause SECONDS (pause between calls; default 2 for Groq, 0 for Gemini/auto)
 - Checks API keys presence; if missing for chosen provider, prints a clear message and exits 0
 - Prints keys strictly as SET or NOT SET (never prints key characters or masked strings)
 - Runs 10 fake check-ins (hypertension only, en/ur/roman_ur)
-- Prints per call: provider, time, mode, reason, tokens
+- In background mode: check-in returns pending, script polls /api/checkins/{id}/explanation until ready or timeout (default 30s), then reports final status, mode, reason, provider, tokens, latency-to-pending, latency-to-ready
 - Stops early if token usage reaches 20,000 per provider
 """
 import argparse
@@ -114,22 +116,45 @@ def main():
         help="LLM provider routing mode (default: auto)",
     )
     parser.add_argument(
+        "--mode",
+        choices=["background", "inline"],
+        default="background",
+        help="Explain execution mode (default: background)",
+    )
+    parser.add_argument(
         "--budget",
         type=float,
         default=3.0,
-        help="Time budget in seconds per check-in for LLM explanations (default: 3.0)",
+        help="Time budget in seconds per check-in for inline LLM explanations (default: 3.0)",
+    )
+    parser.add_argument(
+        "--pause",
+        type=float,
+        default=None,
+        help="Pause between calls in seconds (default: 2.0 for Groq, 0.0 for Gemini/auto)",
+    )
+    parser.add_argument(
+        "--poll-timeout",
+        type=float,
+        default=30.0,
+        help="Poll timeout for background explanation in seconds (default: 30.0)",
     )
     args = parser.parse_args()
 
-    print("=" * 90)
+    pause = args.pause if args.pause is not None else (2.0 if args.provider == "groq" else 0.0)
+
+    print("=" * 105)
     print("CHRONICCARE AI - LIVE EXPLAINER SMOKE TEST (Groq & Gemini Dual Provider)")
-    print("=" * 90)
+    print("=" * 105)
 
     groq_set = "SET" if os.getenv("GROQ_API_KEY", "").strip() else "NOT SET"
     gemini_set = "SET" if os.getenv("GEMINI_API_KEY", "").strip() else "NOT SET"
 
     print(f"Provider mode requested: {args.provider}")
+    print(f"Explain mode:            {args.mode}")
     print(f"Time Budget:             {args.budget:.1f} s")
+    print(f"Pause between calls:     {pause:.1f} s")
+    print(f"Poll timeout:            {args.poll_timeout:.1f} s")
     print(f"GROQ_API_KEY:            {groq_set}")
     print(f"GEMINI_API_KEY:          {gemini_set}")
 
@@ -144,6 +169,7 @@ def main():
         return 0
 
     os.environ["EXPLAIN_ENABLED"] = "true"
+    os.environ["EXPLAIN_MODE"] = args.mode
     os.environ["LLM_PROVIDER"] = args.provider
     os.environ["EXPLAIN_BUDGET_SECONDS"] = str(args.budget)
     os.environ["EXPLAIN_LLM_CONDITIONS"] = "hypertension"
@@ -171,8 +197,12 @@ def main():
     ]
 
     print("\nRunning 10 pipeline check-ins (Hypertension only, en / ur / roman_ur)...\n")
-    print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Elapsed':<10} | {'Provider Latency':<25}")
-    print("-" * 115)
+    if args.mode == "background":
+        print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Lat.Pend':<10} | {'Lat.Ready':<10} | {'Provider Latency':<25}")
+        print("-" * 130)
+    else:
+        print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Elapsed':<10} | {'Provider Latency':<25}")
+        print("-" * 115)
 
     try:
         run_id = int(time.time())
@@ -181,8 +211,8 @@ def main():
 
         for idx, item in enumerate(test_checkins, start=1):
             metrics = get_explain_guard_metrics()
-            used_groq = metrics.get("groq", {}).get("tokens_used_today", 0)
-            used_gemini = metrics.get("gemini", {}).get("tokens_used_today", 0)
+            used_groq = metrics.get("groq", {}).get("tokens_used_today", 0) if "groq" in metrics else metrics.get("tokens_used_by_provider", {}).get("groq", 0)
+            used_gemini = metrics.get("gemini", {}).get("tokens_used_today", 0) if "gemini" in metrics else metrics.get("tokens_used_by_provider", {}).get("gemini", 0)
 
             if used_groq >= MAX_TOKEN_BUDGET_PER_PROVIDER or used_gemini >= MAX_TOKEN_BUDGET_PER_PROVIDER:
                 print(f"\n[ALERT] Reached token safety cap ({MAX_TOKEN_BUDGET_PER_PROVIDER}). Stopping early.")
@@ -226,7 +256,7 @@ def main():
 
             t0 = time.monotonic()
             resp = client.post(f"/api/checkins/{cid}/complete", headers=headers)
-            elapsed = time.monotonic() - t0
+            lat_pending = time.monotonic() - t0
 
             if resp.status_code != 200:
                 print(f"{idx:<3} | ERROR {resp.status_code}: {resp.text[:40]}")
@@ -235,6 +265,22 @@ def main():
             data = resp.json()
             triage_val = data.get("triage")
             triage_level = triage_val.get("level", "routine") if isinstance(triage_val, dict) else ("emergency" if data.get("emergency") else ("review" if data.get("requires_review") else "routine"))
+
+            lat_ready = lat_pending
+            if args.mode == "background":
+                # Poll explanation until ready or timeout
+                poll_start = time.monotonic()
+                while time.monotonic() - poll_start < args.poll_timeout:
+                    poll_resp = client.get(f"/api/checkins/{cid}/explanation", headers=headers)
+                    if poll_resp.status_code == 200:
+                        poll_data = poll_resp.json()
+                        st = poll_data.get("status")
+                        if st in ("ready", "error"):
+                            lat_ready = time.monotonic() - t0
+                            break
+                    time.sleep(1.0)
+                else:
+                    lat_ready = time.monotonic() - t0
 
             # Provider audit info retrieved from store
             chk_res = app_store.get_checkin_result(cid)
@@ -259,10 +305,19 @@ def main():
             else:
                 prov_timing_str = "-"
 
-            print(
-                f"{idx:<3} | {item['lang']:<8} | {triage_level:<10} | {provider_used:<10} | "
-                f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {elapsed:<10.3f} | {prov_timing_str:<25}"
-            )
+            if args.mode == "background":
+                print(
+                    f"{idx:<3} | {item['lang']:<8} | {triage_level:<10} | {provider_used:<10} | "
+                    f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {lat_ready:<10.3f} | {prov_timing_str:<25}"
+                )
+            else:
+                print(
+                    f"{idx:<3} | {item['lang']:<8} | {triage_level:<10} | {provider_used:<10} | "
+                    f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {prov_timing_str:<25}"
+                )
+
+            if pause > 0 and idx < len(test_checkins):
+                time.sleep(pause)
 
         final_metrics = get_explain_guard_metrics()
         final_groq_calls = final_metrics.get("groq", {}).get("llm_calls", 0) if "groq" in final_metrics else final_metrics.get("llm_calls_by_provider", {}).get("groq", 0)
@@ -272,9 +327,10 @@ def main():
         final_gemini_tokens = final_metrics.get("gemini", {}).get("tokens_used_today", 0) if "gemini" in final_metrics else final_metrics.get("tokens_used_by_provider", {}).get("gemini", 0)
         final_gemini_breaker = final_metrics.get("gemini", {}).get("breaker_state", "-") if "gemini" in final_metrics else final_metrics.get("breaker_states", {}).get("gemini", "-")
 
-        print("\n" + "=" * 90)
+        print("\n" + "=" * 105)
         print("LIVE SMOKE TEST SUMMARY")
-        print("=" * 90)
+        print("=" * 105)
+        print(f"Explain Mode:          {args.mode}")
         print(f"Cache Hits:            {final_metrics.get('cache_hits', 0)}")
         print(f"Cache Misses:          {final_metrics.get('cache_misses', 0)}")
         print(f"Groq LLM Calls:        {final_groq_calls}")
@@ -284,7 +340,7 @@ def main():
         print(f"Gemini Tokens Used:    {final_gemini_tokens} / {MAX_TOKEN_BUDGET_PER_PROVIDER}")
         print(f"Gemini Breaker State:  {final_gemini_breaker}")
         print(f"Template Fallbacks:    {final_metrics.get('template_fallbacks_by_reason', {})}")
-        print("=" * 90)
+        print("=" * 105)
         return 0
 
     finally:

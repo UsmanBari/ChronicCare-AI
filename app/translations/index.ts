@@ -516,6 +516,9 @@ export interface Translations {
   whyThisResultBtn: string;
   hideWhyThisResultBtn: string;
   explanationSourcesTitle: string;
+  explanationPending: string;
+  adminConfigTitle: string;
+  adminConfigSubtitle: string;
 
   // Provider Check-in Risk, Explanation & Trace (I3 Day 3)
   checkinRiskTitle: string;
@@ -1056,6 +1059,9 @@ export const translations: Record<Language, Translations> = {
     whyThisResultBtn: "Why this result?",
     hideWhyThisResultBtn: "Hide explanation",
     explanationSourcesTitle: "Clinical Sources",
+    explanationPending: "Preparing your explanation...",
+    adminConfigTitle: "System Configuration & Guards Status",
+    adminConfigSubtitle: "Live runtime feature flags, LLM keys presence, and explainer performance metrics",
 
     // Provider Check-in Risk, Explanation & Trace (I3 Day 3)
     checkinRiskTitle: "Risk at check-in",
@@ -1596,6 +1602,9 @@ export const translations: Record<Language, Translations> = {
     whyThisResultBtn: "یہ نتیجہ کیوں؟",
     hideWhyThisResultBtn: "وضاحت چھپائیں",
     explanationSourcesTitle: "طبی ذرائع",
+    explanationPending: "آپ کی وضاحت تیار کی جا رہی ہے...",
+    adminConfigTitle: "سسٹم کنفیگریشن اور گارڈز کی حالت",
+    adminConfigSubtitle: "لائیو رن ٹائم فیچر فلیگز، ایل ایل ایم کیز اور وضاحت کار کی کارکردگی کے میٹرکس",
 
     // Provider Check-in Risk, Explanation & Trace (I3 Day 3)
     checkinRiskTitle: "چیک ان کے وقت خطرہ",

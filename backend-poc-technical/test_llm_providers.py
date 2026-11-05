@@ -502,6 +502,9 @@ def test_g3_licence_restricted_chunk_never_calls_gemini(monkeypatch):
     monkeypatch.setattr(groq_client, "is_configured", lambda: False)
     monkeypatch.setattr(gemini_client, "is_configured", lambda: True)
     monkeypatch.setattr(gemini_client, "chat_with_usage", mock_gemini)
+    monkeypatch.setattr(gemini_client, "chat_with_detailed_usage", lambda **kw: (mock_gemini(**kw)[0], {"total_tokens": 0, "completion_tokens": 0}))
+    monkeypatch.setattr(gemini_client, "chat_with_detailed_usage", lambda **kw: (mock_gemini(**kw)[0], {"total_tokens": 0, "completion_tokens": 0}))
+    monkeypatch.setattr(gemini_client, "chat_with_detailed_usage", lambda **kw: (mock_gemini(**kw)[0], {"total_tokens": 0, "completion_tokens": 0}))
     monkeypatch.setenv("LLM_PROVIDER", "auto")
 
     # Mock store containing an ADA 2026 restricted chunk
@@ -761,6 +764,21 @@ def test_i5_segregation_provider_and_tried_excluded_from_patient(rsa_key, monkey
     assert "providers_tried" not in explanation
     assert "mode" not in explanation
     assert "reason" not in explanation
+
+    # Drain / execute queued job synchronously so provider review has completed explanation
+    from rag.explain_jobs import get_explain_queue, execute_job_synchronous
+    q = get_explain_queue()
+    try:
+        job = q.get(timeout=0.5)
+        execute_job_synchronous(job)
+    except Exception:
+        for _ in range(40):
+            res_row = app_store.get_checkin_result(cid)
+            if res_row and (res_row.get("explanation") or res_row.get("explanation_json")):
+                exp = res_row.get("explanation") or res_row.get("explanation_json")
+                if exp.get("status") == "ready":
+                    break
+            time.sleep(0.05)
 
     # Provider view MUST contain provider metadata
     prov_token = _create_token(rsa_key, "prov_seg", role="provider")
