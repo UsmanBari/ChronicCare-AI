@@ -23,7 +23,7 @@ This report evaluates ChronicCare AI's guideline explainer (`rag.explainer.expla
 1. **Deterministic Template Engine Demonstrates 100% Safety and Sub-Millisecond Speed:** The baseline template engine (`rag/templates.json` via `llm=None`) passed 100% of cases (40/40 templates) with median latency $p50 = 0.0\text{ ms}$ and $p95 = 0.8\text{ ms}$, maintaining safety invariants (zero ungrounded advice, zero medication dose changes, zero unauthorized diagnoses).
 2. **Production Explain Guards Enforce Safety Boundaries:** Guard mechanisms from PR #107 (`rag/explain_guards.py`)—including worker-thread deadline timeouts (`EXPLAIN_BUDGET_SECONDS`, default 3.0s), circuit breaker protection, cache safety re-validation, and the 150k token daily stop cap—safely intercept potential failures and guarantee clean fallback to validated templates.
 3. **Urdu Script Fidelity is High (98.7%):** Script analysis across all 10 Urdu-script check-in explanations showed a mean Arabic-script character share of **98.7%**, with **0 English-only leak incidents**.
-4. **Template Clarity Review (20/20 Clear):** Hassaan evaluated 10 template Urdu and Roman Urdu explanations, and Saad evaluated 10 template English explanations. All 20 items (100.0%) were graded as clear and clinically appropriate, providing calm, bounded decision-support without clinical overreach. (*Confirmed by Muhammad Hassaan Mudassar on PR #111, dated 4 Nov 2026.*)
+4. **Template Clarity Review (20/20 Clear):** Hassaan evaluated 10 template Urdu and Roman Urdu explanations, and Saad evaluated 10 template English explanations. All 20 items (100.0%) were graded as clear and clinically appropriate, providing calm, bounded decision-support without clinical overreach. (*Confirmed by Muhammad Hassaan Mudassar on PR #111, dated 5 Nov 2026.*)
 5. **Production Recommendation for Usman:** **Keep `EXPLAIN_ENABLED=off` in production container deployments (Release 2)**, serving verified deterministic templates.
 
 ---
@@ -161,7 +161,7 @@ For all 10 Urdu script cases, character frequencies were analyzed across the Uni
 
 ## 6. Template clarity review
 
-*Note: Confirmed by Muhammad Hassaan Mudassar in PR #111 comment (dated 4 Nov 2026): 10/10 Clear.*
+*Note: Confirmed by Muhammad Hassaan Mudassar in PR #111 comment (dated 5 Nov 2026): 10/10 Clear.*
 
 ### 6.1 Urdu & Roman Urdu Review (Rated by Muhammad Hassaan Mudassar)
 Ten template Urdu script and Roman Urdu explanations from `docs/explain_eval/results.json`:
