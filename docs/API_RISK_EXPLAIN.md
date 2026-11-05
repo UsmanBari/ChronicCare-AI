@@ -64,7 +64,89 @@ When `EXPLAIN_ENABLED=true`, the stored and provider-facing `explanation` object
   - `'licence_restricted'`: Retrieved guideline chunk is from a restricted licence corpus (G3); Gemini cannot be called.
   - `'condition_template_only'`: Condition is not permitted for LLM explanations (H1: diabetes is template-only).
   - `'template_corrected'`: Deterministic template contradicted actual vitals and was substituted with neutral routine template (H2).
+  - `'queue_full'`: In-process background job queue (`EXPLAIN_QUEUE_MAX=50`) is full; fell back immediately to template.
+  - `'job_lost'`: Background job was pending for longer than 75 seconds (`EXPLAIN_JOB_DEADLINE_SECONDS + 30s`); stale fallback substituted.
   - `'error'`: Upstream communication or JSON parsing exception.
+
+---
+
+### 2.2 Dedicated Polling & Admin Status Endpoints (Day 5)
+
+#### 1. Patient Explanation Polling (`GET /api/checkins/{id}/explanation`)
+- **Role Requirement:** Strictly requires authenticated `patient` role.
+- **User Isolation:** The calling authenticated user must be the owner of the check-in (`checkin.user_id == user.uid`). Mismatches return HTTP 404 Not Found (preventing checkin ID probing).
+- **Segregation Invariant:** Returns strictly the segregated patient view (`status`, `sentences`, `sources`). **Never leaks internal audit fields (`mode`, `reason`, `provider`, `providers_tried`, `provider_timings`, `tokens_used`).**
+- **Pending Response:**
+  ```json
+  {
+    "status": "pending",
+    "sentences": [],
+    "sources": []
+  }
+  ```
+- **Ready Response:**
+  ```json
+  {
+    "status": "ready",
+    "sentences": [
+      {
+        "text": "Your blood pressure of 135/85 mmHg reflects Stage 1 hypertension [ish_2020_htn_c01].",
+        "cites": ["ish_2020_htn_c01"]
+      }
+    ],
+    "sources": [
+      {
+        "chunk_id": "ish_2020_htn_c01",
+        "title": "ISH 2020 Global Hypertension Practice Guidelines",
+        "edition": "ISH 2020",
+        "section_path": "Section 4"
+      }
+    ]
+  }
+  ```
+
+#### 2. System Configuration & Guards Status (`GET /api/admin/config-status`)
+- **Role Requirement:** Strictly requires `admin` role (`require_role("admin")`). Patients and providers receive HTTP 403 Forbidden.
+- **Key Masking Invariant:** Sensitive keys (`GROQ_API_KEY`, `GEMINI_API_KEY`) and models are strictly masked as `"SET"` or `"NOT SET"`. Zero API key characters, prefixes, or hashes are ever returned.
+- **Response Shape:**
+  ```json
+  {
+    "settings": [
+      {"name": "FIREBASE_PROJECT_ID", "set": true},
+      {"name": "DB_BACKEND", "set": true}
+    ],
+    "flags": {
+      "RISK_ENABLED": false,
+      "EXPLAIN_ENABLED": true,
+      "EXPLAIN_MODE": "background",
+      "ORCHESTRATOR": "direct",
+      "INTERVIEW_ENGINE": "v2",
+      "LLM_PROVIDER": "auto"
+    },
+    "keys_and_models": {
+      "GROQ_API_KEY": "SET",
+      "GROQ_MODEL": "SET",
+      "GEMINI_API_KEY": "SET",
+      "GEMINI_MODEL": "SET"
+    },
+    "explainer_metrics": {
+      "tokens_used_today": 1240,
+      "tokens_used_by_provider": {"groq": 1240, "gemini": 0},
+      "cap": 150000,
+      "caps": {"groq": 150000, "gemini": 150000},
+      "breaker_state": "closed",
+      "breaker_states": {"groq": "closed", "gemini": "closed"},
+      "cache_size": 12,
+      "cache_hits": 4,
+      "cache_misses": 8,
+      "llm_calls": 3,
+      "llm_calls_by_provider": {"groq": 3, "gemini": 0},
+      "queue_length": 0,
+      "mode": "background",
+      "template_fallbacks_by_reason": {}
+    }
+  }
+  ```
 
 ---
 

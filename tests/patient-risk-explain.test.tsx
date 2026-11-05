@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, act, waitFor } from "@testing-library/react";
 import { ExplanationBox } from "../app/components/ExplanationBox";
 import { RiskResultScreen } from "../app/components/RiskResultScreen";
 import { RoutedToReviewScreen } from "../app/components/RoutedToReviewScreen";
 import { translations } from "../app/translations";
-import { PatientExplanation, CheckinCompleteResponse } from "../app/lib/api";
+import { api, PatientExplanation, CheckinCompleteResponse } from "../app/lib/api";
 
 const mockAppContext: Record<string, any> = {};
 
@@ -356,5 +356,165 @@ describe("Patient Explanation Box & Strict Patient Risk Suppression (I3 Day 2)",
     const toggleBtn = screen.getByTestId("explanation-toggle-btn");
     expect(toggleBtn.textContent).not.toContain("Example");
     expect(toggleBtn.textContent).not.toContain("مثال");
+  });
+
+  // -------------------------------------------------------------------------
+  // 7. Background Mode: Pending State & Polling (I3 Day 5)
+  // -------------------------------------------------------------------------
+  it("renders pending state banner with spinner when status is pending", () => {
+    const pendingExplanation: PatientExplanation = {
+      status: "pending",
+      sentences: [],
+      sources: [],
+    };
+
+    render(
+      <div>
+        <ExplanationBox
+          explanation={pendingExplanation}
+          emergency={false}
+          checkinId="chk_test_123"
+        />
+      </div>
+    );
+
+    const pendingEl = screen.getByTestId("explanation-pending");
+    expect(pendingEl).toBeTruthy();
+    expect(pendingEl.textContent).toContain(translations.en.explanationPending);
+    expect(screen.queryByTestId("patient-explanation-box")).toBeNull();
+  });
+
+  it("polls getCheckinExplanation until status becomes ready and renders explanation", async () => {
+    vi.useFakeTimers();
+
+    const readyExplanation: PatientExplanation = {
+      status: "ready",
+      sentences: [
+        {
+          text: "Blood pressure is well controlled within target range.",
+          cites: ["chunk_bp_norm"],
+        },
+      ],
+      sources: [
+        {
+          chunk_id: "chunk_bp_norm",
+          title: "Hypertension Guidelines",
+          edition: "AHA 2026",
+          section_path: "Section 3",
+        },
+      ],
+    };
+
+    const spyGetExplanation = vi
+      .spyOn(api, "getCheckinExplanation")
+      .mockResolvedValueOnce(readyExplanation);
+
+    const pendingExplanation: PatientExplanation = {
+      status: "pending",
+      sentences: [],
+      sources: [],
+    };
+
+    render(
+      <div>
+        <ExplanationBox
+          explanation={pendingExplanation}
+          emergency={false}
+          checkinId="chk_poll_456"
+        />
+      </div>
+    );
+
+    expect(screen.getByTestId("explanation-pending")).toBeTruthy();
+
+    // Advance fake timers by 3500ms and flush promises
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3500);
+    });
+
+    expect(spyGetExplanation).toHaveBeenCalledWith("chk_poll_456");
+    expect(screen.getByTestId("patient-explanation-box")).toBeTruthy();
+
+    vi.useRealTimers();
+  });
+
+  it("stops showing the pending banner and renders nothing after 90s timeout cap", async () => {
+    vi.useFakeTimers();
+
+    const pendingExplanation: PatientExplanation = {
+      status: "pending",
+      sentences: [],
+      sources: [],
+    };
+
+    const spyGetExplanation = vi
+      .spyOn(api, "getCheckinExplanation")
+      .mockResolvedValue({
+        status: "pending",
+        sentences: [],
+        sources: [],
+      });
+
+    render(
+      <div>
+        <ExplanationBox
+          explanation={pendingExplanation}
+          emergency={false}
+          checkinId="chk_poll_timeout"
+        />
+      </div>
+    );
+
+    expect(screen.getByTestId("explanation-pending")).toBeTruthy();
+
+    // Advance beyond 90s (31 polls * 3s = 93s)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(94000);
+    });
+
+    expect(spyGetExplanation).toHaveBeenCalled();
+    // After 90s cap, pending banner is removed and nothing is rendered
+    expect(screen.queryByTestId("explanation-pending")).toBeNull();
+    expect(screen.queryByTestId("patient-explanation-box")).toBeNull();
+
+    vi.useRealTimers();
+  });
+
+  it("stops showing the pending banner and renders nothing on polling error", async () => {
+    vi.useFakeTimers();
+
+    const pendingExplanation: PatientExplanation = {
+      status: "pending",
+      sentences: [],
+      sources: [],
+    };
+
+    const spyGetExplanation = vi
+      .spyOn(api, "getCheckinExplanation")
+      .mockRejectedValueOnce(new Error("500 Internal Server Error"));
+
+    render(
+      <div>
+        <ExplanationBox
+          explanation={pendingExplanation}
+          emergency={false}
+          checkinId="chk_poll_error"
+        />
+      </div>
+    );
+
+    expect(screen.getByTestId("explanation-pending")).toBeTruthy();
+
+    // Advance 1 poll
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3500);
+    });
+
+    expect(spyGetExplanation).toHaveBeenCalledWith("chk_poll_error");
+    // On error, pending banner is removed and nothing is rendered
+    expect(screen.queryByTestId("explanation-pending")).toBeNull();
+    expect(screen.queryByTestId("patient-explanation-box")).toBeNull();
+
+    vi.useRealTimers();
   });
 });

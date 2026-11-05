@@ -348,6 +348,34 @@ export interface PatientExplanation {
   sources?: PatientExplanationSource[];
 }
 
+export interface AdminConfigItem {
+  name: string;
+  set: boolean;
+}
+
+export interface AdminConfigStatusResponse {
+  settings: AdminConfigItem[];
+  flags?: Record<string, boolean | string>;
+  keys_and_models?: Record<string, string>;
+  explainer_metrics?: {
+    tokens_used_today?: number;
+    tokens_used_by_provider?: Record<string, number>;
+    cap?: number;
+    caps?: Record<string, number>;
+    breaker_state?: string;
+    breaker_states?: Record<string, string>;
+    cache_size?: number;
+    cache_hits?: number;
+    cache_misses?: number;
+    llm_calls?: number;
+    llm_calls_by_provider?: Record<string, number>;
+    template_fallbacks_by_reason?: Record<string, number>;
+    queue_length?: number;
+    mode?: string;
+    [key: string]: any;
+  };
+}
+
 export interface CheckinCompleteResponse {
   emergency: boolean;
   intakes: Array<Record<string, any>>;
@@ -1076,6 +1104,17 @@ export const api = {
     return flight;
   },
 
+  getCheckinExplanation: async (
+    checkin_id: string
+  ): Promise<PatientExplanation> => {
+    return request<PatientExplanation>(
+      `/api/checkins/${encodeURIComponent(checkin_id)}/explanation`,
+      {
+        method: "GET",
+      }
+    );
+  },
+
   getUserCheckins: async (): Promise<UserCheckinSummaryResponse[]> => {
     return request<UserCheckinSummaryResponse[]>("/api/checkins", {
       method: "GET",
@@ -1129,6 +1168,12 @@ export const api = {
   },
 
   // 6. Admin
+  getAdminConfigStatus: async (): Promise<AdminConfigStatusResponse> => {
+    return request<AdminConfigStatusResponse>("/api/admin/config-status", {
+      method: "GET",
+    });
+  },
+
   getAdminAudit: async (): Promise<AuditLogRow[]> => {
     return request<AuditLogRow[]>("/api/admin/audit", {
       method: "GET",

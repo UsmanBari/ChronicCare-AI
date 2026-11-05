@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
-import { PatientExplanation } from "../lib/api";
-import { HelpCircle, ChevronDown, BookOpen } from "lucide-react";
+import { api, PatientExplanation } from "../lib/api";
+import { HelpCircle, ChevronDown, BookOpen, Loader2 } from "lucide-react";
 
 interface ExplanationBoxProps {
   explanation?: PatientExplanation | null;
   emergency?: boolean;
+  checkinId?: string;
   isDemo?: boolean;
 }
 
@@ -17,23 +18,97 @@ interface ExplanationBoxProps {
  * Adheres strictly to:
  * 1. Collapsed by default.
  * 2. Never shown during emergencies or on explainer error.
- * 3. Full keyboard accessibility (Enter / Space toggles, aria-expanded, focus preserved).
- * 4. Displays clinical guideline citations without "AI" or model branding.
+ * 3. Shows "Preparing your explanation..." when status is pending, polling until ready.
+ * 4. Full keyboard accessibility (Enter / Space toggles, aria-expanded, focus preserved).
+ * 5. Displays clinical guideline citations without "AI" or model branding.
  */
 export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
   explanation: propExplanation,
   emergency: propEmergency,
+  checkinId: propCheckinId,
   isDemo = false,
 }) => {
-  const { liveCheckinResult, t, isUrdu } = useApp();
+  const { liveCheckinResult, activeLiveCheckin, t, isUrdu } = useApp();
   const [isOpen, setIsOpen] = useState(false);
 
-  const explanation = propExplanation !== undefined ? propExplanation : liveCheckinResult?.explanation;
+  const initialExplanation = propExplanation !== undefined ? propExplanation : liveCheckinResult?.explanation;
   const isEmergency = propEmergency !== undefined ? propEmergency : liveCheckinResult?.emergency;
+  const effectiveCheckinId = propCheckinId || activeLiveCheckin?.checkin_id;
+
+  const [explanation, setExplanation] = useState<PatientExplanation | null | undefined>(initialExplanation);
+
+  useEffect(() => {
+    setExplanation(initialExplanation);
+  }, [initialExplanation]);
+
+  // Polling for background explanation
+  useEffect(() => {
+    if (isEmergency || !explanation || explanation.status !== "pending" || !effectiveCheckinId) {
+      return;
+    }
+
+    let isMounted = true;
+    let pollCount = 0;
+    const maxPolls = 30; // 30 * 3s = 90s timeout
+
+    const intervalId = setInterval(async () => {
+      pollCount += 1;
+      if (pollCount > maxPolls) {
+        clearInterval(intervalId);
+        if (isMounted) {
+          setExplanation(null);
+        }
+        return;
+      }
+
+      try {
+        const polled = await api.getCheckinExplanation(effectiveCheckinId);
+        if (!isMounted) return;
+
+        if (polled && polled.status === "ready") {
+          setExplanation(polled);
+          clearInterval(intervalId);
+        } else if (polled && polled.status === "error") {
+          setExplanation(null);
+          clearInterval(intervalId);
+        }
+      } catch (err) {
+        // Stop polling and hide banner on error
+        if (isMounted) {
+          setExplanation(null);
+          clearInterval(intervalId);
+        }
+      }
+    }, 3000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [explanation?.status, effectiveCheckinId, isEmergency]);
 
   // Invariant 1: Never render in emergencies
   if (isEmergency) {
     return null;
+  }
+
+  // Pending State: Accessible loading banner
+  if (explanation?.status === "pending") {
+    return (
+      <div
+        data-testid="explanation-pending"
+        dir={isUrdu ? "rtl" : "ltr"}
+        className={`rounded-2xl border border-teal-200/80 bg-teal-50/60 px-4 py-3 text-xs text-teal-800 flex items-center gap-2.5 shadow-2xs ${
+          isUrdu ? "font-urdu text-right" : ""
+        }`}
+      >
+        <Loader2 className="w-4 h-4 text-teal-700 animate-spin shrink-0" />
+        <span className="font-medium">
+          {t.explanationPending || "Preparing your explanation..."}
+        </span>
+      </div>
+    );
   }
 
   // Invariant 2: Never render when explanation is absent, errored, or has no sentences
@@ -131,4 +206,3 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
     </div>
   );
 };
-
