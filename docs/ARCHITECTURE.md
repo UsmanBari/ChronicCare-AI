@@ -17,70 +17,38 @@ The system architecture is partitioned into two clear views plus reference table
 
 ### Diagram A: Check-In Lifecycle Overview
 
-Left-to-right pipeline: Patient Interview $\rightarrow$ Danger Screens $\rightarrow$ Orchestrator Nodes $\rightarrow$ Triage & Risk Layer $\rightarrow$ Persistence $\rightarrow$ Provider Review Queue.
+End-to-end check-in processing: Patient Entry & Adaptive Interview $\rightarrow$ Safety Screens $\rightarrow$ Dual Orchestrator $\rightarrow$ Deterministic Clinical Decision & Risk Gate $\rightarrow$ Checkin Save & Async Job Enqueue $\rightarrow$ Immediate Response & Clinician Review Queue.
 
 ```mermaid
-flowchart LR
-    subgraph S1["1. Interview"]
-        direction TB
-        Patient["Patient Check-In Entry"] --> Engine{"INTERVIEW_ENGINE<br>(default: v2)"}
-        Engine -->|v2| V2["v2 Deterministic Engine<br>(adaptive_interview_agent.py)"]
-        Engine -->|v3| V3["v3 Question Planner<br>(interview_v3_runner.py)"]
+flowchart TB
+    subgraph Row1 ["Stage 1: Patient Intake, Adaptive Interview & Safety Screening"]
+        direction LR
+        A1["<b>1. Patient Entry</b><br/>Voice Input (audio stream)<br/>Bilingual Web UI (EN / UR)"]
+        A2["<b>2. Adaptive Interview</b><br/>Default Engine: v2 (deterministic)<br/>Shadow Engine: v3 (Roman Urdu)"]
+        A3["<b>3. Red-Flag Screen</b><br/>Emergency Keyword Intercept<br/>agents/input_triage.py"]
+        A4["<b>4. Urdu Word Groups</b><br/>Vernacular Symptom Screen<br/>agents/danger_wordgroups.py"]
+        A1 --> A2 --> A3 --> A4
     end
 
-    subgraph S2["2. Danger Screens"]
-        direction TB
-        V2 --> Screen["Stage 1 Danger Screen<br>(input_triage.py)"]
-        V3 --> Screen
-        Screen --> WG{"DANGER_WORDGROUPS_ENABLED"}
-        WG -->|true| WGDet["Word Groups Detector<br>(danger_wordgroups.py)"]
-        WG -->|false| IntakeState["Validated Intake State"]
-        WGDet --> IntakeState
+    subgraph Row2 ["Stage 2: Dual Orchestration, Clinical Decision & Risk Model"]
+        direction LR
+        A5["<b>5. Dual Orchestrator</b><br/>Direct Execution (steps.py)<br/>LangGraph StateGraph (graph.py)"]
+        A6["<b>6. Intake & Prior Data</b><br/>fetch_prior & build_bundles<br/>Local SQLite / EHR FHIR"]
+        A7["<b>7. Reconcile & Verify</b><br/>Reconciliation Agent (trust/sev)<br/>Verification Agent (ground truth)"]
+        A8["<b>8. Rule Register & Risk</b><br/>CLINICAL_RULES.md (Raise-Only)<br/>NHANES Model (risk_agent.py)"]
+        A5 --> A6 --> A7 --> A8
     end
 
-    subgraph S3["3. Orchestrator Nodes"]
-        direction TB
-        IntakeState --> OrchMode{"ORCHESTRATOR<br>(default: direct)"}
-        OrchMode --> Direct["Direct Execution"]
-        OrchMode --> Graph["LangGraph StateGraph"]
-        Direct --> N1["node: intake"]
-        Graph --> N1
-        N1 --> N2["node: fetch_prior"]
-        N2 --> N3["node: build_bundles"]
-        N3 --> N4["node: reconcile"]
-        N4 --> N5["node: verify"]
-        N5 --> N6["node: persist_local"]
-        N6 --> N7["node: decide_triage"]
+    subgraph Row3 ["Stage 3: Explain Pending, Persist, Async Enqueue & Clinician Oversight"]
+        direction LR
+        A9["<b>9. step_explain (steps.py:779)</b><br/>Sets mode: 'pending'<br/><i>No background job queued yet</i>"]
+        A10["<b>10. step_persist_and_respond</b><br/>create_checkin_result (line 1047)<br/>Saves row to application store"]
+        A11["<b>11. Async Job Enqueue</b><br/>enqueue_job (steps.py:1064)<br/>Called immediately after save"]
+        A12["<b>12. Response & Review</b><br/>Immediate HTTP 200 (Patient)<br/>Provider Review Queue & Trace"]
+        A9 --> A10 --> A11 --> A12
     end
 
-    subgraph S4["4. Triage & Risk"]
-        direction TB
-        N7 --> Rules["Clinical Rules Decider<br>(triage_protocol.py)"]
-        Rules --> Level["Level: routine / review<br>urgent / emergency"]
-        Level --> N8["node: risk"]
-        N8 --> RiskGate{"RISK_ENABLED"}
-        RiskGate -->|true| RiskModel["NHANES Diabetes Risk Model<br>(agents/risk_agent.py)"]
-        RiskModel --> RiskRaise["Raise-Only Rule<br>(agents/risk_rules.py)"]
-        RiskGate -->|false| RiskNull["Risk: null"]
-        RiskRaise --> RiskPanel["Provider-Only Risk Panel"]
-        RiskNull --> RiskPanel
-    end
-
-    subgraph S5["5. Persist"]
-        direction TB
-        RiskPanel --> N9["node: explain<br>(enqueues background job)"]
-        N9 --> N10["node: persist"]
-        N10 --> DBRow["Save checkin_results<br>(SQLite / MySQL)"]
-        DBRow --> CompResp["HTTP 200 /complete<br>(returns immediately)"]
-    end
-
-    subgraph S6["6. Review Queue"]
-        direction TB
-        CompResp --> ReviewQueue["Provider Review Queue<br>(GET /api/provider/review-queue)"]
-        ReviewQueue --> ReviewDetail["Review Detail View<br>(trace, explanation, risk panel)"]
-    end
-
-    S1 --> S2 --> S3 --> S4 --> S5 --> S6
+    Row1 --> Row2 --> Row3
 ```
 
 *Visual renderings available in repository: [PNG](img/architecture_overview.png) | [SVG](img/architecture_overview.svg)*
@@ -89,61 +57,38 @@ flowchart LR
 
 ### Diagram B: Resilient Explainer Path
 
-End-to-end background explanation path: Bounded FIFO Queue $\rightarrow$ Daemon Worker $\rightarrow$ Sequential `guarded_explain` Pipeline $\rightarrow$ Clinical Output Validators $\rightarrow$ Storage $\rightarrow$ Endpoints.
+End-to-end background explanation path: Bounded FIFO Queue $\rightarrow$ Daemon Worker $\rightarrow$ Multi-Provider LLM Loop with HTTP 429 Retry $\rightarrow$ Clinical Output Validators $\rightarrow$ Fallback Template Path (with H2 Consistency Guard) $\rightarrow$ Result Storage $\rightarrow$ Polling & Review Endpoints.
 
 ```mermaid
-flowchart LR
-    subgraph P1["1. Queue"]
-        direction TB
-        Comp["POST /complete<br>saves checkin_results"] --> QCheck{"EXPLAIN_ENABLED?"}
-        QCheck -->|true| BoundedQ["FIFO Bounded Queue<br>(rag/explain_jobs.py, max 50)"]
-        QCheck -->|false| DirectTmpl["Template Fallback"]
-        Comp --> InstantResp["Immediate Response<br>(mode: pending / latency < 200ms)"]
+flowchart TB
+    subgraph Row1 ["Stage 1: Async Job Enqueue, Bounded FIFO Queue & Background Worker"]
+        direction LR
+        B1["<b>1. Async Enqueue</b><br/>enqueue_job called after row saved<br/>orchestrator/steps.py:1064"]
+        B2["<b>2. Bounded Job Queue</b><br/>queue.Queue(maxsize=50)<br/>FIFO · Drops to template on full"]
+        B3["<b>3. Async Daemon Worker</b><br/>Lazy background worker thread<br/>Calls guarded_explain(mode='background')"]
+        B4["<b>4. Immediate Response</b><br/>POST /complete returns HTTP 200<br/>mode: 'pending' (Patient)"]
+        B1 --> B2 --> B3 --> B4
     end
 
-    subgraph P2["2. Worker"]
-        direction TB
-        BoundedQ --> Thread["Daemon Worker Loop<br>(background thread)"]
-        Thread --> ReadJob["Read Check-in Row<br>(decided level, readings)"]
-        ReadJob --> Deadline["Set Job Deadline<br>(default: 45.0 s)"]
+    subgraph Row2 ["Stage 2: Rate Limiting, Multi-Provider LLM & Clinical Validators"]
+        direction LR
+        B5["<b>5. Pre-Checks & Breaker</b><br/>H1 condition filter · Cache check<br/>3-strike breaker (600s cooldown)"]
+        B6["<b>6. Retrieval & Pacer</b><br/>BM25 chunks (top 3) · Groq OTPM<br/>1,000 output tokens/min wait"]
+        B7["<b>7. Multi-Provider Invocation</b><br/>Groq (GROQ_MODEL = qwen/qwen3.8-27b)<br/>/ Gemini (GEMINI_MODEL) · 429 wait"]
+        B8["<b>8. Clinical Output Validators</b><br/>V1 Banned · V2 Grounding · V3 Citations<br/>V4 Banned Phrases · V5 Consistency"]
+        B5 --> B6 --> B7 --> B8
     end
 
-    subgraph P3["3. Guards"]
-        direction TB
-        Deadline --> G1["1. Retrieval: BM25 chunks (lines 992-1009)"]
-        G1 --> G2["2. Cache: check banded key (lines 1010-1025)"]
-        G2 --> G3["3. Gate H1: condition filter (lines 1060-1063)"]
-        G3 --> G4["4. G3: licence restriction (lines 1068-1073)"]
-        G4 --> G5["5. Breakers & Token Cap (lines 1074-1132)"]
-        G5 --> G6["6. Groq Pacer: 1000 otpm (lines 1163-1174)"]
-        G6 --> G7["7. 429: wait Retry-After, 1 retry (lines 1309-1327)"]
+    subgraph Row3 ["Stage 3: Fallback Template (H2 Guard), Result Storage & Endpoints"]
+        direction LR
+        B9["<b>9. Fallback Template Engine</b><br/>Activated on guard/LLM/validator rejection<br/>rag/explainer.py"]
+        B10["<b>10. H2 Consistency Guard</b><br/>is_template_consistent (explainer.py:285)<br/>Replaces contradictory with neutral routine"]
+        B11["<b>11. Checkin Result Store</b><br/>update_checkin_explanation<br/>Updates row: 'pending' → 'ready'/'fallback'"]
+        B12["<b>12. Patient & Provider Endpoints</b><br/>Patient: GET .../explanation (poll ≤ 90s)<br/>Provider: GET .../review/{id} (audit trace)"]
+        B9 --> B10 --> B11 --> B12
     end
 
-    subgraph P4["4. Validators"]
-        direction TB
-        G7 --> LLM["LLM Invocation<br>(Groq 70B / Gemini Flash)"]
-        LLM --> V1["V1 Format & Schema JSON"]
-        V1 --> V2["V2 Sentence Citations [S1]"]
-        V2 --> V3["V3 Grounded in Chunks"]
-        V3 --> V4["V4 No False Reassurance"]
-        V4 --> V5["V5 Level Word Consistency"]
-        V5 --> H2["H2 Consistency Guard<br>(rag/explainer.py:285-375)"]
-    end
-
-    subgraph P5["5. Store"]
-        direction TB
-        H2 --> CacheIns["Cache Insertion<br>(rag/explain_guards.py:1370)"]
-        CacheIns --> DBWrite["Update checkin_results<br>(explanation_json column)"]
-        DBWrite --> Segregation["Segregate Fields<br>(provider & tried doctors-only)"]
-    end
-
-    subgraph P6["6. Endpoints"]
-        direction TB
-        Segregation --> PatAPI["GET /api/checkins/{id}/explanation<br>(Patient: sentences + cites [S1])"]
-        Segregation --> ProvAPI["GET /api/provider/review/{id}<br>(Provider: provider, timings, tokens)"]
-    end
-
-    P1 --> P2 --> P3 --> P4 --> P5 --> P6
+    Row1 --> Row2 --> Row3
 ```
 
 *Visual renderings available in repository: [PNG](img/architecture_explainer.png) | [SVG](img/architecture_explainer.svg)*

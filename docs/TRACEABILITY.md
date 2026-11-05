@@ -26,7 +26,7 @@
 | LangGraph orchestrator equivalent to direct execution | `backend-poc-technical/orchestrator/graph.py` | `backend-poc-technical/test_orchestrator_equivalence.py::test_representative_scenarios_equivalence` | `docs/ORCHESTRATOR.md` | BUILT |
 | Falsifiable safety evidence via automated mutation proofs | `scripts/verify_mutations.py` | `backend-poc-technical/test_mutation_runner.py::test_mutation_runner_executes_and_kills_in_ci` | `docs/REPORT_EVIDENCE.md` | BUILT |
 | Multilingual Roman Urdu and Urdu script user interface | `app/translations/index.ts` | `backend-poc-technical/test_meter_lo_hi.py::test_detect_meter_lo_hi_roman_urdu` | `docs/ROMAN_URDU_GLOSSARY.md` | BUILT |
-| Server-side prescription and lab OCR pipeline | `backend-poc-technical/main.py` | `backend-poc-technical/test_ocr_upload.py::test_ocr_disabled_by_default_returns_503` | `docs/OCR_DESIGN.md` | PENDING |
-| Single-LLM baseline ablation benchmark (RQ3) | `docs/tasks/WEEK3_USMAN.md` | `backend-poc-technical/test_engine_equivalence.py::test_engine_equivalence_scenarios` | `docs/LIMITATIONS.md` | CUT |
-| Real-patient clinical evaluation pilot in Pakistani cohort (RQ1-4) | `docs/tasks/WEEK3_USMAN.md` | `backend-poc-technical/test_clinical_rules_doc.py::test_all_clinical_constants_documented_in_rules_register` | `docs/LIMITATIONS.md` | CUT |
+| Server-side prescription and lab OCR pipeline | `backend-poc-technical/main.py` | `backend-poc-technical/test_ocr_upload.py::test_ocr_disabled_by_default_returns_503` | `docs/OCR_DESIGN.md` | BUILT (OCR v1, PR #96, behind OCR_ENABLED, off by default) |
+| Single-LLM baseline ablation benchmark (RQ3) | `docs/tasks/WEEK3_USMAN.md` | `backend-poc-technical/test_engine_equivalence.py::test_engine_equivalence_scenarios` | `docs/LIMITATIONS.md` | PLANNED (FYP-2, WEEK3_USMAN.md:312: "baselines and pilot **FYP-2**") |
+| Real-patient clinical evaluation pilot in Pakistani cohort (RQ1-4) | `docs/tasks/WEEK3_USMAN.md` | `backend-poc-technical/test_clinical_rules_doc.py::test_all_clinical_constants_documented_in_rules_register` | `docs/LIMITATIONS.md` | PLANNED (FYP-2, WEEK3_USMAN.md:312: "baselines and pilot **FYP-2**") |
 

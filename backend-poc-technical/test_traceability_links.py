@@ -99,8 +99,9 @@ def test_traceability_matrix_links():
             f"not found in '{test_file_rel}' (available: {sorted([f for f in func_names if f.startswith('test_')])[:5]}...)"
         )
 
-        # Validate status enum
-        assert row["status"] in ("BUILT", "PENDING", "CUT", "Delivered", "Partial", "Not started"), (
-            f"Invalid status '{row['status']}' for '{obj}': must be BUILT, PENDING, or CUT"
+        # Validate status enum (supports qualifiers like 'BUILT (OCR v1...)' and 'PLANNED (FYP-2)')
+        valid_prefixes = ("BUILT", "PENDING", "CUT", "PLANNED", "Delivered", "Partial", "Not started")
+        assert any(row["status"].startswith(p) for p in valid_prefixes), (
+            f"Invalid status '{row['status']}' for '{obj}': must start with BUILT, PENDING, CUT, or PLANNED"
         )
 
