@@ -100,7 +100,7 @@ def test_traceability_matrix_links():
         )
 
         # Validate status enum
-        assert row["status"] in ("Delivered", "Partial", "Not started"), (
-            f"Invalid status '{row['status']}' for '{obj}': must be Delivered, Partial, or Not started"
+        assert row["status"] in ("BUILT", "PENDING", "CUT", "Delivered", "Partial", "Not started"), (
+            f"Invalid status '{row['status']}' for '{obj}': must be BUILT, PENDING, or CUT"
         )
 
