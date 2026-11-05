@@ -157,5 +157,23 @@
     "ur": "کیا آپ کو الٹی میں خون یا گہرے رنگ کا مواد آ رہا ہے، چکر یا الجھن ہے، یا 24 گھنٹے سے پانی بھی نہیں رک رہا؟",
     "roman_ur": "Kya aap ko ulti mein khoon ya gehre rang ka mawad aa raha hai, chakkar ya uljhan hai, ya 24 ghante se paani bhi nahi ruk raha?",
     "needs_native_review": false
+  },
+  "adherence_clarification_question": {
+    "en": "To be sure, did you take your medication today as prescribed?",
+    "ur": "براہ کرم واضح کریں، کیا آپ نے آج اپنی دوائی ہدایت کے مطابق لی ہے؟",
+    "roman_ur": "Barah-e-karam wazeh karein, kya aap ne aaj apni dawai hidayat ke mutabiq li hai?",
+    "needs_native_review": false
+  },
+  "adherence_clarification_why": {
+    "en": "Clarifying medication adherence helps your healthcare team understand how well your treatment plan is working.",
+    "ur": "دوائی کے باقاعدہ استعمال کی تصدیق سے آپ کے ڈاکٹر کو علاج کی تاثیر سمجھنے میں مدد ملتی ہے۔",
+    "roman_ur": "Dawai ke baqaida istemal ki tasdeeq se aap ke doctor ko ilaj ki taseer samajhne mein madad milti hai.",
+    "needs_native_review": false
+  },
+  "adherence_clarification_unclear_note": {
+    "en": "Medication adherence answer was unclear after clarification. Recorded for clinician review.",
+    "ur": "دوائی کے استعمال کا جواب واضح نہیں تھا۔ ڈاکٹر کے جائزے کے لیے درج کر لیا گیا ہے۔",
+    "roman_ur": "Dawai ke istemal ka jawab wazeh nahi tha. Doctor ke jaizay ke liye darj kar liya gaya hai.",
+    "needs_native_review": false
   }
 }
