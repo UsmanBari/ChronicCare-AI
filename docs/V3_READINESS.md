@@ -2,7 +2,7 @@
 
 **Author:** Hassaan Mudassar (AI Decision Systems Engineer)  
 **Supervising Lead:** Usman Bari  
-**Date Generated:** 2026-11-05 02:38:37 UTC  
+**Date Generated:** 2026-11-05 04:06:51 UTC  
 **Branch:** `feat/i3-v3-readiness`  
 **Recommendation:** `NO-GO` (Keep `INTERVIEW_ENGINE=v2` default for Release 2)
 
@@ -16,7 +16,7 @@ Evaluated against the formal criteria in `docs/INTERVIEW_AUDIT.md` Section 6:
 |:---:|---|:---:|:---:|:---:|---|
 | **1** | **Protocol Equivalence (Acute Group m)** | Urgent | Urgent | **GO (PASS)** | 100% triage level parity across BP crisis (185/125), hypo (45 mg/dL), and hyper (320 mg/dL) |
 | **2** | **Danger-Phrase Parity (0 Regressions)** | 47.0% Gold / 20.0% Hassaan | 100% Gold / 30.0% Hassaan | **GO (PASS)** | v3 >= v2 across all benchmark sets; 0 regressions on critical red flags |
-| **3** | **Persona Invariance & Demotion Audit** | Standard baseline | 64 Personas simulated | **NO-GO (FAIL)** | 12 V3 misses below expected; 1 demotions; 7 V2 over-triages resolved. Zero chest pain emergencies missed. |
+| **3** | **Persona Invariance & Demotion Audit** | Standard baseline | 64 Personas simulated | **NO-GO (FAIL)** | 4 V3 misses below expected; 8 both miss; 1 demotions; 7 V2 over-triages resolved. Zero chest pain emergencies missed. |
 | **4** | **Check-in Completion Integrity** | 0 Incomplete (v2) | 0 Incomplete (v3) | **GO (PASS)** | Turn limit raised to 25; /complete returns 200 on all completed check-ins. |
 | **5** | **Hermetic Equivalence (CS1-7)** | 7/7 Pass | 7/7 Pass | **GO (PASS)** | `test_engine_equivalence.py` passing 8/8 tests (100% parity) |
 | **6** | **No English-Only Leakage** | English only | 100% trilingual (en, ur, roman_ur) | **GO (PASS)** | 79 strings checked; 0 leaks |
@@ -26,7 +26,7 @@ Evaluated against the formal criteria in `docs/INTERVIEW_AUDIT.md` Section 6:
 | **10** | **Meter LO/HI Escalation (G-18)** | Routine in v2 | Confirms with patient -> Emergency | **DONE: R1 (PR #106)** | Measured probe: Input 'LO' prompted confirmation=True; 'yes' yielded emergency=True |
 | **11** | **Zero-Reading Completion (G-21)** | Escalates to review | Routine if no symptoms | **DONE: R8 (PR #106)** | Measured probe: Zero reading + asymptomatic probe completed with level='routine' (routine) |
 
-> **Computed Recommendation:** **NO-GO:** v3 exhibits 12 V3 misses below expected level, 1 demotions below v2, and 0 incomplete runs across the 64 persona test suite. Release 2 must retain `INTERVIEW_ENGINE=v2` as default.
+> **Computed Recommendation:** **NO-GO:** v3 exhibits 4 V3 misses below expected level, 8 both misses, 1 demotions below v2, and 0 incomplete runs across the 64 persona test suite. Release 2 must retain `INTERVIEW_ENGINE=v2` as default.
 
 ## 2. Danger Phrase Sensitivity Benchmarks
 
@@ -48,7 +48,8 @@ Every persona in `tests/sim/personas.json` (64 total) was simulated live under b
 Turn cap: **25 turns**. Any uncompleted check-in is strictly classified as **INCOMPLETE**.
 
 - **Total Personas Simulated:** 64
-- **V3 Misses (v3 below expected):** 12
+- **V3 Misses (v3 below expected, v2 not):** 4
+- **Both Miss (both v2 and v3 below expected):** 8
 - **V2 Over-triage (v2 above expected, v3 == expected):** 7
 - **Demotions (v3 < v2):** 1
 - **Incomplete Runs (v2 / v3):** 0 / 0
@@ -78,7 +79,7 @@ Turn cap: **25 turns**. Any uncompleted check-in is strictly classified as **INC
 | 18 | `p18_contradiction_insulin_record` | contradiction_record | routine | routine | review | 6/10 | V3 ESCALATION |
 | 19 | `p19_refuses_everything_declined` | refusal | routine | routine | review | 6/9 | V3 ESCALATION |
 | 20 | `p20_changes_answer_midway` | changed_answer | routine | routine | routine | 5/9 | PASS |
-| 21 | `p21_low_mood_distress` | low_mood | review | routine | routine | 5/9 | **V3 MISS** |
+| 21 | `p21_low_mood_distress` | low_mood | review | routine | routine | 5/9 | **BOTH MISS** |
 | 22 | `p22_hidden_danger_phrase_long_text` | hidden_danger | emergency | emergency | emergency | 1/1 | PASS |
 | 23 | `p23_negated_danger_phrase` | negated_danger | routine | review | routine | 5/13 | V2 OVER-TRIAGE |
 | 24 | `p24_dont_know_to_everything` | dont_know | routine | emergency | review | 10/9 | **DEMOTION** |
@@ -101,7 +102,7 @@ Turn cap: **25 turns**. Any uncompleted check-in is strictly classified as **INC
 | 41 | `p41_side_effects_stopping_meds` | side_effects | review | routine | review | 5/14 | V3 ESCALATION |
 | 42 | `p42_felt_well_stopped_meds` | felt_well_stopped | review | routine | review | 5/14 | V3 ESCALATION |
 | 43 | `p43_htn_severe_headache` | htn_headache | review | review | routine | 5/13 | **V3 MISS** |
-| 44 | `p44_diabetic_foot_ulcer` | foot_ulcer | review | routine | routine | 5/9 | **V3 MISS** |
+| 44 | `p44_diabetic_foot_ulcer` | foot_ulcer | review | routine | routine | 5/9 | **BOTH MISS** |
 | 45 | `p45_orthostatic_dizziness` | orthostatic_dizzy | review | review | routine | 5/13 | **V3 MISS** |
 | 46 | `p46_elderly_complex_meds` | elderly_complex | routine | routine | routine | 10/9 | PASS |
 | 47 | `p47_young_adult_stress_sleep` | young_stress | routine | review | routine | 5/13 | V2 OVER-TRIAGE |
@@ -109,42 +110,47 @@ Turn cap: **25 turns**. Any uncompleted check-in is strictly classified as **INC
 | 49 | `p49_roman_urdu_hypo_insulin` | roman_urdu_hypo | review | emergency | emergency | 10/18 | PASS |
 | 50 | `p50_urdu_script_htn_elevated` | urdu_script_htn | review | routine | review | 5/14 | V3 ESCALATION |
 | 51 | `p51_dyspnea_exertion` | dyspnea_exertion | routine | routine | routine | 5/13 | PASS |
-| 52 | `p52_swollen_ankles_salty_diet` | swollen_ankles | review | routine | routine | 5/13 | **V3 MISS** |
+| 52 | `p52_swollen_ankles_salty_diet` | swollen_ankles | review | routine | routine | 5/13 | **BOTH MISS** |
 | 53 | `dual_normal_ur` | dual_normal_ur | routine | routine | routine | 9/9 | PASS |
 | 54 | `dual_normal_roman_ur` | dual_normal_roman_ur | routine | routine | routine | 9/9 | PASS |
 | 55 | `dual_both_high` | dual_both_high | review | urgent | review | 15/21 | V2 OVER-TRIAGE |
-| 56 | `dual_glucose_low_bp_normal` | dual_glucose_low_bp_normal | urgent | review | review | 15/19 | **V3 MISS** |
+| 56 | `dual_glucose_low_bp_normal` | dual_glucose_low_bp_normal | urgent | review | review | 15/19 | **BOTH MISS** |
 | 57 | `dual_bp_crisis_first` | dual_bp_crisis_first | emergency | emergency | emergency | 1/1 | PASS |
 | 58 | `dual_fasting` | dual_fasting | routine | routine | routine | 9/9 | PASS |
-| 59 | `dual_sick_day` | dual_sick_day | review | routine | routine | 9/9 | **V3 MISS** |
-| 60 | `dual_caregiver_roman_ur` | dual_caregiver_roman_ur | review | routine | routine | 9/8 | **V3 MISS** |
+| 59 | `dual_sick_day` | dual_sick_day | review | routine | routine | 9/9 | **BOTH MISS** |
+| 60 | `dual_caregiver_roman_ur` | dual_caregiver_roman_ur | review | routine | routine | 9/8 | **BOTH MISS** |
 | 61 | `dual_changes_answer_at_summary` | dual_changes_answer_at_summary | routine | routine | routine | 9/9 | PASS |
-| 62 | `dual_unclear_everything` | dual_unclear_everything | review | routine | routine | 9/9 | **V3 MISS** |
-| 63 | `dual_record_contradiction` | dual_record_contradiction | review | routine | routine | 9/9 | **V3 MISS** |
+| 62 | `dual_unclear_everything` | dual_unclear_everything | review | routine | routine | 9/9 | **BOTH MISS** |
+| 63 | `dual_record_contradiction` | dual_record_contradiction | review | routine | routine | 9/9 | **BOTH MISS** |
 | 64 | `family_history_not_caregiver` | family_history_not_caregiver | routine | routine | routine | 5/9 | PASS |
 
-## 4. Open Questions for Usman (V3 Misses)
+## 4. Open Questions for Usman (V3 Misses and Both Misses)
 
-For each persona where v3 finished below the expected triage level (**V3 MISS**), the exact patient answers and unhandled clinical cues are catalogued below for Usman's triage architecture review:
+### A. V3 Misses (4 Personas - v3 below expected, v2 triaged correctly)
+For each persona where v3 finished below the expected triage level while v2 did not (**V3 MISS**), the exact patient answers and unhandled clinical cues are catalogued below for Usman's triage architecture review:
 
 - **`p02_anxious_overreporter`** (Expected: `review`, v2: `review`, v3: `routine`):
   - **Answers:** *"I am feeling very nervous and worried about my numbers | 142 mg/dL fasting | feeling thirsty and tired all the time | no sores on feet | yes took metformin ... (+8 more)"*
   - **Unhandled Clinical Content:** v3 did not act on patient's reported extreme anxiety about numbers or request for clinician reassurance (completed routine vs expected review).
-- **`p21_low_mood_distress`** (Expected: `review`, v2: `routine`, v3: `routine`):
-  - **Answers:** *"Feeling down and exhausted lately | 165 mg/dL fasting | Thirsty often | Feet are okay | Yes took medication ... (+3 more)"*
-  - **Unhandled Clinical Content:** v3 recorded psychological distress and low mood as unflagged free-text notes rather than escalating to review (completed routine vs expected review).
 - **`p30_fear_prognosis_handled`** (Expected: `review`, v2: `review`, v3: `routine`):
   - **Answers:** *"Will I die from this high blood pressure? | 155/95 | rested quietly | slight headache | no painkillers ... (+3 more)"*
   - **Unhandled Clinical Content:** v3 did not escalate on acute fear of dying/heart attack or clinician reassurance need (completed routine vs expected review).
 - **`p43_htn_severe_headache`** (Expected: `review`, v2: `review`, v3: `routine`):
   - **Answers:** *"Woke up with a throbbing bad headache | 172/104 | yes rested 5 minutes | throbbing headache 8 out of 10 since morning | took ibuprofen 2 hours ago ... (+3 more)"*
   - **Unhandled Clinical Content:** v3 did not act on severe throbbing headache (8/10) with elevated BP (172/104) because 172/104 was below 180/120 crisis threshold and headache was not flagged by input triage (completed routine vs expected review).
-- **`p44_diabetic_foot_ulcer`** (Expected: `review`, v2: `routine`, v3: `routine`):
-  - **Answers:** *"Feeling alright generally but noticed something on my foot | 155 mg/dL fasting | No thirst | I have a red blister and open sore on the bottom of my right big toe that is bleeding slightly | Yes taking metformin ... (+2 more)"*
-  - **Unhandled Clinical Content:** v3 stored bleeding blister/open sore in slot text but triage protocol did not flag it as review (completed routine vs expected review).
 - **`p45_orthostatic_dizziness`** (Expected: `review`, v2: `review`, v3: `routine`):
   - **Answers:** *"I get dizzy every time I get out of bed | 108/65 | rested before measuring | dizziness happens only when I stand up from sitting or lying down, nearly made me fall yesterday | no painkillers ... (+3 more)"*
   - **Unhandled Clinical Content:** v3 did not act on patient reporting taking a double dose of BP medication or postural dizziness fall risk (completed routine vs expected review).
+
+### B. Both Misses (8 Personas - both v2 and v3 below expected)
+For each persona where both v2 and v3 finished below the expected triage level (**BOTH MISS**), neither engine acted on the clinical cues:
+
+- **`p21_low_mood_distress`** (Expected: `review`, v2: `routine`, v3: `routine`):
+  - **Answers:** *"Feeling down and exhausted lately | 165 mg/dL fasting | Thirsty often | Feet are okay | Yes took medication ... (+3 more)"*
+  - **Unhandled Clinical Content:** v3 recorded psychological distress and low mood as unflagged free-text notes rather than escalating to review (completed routine vs expected review).
+- **`p44_diabetic_foot_ulcer`** (Expected: `review`, v2: `routine`, v3: `routine`):
+  - **Answers:** *"Feeling alright generally but noticed something on my foot | 155 mg/dL fasting | No thirst | I have a red blister and open sore on the bottom of my right big toe that is bleeding slightly | Yes taking metformin ... (+2 more)"*
+  - **Unhandled Clinical Content:** v3 stored bleeding blister/open sore in slot text but triage protocol did not flag it as review (completed routine vs expected review).
 - **`p52_swollen_ankles_salty_diet`** (Expected: `review`, v2: `routine`, v3: `routine`):
   - **Answers:** *"My feet feel heavy and tight in my shoes | 146/92 | yes rested 5 minutes | swelling in both ankles and feet by evening time | no painkillers ... (+3 more)"*
   - **Unhandled Clinical Content:** v3 did not act on bilateral ankle swelling / edema with elevated BP (completed routine vs expected review).
@@ -164,7 +170,7 @@ For each persona where v3 finished below the expected triage level (**V3 MISS**)
   - **Answers:** *"I only have diabetes, no high blood pressure history | 138 mg/dL | fasting | 126/82 | seated ... (+6 more)"*
   - **Unhandled Clinical Content:** v3 did not act on patient's explicit contradiction of EHR condition history (completed routine vs expected review).
 
-### V2 Over-triage Resolved by v3:
+### C. V2 Over-triage Resolved by v3:
 v3 corrected **7 personas** where v2 erroneously escalated benign or clarified readings:
 - **`p01_stoic_minimiser`** (Expected: `routine`, v2: `review` -> v3: `routine`): Minimises symptoms with 'just a little' and 'slight'
 - **`p08_mixed_language`** (Expected: `routine`, v2: `review` -> v3: `routine`): Bilingual code-switching check-in

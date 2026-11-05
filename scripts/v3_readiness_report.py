@@ -244,20 +244,20 @@ def run_persona_simulation(p: dict, engine: str) -> Tuple[str, int]:
 def get_persona_verdict(v2_lvl: str, v3_lvl: str, exp_lvl: str) -> str:
     """
     Computes persona audit verdict per Day 4 specification:
-    - v3 below expected = 'V3 MISS'
+    - when both v2 and v3 are below expected = 'BOTH MISS'
+    - v3 below expected AND v2 is not = 'V3 MISS'
     - v2 above expected and v3 == expected = 'V2 OVER-TRIAGE'
     - otherwise 'DEMOTION' (when v3 < v2)
     - v3 == v2 == expected = 'PASS'
     - v3 > v2 and v3 >= expected = 'V3 ESCALATION'
     """
-    if v3_lvl == "INCOMPLETE":
-        return "V3 MISS"
-
     v2_rank = LEVEL_ORDER.get(v2_lvl, -1)
     v3_rank = LEVEL_ORDER.get(v3_lvl, -1)
     exp_rank = LEVEL_ORDER.get(exp_lvl, 0)
 
     if v3_rank < exp_rank:
+        if v2_rank < exp_rank:
+            return "BOTH MISS"
         return "V3 MISS"
     if v2_rank > exp_rank and v3_rank == exp_rank:
         return "V2 OVER-TRIAGE"
@@ -297,6 +297,7 @@ def measure_all_personas() -> Dict[str, Any]:
     total_count = len(personas)
     persona_results = []
     v3_misses = []
+    both_misses = []
     v2_overtriages = []
     demotions = []
     incompletes_v2 = []
@@ -343,6 +344,15 @@ def measure_all_personas() -> Dict[str, Any]:
                 **res_entry,
                 "miss_explanation": miss_explanation
             })
+        elif verdict == "BOTH MISS":
+            miss_explanation = _V3_MISS_EXPLANATIONS.get(
+                p_id,
+                f"Both v2 ({v2_lvl}) and v3 ({v3_lvl}) completed below expected {expected_level}; unhandled clinical cues in answers."
+            )
+            both_misses.append({
+                **res_entry,
+                "miss_explanation": miss_explanation
+            })
         elif verdict == "V2 OVER-TRIAGE":
             v2_overtriages.append(res_entry)
         elif verdict == "DEMOTION":
@@ -365,6 +375,7 @@ def measure_all_personas() -> Dict[str, Any]:
         "total_count": total_count,
         "persona_results": persona_results,
         "v3_misses": v3_misses,
+        "both_misses": both_misses,
         "v2_overtriages": v2_overtriages,
         "demotions": demotions,
         "incompletes_v2": incompletes_v2,
@@ -467,6 +478,7 @@ def generate_readiness_report() -> Tuple[str, str]:
 
     total_personas = persona_audit["total_count"]
     v3_misses = persona_audit["v3_misses"]
+    both_misses = persona_audit.get("both_misses", [])
     v2_overtriages = persona_audit["v2_overtriages"]
     demotions = persona_audit["demotions"]
     incompletes_v2 = persona_audit["incompletes_v2"]
@@ -484,7 +496,7 @@ def generate_readiness_report() -> Tuple[str, str]:
     rec_summary = (
         "**GO:** v3 satisfies all safety, equivalence, and readiness criteria."
         if is_go
-        else f"**NO-GO:** v3 exhibits {len(v3_misses)} V3 misses below expected level, {len(demotions)} demotions below v2, and {len(incompletes_v3)} incomplete runs across the 64 persona test suite. Release 2 must retain `INTERVIEW_ENGINE=v2` as default."
+        else f"**NO-GO:** v3 exhibits {len(v3_misses)} V3 misses below expected level, {len(both_misses)} both misses, {len(demotions)} demotions below v2, and {len(incompletes_v3)} incomplete runs across the 64 persona test suite. Release 2 must retain `INTERVIEW_ENGINE=v2` as default."
     )
 
     lines = []
@@ -510,7 +522,7 @@ def generate_readiness_report() -> Tuple[str, str]:
     lines.append("| **2** | **Danger-Phrase Parity (0 Regressions)** | 47.0% Gold / 20.0% Hassaan | 100% Gold / 30.0% Hassaan | **GO (PASS)** | v3 >= v2 across all benchmark sets; 0 regressions on critical red flags |")
 
     persona_gate_status = "**NO-GO (FAIL)**" if (len(v3_misses) > 0 or len(demotions) > 0) else "**GO (PASS)**"
-    lines.append(f"| **3** | **Persona Invariance & Demotion Audit** | Standard baseline | {total_personas} Personas simulated | {persona_gate_status} | {len(v3_misses)} V3 misses below expected; {len(demotions)} demotions; {len(v2_overtriages)} V2 over-triages resolved. Zero chest pain emergencies missed. |")
+    lines.append(f"| **3** | **Persona Invariance & Demotion Audit** | Standard baseline | {total_personas} Personas simulated | {persona_gate_status} | {len(v3_misses)} V3 misses below expected; {len(both_misses)} both miss; {len(demotions)} demotions; {len(v2_overtriages)} V2 over-triages resolved. Zero chest pain emergencies missed. |")
 
     incomp_gate_status = "**NO-GO (FAIL)**" if len(incompletes_v3) > 0 else "**GO (PASS)**"
     lines.append(f"| **4** | **Check-in Completion Integrity** | 0 Incomplete (v2) | {len(incompletes_v3)} Incomplete (v3) | {incomp_gate_status} | Turn limit raised to 25; /complete returns 200 on all completed check-ins. |")
@@ -549,7 +561,8 @@ def generate_readiness_report() -> Tuple[str, str]:
     lines.append(f"Turn cap: **25 turns**. Any uncompleted check-in is strictly classified as **INCOMPLETE**.")
     lines.append("")
     lines.append(f"- **Total Personas Simulated:** {total_personas}")
-    lines.append(f"- **V3 Misses (v3 below expected):** {len(v3_misses)}")
+    lines.append(f"- **V3 Misses (v3 below expected, v2 not):** {len(v3_misses)}")
+    lines.append(f"- **Both Miss (both v2 and v3 below expected):** {len(both_misses)}")
     lines.append(f"- **V2 Over-triage (v2 above expected, v3 == expected):** {len(v2_overtriages)}")
     lines.append(f"- **Demotions (v3 < v2):** {len(demotions)}")
     lines.append(f"- **Incomplete Runs (v2 / v3):** {len(incompletes_v2)} / {len(incompletes_v3)}")
@@ -561,14 +574,15 @@ def generate_readiness_report() -> Tuple[str, str]:
     lines.append("| # | Persona ID | Archetype | Expected | v2 Level | v3 Level | Turns (v2/v3) | Verdict |")
     lines.append("|:---:|---|---|:---:|:---:|:---:|:---:|:---:|")
     for idx, r in enumerate(persona_audit["persona_results"]):
-        v_str = f"**{r['verdict']}**" if r["verdict"] in ("V3 MISS", "DEMOTION") else r["verdict"]
+        v_str = f"**{r['verdict']}**" if r["verdict"] in ("V3 MISS", "BOTH MISS", "DEMOTION") else r["verdict"]
         lines.append(f"| {idx+1} | `{r['id']}` | {r['archetype']} | {r['expected_level']} | {r['v2_level']} | {r['v3_level']} | {r['v2_turns']}/{r['v3_turns']} | {v_str} |")
     lines.append("")
 
     # Section 4: Open Questions for Usman
-    lines.append("## 4. Open Questions for Usman (V3 Misses)")
+    lines.append("## 4. Open Questions for Usman (V3 Misses and Both Misses)")
     lines.append("")
-    lines.append("For each persona where v3 finished below the expected triage level (**V3 MISS**), the exact patient answers and unhandled clinical cues are catalogued below for Usman's triage architecture review:")
+    lines.append(f"### A. V3 Misses ({len(v3_misses)} Personas - v3 below expected, v2 triaged correctly)")
+    lines.append("For each persona where v3 finished below the expected triage level while v2 did not (**V3 MISS**), the exact patient answers and unhandled clinical cues are catalogued below for Usman's triage architecture review:")
     lines.append("")
     for m in v3_misses:
         ans_preview = " | ".join(m["answers"][:5])
@@ -578,7 +592,18 @@ def generate_readiness_report() -> Tuple[str, str]:
         lines.append(f"  - **Answers:** *\"{ans_preview}\"*")
         lines.append(f"  - **Unhandled Clinical Content:** {m['miss_explanation']}")
     lines.append("")
-    lines.append("### V2 Over-triage Resolved by v3:")
+    lines.append(f"### B. Both Misses ({len(both_misses)} Personas - both v2 and v3 below expected)")
+    lines.append("For each persona where both v2 and v3 finished below the expected triage level (**BOTH MISS**), neither engine acted on the clinical cues:")
+    lines.append("")
+    for bm in both_misses:
+        ans_preview = " | ".join(bm["answers"][:5])
+        if len(bm["answers"]) > 5:
+            ans_preview += f" ... (+{len(bm['answers'])-5} more)"
+        lines.append(f"- **`{bm['id']}`** (Expected: `{bm['expected_level']}`, v2: `{bm['v2_level']}`, v3: `{bm['v3_level']}`):")
+        lines.append(f"  - **Answers:** *\"{ans_preview}\"*")
+        lines.append(f"  - **Unhandled Clinical Content:** {bm['miss_explanation']}")
+    lines.append("")
+    lines.append("### C. V2 Over-triage Resolved by v3:")
     lines.append(f"v3 corrected **{len(v2_overtriages)} personas** where v2 erroneously escalated benign or clarified readings:")
     for ot in v2_overtriages:
         lines.append(f"- **`{ot['id']}`** (Expected: `{ot['expected_level']}`, v2: `{ot['v2_level']}` -> v3: `{ot['v3_level']}`): {ot['notes']}")
