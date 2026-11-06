@@ -63,11 +63,19 @@ Per Saad's Day 4 prompt in `docs/tasks/WEEK3_SAAD.md` (Part A, lines 621–633),
 | **RAG Open Diabetes Coverage** | 1 / 25 diabetes questions open (4.0%) | `docs/RAG_EVAL.md:20` | `python scripts/eval_retrieval.py` | 2026-11-04 |
 | **RAG Open HTN Coverage** | 25 / 25 HTN questions open (100.0%) | `docs/RAG_EVAL.md:21` | `python scripts/eval_retrieval.py` | 2026-11-04 |
 | **RAG Top-1 Retrieval Relevance** | 6 / 10 sample queries relevant (60.0%) | `docs/RAG_EVAL.md:22` | `python scripts/eval_retrieval.py` | 2026-11-04 |
-| **Live Smoke (5 Nov): Total Check-ins** | 10 / 10 review level (100.0%) | Usman's live run 5 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-05 |
+| **Live Smoke (5 Nov): Total Check-ins** | 10 / 10 review level (100.0%) | Usman's live run 5 Nov (raw output with Usman), SUMMARY (ran with 4 synthetic test chunks, not real corpus) | `python scripts/explain_live_smoke.py` | 2026-11-05 |
 | **Live Smoke (5 Nov): Resolution Breakdown** | 6 LLM generated, 4 cache hits, 0 fallbacks, 0 validation failures | Usman's live run 5 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-05 |
 | **Live Smoke (5 Nov): Circuit Breakers** | Groq breaker closed; Gemini not needed | Usman's live run 5 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-05 |
 | **Live Smoke (5 Nov): API & Job Latency** | `/complete` returned in 0.08–0.22 s; explanation ready in 1.1–3.3 s | Usman's live run 5 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-05 |
 | **Live Smoke (5 Nov): Token Consumption** | 5,862 Groq TOTAL tokens recorded | Usman's live run 5 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-05 |
+| **Live Smoke (6 Nov): Total Check-ins** | 10 / 10 review level (100.0%) | Usman's live run 6 Nov (raw output with Usman), SUMMARY (ran with 4 synthetic test chunks, not real corpus) | `python scripts/explain_live_smoke.py` | 2026-11-06 |
+| **Live Smoke (6 Nov): Resolution Breakdown** | 10/10 llm/cache (6 LLM, 4 cache, 0 template fallbacks, 0 validation failures, Gemini 0) | Usman's live run 6 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-06 |
+| **Live Smoke (6 Nov): Circuit Breakers** | Groq breaker closed; Gemini 0 calls | Usman's live run 6 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-06 |
+| **Live Smoke (6 Nov): API & Job Latency** | `/complete` returned in 0.08–0.17 s; explanation ready in 1.1–2.2 s | Usman's live run 6 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-06 |
+| **Live Smoke (6 Nov): Token Consumption** | 5,454 Groq tokens recorded | Usman's live run 6 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-06 |
+
+> [!NOTE]
+> The live smoke script (`scripts/explain_live_smoke.py`) has been extended with the `--real-chunks` flag to safely copy and evaluate against the real loaded guideline corpus (including all 6 permitted ADA sections) rather than synthetic test chunks. Usman will run live smoke with `--real-chunks` once ADA chunks are loaded on his machine.
 
 ### Explainer Latency Benchmark (`scripts/measure_explain_latency.py`)
 Run on 5 November 2026 in an isolated benchmark session across 50 check-ins per mode:

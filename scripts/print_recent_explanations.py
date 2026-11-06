@@ -93,7 +93,7 @@ def print_recent_explanations(limit: int = 10, db_path: Optional[str] = None) ->
 def main() -> int:
     parser = argparse.ArgumentParser(description="Print recent check-in explanations for clinical review.")
     parser.add_argument("--limit", type=int, default=10, help="Maximum number of check-ins to print (default: 10)")
-    parser.add_argument("--db-path", type=str, default=None, help="Custom path to local SQLite database")
+    parser.add_argument("--db", "--db-path", dest="db_path", type=str, default=None, help="Custom path to local SQLite database")
     args = parser.parse_args()
     return print_recent_explanations(limit=args.limit, db_path=args.db_path)
 
