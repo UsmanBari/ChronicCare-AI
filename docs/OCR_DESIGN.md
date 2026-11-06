@@ -2,8 +2,9 @@
 
 **Document ID**: `docs/OCR_DESIGN.md`  
 **Iteration**: I2-5 (Day 5 Design & Measured Spike — Correction 3)  
-**Author**: Hassaan Mudassar (AI Assistant Antigravity)  
+**Author**: Hassaan (with AI coding assistant)  
 **Target Milestone**: Day 7 (OCR v1 behind feature flag)  
+**Date**: 06-Nov-2026  
 
 ---
 
@@ -273,32 +274,47 @@ In step (a) verification in a clean Python 3.11 venv:
 
 ### 6.3 Memory & Hardening Measurements Summary (Day 6 Verification)
 
-In Part 0 memory profiling, backend process memory was measured on `rx_photo_01.jpg` across 5 sequential uploads sampled every 50 ms via `psutil`.
+**Measurement Host**: Linux (WSL2 Ubuntu 24.04.1 LTS, x86_64, Kernel 6.6.36), Python 3.11.10 (simulating Render's Linux runtime container).  
+**Execution Tool**: `scripts/measure_ocr_memory.py` on `rx_photo_01.jpg` (140,846 bytes, downscaled to 1280 px max dimension).  
+**Date**: 06-Nov-2026
 
-#### Measured Profiling Runs Across Options
+#### Process Architecture Configuration
 
-| Architecture / Optimization Mode | Idle RSS | Steady RSS (After Calls) | Peak RSS (During Inference) | Mean Latency | Headroom on 512 MB | Notes |
-|---|---|---|---|---|---|---|
-| **Baseline: In-Process (Unconstrained)** | 65.68 MB | 124.50 MB | **314.43 MB** (max 331.53 MB) | 3.968 s | 197.57 MB (38.6%) | ONNX runtime retains persistent tensor buffers in main web server process |
-| **Option (a): Single-Thread Session Options** | 65.50 MB | 123.80 MB | **306.95 MB** | 4.971 s | 205.05 MB (40.0%) | `intra_op_num_threads=1, inter_op_num_threads=1`; ~25% latency penalty with negligible memory reduction |
-| **Option (b): Downscale to Max 1280 px** | 65.50 MB | 121.20 MB | **279.40 MB** | 3.210 s | 232.60 MB (45.4%) | Quality preserved: 9/9 (100.0%) handwriting medicine recall retained |
-| **Option (c): Isolated Spawn Subprocess Worker** | 65.37 MB (parent) | **110.12 MB** (parent) | **385.37 MB** (combined tree peak) | 8.272 s | 126.63 MB (24.7%) | Parent server never leaks memory; worker process (~275 MB) terminates and reclaims all RAM immediately |
+- **`OCR_USE_SUBPROCESS`** (bool, default: `true` in backend config):
+  When enabled, RapidOCR inference runs in an isolated `multiprocessing.Process` child worker. The child process loads ONNX weights and tensor buffers, performs inference, passes structured extraction back across an IPC queue, and terminates. When the worker exits, the OS immediately reclaims all of its allocated memory (~300–400 MB). The parent FastAPI server drops back to a stable **~131–139 MB** post-call steady state rather than permanently holding **~240–436 MB** in main server RSS as seen in in-process mode.
+- **`OCR_SUBPROCESS_TIMEOUT`** (int, default: `30` seconds):
+  Parent watchdog timeout. If a child worker hangs or becomes unresponsive, the parent terminates it via `p.kill()`, joins the process, and returns a structured `500` error (`{"code": "ocr_failed", "message": "OCR process timed out"}`). Queue extraction drains before `p.join()` (`q.get(timeout=0.1)`) while polling child liveness to ensure large extraction payloads (>100 KB) never deadlock the IPC pipe.
+
+#### Measured Profiling Runs on Linux Across Options (3 Runs Each)
+
+| Architecture / Mode | Idle RSS | After 1st Call RSS | Steady RSS (After 5 Calls) | Peak RSS (During Inference) | Mean Latency | Headroom on 512 MB | Notes |
+|---|---|---|---|---|---|---|---|
+| **In-Process (`OCR_USE_SUBPROCESS=false`)** | 71.0 MB | 239.9 MB | 246.1 MB | **426.1 MB** (Render Linux runs: **573–608 MB**) | 3.46 s | **Negative / Zero** on Render free tier | ONNX runtime retains persistent tensor buffers in main web server process |
+| **Subprocess (`OCR_USE_SUBPROCESS=true`)** | 70.3 MB | **131.5 MB** | **132.7 MB** | **493.3 MB** (combined tree peak; up to **518–529 MB**) | 4.51 s | **Negative / Zero** on Render free tier | Parent drops back to ~131–139 MB; worker process RAM reclaimed on exit |
+
+*Raw run logs on Linux (WSL2 Ubuntu 24.04, Python 3.11):*
+- *In-Process Run 1*: Idle 72.21 MB, 1st call 241.33 MB, steady 246.73 MB, peak 429.54 MB, latency 3.337 s
+- *In-Process Run 2*: Idle 70.42 MB, 1st call 239.44 MB, steady 244.57 MB, peak 422.94 MB, latency 3.487 s
+- *In-Process Run 3*: Idle 70.33 MB, 1st call 239.08 MB, steady 247.13 MB, peak 425.79 MB, latency 3.561 s
+- *Subprocess Run 1*: Idle 70.34 MB, 1st call 131.58 MB, steady 132.88 MB, peak 510.63 MB, latency 4.400 s
+- *Subprocess Run 2*: Idle 70.30 MB, 1st call 131.21 MB, steady 132.34 MB, peak 450.86 MB, latency 4.638 s
+- *Subprocess Run 3*: Idle 70.35 MB, 1st call 131.62 MB, steady 132.83 MB, peak 518.31 MB, latency 4.478 s
 
 #### Day 6 Hardening Before vs After Summary
 
 | Metric | Before Hardening (In-Process) | After Hardening (Subprocess + 1280px) | Delta / Clinical Effect |
 |---|---|---|---|
-| **Parent Web Server RSS (Post-Call)** | 124.50 MB (grows with uploads) | **110.12 MB** (bounded & stable) | Completely prevents cumulative memory leaks in FastAPI parent process |
-| **Memory Reclamation** | Partial (ONNX retains cache) | **100% of worker RAM reclaimed** | Worker process terminates and releases all resources upon completion |
-| **Combined Tree Peak RSS** | 314.43 MB | **385.37 MB** | Includes Python spawn runtime + ONNX initialization in isolated worker |
-| **Mean Latency per Upload** | 3.968 s | **8.272 s** | Additional ~4.3s due to Windows process creation and model reloading |
+| **Parent Web Server RSS (Post-Call)** | 239.9–436 MB (retains buffers) | **131.5–139 MB** (drops back post-call) | Mitigates persistent high memory in parent web server process |
+| **Worker Memory Reclamation** | None (in-process) | **Worker RAM reclaimed on exit** | Worker process terminates and releases memory upon completion |
+| **Combined Tree Peak RSS** | 426.1–608 MB | **493.3–529 MB** | Includes child worker execution + ONNX runtime buffers |
+| **Mean Latency per Upload** | 3.46 s | **4.51 s** | Modest ~1.05s overhead for process spawn on Linux |
 | **Prescription Medicine Recall** | 100.0% (9/9) | **100.0% (9/9)** | Zero regressions across handwritten test cases |
-| **Pakistani Lab Layout Recall** | 0.0% (HbA1c), 200% (Glucose FP) | **100.0% (15/15 TP, 0 FP)** | Multiline tabular windows + strict reference range exclusion |
+| **Pakistani Lab Layout Recall** | 66.7% (10/15 TP, 25 FP) | **100.0% (15/15 TP, 0 FP)** | Multiline tabular windows + strict reference range exclusion |
 
 #### Recommendation for Usman
 
 > **Safe to enable on Render free tier: NO.**
 > 
-> **Technical Justification**: While Option (c) successfully isolates the OCR engine and bounds the FastAPI parent process to ~110 MB, the transient combined peak memory during inference reaches **385.37 MB**. On Render's 512 MB free tier container ceiling, this leaves only **126.63 MB (24.7%)** of safety headroom. Under simultaneous traffic, background telemetry, or multiple rapid uploads, this leaves an unacceptably narrow margin that risks kernel Out-Of-Memory (OOM) termination (`exit code 137`).
+> **Technical Justification**: While `OCR_USE_SUBPROCESS=true` successfully prevents the parent FastAPI process from holding ONNX runtime buffers (allowing parent RSS to drop back to ~131–139 MB after each call), the transient combined peak memory during active inference reaches **493.3 MB** locally and **529 MB** on Render Linux. Both the in-process peak (426–608 MB) and the subprocess combined peak (493–529 MB) exceed or dangerously collide with Render's 512 MB free tier container ceiling. Under simultaneous traffic or multi-page uploads, this will trigger Linux Out-Of-Memory (OOM) termination (`exit code 137`).
 > 
 > Therefore, **`OCR_ENABLED` must remain `false` by default for FYP-1 production**. The endpoint correctly returns `503 Service Unavailable` with friendly user feedback when disabled. For FYP-2, enabling OCR safely on Render requires either upgrading to a 1 GB instance ($7/mo) or migrating client-side inference to WebAssembly via Tesseract.js.

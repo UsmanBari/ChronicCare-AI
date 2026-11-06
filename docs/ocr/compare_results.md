@@ -1,6 +1,6 @@
 # ChronicCare-AI — OCR Spike Measured Benchmark Results (Correction 3)
 
-**Execution Timestamp**: 2026-11-06T13:12:22Z
+**Execution Timestamp**: 2026-11-01T10:28:25Z
 **Evaluation Environment**: Windows 11 Desktop (x86_64), Node.js v22.16.0, Python 3.12 (RapidOCR ONNX), WSL2 Ubuntu 24.04 (Tesseract v5.3.4)
 
 ## 1. Measured Performance & Accuracy Disaggregation by Document Group
@@ -13,7 +13,7 @@ OCR character quality (**CER**) and deterministic rule extraction (**Field Recal
 |---|---|---|---|---|---|---|---|
 | **Option A1: Tesseract.js ('eng' only)** | **MEASURED** | 462.0 ms | **24.9%** | 100.0% (24/24) | 100.0% | 100.0% (7/7) | **0 MB Server** (131.07 MB Client) |
 | **Option A2: Tesseract.js ('eng+urd' bilingual)** | **MEASURED** | 529.7 ms | **25.5%** | 100.0% (24/24) | 100.0% | 100.0% (7/7) | **0 MB Server** (140.74 MB Client) |
-| **Option B: RapidOCR** | **MEASURED** | 1930.2 ms | **24.4%** | 95.8% (23/24) | 100.0% | 100.0% (7/7) | **108.55 MB Server** |
+| **Option B: RapidOCR** | **MEASURED** | 2047.2 ms | **24.4%** | 95.8% (23/24) | 95.8% | 100.0% (7/7) | **108.99 MB Server** |
 | **Reference: Tesseract Desktop (v5.3.4)** | **MEASURED** | 1904.2 ms | **25.4%** | 91.7% (22/24) | 100.0% | 100.0% (7/7) | **48.2 MB Server** |
 
 ### Table 1B: Rotated, Blurred & Noisy Documents (3 Samples: lab_08, lab_09, rx_06)
@@ -21,7 +21,7 @@ OCR character quality (**CER**) and deterministic rule extraction (**Field Recal
 |---|---|---|---|---|---|---|---|
 | **Option A1: Tesseract.js ('eng' only)** | **MEASURED** | 379.3 ms | **24.5%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Handles 90° rotation and moderate blur |
 | **Option A2: Tesseract.js ('eng+urd' bilingual)** | **MEASURED** | 690.0 ms | **25.0%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Handles 90° rotation and moderate blur |
-| **Option B: RapidOCR** | **MEASURED** | 1559.0 ms | **20.4%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Fast text angle classification |
+| **Option B: RapidOCR** | **MEASURED** | 1833.3 ms | **20.4%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Fast text angle classification |
 | **Reference: Tesseract Desktop (v5.3.4)** | **MEASURED** | 1959.0 ms | **22.6%** | 87.5% (7/8) | 100.0% | 100.0% (3/3) | Native C++ multi-thread |
 
 ### Table 1C: Real Phone-Photographed Handwritten Prescriptions (4 Samples: rx_photo_01 to 04)
@@ -29,8 +29,8 @@ OCR character quality (**CER**) and deterministic rule extraction (**Field Recal
 |---|---|---|---|---|---|---|---|
 | **Option A1: Tesseract.js ('eng' only)** | **MEASURED** | 1643.8 ms | **75.8%** | 11.1% (1/9) | 100.0% | 11.1% (1/9) | High CER on cursive; patient confirmation screen mandatory |
 | **Option A2: Tesseract.js ('eng+urd' bilingual)** | **MEASURED** | 3735.5 ms | **83.5%** | 11.1% (1/9) | 100.0% | 11.1% (1/9) | High CER on cursive; patient confirmation screen mandatory |
-| **Option B: RapidOCR** | **MEASURED** | 2841.8 ms | **22.3%** | 100.0% (9/9) | 100.0% | 100.0% (9/9) | Moderate OCR accuracy on cursive; token joiner extracts medicines |
-| **Reference: Tesseract Desktop (v5.3.4)** | **MEASURED** | 2448.8 ms | **83.0%** | 44.4% (4/9) | 100.0% | 44.4% (4/9) | High CER on cursive; patient confirmation screen mandatory |
+| **Option B: RapidOCR** | **MEASURED** | 2998.0 ms | **22.3%** | 100.0% (9/9) | 100.0% | 100.0% (9/9) | Moderate OCR accuracy on cursive; token joiner extracts medicines |
+| **Reference: Tesseract Desktop (v5.3.4)** | **MEASURED** | 2448.8 ms | **83.0%** | 44.4% (4/9) | 80.0% | 44.4% (4/9) | High CER on cursive; patient confirmation screen mandatory |
 
 > [!IMPORTANT]
 > **Sample Size & Clinical Scope Note**: 4 real handwritten photos (9 prescribed medicines total) represents a small exploratory benchmark sample. While RapidOCR demonstrates substantially superior text-line segmentation and feature extraction on doctor cursive handwriting, these measured numbers are indicative rather than definitive clinical proof across all handwriting varieties. The patient confirmation screen remains mandatory in all architectures.
@@ -59,7 +59,7 @@ OCR character quality (**CER**) and deterministic rule extraction (**Field Recal
 | Evaluation Dimension | Option A: Tesseract.js (Client Phone) | Option B: RapidOCR (Server ONNX) | Dropped: EasyOCR | Dropped: Groq Vision |
 |---|---|---|---|---|
 | **Execution Host** | **Patient Browser / Phone** | **Render Web Service Backend** | Render Web Service Backend | Remote Cloud API |
-| **Server RAM Footprint** | **0 MB Server RAM** (Client: 131.07 MB) | **108.55 MB Server RAM** | EXPECTED: 400–700 MB — [PyTorch / EasyOCR](https://github.com/JaidedAI/EasyOCR) | EXPECTED: ~15 MB HTTP Client — [Groq Python SDK](https://github.com/groq/groq-python) |
+| **Server RAM Footprint** | **0 MB Server RAM** (Client: 131.07 MB) | **108.99 MB Server RAM** | EXPECTED: 400–700 MB — [PyTorch / EasyOCR](https://github.com/JaidedAI/EasyOCR) | EXPECTED: ~15 MB HTTP Client — [Groq Python SDK](https://github.com/groq/groq-python) |
 | **Fits Render 512 MB Tier?** | **YES** (Zero server overhead) | **YES** (~110 MB + 70 MB app = 180 MB) | **NO** (Triggers Linux OOM Kill 137) | **YES** (API client only) |
 | **Server Binary Dependencies**| **None** (Client-side Web Worker) | **None** (Precompiled ONNX wheels) | Requires PyTorch C++ wheels (~1.5 GB) | **None** (Python HTTP client) |
 | **Model / Asset Download** | **4.96 MB** (`eng`) / **6.29 MB** (`eng+urd`) | **15.44 MB** (ONNX weights in repo) | EXPECTED: > 1.5 GB PyTorch distribution | 0 MB (Hosted off-site) |
@@ -86,7 +86,7 @@ OCR character quality (**CER**) and deterministic rule extraction (**Field Recal
 1. **Winning Candidate**: Applying the project decision rule (best measured handwriting medicine recall + field recall fitting Render), **Option B: RapidOCR on the FastAPI backend server** is selected as the winning architecture.
    - **Handwritten Medicine Recall**: RapidOCR achieved **100.0% (9/9)** with **22.3% CER**, cleanly extracting prescribed medications across all 4 phone photos.
    - **Comparison with Tesseract.js**: Tesseract.js ('eng' only) achieved **11.1% (1/9)** with **75.8% CER**; its LSTM engine severely fragments cursive strokes into discontinuous characters.
-   - **Server Feasibility**: RapidOCR's peak RSS of **108.55 MB** plus FastAPI's ~70 MB baseline totals **~180 MB**, well below Render's 512 MB ceiling without Docker or root/apt dependencies.
+   - **Server Feasibility**: RapidOCR's peak RSS of **108.99 MB** plus FastAPI's ~70 MB baseline totals **~180 MB**, well below Render's 512 MB ceiling without Docker or root/apt dependencies.
 
 2. **Privacy & Ephemeral Server Processing (Zero Storage)**:
    - The uploaded document photo is decoded, auto-oriented (EXIF transpose), downscaled to max 2,000 px, and processed **strictly in RAM memory**.

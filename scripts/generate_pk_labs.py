@@ -21,8 +21,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = REPO_ROOT / "backend-poc-technical" / "ocr_spike" / "samples" / "pk_labs"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Select Windows font
+# Select font with cross-platform fallback (Linux Ubuntu & Windows)
 FONT_CANDIDATES = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
     "C:/Windows/Fonts/arial.ttf",
     "C:/Windows/Fonts/calibri.ttf",
     "C:/Windows/Fonts/tahoma.ttf",
@@ -38,7 +41,7 @@ def get_font(size: int):
     return ImageFont.load_default()
 
 def create_sample_1() -> tuple[Image.Image, str, dict]:
-    """Sample 1: Chughtai / Shaukat Khanum style printed tabular report (PNG)."""
+    """Sample 1 (Layout 1): Tabular print report with reference interval column (PNG)."""
     w, h = 1200, 1500
     img = Image.new("RGB", (w, h), color=(255, 255, 255))
     draw = ImageDraw.Draw(img)
@@ -51,14 +54,14 @@ def create_sample_1() -> tuple[Image.Image, str, dict]:
 
     # Header
     draw.text((60, 50), "CHRONIC CARE DIAGNOSTICS & RESEARCH LABS", font=f_title, fill=(20, 40, 80))
-    draw.text((60, 95), "Lahore Reference Laboratory — ISO 15189 Accredited", font=f_sub, fill=(100, 100, 100))
+    draw.text((60, 95), "Regional Reference Laboratory — ISO 15189 Accredited", font=f_sub, fill=(100, 100, 100))
     draw.line([(60, 130), (w - 60, 130)], fill=(20, 40, 80), width=3)
 
     # Patient details
     draw.text((60, 150), "Patient Name: Test Patient 01", font=f_body, fill=(0, 0, 0))
     draw.text((600, 150), "Age / Gender: 52 Y / Male", font=f_body, fill=(0, 0, 0))
-    draw.text((60, 185), "Referred By:  Dr. M. Usman Bari", font=f_body, fill=(0, 0, 0))
-    draw.text((600, 185), "Date Collected: 07-Nov-2026", font=f_body, fill=(0, 0, 0))
+    draw.text((60, 185), "Referred By:  Dr. Test Physician", font=f_body, fill=(0, 0, 0))
+    draw.text((600, 185), "Date Collected: 06-Nov-2026", font=f_body, fill=(0, 0, 0))
     draw.text((60, 220), "MR Number:    CC-2026-90812", font=f_body, fill=(0, 0, 0))
     draw.text((600, 220), "Sample Type:    Fluoride Plasma / Whole Blood", font=f_body, fill=(0, 0, 0))
 
@@ -98,7 +101,7 @@ def create_sample_1() -> tuple[Image.Image, str, dict]:
         "CHRONIC CARE DIAGNOSTICS & RESEARCH LABS\n"
         "Lahore Reference Laboratory — ISO 15189 Accredited\n"
         "Patient Name: Test Patient 01    Age / Gender: 52 Y / Male\n"
-        "Referred By: Dr. M. Usman Bari   Date Collected: 07-Nov-2026\n"
+        "Referred By: Dr. Test Physician   Date Collected: 06-Nov-2026\n"
         "MR Number: CC-2026-90812         Sample Type: Fluoride Plasma / Whole Blood\n"
         "INVESTIGATION                   RESULT    UNIT     REFERENCE INTERVAL\n"
         "Glycosylated Hb (HbA1c)         8.4       %        < 5.7 (Normal), 5.7 - 6.4 (Prediabetes)\n"
@@ -123,7 +126,7 @@ def create_sample_1() -> tuple[Image.Image, str, dict]:
     return img, "pk_lab_01.png", gt
 
 def create_sample_2() -> tuple[Image.Image, str, dict]:
-    """Sample 2: IDC style printed lab report with mmol/L Random Blood Sugar (PNG)."""
+    """Sample 2 (Layout 2): Multi-column tabular report with mmol/L Random Blood Sugar (PNG)."""
     w, h = 1200, 1500
     img = Image.new("RGB", (w, h), color=(255, 255, 255))
     draw = ImageDraw.Draw(img)
@@ -135,15 +138,15 @@ def create_sample_2() -> tuple[Image.Image, str, dict]:
     f_bold = get_font(22)
 
     # Header
-    draw.text((60, 50), "ISLAMABAD CLINICAL DIAGNOSTIC CENTRE", font=f_title, fill=(30, 80, 50))
-    draw.text((60, 92), "Blue Area Islamabad — Automated Pathology Division", font=f_sub, fill=(90, 90, 90))
+    draw.text((60, 50), "METROPOLITAN CLINICAL DIAGNOSTIC CENTRE", font=f_title, fill=(30, 80, 50))
+    draw.text((60, 92), "Central Pathology Division — Automated Diagnostics", font=f_sub, fill=(90, 90, 90))
     draw.line([(60, 125), (w - 60, 125)], fill=(30, 80, 50), width=3)
 
     # Demographics
     draw.text((60, 145), "Patient:   Test Patient 02", font=f_body, fill=(0, 0, 0))
     draw.text((600, 145), "Age/Sex:  47 Y / Female", font=f_body, fill=(0, 0, 0))
-    draw.text((60, 180), "Reg No:    IDC-PK-55421", font=f_body, fill=(0, 0, 0))
-    draw.text((600, 180), "Reporting Date: 07-Nov-2026", font=f_body, fill=(0, 0, 0))
+    draw.text((60, 180), "Reg No:    MCD-PK-55421", font=f_body, fill=(0, 0, 0))
+    draw.text((600, 180), "Reporting Date: 06-Nov-2026", font=f_body, fill=(0, 0, 0))
 
     draw.line([(60, 220), (w - 60, 220)], fill=(220, 220, 220), width=1)
 
@@ -174,10 +177,10 @@ def create_sample_2() -> tuple[Image.Image, str, dict]:
     draw.text((60, y + 70), "Hexokinase enzymatic methodology for Glucose determination.", font=f_sub, fill=(90, 90, 90))
 
     full_text = (
-        "ISLAMABAD CLINICAL DIAGNOSTIC CENTRE\n"
-        "Blue Area Islamabad — Automated Pathology Division\n"
+        "METROPOLITAN CLINICAL DIAGNOSTIC CENTRE\n"
+        "Central Pathology Division — Automated Diagnostics\n"
         "Patient: Test Patient 02    Age/Sex: 47 Y / Female\n"
-        "Reg No: IDC-PK-55421        Reporting Date: 07-Nov-2026\n"
+        "Reg No: MCD-PK-55421        Reporting Date: 06-Nov-2026\n"
         "Test Description              Observed Value   Unit     Reference Range\n"
         "HbA1c (Glycated Haemoglobin)  7.6              %        < 5.7 %\n"
         "Random Blood Sugar (RBS)      11.2             mmol/L   4.0 - 7.8 mmol/L\n"
@@ -200,7 +203,7 @@ def create_sample_2() -> tuple[Image.Image, str, dict]:
     return img, "pk_lab_02.png", gt
 
 def create_sample_3() -> tuple[Image.Image, str, dict]:
-    """Sample 3: Excel Labs / Hospital clinic layout with Fasting Plasma Glucose in mg/dL (PNG)."""
+    """Sample 3 (Layout 3): Digital clinic report with Fasting Plasma Glucose in mg/dL (PNG)."""
     w, h = 1200, 1400
     img = Image.new("RGB", (w, h), color=(255, 255, 255))
     draw = ImageDraw.Draw(img)
@@ -211,14 +214,14 @@ def create_sample_3() -> tuple[Image.Image, str, dict]:
     f_body = get_font(20)
     f_bold = get_font(22)
 
-    draw.text((60, 50), "EXCEL PATHOLOGY SERVICES", font=f_title, fill=(20, 20, 20))
+    draw.text((60, 50), "APEX PATHOLOGY SERVICES", font=f_title, fill=(20, 20, 20))
     draw.text((60, 92), "Comprehensive Metabolic & Endocrine Panel", font=f_sub, fill=(100, 100, 100))
     draw.line([(60, 125), (w - 60, 125)], fill=(180, 50, 50), width=2)
 
     draw.text((60, 145), "Patient Name: Test Patient 03", font=f_body, fill=(0, 0, 0))
     draw.text((600, 145), "Sex / Age: Male / 61 Yrs", font=f_body, fill=(0, 0, 0))
-    draw.text((60, 180), "Lab ID:       EXL-90412", font=f_body, fill=(0, 0, 0))
-    draw.text((600, 180), "Collected: 07/11/2026 08:30 AM", font=f_body, fill=(0, 0, 0))
+    draw.text((60, 180), "Lab ID:       APX-90412", font=f_body, fill=(0, 0, 0))
+    draw.text((600, 180), "Collected: 06/11/2026 08:30 AM", font=f_body, fill=(0, 0, 0))
 
     draw.line([(60, 220), (w - 60, 220)], fill=(220, 220, 220), width=1)
 
@@ -245,10 +248,10 @@ def create_sample_3() -> tuple[Image.Image, str, dict]:
         y += 62
 
     full_text = (
-        "EXCEL PATHOLOGY SERVICES\n"
+        "APEX PATHOLOGY SERVICES\n"
         "Comprehensive Metabolic & Endocrine Panel\n"
         "Patient Name: Test Patient 03    Sex / Age: Male / 61 Yrs\n"
-        "Lab ID: EXL-90412                Collected: 07/11/2026 08:30 AM\n"
+        "Lab ID: APX-90412                Collected: 06/11/2026 08:30 AM\n"
         "Test Name                Result   Units    Reference Limits\n"
         "Glycated Hb (A1c)        9.2      %        4.0 - 5.6 % (Non-diabetic)\n"
         "Fasting Plasma Glucose   185      mg/dL    74.0 - 106.0 mg/dL\n"
@@ -270,7 +273,7 @@ def create_sample_3() -> tuple[Image.Image, str, dict]:
     return img, "pk_lab_03.png", gt
 
 def create_sample_4() -> tuple[Image.Image, str, dict]:
-    """Sample 4: Phone photo style (simulated slight lighting gradient & perspective) of printed report (JPEG)."""
+    """Sample 4 (Layout 4): Simulated photo (lighting gradient & blur) of printed report (JPEG)."""
     w, h = 1100, 1400
     img = Image.new("RGB", (w, h), color=(248, 247, 244))
     draw = ImageDraw.Draw(img)
@@ -280,15 +283,15 @@ def create_sample_4() -> tuple[Image.Image, str, dict]:
     f_body = get_font(20)
     f_bold = get_font(22)
 
-    # Slight vignette / shadow effect at corners
-    draw.text((70, 60), "SHIFA CLINICAL LABORATORIES", font=f_title, fill=(40, 40, 60))
+    # Header
+    draw.text((70, 60), "NATIONAL CLINICAL LABORATORIES", font=f_title, fill=(40, 40, 60))
     draw.text((70, 98), "Patient Laboratory Investigation Report", font=f_sub, fill=(90, 90, 90))
     draw.line([(70, 130), (w - 70, 130)], fill=(80, 80, 120), width=2)
 
     draw.text((70, 150), "Name: Test Patient 04", font=f_body, fill=(10, 10, 10))
     draw.text((550, 150), "Age: 55 Y  Gender: Female", font=f_body, fill=(10, 10, 10))
-    draw.text((70, 185), "Date: 07-11-2026", font=f_body, fill=(10, 10, 10))
-    draw.text((550, 185), "Sample ID: SH-882104", font=f_body, fill=(10, 10, 10))
+    draw.text((70, 185), "Date: 06-11-2026", font=f_body, fill=(10, 10, 10))
+    draw.text((550, 185), "Sample ID: NC-882104", font=f_body, fill=(10, 10, 10))
 
     draw.line([(70, 225), (w - 70, 225)], fill=(210, 210, 210), width=1)
 
@@ -312,10 +315,10 @@ def create_sample_4() -> tuple[Image.Image, str, dict]:
     img = img.filter(ImageFilter.SMOOTH_MORE)
 
     full_text = (
-        "SHIFA CLINICAL LABORATORIES\n"
+        "NATIONAL CLINICAL LABORATORIES\n"
         "Patient Laboratory Investigation Report\n"
         "Name: Test Patient 04    Age: 55 Y  Gender: Female\n"
-        "Date: 07-11-2026         Sample ID: SH-882104\n"
+        "Date: 06-11-2026         Sample ID: NC-882104\n"
         "HbA1c                    7.1      %        Normal: 4.0 - 5.6 %\n"
         "FBS (Fasting Sugar)      132      mg/dL    Normal: 70 - 110 mg/dL\n"
         "Vitals BP                130/85   mmHg     Standard: 120/80 mmHg\n"
@@ -336,7 +339,7 @@ def create_sample_4() -> tuple[Image.Image, str, dict]:
     return img, "pk_lab_04.jpg", gt
 
 def create_sample_5() -> tuple[Image.Image, str, dict]:
-    """Sample 5: Phone photo style with Glycosylated Hemoglobin and RBS (JPEG)."""
+    """Sample 5 (Layout 5): Simulated photo with Glycosylated Hemoglobin and RBS (JPEG)."""
     w, h = 1150, 1450
     img = Image.new("RGB", (w, h), color=(252, 250, 246))
     draw = ImageDraw.Draw(img)
@@ -346,13 +349,13 @@ def create_sample_5() -> tuple[Image.Image, str, dict]:
     f_body = get_font(20)
     f_bold = get_font(22)
 
-    draw.text((60, 50), "PUNJAB DIAGNOSTIC LABORATORY", font=f_title, fill=(20, 60, 100))
-    draw.text((60, 92), "Affiliated Diagnostic Services — Rawalpindi", font=f_sub, fill=(100, 100, 100))
+    draw.text((60, 50), "REGIONAL DIAGNOSTIC LABORATORY", font=f_title, fill=(20, 60, 100))
+    draw.text((60, 92), "Diagnostic Pathology Services", font=f_sub, fill=(100, 100, 100))
     draw.line([(60, 125), (w - 60, 125)], fill=(20, 60, 100), width=2)
 
     draw.text((60, 145), "Patient:  Test Patient 05", font=f_body, fill=(0, 0, 0))
     draw.text((580, 145), "Age / Gender: 50 Yrs / Male", font=f_body, fill=(0, 0, 0))
-    draw.text((60, 180), "Date:     07-Nov-2026", font=f_body, fill=(0, 0, 0))
+    draw.text((60, 180), "Date:     06-Nov-2026", font=f_body, fill=(0, 0, 0))
     draw.text((580, 180), "Consultant:   General Physician", font=f_body, fill=(0, 0, 0))
 
     draw.line([(60, 220), (w - 60, 220)], fill=(215, 215, 215), width=1)
@@ -376,15 +379,28 @@ def create_sample_5() -> tuple[Image.Image, str, dict]:
     img = img.filter(ImageFilter.SMOOTH)
 
     full_text = (
-        "PUNJAB DIAGNOSTIC LABORATORY\n"
-        "Affiliated Diagnostic Services — Rawalpindi\n"
+        "REGIONAL DIAGNOSTIC LABORATORY\n"
+        "Diagnostic Pathology Services\n"
         "Patient: Test Patient 05    Age / Gender: 50 Yrs / Male\n"
-        "Date: 07-Nov-2026           Consultant: General Physician\n"
+        "Date: 06-Nov-2026           Consultant: General Physician\n"
         "Glycosylated Hemoglobin     8.8      %        Reference: < 6.0 %\n"
         "RBS (Random Blood Sugar)    215      mg/dL    Reference: 80 - 140 mg/dL\n"
         "BP                          160/100  mmHg     Reference: 120/80 mmHg\n"
         "Serum Bilirubin             0.7      mg/dL    Reference: 0.2 - 1.2 mg/dL"
     )
+
+    gt = {
+        "type": "lab",
+        "hba1c_pct": 8.8,
+        "glucose": {
+            "value": 215.0,
+            "unit": "mg/dL",
+            "context": "random",
+        },
+        "bp": [160, 100],
+        "full_text": full_text,
+    }
+    return img, "pk_lab_05.jpg", gt
 
     gt = {
         "type": "lab",

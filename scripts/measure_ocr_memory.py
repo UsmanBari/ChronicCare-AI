@@ -15,6 +15,8 @@ from __future__ import annotations
 import os
 import sys
 import time
+import shutil
+import tempfile
 import threading
 from pathlib import Path
 
@@ -28,11 +30,18 @@ if str(BACKEND_DIR) not in sys.path:
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+# Setup temporary SQLite database directory to protect backend-poc-technical/local_store.db
+TEMP_DIR = tempfile.mkdtemp(prefix="chroniccare_ocr_mem_")
+TEMP_DB_PATH = Path(TEMP_DIR) / "test_local_store.db"
+REAL_DB_PATH = BACKEND_DIR / "local_store.db"
+if REAL_DB_PATH.exists():
+    shutil.copy2(REAL_DB_PATH, TEMP_DB_PATH)
+
 # Configure environment for real RapidOCR execution
 os.environ["OCR_ENABLED"] = "true"
 os.environ["OCR_PROVIDER"] = "rapidocr"
 os.environ["DB_BACKEND"] = "sqlite"
-os.environ["LOCAL_DB_PATH"] = str(BACKEND_DIR / "local_store.db")
+os.environ["LOCAL_DB_PATH"] = str(TEMP_DB_PATH)
 os.environ["FIREBASE_PROJECT_ID"] = "test-chroniccare-ai"
 os.environ["DEMO_ROLE_MAP"] = "patient@demo.com:patient"
 
@@ -162,4 +171,7 @@ def main():
     print("--------------------------------------------------")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        shutil.rmtree(TEMP_DIR, ignore_errors=True)

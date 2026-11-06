@@ -1,0 +1,30 @@
+{
+  "held_out_01.png": {
+    "type": "lab",
+    "hba1c_pct": 7.1,
+    "glucose": {
+      "value": 126.0,
+      "unit": "mg/dL",
+      "context": "fasting"
+    },
+    "bp": [
+      134,
+      86
+    ],
+    "full_text": "METROPOLITAN CLINICAL LABORATORIES\nAutomated Clinical Chemistry & Diagnostic Services\nPatient Name: Test Patient 06    Age / Sex: 48 Y / Female\nReferred By: Dr. Test Clinician   Reporting Date: 06-Nov-2026\nRegistration No: MCL-98421-B    Specimen: Plasma / Serum\nTest Description                 Observed Value   Units    Reference Range\nGlycosylated Hemoglobin (HbA1c)  7.1              %        4.0 - 5.6 (Normal)\nFasting Plasma Glucose           126              mg/dL    70 - 99 mg/dL\nBlood Pressure (Sitting)         134/86           mmHg     < 120/80 mmHg\nTotal Serum Cholesterol          188              mg/dL    < 200 mg/dL\nSerum Creatinine                 0.9              mg/dL    0.5 - 1.1 mg/dL\nClinical Interpretation: HbA1c of 7.1% confirms diagnosis of diabetes with moderate control target."
+  },
+  "held_out_02.jpg": {
+    "type": "lab",
+    "hba1c_pct": 8.9,
+    "glucose": {
+      "value": 225.0,
+      "unit": "mg/dL",
+      "context": "random"
+    },
+    "bp": [
+      148,
+      92
+    ],
+    "full_text": "CITY DIAGNOSTIC CLINIC & PATHOLOGY CENTER\nCivil Hospital Road — Tel: 042-35800000\nPATIENT: Test Patient 07    AGE/SEX: 61 / M\nREF BY: Dr. Medical Officer  DATE: 06-Nov-2026\nLAB NO: 77319               SAMPLE: Blood / EDTA\nINVESTIGATION               RESULT   UNIT    NORMAL RANGE\nHbA1c (Glycated Hb)         8.9      %       4.5 - 6.0\nRandom Blood Sugar (RBS)    225      mg/dL   80 - 140\nBP (Non-invasive)           148/92   mmHg    120/80\nSerum Urea                  34       mg/dL   15 - 45\nSerum Uric Acid             5.8      mg/dL   3.5 - 7.2\nRemarks: Elevated HbA1c with postprandial/random hyperglycemia."
+  }
+}

@@ -175,13 +175,6 @@ def _ocr_subprocess_worker(result_queue, image_bytes: bytes, provider_name: Opti
     Executes in a separate process, puts extracted dictionary or error into result_queue, and exits.
     """
     import os
-    import time
-
-    # Injected test hooks for verifying worker lifecycle robustness
-    if os.environ.get("TEST_OCR_WORKER_CRASH") == "1":
-        os._exit(139)
-    if os.environ.get("TEST_OCR_WORKER_HANG") == "1":
-        time.sleep(10)
 
     # Ensure worker executes inference in-process without recursing subprocesses
     os.environ["OCR_USE_SUBPROCESS"] = "false"
@@ -207,6 +200,7 @@ def run_ocr_in_subprocess(
     by the operating system upon process termination (preventing ONNX runtime resident accumulation on Render free tier).
     """
     import multiprocessing as mp
+    import queue
     import os
 
     if timeout_seconds is None:
@@ -214,27 +208,47 @@ def run_ocr_in_subprocess(
 
     ctx = mp.get_context("spawn")
     q = ctx.Queue()
+    target_fn = globals().get("_ocr_subprocess_worker")
     p = ctx.Process(
-        target=_ocr_subprocess_worker,
+        target=target_fn,
         args=(q, image_bytes, provider_name or os.environ.get("OCR_PROVIDER")),
     )
     p.start()
-    p.join(timeout=timeout_seconds)
 
+    # Read queue result BEFORE joining the process.
+    # Python documentation warns that a child that has put a large item on a Queue cannot
+    # terminate until the item is consumed by the parent process, risking deadlocks if join() precedes get().
+    import time
+    t_end = time.time() + timeout_seconds
+    msg = None
+    while time.time() < t_end:
+        try:
+            msg = q.get(timeout=0.1)
+            break
+        except queue.Empty:
+            if not p.is_alive():
+                break
+
+    if msg is None:
+        p.join(timeout=1.0)
+        if p.exitcode is not None and p.exitcode != 0:
+            raise RuntimeError(f"OCR worker crashed with exitcode {p.exitcode}")
+        if p.is_alive():
+            p.terminate()
+            p.join(timeout=1.0)
+            if p.is_alive():
+                p.kill()
+            raise TimeoutError(f"OCR worker timed out after {timeout_seconds}s")
+        raise RuntimeError("OCR worker exited without returning result")
+
+    p.join(timeout=2.0)
     if p.is_alive():
         p.terminate()
         p.join(timeout=1.0)
-        if p.is_alive():
-            p.kill()
-        raise TimeoutError(f"OCR worker timed out after {timeout_seconds}s")
 
-    if p.exitcode != 0:
+    if p.exitcode is not None and p.exitcode != 0:
         raise RuntimeError(f"OCR worker crashed with exitcode {p.exitcode}")
 
-    if q.empty():
-        raise RuntimeError("OCR worker exited without returning result")
-
-    msg = q.get_nowait()
     if msg.get("status") == "unavailable":
         raise ModuleNotFoundError(f"OCR provider unavailable: {msg.get('error')}")
     if msg.get("status") == "error":

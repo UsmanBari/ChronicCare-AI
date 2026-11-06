@@ -356,3 +356,53 @@ def test_low_confidence_when_unit_missing_in_isolated_string():
     assert gluc_fields[0]["unit"] is None
     assert gluc_fields[0]["confidence"] == "Low"
     assert any("unit missing" in w for w in res["warnings"])
+
+
+def test_scoring_counts_at_most_one_tp_per_sample_per_field(tmp_path):
+    """Proves scoring logic counts at most 1 TP per sample per field; duplicate matches of expected value are counted as FP."""
+    import json
+    from ocr_spike.run_compare import evaluate_pk_labs_scoring
+
+    single_gt = {
+        "pk_lab_01.png": {
+            "hba1c_pct": 8.4,
+            "glucose": {"value": 148.0, "unit": "mg/dL", "context": "fasting"},
+            "bp": [138, 88],
+        }
+    }
+    gt_file = tmp_path / "ground_truth.json"
+    gt_file.write_text(json.dumps(single_gt), encoding="utf-8")
+
+    # Mock extractor returning duplicate matches for expected values
+    def mock_duplicate_extractor(text: str):
+        return {
+            "fields": [
+                {"kind": "hba1c", "value": 8.4, "unit": "%"},
+                {"kind": "hba1c", "value": 8.4, "unit": "%"},          # duplicate hba1c
+                {"kind": "glucose", "value": 148.0, "unit": "mg/dL"},
+                {"kind": "glucose", "value": 148.0, "unit": "mg/dL"},  # duplicate expected value
+                {"kind": "bp", "value": [138, 88], "unit": "mmHg"},
+                {"kind": "bp", "value": [138, 88], "unit": "mmHg"},    # duplicate expected BP
+            ],
+            "warnings": [],
+            "unmatched_lines": [],
+        }
+
+    res = evaluate_pk_labs_scoring(
+        extractor_fn=mock_duplicate_extractor,
+        gt_path=gt_file,
+    )
+    # GT is 1 for each field
+    assert res["hba1c"]["gt"] == 1
+    assert res["glucose"]["gt"] == 1
+    assert res["bp"]["gt"] == 1
+
+    # Exactly 1 TP per field (never inflated to 2)
+    assert res["hba1c"]["tp"] == 1
+    assert res["glucose"]["tp"] == 1
+    assert res["bp"]["tp"] == 1
+
+    # Duplicates counted as FP
+    assert res["hba1c"]["fp"] == 1
+    assert res["glucose"]["fp"] == 1
+    assert res["bp"]["fp"] == 1
