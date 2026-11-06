@@ -2,7 +2,7 @@
 
 **Benchmark Date:** 2026-11-06 19:11  
 **Evaluator:** Muhammad Saad (Backend & ML Validation Engineer)  
-**Branch:** `test/i3-load-test` (Base: `feat/i3-explain-eval` post-PR #111 & #114 merged)  
+**Branch:** `test/i3-load-test` (Base: `dev`)  
 **Target Architecture:** Render Free-Tier Web Service (512 MB Server RAM ceiling, Python 3.11)  
 **Execution Environment:** Isolated fresh server subprocess per configuration, SQLite backend, signed RS256 test tokens.  
 
@@ -25,8 +25,8 @@ This evaluation benchmarks ChronicCare AI's Release 2 background pipeline across
 **Key Findings:**
 1. **Background Explainer `/complete` Latency:** In background mode (`EXPLAIN_MODE=background`), patient `/complete` latency is decoupled from synchronous LLM execution. Comparing inline mode (5566 ms complete p95 at 100 clients) with background mode (5091 ms complete p95 at 100 clients), background mode demonstrates improved `/complete` response latency (5091 vs 5566 ms, -474 ms) by returning immediately while explanation jobs queue in the background.
 2. **Measured LangGraph Overhead:** Comparing `direct` and `graph` modes with flags off at 100 clients, complete p95 was **5345 ms** for `graph` vs **4495 ms** for `direct` (+850 ms difference), reflecting LangGraph state-graph transitions and node dispatch overhead under peak concurrent execution.
-3. **Worker Throughput & Queue Bounding:** ChronicCare AI background explanation throughput is strictly bound to the single daemon worker thread (~1/delay explanations per second: ~1.25 jobs/s for 0.8s fake delay, ~0.50 jobs/s for 2.0s fake delay). Under Release 2 defaults (`EXPLAIN_QUEUE_MAX=50`), bursts of 100 simultaneous check-ins are bounded at 50 enqueued jobs, with the excess 50 patients immediately falling back to deterministic clinical templates (`reason="queue_full"`), preventing queue runaway and bounding server memory.
-4. **Soak Memory Stability:** In the 30-minute soak test (10 concurrent patients, background mode), gross memory growth was **+35.6 MB**, which is **a leak suspect by the 20 MB rule**. Detailed minute-by-minute inspection confirms an initial ramp during early connection pool and worker priming (103.1 MB -> 127.1 MB), followed by a **plateau after minute 3 (127.1 -> 138.7 MB, minutes 3–30)** across 5,181 completed check-ins. Transient SQLite table-lock contention resulted in 39 HTTP 500 errors (0.075% error rate across ~51,800 requests). Under Release 2 defaults, queue length is strictly bounded at 50 capacity.
+3. **Worker Throughput & Queue Bounding:** ChronicCare AI background explanation throughput is strictly bound to the single daemon worker thread (~1/delay explanations per second: ~1.25 jobs/s for 0.8s fake delay, ~0.50 jobs/s for 2.0s fake delay). Under Release 2 defaults (`EXPLAIN_QUEUE_MAX=50`), bursts of 100 simultaneous check-ins are bounded by queue capacity while the worker actively drains: measured medians showed 58 LLM and 41 `queue_full` templates at 0.8s delay (medians of 3 runs), preventing queue runaway and bounding server memory.
+4. **Soak Memory Stability & Settings:** The soak test ran with `EXPLAIN_QUEUE_MAX=500` (final queue 499), not the Release 2 default of 50. In this 30-minute soak test (10 concurrent patients, background mode), gross memory growth was **+35.6 MB**, which is **a leak suspect by the 20 MB rule**. Detailed minute-by-minute inspection confirms an initial ramp during early connection pool and worker priming (103.1 MB -> 127.1 MB), followed by a **plateau after minute 3 (127.1 -> 138.7 MB, minutes 3–30)** across 5,181 completed check-ins. 499 jobs were still waiting at the end, so those patients would get the template after the stale time, and part of the memory growth is that waiting queue. Transient SQLite table-lock contention resulted in 39 HTTP 500 errors (0.075% error rate across ~51,800 requests). Under Release 2 defaults, queue length is strictly bounded at 50 capacity.
 5. **Render 512 MB Headroom Verified:** The highest server peak RSS observed across all tests was **188.5 MB**. Combining this with RapidOCR's measured increase of **108.99 MB** (from `docs/OCR_DESIGN.md` line 64) yields an estimated combined peak of **297.5 MB**, leaving **214.5 MB (41.9%)** estimated headroom on Render's 512 MB ceiling.
 
 ---
@@ -61,12 +61,10 @@ Each patient completes: `session -> consent -> profile (hypertension) -> start -
 ### Observations & Latency Factors
 - **Honest Throughput & Capacity Ceiling:** The ChronicCare AI background explainer daemon executes on a single dedicated worker thread (`ExplanationJobQueue._worker_thread`), which pulls and processes one job sequentially at a time. Throughput is strictly capped by LLM generation time: approximately $\approx \frac{1}{\text{delay}}$ explanations per second (~1.25 jobs/s for 0.8s fake delay; ~0.50 jobs/s for 2.0s fake delay). Measured jobs/second matches this capacity across all concurrencies.
 - **Burst Behavior under Release 2 Defaults (Queue 50, Deadline 45 s):**
-  - Under 100 concurrent clients, 100 check-ins arrive nearly simultaneously. The first 50 jobs are enqueued into the bounded FIFO queue (`EXPLAIN_QUEUE_MAX=50`). The remaining 50 clients hit `queue.Full` upon calling `enqueue_job()` and immediately drop to pre-computed clinical templates with `reason="queue_full"`.
-  - For the 50 enqueued jobs at 0.8s fake delay: $50 \times 0.8\text{ s} = 40.0\text{ s} \le 45.0\text{ s}$ deadline, so all 50 queued jobs finish via LLM within the deadline (yielding 50 LLM and 50 template `queue_full` per repeat).
-  - For the 50 enqueued jobs at 2.0s fake delay: sequentially processing all 50 jobs would require $100.0\text{ s}$. Jobs waiting in the queue beyond the 45.0 s deadline and 60.0 s stale threshold automatically transition to template fallbacks with `reason="job_lost"` or `reason="budget_timeout"` upon polling.
+  - Under 100 concurrent clients, check-ins arrive concurrently across threads while the background worker actively drains jobs. Measured results are medians of 3 runs (so row components may not add up to exactly 100).
+  - At 0.8s fake delay: the table measures **58 LLM and 41 template (`queue_full`)** (summing to 99 across medians). As the 50-capacity queue (`EXPLAIN_QUEUE_MAX=50`) fills, the worker immediately starts draining jobs, admitting 8 additional jobs during the burst before subsequent requests encounter `queue.Full` and immediately drop to clinical fallback templates with `reason="queue_full"`.
+  - At 2.0s fake delay: with slower worker draining (~0.50 jobs/s), the table measures **32 LLM and 68 template** (60 `queue_full`, 7 `job_lost`). Jobs waiting in the queue beyond the 45.0 s deadline / stale threshold automatically transition to template fallbacks with `reason="job_lost"`.
 - **Background `/complete` vs Inline at 100 Clients (5091 vs 5566 ms):** Background `/complete` is faster than inline at 100 clients (5091 vs 5566 ms, -474 ms) as `/complete` returns immediately upon triage without awaiting LLM generation.
-- **Why Background `/complete` at 100 Clients is Slower than Flags-Off (5091 vs 5345 ms):** With flags enabled, `/complete` additionally executes `step_risk` (computing ML risk features and serializing predictions into SQLite `checkin_results`). Simultaneously, enqueued background jobs are picked up immediately by the background explainer worker thread, which performs concurrent database updates on `checkin_results.explanation_json`. Under 100 concurrent clients, SQLite's single-writer lock causes write serialization contention, moderately increasing `/complete` p95 compared to flags-off.
-- **10 vs 50 Clients Contention:** In local multi-threaded testing on SQLite, lock contention and thread context-switch scheduling occasionally result in tight lockstep serialization at 10 clients, whereas 50 clients interleave read/write transactions more smoothly across the thread pool.
 
 ### Table 2b: Raised-Capacity Stress Reference (Queue 500, Deadline 300 s, Cache Disabled)
 
@@ -138,7 +136,7 @@ First request (cold start if the server was asleep): 0.22 s, ok=True
 
 ## 5. 30-Minute Memory Soak Test (A3 - Background Mode)
 
-The backend was subjected to a continuous soak test running at **10 concurrent patients** in `graph` mode with `flags on` in **Release 2 background mode** (`EXPLAIN_MODE=background`) for **30 minutes**.
+The backend was subjected to a continuous soak test running at **10 concurrent patients** in `graph` mode with `flags on` in **Release 2 background mode** (`EXPLAIN_MODE=background`) for **30 minutes**. Note that the soak ran with `EXPLAIN_QUEUE_MAX=500` (final queue 499), not the Release 2 default of 50.
 
 - **Total Check-ins Completed:** 5,181
 - **Total Failures:** 39
@@ -147,7 +145,7 @@ The backend was subjected to a continuous soak test running at **10 concurrent p
 - **End RSS:** 138.7 MB
 - **Gross Memory Growth:** **+35.6 MB** (Leak suspect by the 20 MB rule)
 - **Steady-State Plateau:** Minute 3 (127.1 MB) to Minute 30 (138.7 MB) drifted by **+11.6 MB**
-- **Final Explain Queue Length:** **499** jobs pending (in raised-limit test; strictly bounded at <= 50 with Release 2 defaults)
+- **Final Explain Queue Length:** **499** jobs pending (soak ran with `EXPLAIN_QUEUE_MAX=500`, not the Release 2 default of 50; 499 jobs were still waiting at the end, so those patients would get the template after the stale time, and part of the memory growth is that waiting queue; strictly bounded at <= 50 with Release 2 defaults)
 
 ### Soak Failure Exceptions & Cause Grouping
 Across 30 minutes of continuous load, 10 concurrent threads completed 5,181 full patient workflows representing over **51,800 total HTTP requests**. During this run, **39 requests failed** with HTTP 500 (0.075% error rate):
@@ -162,7 +160,7 @@ Across 30 minutes of continuous load, 10 concurrent threads completed 5,181 full
 > All 39 failures (31 on `/complete`, 8 on `/start`) stem from a single cause: **SQLite file/table write-lock contention under multi-threaded concurrency**. Under SQLite's single-writer architecture, concurrent write transactions must serialize via exclusive database locks; when 10 client threads continuously execute simultaneous writes across 51,800+ HTTP requests, transient lock contention occasionally exceeds the driver's busy timeout. In contrast, ChronicCare AI's **production deployment uses managed MySQL (Cloud SQL / RDS with PyMySQL)**, which utilizes InnoDB multi-version concurrency control (MVCC) and fine-grained row-level locking rather than SQLite's monolithic database write-lock. MySQL concurrency was not measured here (as the evaluation was conducted locally on SQLite). Zero application logic or clinical pipeline exceptions were observed.
 
 ### Queue Length & Bounding Analysis
-- In the raised-capacity stress soak (`EXPLAIN_QUEUE_MAX=500`), arrival rate (~3.3 check-ins/s across 10 threads) exceeded the single worker consumption rate (~1.25 jobs/s), causing the queue to accumulate 499 pending jobs.
+- The soak test ran with `EXPLAIN_QUEUE_MAX=500` (final queue 499), not the Release 2 default of 50. In this raised-capacity stress soak, arrival rate (~3.3 check-ins/s across 10 threads) exceeded the single worker consumption rate (~1.25 jobs/s), causing the queue to accumulate 499 pending jobs. 499 jobs were still waiting at the end, so those patients would get the template after the stale time, and part of the memory growth is that waiting queue.
 - Under **Release 2 Default Settings (`EXPLAIN_QUEUE_MAX=50`)**, the queue capacity is strictly bounded at **50 jobs max**. Any job arriving when the queue contains 50 jobs is immediately rejected by `queue.Full` and assigned the deterministic clinical fallback template with `reason="queue_full"`. Consequently, under default settings the final queue length is strictly capped at **<= 50**, preventing unbounded queue growth and memory consumption.
 
 ### Minute-by-Minute Memory Log
