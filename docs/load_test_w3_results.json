@@ -1349,214 +1349,223 @@
     "orchestrator": "graph",
     "flags_on": true,
     "explain_mode": "background",
-    "total_checkins": 5181,
-    "total_errors": 39,
-    "start_rss_mb": 103.1,
-    "end_rss_mb": 138.7,
-    "peak_rss_mb": 146.6,
-    "gross_growth_mb": 35.6,
-    "min3_rss_mb": 127.1,
-    "steady_state_drift_mb": 11.6,
-    "final_queue_size": 499,
+    "total_checkins": 6708,
+    "total_errors": 0,
+    "start_rss_mb": 102.3,
+    "end_rss_mb": 140.3,
+    "peak_rss_mb": 147.5,
+    "gross_growth_mb": 38.0,
+    "min3_rss_mb": 131.1,
+    "steady_state_drift_mb": 9.2,
+    "final_queue_size": 498,
     "audit": {
       "counts": {
-        "llm": 2139,
+        "llm": 2049,
         "cache": 0,
-        "template": 2504,
-        "pending": 499,
+        "template": 4161,
+        "pending": 498,
         "null": 0
       },
       "reasons": {
-        "queue_full": 2504
+        "queue_full": 4161,
+        "budget_timeout": 0,
+        "job_lost": 0,
+        "other": 0
       }
     },
     "timeline": [
       {
         "minute": 0,
         "elapsed_sec": 0,
-        "rss_mb": 103.1,
+        "rss_mb": 102.3,
         "checkins_done": 0
       },
       {
         "minute": 1,
         "elapsed_sec": 60.0,
-        "rss_mb": 126.6,
-        "checkins_done": 221
+        "rss_mb": 128.1,
+        "checkins_done": 239
       },
       {
         "minute": 2,
         "elapsed_sec": 120.0,
-        "rss_mb": 122.9,
-        "checkins_done": 433
+        "rss_mb": 120.6,
+        "checkins_done": 479
       },
       {
         "minute": 3,
         "elapsed_sec": 180.0,
-        "rss_mb": 127.1,
-        "checkins_done": 663
+        "rss_mb": 131.1,
+        "checkins_done": 708
       },
       {
         "minute": 4,
         "elapsed_sec": 240.0,
-        "rss_mb": 134.2,
-        "checkins_done": 887
+        "rss_mb": 133.4,
+        "checkins_done": 941
       },
       {
         "minute": 5,
         "elapsed_sec": 300.0,
-        "rss_mb": 139.3,
-        "checkins_done": 1092
+        "rss_mb": 129.0,
+        "checkins_done": 1184
       },
       {
         "minute": 6,
         "elapsed_sec": 360.0,
-        "rss_mb": 139.8,
-        "checkins_done": 1303
+        "rss_mb": 131.2,
+        "checkins_done": 1411
       },
       {
         "minute": 7,
         "elapsed_sec": 420.0,
-        "rss_mb": 132.2,
-        "checkins_done": 1533
+        "rss_mb": 136.2,
+        "checkins_done": 1618
       },
       {
         "minute": 8,
         "elapsed_sec": 480.0,
-        "rss_mb": 130.7,
-        "checkins_done": 1697
+        "rss_mb": 136.5,
+        "checkins_done": 1838
       },
       {
         "minute": 9,
         "elapsed_sec": 540.0,
-        "rss_mb": 136.5,
-        "checkins_done": 1938
+        "rss_mb": 134.4,
+        "checkins_done": 2058
       },
       {
         "minute": 10,
         "elapsed_sec": 600.0,
-        "rss_mb": 140.0,
-        "checkins_done": 2215
+        "rss_mb": 138.4,
+        "checkins_done": 2285
       },
       {
         "minute": 11,
         "elapsed_sec": 660.0,
-        "rss_mb": 140.9,
-        "checkins_done": 2401
+        "rss_mb": 142.9,
+        "checkins_done": 2512
       },
       {
         "minute": 12,
         "elapsed_sec": 720.0,
-        "rss_mb": 142.1,
-        "checkins_done": 2558
+        "rss_mb": 145.0,
+        "checkins_done": 2743
       },
       {
         "minute": 13,
         "elapsed_sec": 780.0,
-        "rss_mb": 142.5,
-        "checkins_done": 2816
+        "rss_mb": 145.6,
+        "checkins_done": 2972
       },
       {
         "minute": 14,
         "elapsed_sec": 840.0,
-        "rss_mb": 134.1,
-        "checkins_done": 2951
+        "rss_mb": 131.5,
+        "checkins_done": 3196
       },
       {
         "minute": 15,
         "elapsed_sec": 900.0,
-        "rss_mb": 140.2,
-        "checkins_done": 3081
+        "rss_mb": 133.2,
+        "checkins_done": 3413
       },
       {
         "minute": 16,
         "elapsed_sec": 960.0,
-        "rss_mb": 131.8,
-        "checkins_done": 3211
+        "rss_mb": 134.0,
+        "checkins_done": 3628
       },
       {
         "minute": 17,
         "elapsed_sec": 1020.0,
-        "rss_mb": 139.9,
-        "checkins_done": 3341
+        "rss_mb": 136.6,
+        "checkins_done": 3846
       },
       {
         "minute": 18,
         "elapsed_sec": 1080.0,
-        "rss_mb": 133.4,
-        "checkins_done": 3481
+        "rss_mb": 141.5,
+        "checkins_done": 4060
       },
       {
         "minute": 19,
         "elapsed_sec": 1140.0,
-        "rss_mb": 140.4,
-        "checkins_done": 3612
+        "rss_mb": 142.5,
+        "checkins_done": 4282
       },
       {
         "minute": 20,
         "elapsed_sec": 1200.0,
-        "rss_mb": 133.7,
-        "checkins_done": 3743
+        "rss_mb": 144.6,
+        "checkins_done": 4516
       },
       {
         "minute": 21,
         "elapsed_sec": 1260.0,
-        "rss_mb": 141.7,
-        "checkins_done": 3878
+        "rss_mb": 147.5,
+        "checkins_done": 4746
       },
       {
         "minute": 22,
         "elapsed_sec": 1320.0,
-        "rss_mb": 138.3,
-        "checkins_done": 4078
+        "rss_mb": 137.1,
+        "checkins_done": 4970
       },
       {
         "minute": 23,
         "elapsed_sec": 1380.0,
-        "rss_mb": 145.5,
-        "checkins_done": 4222
+        "rss_mb": 142.8,
+        "checkins_done": 5201
       },
       {
         "minute": 24,
         "elapsed_sec": 1440.0,
-        "rss_mb": 139.4,
-        "checkins_done": 4370
+        "rss_mb": 141.9,
+        "checkins_done": 5423
       },
       {
         "minute": 25,
         "elapsed_sec": 1500.0,
-        "rss_mb": 145.8,
-        "checkins_done": 4503
+        "rss_mb": 140.4,
+        "checkins_done": 5612
       },
       {
         "minute": 26,
         "elapsed_sec": 1560.0,
-        "rss_mb": 137.6,
-        "checkins_done": 4640
+        "rss_mb": 146.2,
+        "checkins_done": 5833
       },
       {
         "minute": 27,
         "elapsed_sec": 1620.0,
-        "rss_mb": 145.8,
-        "checkins_done": 4773
+        "rss_mb": 147.1,
+        "checkins_done": 6052
       },
       {
         "minute": 28,
         "elapsed_sec": 1680.0,
-        "rss_mb": 138.8,
-        "checkins_done": 4899
+        "rss_mb": 147.1,
+        "checkins_done": 6265
       },
       {
         "minute": 29,
         "elapsed_sec": 1740.0,
-        "rss_mb": 146.6,
-        "checkins_done": 5051
+        "rss_mb": 129.2,
+        "checkins_done": 6487
       },
       {
         "minute": 30,
         "elapsed_sec": 1800.0,
-        "rss_mb": 138.2,
-        "checkins_done": 5171
+        "rss_mb": 139.8,
+        "checkins_done": 6698
       }
-    ]
+    ],
+    "failure_analysis": {
+      "total_failures": 0,
+      "endpoints": [],
+      "exceptions": [],
+      "stderr_log_path": "C:\\Users\\Saad\\AppData\\Local\\Temp\\chroniccare_server_50106_22588_1793981154996.log"
+    }
   }
 }

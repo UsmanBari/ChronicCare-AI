@@ -1,6 +1,6 @@
 # Week 3 Pipeline Load & Memory Benchmark Report
 
-**Benchmark Date:** 2026-11-06 19:11  
+**Benchmark Date:** 2026-11-06 21:36  
 **Evaluator:** Muhammad Saad (Backend & ML Validation Engineer)  
 **Branch:** `test/i3-load-test` (Base: `dev`)  
 **Target Architecture:** Render Free-Tier Web Service (512 MB Server RAM ceiling, Python 3.11)  
@@ -26,8 +26,8 @@ This evaluation benchmarks ChronicCare AI's Release 2 background pipeline across
 1. **Background Explainer `/complete` Latency:** In background mode (`EXPLAIN_MODE=background`), patient `/complete` latency is decoupled from synchronous LLM execution. Comparing inline mode (5566 ms complete p95 at 100 clients) with background mode (5091 ms complete p95 at 100 clients), background mode demonstrates improved `/complete` response latency (5091 vs 5566 ms, -474 ms) by returning immediately while explanation jobs queue in the background.
 2. **Measured LangGraph Overhead:** Comparing `direct` and `graph` modes with flags off at 100 clients, complete p95 was **5345 ms** for `graph` vs **4495 ms** for `direct` (+850 ms difference), reflecting LangGraph state-graph transitions and node dispatch overhead under peak concurrent execution.
 3. **Worker Throughput & Queue Bounding:** ChronicCare AI background explanation throughput is strictly bound to the single daemon worker thread (~1/delay explanations per second: ~1.25 jobs/s for 0.8s fake delay, ~0.50 jobs/s for 2.0s fake delay). Under Release 2 defaults (`EXPLAIN_QUEUE_MAX=50`), bursts of 100 simultaneous check-ins are bounded by queue capacity while the worker actively drains: measured medians showed 58 LLM and 41 `queue_full` templates at 0.8s delay (medians of 3 runs), preventing queue runaway and bounding server memory.
-4. **Soak Memory Stability & Settings:** The soak test ran with `EXPLAIN_QUEUE_MAX=500` (final queue 499), not the Release 2 default of 50. In this 30-minute soak test (10 concurrent patients, background mode), gross memory growth was **+35.6 MB**, which is **a leak suspect by the 20 MB rule**. Detailed minute-by-minute inspection confirms an initial ramp during early connection pool and worker priming (103.1 MB -> 127.1 MB), followed by a **plateau after minute 3 (127.1 -> 138.7 MB, minutes 3–30)** across 5,181 completed check-ins. 499 jobs were still waiting at the end, so those patients would get the template after the stale time, and part of the memory growth is that waiting queue. Transient SQLite table-lock contention resulted in 39 HTTP 500 errors (0.075% error rate across ~51,800 requests). Under Release 2 defaults, queue length is strictly bounded at 50 capacity.
-5. **Render 512 MB Headroom Verified:** The highest server peak RSS observed across all tests was **188.5 MB**. Combining this with RapidOCR's measured increase of **108.99 MB** (from `docs/OCR_DESIGN.md` line 64) yields an estimated combined peak of **297.5 MB**, leaving **214.5 MB (41.9%)** estimated headroom on Render's 512 MB ceiling.
+4. **Soak Memory Stability & Settings:** The soak test ran with `EXPLAIN_QUEUE_MAX=500` (final queue 498), not the Release 2 default of 50. In this 30-minute soak test (10 concurrent patients, background mode), gross memory growth was **+38.0 MB**, which is **a leak suspect by the 20 MB rule**. Detailed minute-by-minute inspection confirms an initial ramp during early connection pool and worker priming (102.3 MB -> 131.1 MB), followed by a **plateau after minute 3 (131.1 -> 140.3 MB, minutes 3–30)** across 6,708 completed check-ins. 498 jobs were still waiting at the end, so those patients would get the template after the stale time, and part of the memory growth is that waiting queue. Zero HTTP 500 errors occurred across ~67,080 requests (0.000% error rate). Under Release 2 defaults, queue length is strictly bounded at 50 capacity.
+5. Highest server peak RSS in these tests: 188.5 MB (OCR off). OCR stays off for Release 2 because RapidOCR alone goes over 512 MB on Linux (436 MB after the first upload, 573-608 MB peak in-process; see docs/OCR_DESIGN.md 6.3 after PR #122).
 
 ---
 
@@ -136,67 +136,58 @@ First request (cold start if the server was asleep): 0.22 s, ok=True
 
 ## 5. 30-Minute Memory Soak Test (A3 - Background Mode)
 
-The backend was subjected to a continuous soak test running at **10 concurrent patients** in `graph` mode with `flags on` in **Release 2 background mode** (`EXPLAIN_MODE=background`) for **30 minutes**. Note that the soak ran with `EXPLAIN_QUEUE_MAX=500` (final queue 499), not the Release 2 default of 50.
+The backend was subjected to a continuous soak test running at **10 concurrent patients** in `graph` mode with `flags on` in **Release 2 background mode** (`EXPLAIN_MODE=background`) for **30 minutes**. Note that the soak ran with `EXPLAIN_QUEUE_MAX=500` (final queue 498), not the Release 2 default of 50.
 
-- **Total Check-ins Completed:** 5,181
-- **Total Failures:** 39
-- **Start RSS:** 103.1 MB
-- **Peak RSS:** 146.6 MB
-- **End RSS:** 138.7 MB
-- **Gross Memory Growth:** **+35.6 MB** (Leak suspect by the 20 MB rule)
-- **Steady-State Plateau:** Minute 3 (127.1 MB) to Minute 30 (138.7 MB) drifted by **+11.6 MB**
-- **Final Explain Queue Length:** **499** jobs pending (soak ran with `EXPLAIN_QUEUE_MAX=500`, not the Release 2 default of 50; 499 jobs were still waiting at the end, so those patients would get the template after the stale time, and part of the memory growth is that waiting queue; strictly bounded at <= 50 with Release 2 defaults)
+- **Total Check-ins Completed:** 6,708
+- **Total Failures:** 0
+- **Start RSS:** 102.3 MB
+- **Peak RSS:** 147.5 MB
+- **End RSS:** 140.3 MB
+- **Gross Memory Growth:** **+38.0 MB** (Leak suspect by the 20 MB rule)
+- **Steady-State Plateau:** Minute 3 (131.1 MB) to Minute 30 (140.3 MB) drifted by **+9.2 MB**
+- **Final Explain Queue Length:** **498** jobs pending (soak ran with `EXPLAIN_QUEUE_MAX=500`, not the Release 2 default of 50; 498 jobs were still waiting at the end, so those patients would get the template after the stale time, and part of the memory growth is that waiting queue; strictly bounded at <= 50 with Release 2 defaults)
 
 ### Soak Failure Exceptions & Cause Grouping
-Across 30 minutes of continuous load, 10 concurrent threads completed 5,181 full patient workflows representing over **51,800 total HTTP requests**. During this run, **39 requests failed** with HTTP 500 (0.075% error rate):
-
-| Endpoint | HTTP Status | Count | Exception Type | Server Log Location (`file:line`) | Cause Group | Production Implication |
-| :--- | :---: | :---: | :--- | :--- | :--- | :--- |
-| `POST /api/checkins/{id}/complete` | 500 | 31 | `sqlite3.OperationalError: database is locked` | `data_sources/local_store.py:575` (`add_local_observation`), `data_sources/app_store.py:1877` (`create_checkin_result`) | SQLite write-lock contention under concurrent multi-table transactions | Production uses MySQL with InnoDB row-level locking (not measured there) |
-| `POST /api/checkins/start` | 500 | 8 | `sqlite3.OperationalError: database is locked` | `data_sources/local_store.py:444` (`add_local_patient_if_missing`), `data_sources/app_store.py:1678` (`create_checkin`) | SQLite write-lock contention during patient/session initialization | Production uses MySQL with InnoDB row-level locking (not measured there) |
-
-> [!NOTE]
-> **Database Concurrency & Production Architecture:**
-> All 39 failures (31 on `/complete`, 8 on `/start`) stem from a single cause: **SQLite file/table write-lock contention under multi-threaded concurrency**. Under SQLite's single-writer architecture, concurrent write transactions must serialize via exclusive database locks; when 10 client threads continuously execute simultaneous writes across 51,800+ HTTP requests, transient lock contention occasionally exceeds the driver's busy timeout. In contrast, ChronicCare AI's **production deployment uses managed MySQL (Cloud SQL / RDS with PyMySQL)**, which utilizes InnoDB multi-version concurrency control (MVCC) and fine-grained row-level locking rather than SQLite's monolithic database write-lock. MySQL concurrency was not measured here (as the evaluation was conducted locally on SQLite). Zero application logic or clinical pipeline exceptions were observed.
+Across 30 minutes of continuous load, 10 concurrent threads completed 6,708 full patient workflows representing over ~67,080 total HTTP requests. During this run, **0 requests failed** (0.000% error rate). Zero HTTP 500 errors or application exceptions occurred.
 
 ### Queue Length & Bounding Analysis
-- The soak test ran with `EXPLAIN_QUEUE_MAX=500` (final queue 499), not the Release 2 default of 50. In this raised-capacity stress soak, arrival rate (~3.3 check-ins/s across 10 threads) exceeded the single worker consumption rate (~1.25 jobs/s), causing the queue to accumulate 499 pending jobs. 499 jobs were still waiting at the end, so those patients would get the template after the stale time, and part of the memory growth is that waiting queue.
+- The soak test ran with `EXPLAIN_QUEUE_MAX=500` (final queue 498), not the Release 2 default of 50. In this raised-capacity stress soak, arrival rate (~3.3 check-ins/s across 10 threads) exceeded the single worker consumption rate (~1.25 jobs/s), causing the queue to accumulate 498 pending jobs. 498 jobs were still waiting at the end, so those patients would get the template after the stale time, and part of the memory growth is that waiting queue.
 - Under **Release 2 Default Settings (`EXPLAIN_QUEUE_MAX=50`)**, the queue capacity is strictly bounded at **50 jobs max**. Any job arriving when the queue contains 50 jobs is immediately rejected by `queue.Full` and assigned the deterministic clinical fallback template with `reason="queue_full"`. Consequently, under default settings the final queue length is strictly capped at **<= 50**, preventing unbounded queue growth and memory consumption.
 
 ### Minute-by-Minute Memory Log
 | Minute | Elapsed (s) | Server RSS (MB) | Total Check-ins Done |
 | :---: | :---: | :---: | :---: |
-| 00 | 0 | 103.1 | 0 |
-| 01 | 60 | 126.6 | 221 |
-| 02 | 120 | 122.9 | 433 |
-| 03 | 180 | 127.1 | 663 |
-| 04 | 240 | 134.2 | 887 |
-| 05 | 300 | 139.3 | 1092 |
-| 06 | 360 | 139.8 | 1303 |
-| 07 | 420 | 132.2 | 1533 |
-| 08 | 480 | 130.7 | 1697 |
-| 09 | 540 | 136.5 | 1938 |
-| 10 | 600 | 140.0 | 2215 |
-| 11 | 660 | 140.9 | 2401 |
-| 12 | 720 | 142.1 | 2558 |
-| 13 | 780 | 142.5 | 2816 |
-| 14 | 840 | 134.1 | 2951 |
-| 15 | 900 | 140.2 | 3081 |
-| 16 | 960 | 131.8 | 3211 |
-| 17 | 1020 | 139.9 | 3341 |
-| 18 | 1080 | 133.4 | 3481 |
-| 19 | 1140 | 140.4 | 3612 |
-| 20 | 1200 | 133.7 | 3743 |
-| 21 | 1260 | 141.7 | 3878 |
-| 22 | 1320 | 138.3 | 4078 |
-| 23 | 1380 | 145.5 | 4222 |
-| 24 | 1440 | 139.4 | 4370 |
-| 25 | 1500 | 145.8 | 4503 |
-| 26 | 1560 | 137.6 | 4640 |
-| 27 | 1620 | 145.8 | 4773 |
-| 28 | 1680 | 138.8 | 4899 |
-| 29 | 1740 | 146.6 | 5051 |
-| 30 | 1800 | 138.2 | 5171 |
+| 00 | 0 | 102.3 | 0 |
+| 01 | 60 | 128.1 | 239 |
+| 02 | 120 | 120.6 | 479 |
+| 03 | 180 | 131.1 | 708 |
+| 04 | 240 | 133.4 | 941 |
+| 05 | 300 | 129.0 | 1184 |
+| 06 | 360 | 131.2 | 1411 |
+| 07 | 420 | 136.2 | 1618 |
+| 08 | 480 | 136.5 | 1838 |
+| 09 | 540 | 134.4 | 2058 |
+| 10 | 600 | 138.4 | 2285 |
+| 11 | 660 | 142.9 | 2512 |
+| 12 | 720 | 145.0 | 2743 |
+| 13 | 780 | 145.6 | 2972 |
+| 14 | 840 | 131.5 | 3196 |
+| 15 | 900 | 133.2 | 3413 |
+| 16 | 960 | 134.0 | 3628 |
+| 17 | 1020 | 136.6 | 3846 |
+| 18 | 1080 | 141.5 | 4060 |
+| 19 | 1140 | 142.5 | 4282 |
+| 20 | 1200 | 144.6 | 4516 |
+| 21 | 1260 | 147.5 | 4746 |
+| 22 | 1320 | 137.1 | 4970 |
+| 23 | 1380 | 142.8 | 5201 |
+| 24 | 1440 | 141.9 | 5423 |
+| 25 | 1500 | 140.4 | 5612 |
+| 26 | 1560 | 146.2 | 5833 |
+| 27 | 1620 | 147.1 | 6052 |
+| 28 | 1680 | 147.1 | 6265 |
+| 29 | 1740 | 129.2 | 6487 |
+| 30 | 1800 | 139.8 | 6698 |
 
 ---
 
@@ -204,22 +195,13 @@ Across 30 minutes of continuous load, 10 concurrent threads completed 5,181 full
 
 Render's free tier provides a hard ceiling of **512 MB RAM**. Exceeding this boundary triggers Linux kernel OOM termination (exit code 137).
 
-| Component / Workload | Memory Footprint (RSS) | Source / Methodology | Headroom Remaining on 512 MB |
-| :--- | :---: | :--- | :---: |
-| **FastAPI Baseline (Direct, flags off)** | ~65–70 MB | Measured locally via `psutil` | 442 MB (86.3%) |
-| **Compiled LangGraph Baseline (Graph mode)** | ~85–90 MB | Measured locally via `psutil` (importing `langgraph`) | 422 MB (82.4%) |
-| **Heavy Check-in Load Peak (100 Clients, Graph + Explain)** | **188.5 MB** | Peak RSS during 100 simultaneous check-ins | 323.5 MB (63.2%) |
-| **RapidOCR Peak Inference Increase** | **108.99 MB** | Measured in `docs/OCR_DESIGN.md` line 64 (increase over base process) | 403 MB (78.7%) |
-| **Combined Peak (Estimated: Worst Server Load + Active OCR Call)** | **297.5 MB** | Estimated cumulative concurrent execution | **214.5 MB (41.9%)** |
-
-> [!NOTE]
-> RapidOCR's 108.99 MB footprint is the measured increase over the base server process (from `docs/OCR_DESIGN.md` line 64), making the combined peak of **297.5 MB an estimate**. Even with this combined load, the system utilizes only **58.1%** of Render's 512 MB allocation, leaving **214.5 MB** of safety buffer.
+Highest server peak RSS in these tests: 188.5 MB (OCR off). OCR stays off for Release 2 because RapidOCR alone goes over 512 MB on Linux (436 MB after the first upload, 573-608 MB peak in-process; see docs/OCR_DESIGN.md 6.3 after PR #122).
 
 ---
 
 ## 7. Technical Conclusions & Release 2 Readiness
 
 1. **Background Explainer Feasibility for Release 2:** Decoupling explanation generation via `EXPLAIN_MODE=background` isolates `/complete` latency from LLM generation time. If Day 7 verification checks pass, background explanation mode is technically viable for Release 2.
-2. **Memory Growth & Leak Status:** Gross memory growth of +35.6 MB is a leak suspect under the static 20 MB rule; however, minute-by-minute tracking confirms a stable plateau after minute 3 (127.1 MB -> 138.7 MB) across thousands of continuous check-ins.
-3. **Headroom Feasibility:** The combined server and OCR footprint (~297.5 MB) remains well within the 512 MB Render ceiling.
+2. **Memory Growth & Leak Status:** Gross memory growth of +38.0 MB is a leak suspect under the static 20 MB rule; however, minute-by-minute tracking confirms a stable plateau after minute 3 (131.1 MB -> 140.3 MB) across thousands of continuous check-ins.
+3. Highest server peak RSS in these tests: 188.5 MB (OCR off). OCR stays off for Release 2 because RapidOCR alone goes over 512 MB on Linux (436 MB after the first upload, 573-608 MB peak in-process; see docs/OCR_DESIGN.md 6.3 after PR #122).
 4. **Worker Capacity & Burst Behavior:** The single-threaded background worker processes one job at a time, resulting in a strict throughput limit of ~1/delay explanations per second (~1.25 jobs/s at 0.8s delay; ~0.50 jobs/s at 2.0s delay). This throughput is fine for normal primary care clinic volume where patients check in a few at a time. During sudden bursts exceeding the 50-job queue capacity (such as 100 simultaneous clients), excess patients immediately fall back to safe, deterministic clinical templates (`reason="queue_full"`) by design, preventing server memory exhaustion or hung requests.
