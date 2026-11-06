@@ -9,7 +9,7 @@
 > **Dataset Attribution & Evaluation Scope**:
 > - **Development Set (5 samples)**: 5 script-generated synthetic reports (`scripts/generate_pk_labs.py`); images and ground truth from the same script; 04–05 simulate photos (blur/noise), they are not real photos.
 > - **Extractor Tuning**: The extractor was tuned on these same 5 development samples, so 15/15 is accuracy on the development set, not a measured result on new reports.
-> - **Held-Out Set (2 samples)**: Evaluated separately below on 2 held-out reports created independently without modifying `extract_fields.py`.
+> - **Held-Out Set (2 samples)**: 2 generated, simulated reports (held_out_01.png generated screenshot, held_out_02.jpg generated, simulated photo) evaluated separately below without modifying `extract_fields.py`.
 > - **Clinical Verification**: Clinical verification in practice always requires human confirmation via the patient review screen for all extracted values.
 
 ---
@@ -81,15 +81,15 @@ To evaluate generalizability, a held-out set of 2 new reports was prepared under
 
 | Sample Filename | Layout Description | Format / Medium | Target Observations (Ground Truth) |
 |---|---|---|---|
-| `held_out_01.png` | Electronic Portal Export | Clean PNG Screenshot | HbA1c: 7.1 %, Fasting Glucose: 126 mg/dL, BP: 134/86 mmHg |
-| `held_out_02.jpg` | Physical Clinic Slip | Camera Photo (Perspective / Shadow / Sensor Noise) | HbA1c: 8.9 %, Random Glucose: 225 mg/dL, BP: 148/92 mmHg |
+| `held_out_01.png` | Electronic Portal Export | Generated electronic export screenshot | HbA1c: 7.1 %, Fasting Glucose: 126 mg/dL, BP: 134/86 mmHg |
+| `held_out_02.jpg` | Physical Clinic Slip | Generated, simulated photo | HbA1c: 8.9 %, Random Glucose: 225 mg/dL, BP: 148/92 mmHg |
 
 | Field Kind | Expected (GT) | Matched (TP) | False Positives (FP) | Recall | Precision | Status |
 |---|---|---|---|---|---|---|
 | **HBA1C** | 2 | 2 | 0 | **100.0% (2/2)** | **100.0% (2/2)** | **PASS** |
 | **GLUCOSE** | 2 | 2 | 0 | **100.0% (2/2)** | **100.0% (2/2)** | **PASS** |
 | **BP** | 2 | 2 | 0 | **100.0% (2/2)** | **100.0% (2/2)** | **PASS** |
-| **TOTAL** | 6 | 6 | 0 | **100.0% (6/6)** | **100.0% (6/6)** | **PASS (Held-out Generalization Confirmed)** |
+| **TOTAL** | 6 | 6 | 0 | **100.0% (6/6)** | **100.0% (6/6)** | **PASS (6/6 on 2 held-out samples; too few to confirm generalisation)** |
 
 ---
 

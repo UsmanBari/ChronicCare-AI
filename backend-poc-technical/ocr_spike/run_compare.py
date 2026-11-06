@@ -253,7 +253,7 @@ def format_pk_labs_markdown(
     md.append("> **Dataset Attribution & Evaluation Scope**:")
     md.append("> - **Development Set (5 samples)**: 5 script-generated synthetic reports (`scripts/generate_pk_labs.py`); images and ground truth from the same script; 04–05 simulate photos (blur/noise), they are not real photos.")
     md.append("> - **Extractor Tuning**: The extractor was tuned on these same 5 development samples, so 15/15 is accuracy on the development set, not a measured result on new reports.")
-    md.append("> - **Held-Out Set (2 samples)**: Evaluated separately below on 2 held-out reports created independently without modifying `extract_fields.py`.")
+    md.append("> - **Held-Out Set (2 samples)**: 2 generated, simulated reports (held_out_01.png generated screenshot, held_out_02.jpg generated, simulated photo) evaluated separately below without modifying `extract_fields.py`.")
     md.append("> - **Clinical Verification**: Clinical verification in practice always requires human confirmation via the patient review screen for all extracted values.")
     md.append("")
     md.append("---")
@@ -347,8 +347,8 @@ def format_pk_labs_markdown(
     md.append("")
     md.append("| Sample Filename | Layout Description | Format / Medium | Target Observations (Ground Truth) |")
     md.append("|---|---|---|---|")
-    md.append("| `held_out_01.png` | Electronic Portal Export | Clean PNG Screenshot | HbA1c: 7.1 %, Fasting Glucose: 126 mg/dL, BP: 134/86 mmHg |")
-    md.append("| `held_out_02.jpg` | Physical Clinic Slip | Camera Photo (Perspective / Shadow / Sensor Noise) | HbA1c: 8.9 %, Random Glucose: 225 mg/dL, BP: 148/92 mmHg |")
+    md.append("| `held_out_01.png` | Electronic Portal Export | Generated electronic export screenshot | HbA1c: 7.1 %, Fasting Glucose: 126 mg/dL, BP: 134/86 mmHg |")
+    md.append("| `held_out_02.jpg` | Physical Clinic Slip | Generated, simulated photo | HbA1c: 8.9 %, Random Glucose: 225 mg/dL, BP: 148/92 mmHg |")
     md.append("")
     if res_held_out:
         md.append("| Field Kind | Expected (GT) | Matched (TP) | False Positives (FP) | Recall | Precision | Status |")
@@ -357,7 +357,7 @@ def format_pk_labs_markdown(
             d = res_held_out[kind]
             rec, prec = _calc(d)
             status = "PASS" if d["tp"] == d["gt"] and d["fp"] == 0 else "FAIL"
-            status_note = f"**{status} (Held-out Generalization Confirmed)**" if kind == "total" else f"**{status}**"
+            status_note = f"**{status} (6/6 on 2 held-out samples; too few to confirm generalisation)**" if kind == "total" else f"**{status}**"
             md.append(f"| **{kind.upper()}** | {d['gt']} | {d['tp']} | {d['fp']} | **{rec}** | **{prec}** | {status_note} |")
         md.append("")
     md.append("---")

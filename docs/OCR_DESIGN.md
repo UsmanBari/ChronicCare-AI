@@ -283,13 +283,13 @@ In step (a) verification in a clean Python 3.11 venv:
 - **`OCR_USE_SUBPROCESS`** (bool, default: `true` in backend config):
   When enabled, RapidOCR inference runs in an isolated `multiprocessing.Process` child worker. The child process loads ONNX weights and tensor buffers, performs inference, passes structured extraction back across an IPC queue, and terminates. When the worker exits, the OS immediately reclaims all of its allocated memory (~300–400 MB). The parent FastAPI server drops back to a stable **~131–139 MB** post-call steady state rather than permanently holding **~240–436 MB** in main server RSS as seen in in-process mode.
 - **`OCR_SUBPROCESS_TIMEOUT`** (int, default: `30` seconds):
-  Parent watchdog timeout. If a child worker hangs or becomes unresponsive, the parent terminates it via `p.kill()`, joins the process, and returns a structured `500` error (`{"code": "ocr_failed", "message": "OCR process timed out"}`). Queue extraction drains before `p.join()` (`q.get(timeout=0.1)`) while polling child liveness to ensure large extraction payloads (>100 KB) never deadlock the IPC pipe.
+  Parent watchdog timeout. If a child worker hangs or crashes, the parent terminates/cleans it up via `p.kill()` and returns HTTP 502 with error code `ocr_provider_error` (as enforced by code and tests: `{"code": "ocr_provider_error", "detail": "..."}`). Queue extraction drains before `p.join()` (`q.get(timeout=0.1)`) while polling child liveness to ensure large extraction payloads (>100 KB) never deadlock the IPC pipe.
 
 #### Measured Profiling Runs on Linux Across Options (3 Runs Each)
 
 | Architecture / Mode | Idle RSS | After 1st Call RSS | Steady RSS (After 5 Calls) | Peak RSS (During Inference) | Mean Latency | Headroom on 512 MB | Notes |
 |---|---|---|---|---|---|---|---|
-| **In-Process (`OCR_USE_SUBPROCESS=false`)** | 71.0 MB | 239.9 MB | 246.1 MB | **426.1 MB** (Render Linux runs: **573–608 MB**) | 3.46 s | **Negative / Zero** on Render free tier | ONNX runtime retains persistent tensor buffers in main web server process |
+| **In-Process (`OCR_USE_SUBPROCESS=false`)** | 71.0 MB | 239.9 MB | 246.1 MB | **426.1 MB** (reviewer's Linux container (6 Nov): 436 MB after the first call, 573-608 MB peak) | 3.46 s | **Negative / Zero** on Render free tier | ONNX runtime retains persistent tensor buffers in main web server process |
 | **Subprocess (`OCR_USE_SUBPROCESS=true`)** | 70.3 MB | **131.5 MB** | **132.7 MB** | **493.3 MB** (combined tree peak; up to **518–529 MB**) | 4.51 s | **Negative / Zero** on Render free tier | Parent drops back to ~131–139 MB; worker process RAM reclaimed on exit |
 
 *Raw run logs on Linux (WSL2 Ubuntu 24.04, Python 3.11):*
@@ -315,6 +315,6 @@ In step (a) verification in a clean Python 3.11 venv:
 
 > **Safe to enable on Render free tier: NO.**
 > 
-> **Technical Justification**: While `OCR_USE_SUBPROCESS=true` successfully prevents the parent FastAPI process from holding ONNX runtime buffers (allowing parent RSS to drop back to ~131–139 MB after each call), the transient combined peak memory during active inference reaches **493.3 MB** locally and **529 MB** on Render Linux. Both the in-process peak (426–608 MB) and the subprocess combined peak (493–529 MB) exceed or dangerously collide with Render's 512 MB free tier container ceiling. Under simultaneous traffic or multi-page uploads, this will trigger Linux Out-Of-Memory (OOM) termination (`exit code 137`).
+> **Technical Justification**: While `OCR_USE_SUBPROCESS=true` successfully prevents the parent FastAPI process from holding ONNX runtime buffers (allowing parent RSS to drop back to ~131–139 MB after each call), the transient combined peak memory during active inference reaches **493.3 MB** locally and **529 MB** in reviewer's Linux container (6 Nov). Both the in-process peak (426–608 MB) and the subprocess combined peak (493–529 MB) exceed or dangerously collide with Render's 512 MB free tier container ceiling. Under simultaneous traffic or multi-page uploads, this will trigger Linux Out-Of-Memory (OOM) termination (`exit code 137`).
 > 
 > Therefore, **`OCR_ENABLED` must remain `false` by default for FYP-1 production**. The endpoint correctly returns `503 Service Unavailable` with friendly user feedback when disabled. For FYP-2, enabling OCR safely on Render requires either upgrading to a 1 GB instance ($7/mo) or migrating client-side inference to WebAssembly via Tesseract.js.
