@@ -417,7 +417,7 @@ export const HomeScreen = () => {
             <span>{t.statusTitle}</span>
           </h3>
           <div className="flex items-center gap-2">
-            {isLiveMode && !isManaged && (
+            {(!isManaged || !isLiveMode) && (
               <button
                 type="button"
                 onClick={() => setScreen("health_record")}

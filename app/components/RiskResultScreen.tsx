@@ -219,6 +219,11 @@ export const RiskResultScreen = () => {
           </p>
         </div>
 
+        {/* Guideline Explanation Box (flags on / param on) */}
+        {(liveCheckinResult?.explanation || (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("explain") === "true")) && (
+          <ExplanationBox />
+        )}
+
         {/* Toggle to view Why / Contributing Factors */}
         {!showWhyPanel ? (
           <button

@@ -221,10 +221,29 @@ export const HealthRecordScreen = () => {
     setIsLoadingHistory(true);
     setHistoryError(null);
     try {
-      const res = await api.getRecordHistory(type, id, 50);
-      setHistoryEdits(res.edits || []);
+      if (isLiveMode) {
+        const res = await api.getRecordHistory(type, id, 50);
+        setHistoryEdits(res.edits || []);
+      } else if (historyEdits.length === 0) {
+        setHistoryEdits([
+          {
+            edit_id: "mock-edit-1",
+            user_id: "ali-khan",
+            record_type: "medication",
+            record_id: "m1",
+            field: "created",
+            old_value: null,
+            new_value: { name: "Metformin 500mg", dosage: "1 tablet twice daily", status: "active" },
+            origin: "self_reported",
+            changed_by_user_id: "ali-khan",
+            changed_at: new Date().toISOString(),
+          },
+        ]);
+      }
     } catch (err: any) {
-      setHistoryError(t.failedToLoadHistory);
+      if (isLiveMode) {
+        setHistoryError(t.failedToLoadHistory);
+      }
     } finally {
       setIsLoadingHistory(false);
     }
@@ -233,7 +252,22 @@ export const HealthRecordScreen = () => {
   const handleExport = async (format: "json" | "fhir") => {
     setIsExporting(true);
     try {
-      const blob = await api.exportRecord(format);
+      let blob: Blob;
+      if (isLiveMode) {
+        blob = await api.exportRecord(format);
+      } else {
+        const exportObj = {
+          export_version: "1.0",
+          exported_at: new Date().toISOString(),
+          conditions,
+          medications,
+          allergies,
+          baseline_observations: observations,
+        };
+        blob = new Blob([JSON.stringify(exportObj, null, 2)], {
+          type: "application/json",
+        });
+      }
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -261,7 +295,29 @@ export const HealthRecordScreen = () => {
       setStagedOcrUpload(res);
       setScreen("ocr_confirm");
     } catch (err: any) {
-      setError(err?.detail || err?.message || t.ocrUploadFailed);
+      if (!isLiveMode) {
+        setStagedOcrUpload({
+          upload_id: "up-mock-staged-1",
+          expires_in_seconds: 1800,
+          extracted: {
+            observations: [
+              { id: "obs-0", type: "glucose", value: 142, unit: "mg/dL", evidence: "FBS: 142 mg/dL" },
+              { id: "obs-1", type: "blood_pressure_systolic", value: 130, unit: "mmHg", evidence: "BP: 130/85" },
+            ],
+            medications: [
+              { id: "med-0", name: "Glimepiride", dosage: "2mg daily", status: "active", evidence: "Glimepiride 2mg" },
+            ],
+            allergies: [
+              { id: "all-0", substance: "Penicillin", reaction: "Rash", severity: "moderate", status: "active", evidence: "Allergic to Penicillin" },
+            ],
+            raw_lines: ["FBS: 142 mg/dL", "BP: 130/85", "Glimepiride 2mg", "Allergic to Penicillin"],
+            has_urdu: false,
+          },
+        });
+        setScreen("ocr_confirm");
+      } else {
+        setError(err?.detail || err?.message || t.ocrUploadFailed);
+      }
     } finally {
       setIsUploadingOcr(false);
       if (ocrFileInputRef.current) ocrFileInputRef.current.value = "";
@@ -373,12 +429,38 @@ export const HealthRecordScreen = () => {
 
     setIsAddingMed(true);
     try {
-      const added = await api.createRecordMedication({
-        name: cleanName,
-        dosage: cleanDose,
-        status: medStatus,
-      });
-      setMedications((prev) => [...prev, added]);
+      if (isLiveMode) {
+        const added = await api.createRecordMedication({
+          name: cleanName,
+          dosage: cleanDose,
+          status: medStatus,
+        });
+        setMedications((prev) => [...prev, added]);
+      } else {
+        const localMed: RecordMedicationItem = {
+          id: `med-local-${Date.now()}`,
+          name: cleanName,
+          dosage: cleanDose,
+          status: medStatus,
+          origin: "manual",
+        };
+        setMedications((prev) => [...prev, localMed]);
+        setHistoryEdits((prev) => [
+          {
+            edit_id: `edit-${Date.now()}`,
+            user_id: "ali-khan",
+            record_type: "medication",
+            record_id: localMed.id,
+            field: "created",
+            old_value: null,
+            new_value: { name: cleanName, dosage: cleanDose, status: medStatus },
+            origin: "self_reported",
+            changed_by_user_id: "ali-khan",
+            changed_at: new Date().toISOString(),
+          },
+          ...prev,
+        ]);
+      }
       setMedName("");
       setMedDose("");
       setMedStatus("active");
@@ -399,8 +481,29 @@ export const HealthRecordScreen = () => {
     setError(null);
     const nextStatus: "active" | "stopped" = med.status === "active" ? "stopped" : "active";
     try {
-      const updated = await api.updateRecordMedication(med.id, { status: nextStatus });
-      setMedications((prev) => prev.map((m) => (m.id === med.id ? updated : m)));
+      if (isLiveMode) {
+        const updated = await api.updateRecordMedication(med.id, { status: nextStatus });
+        setMedications((prev) => prev.map((m) => (m.id === med.id ? updated : m)));
+      } else {
+        setMedications((prev) =>
+          prev.map((m) => (m.id === med.id ? { ...m, status: nextStatus } : m))
+        );
+        setHistoryEdits((prev) => [
+          {
+            edit_id: `edit-${Date.now()}`,
+            user_id: "ali-khan",
+            record_type: "medication",
+            record_id: med.id,
+            field: "status",
+            old_value: { status: med.status },
+            new_value: { status: nextStatus },
+            origin: "self_reported",
+            changed_by_user_id: "ali-khan",
+            changed_at: new Date().toISOString(),
+          },
+          ...prev,
+        ]);
+      }
       showToast(
         nextStatus === "active"
           ? isUrdu
@@ -683,6 +786,8 @@ export const HealthRecordScreen = () => {
                   <input
                     type="file"
                     ref={ocrFileInputRef}
+                    data-testid="ocr-file-input"
+                    id="ocr-file-input"
                     onChange={handleOcrFileSelect}
                     accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                     className="hidden"
@@ -921,8 +1026,10 @@ export const HealthRecordScreen = () => {
           </div>
           <div className="flex items-center justify-between pt-1">
             <div className="flex items-center gap-2 text-xs">
-              <label className="font-semibold text-slate-700">Status:</label>
+              <label htmlFor="med-status-select" className="font-semibold text-slate-700">Status:</label>
               <select
+                id="med-status-select"
+                aria-label="Medication status"
                 value={medStatus}
                 onChange={(e) => setMedStatus(e.target.value as "active" | "stopped")}
                 className="text-xs rounded-lg border border-slate-300 bg-white py-1 px-2 text-navy-800"
@@ -1154,8 +1261,10 @@ export const HealthRecordScreen = () => {
           </span>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Type</label>
+              <label htmlFor="obs-type-select" className="block text-[11px] font-semibold text-slate-600 mb-1">Type</label>
               <select
+                id="obs-type-select"
+                aria-label="Observation type"
                 value={obsType}
                 onChange={(e) => setObsType(e.target.value)}
                 className="w-full text-xs rounded-xl border border-slate-300 bg-white p-2.5 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
@@ -1247,8 +1356,10 @@ export const HealthRecordScreen = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Date & Time</label>
+              <label htmlFor="obs-measured-at-input" className="block text-[11px] font-semibold text-slate-600 mb-1">Date & Time</label>
               <input
+                id="obs-measured-at-input"
+                aria-label="Observation date and time"
                 type="datetime-local"
                 value={obsMeasuredAt}
                 onChange={(e) => setObsMeasuredAt(e.target.value)}

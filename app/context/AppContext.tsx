@@ -216,9 +216,27 @@ export function computeNextPatientScreen(
 }
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [portal, setPortalState] = useState<PortalType>("landing");
-  const [screen, setScreenState] = useState<PatientScreenType>("home");
-  const [providerScreen, setProviderScreenState] = useState<ProviderScreenType>("dashboard");
+  const [portal, setPortalState] = useState<PortalType>(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search).get("portal");
+      if (p === "patient" || p === "provider" || p === "admin" || p === "landing") return p;
+    }
+    return "landing";
+  });
+  const [screen, setScreenState] = useState<PatientScreenType>(() => {
+    if (typeof window !== "undefined") {
+      const s = new URLSearchParams(window.location.search).get("screen");
+      if (s) return s as PatientScreenType;
+    }
+    return "home";
+  });
+  const [providerScreen, setProviderScreenState] = useState<ProviderScreenType>(() => {
+    if (typeof window !== "undefined") {
+      const ps = new URLSearchParams(window.location.search).get("provider_screen");
+      if (ps) return ps as ProviderScreenType;
+    }
+    return "dashboard";
+  });
   const [adminScreen, setAdminScreenState] = useState<AdminScreenType>("dashboard");
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showTour, setShowTour] = useState<boolean>(false);
@@ -252,7 +270,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const sessionUserUidRef = React.useRef<string | null>(null);
 
   // Presenter controls
-  const [demoScenario, setDemoScenario] = useState<DemoScenario>("normal");
+  const [demoScenario, setDemoScenario] = useState<DemoScenario>(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search).get("scenario");
+      if (p === "conflict" || p === "emergency" || p === "ehr_update") return p;
+    }
+    return "normal";
+  });
   const [stagedOcrUpload, setStagedOcrUpload] = useState<OcrUploadResponse | null>(null);
 
   // Patient Baseline Profile (Mock mode fallback)
