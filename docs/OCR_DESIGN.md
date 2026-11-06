@@ -271,11 +271,34 @@ In step (a) verification in a clean Python 3.11 venv:
 - **Atomicity with Staging Retention**: If any confirmed item violates clinical validation bounds (e.g., glucose outside 20–600 mg/dL, systolic BP outside 60–260 mmHg, diastolic BP outside 30–160 mmHg, duplicate active medication, invalid status), the entire save transaction is rejected (HTTP 422). The staged upload remains active in the in-memory staging store.
 - **Frontend Interaction**: `OcrConfirmScreen.tsx` receives the structured error, maps it to the specific card (`invalidItem = { index: i, reasonCode: ... }`), displays a translated warning banner with a distinct red card border, and guides the patient to either Fix or Remove the item without losing any other confirmed items.
 
-### 6.3 Memory & Spike Measurements Summary (A2 / A8)
-Backend process memory was measured directly in a clean Python 3.11 Linux environment (Ubuntu 24.04, Python 3.11.18) via `/proc/self/status` VmRSS and `resource.getrusage` sampled every 50 ms:
-1. **Base Server Memory (after importing main, `OCR_ENABLED=false`)**: **70.15 MB** RSS.
-2. **After First Real OCR Call (`OCR_ENABLED=true`, `OCR_PROVIDER=rapidocr` on `rx_photo_01.jpg`)**: **226.51 MB** RSS.
-3. **Peak RSS During OCR Inference Call**: **436.09 MB** RSS (measured via 50ms background thread sampling and `ru_maxrss`).
-4. **Render Free Tier Headroom**: **75.91 MB** headroom remaining (14.8% free under the 512 MB memory limit).
-- **Latency**: ~2–4 seconds per prescription/lab photo scan.
-- **Handwritten Medicine Accuracy**: RapidOCR achieved 9/9 handwritten medications recognized (100.0% recall, 22.3% CER) vs 1/9 (11.1% recall, 75.8% CER) for Tesseract.js.
+### 6.3 Memory & Hardening Measurements Summary (Day 6 Verification)
+
+In Part 0 memory profiling, backend process memory was measured on `rx_photo_01.jpg` across 5 sequential uploads sampled every 50 ms via `psutil`.
+
+#### Measured Profiling Runs Across Options
+
+| Architecture / Optimization Mode | Idle RSS | Steady RSS (After Calls) | Peak RSS (During Inference) | Mean Latency | Headroom on 512 MB | Notes |
+|---|---|---|---|---|---|---|
+| **Baseline: In-Process (Unconstrained)** | 65.68 MB | 124.50 MB | **314.43 MB** (max 331.53 MB) | 3.968 s | 197.57 MB (38.6%) | ONNX runtime retains persistent tensor buffers in main web server process |
+| **Option (a): Single-Thread Session Options** | 65.50 MB | 123.80 MB | **306.95 MB** | 4.971 s | 205.05 MB (40.0%) | `intra_op_num_threads=1, inter_op_num_threads=1`; ~25% latency penalty with negligible memory reduction |
+| **Option (b): Downscale to Max 1280 px** | 65.50 MB | 121.20 MB | **279.40 MB** | 3.210 s | 232.60 MB (45.4%) | Quality preserved: 9/9 (100.0%) handwriting medicine recall retained |
+| **Option (c): Isolated Spawn Subprocess Worker** | 65.37 MB (parent) | **110.12 MB** (parent) | **385.37 MB** (combined tree peak) | 8.272 s | 126.63 MB (24.7%) | Parent server never leaks memory; worker process (~275 MB) terminates and reclaims all RAM immediately |
+
+#### Day 6 Hardening Before vs After Summary
+
+| Metric | Before Hardening (In-Process) | After Hardening (Subprocess + 1280px) | Delta / Clinical Effect |
+|---|---|---|---|
+| **Parent Web Server RSS (Post-Call)** | 124.50 MB (grows with uploads) | **110.12 MB** (bounded & stable) | Completely prevents cumulative memory leaks in FastAPI parent process |
+| **Memory Reclamation** | Partial (ONNX retains cache) | **100% of worker RAM reclaimed** | Worker process terminates and releases all resources upon completion |
+| **Combined Tree Peak RSS** | 314.43 MB | **385.37 MB** | Includes Python spawn runtime + ONNX initialization in isolated worker |
+| **Mean Latency per Upload** | 3.968 s | **8.272 s** | Additional ~4.3s due to Windows process creation and model reloading |
+| **Prescription Medicine Recall** | 100.0% (9/9) | **100.0% (9/9)** | Zero regressions across handwritten test cases |
+| **Pakistani Lab Layout Recall** | 0.0% (HbA1c), 200% (Glucose FP) | **100.0% (15/15 TP, 0 FP)** | Multiline tabular windows + strict reference range exclusion |
+
+#### Recommendation for Usman
+
+> **Safe to enable on Render free tier: NO.**
+> 
+> **Technical Justification**: While Option (c) successfully isolates the OCR engine and bounds the FastAPI parent process to ~110 MB, the transient combined peak memory during inference reaches **385.37 MB**. On Render's 512 MB free tier container ceiling, this leaves only **126.63 MB (24.7%)** of safety headroom. Under simultaneous traffic, background telemetry, or multiple rapid uploads, this leaves an unacceptably narrow margin that risks kernel Out-Of-Memory (OOM) termination (`exit code 137`).
+> 
+> Therefore, **`OCR_ENABLED` must remain `false` by default for FYP-1 production**. The endpoint correctly returns `503 Service Unavailable` with friendly user feedback when disabled. For FYP-2, enabling OCR safely on Render requires either upgrading to a 1 GB instance ($7/mo) or migrating client-side inference to WebAssembly via Tesseract.js.

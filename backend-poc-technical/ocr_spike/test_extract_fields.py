@@ -269,3 +269,90 @@ def test_medication_digit_ocr_slip():
     res = extract_fields(text)
     med_names = {f["name"] for f in res["fields"] if f["kind"] == "medication"}
     assert "lisinopril" in med_names
+
+
+def test_multiline_table_hba1c_extracted_without_percent_on_same_line():
+    text = """
+    Test Description
+    Observed Value
+    Unit
+    Reference Range
+    HbA1c (Glycated Haemoglobin)
+    7.6
+    %
+    < 5.7 %
+    """
+    res = extract_fields(text)
+    hba1c_fields = [f for f in res["fields"] if f["kind"] == "hba1c"]
+    assert len(hba1c_fields) == 1
+    assert hba1c_fields[0]["value"] == 7.6
+    assert hba1c_fields[0]["unit"] == "%"
+
+
+def test_reference_range_hyphen_never_extracted_as_glucose():
+    text = "Fasting Blood Sugar\n148 mg/dL\nReference Interval: 70 - 100 mg/dL"
+    res = extract_fields(text)
+    gluc_fields = [f for f in res["fields"] if f["kind"] == "glucose"]
+    assert len(gluc_fields) == 1
+    assert gluc_fields[0]["value"] == 148.0
+    # 70 and 100 in the reference interval must NOT be extracted
+    assert all(f["value"] not in (70.0, 100.0) for f in gluc_fields)
+
+
+def test_reference_range_operator_never_extracted_as_glucose():
+    text = "Random Blood Sugar: 215 mg/dL\nNormal: < 200 mg/dL"
+    res = extract_fields(text)
+    gluc_fields = [f for f in res["fields"] if f["kind"] == "glucose"]
+    assert len(gluc_fields) == 1
+    assert gluc_fields[0]["value"] == 215.0
+    # Threshold 200 must be excluded
+    assert all(f["value"] != 200.0 for f in gluc_fields)
+
+
+def test_reference_range_bp_never_extracted_as_patient_vitals():
+    text = """
+    Test Description Observed Value Unit Reference Range
+    B.P 145/95 mmHg 120/80 mmHg
+    """
+    res = extract_fields(text)
+    bp_fields = [f for f in res["fields"] if f["kind"] == "bp"]
+    assert len(bp_fields) == 1
+    assert bp_fields[0]["value"] == [145, 95]
+
+
+def test_footnote_text_does_not_leak_glucose_keywords():
+    text = """
+    Random Blood Sugar 185 mg/dL
+    Note: Hexokinase enzymatic methodology for Glucose determination.
+    """
+    res = extract_fields(text)
+    gluc_fields = [f for f in res["fields"] if f["kind"] == "glucose"]
+    assert len(gluc_fields) == 1
+    assert gluc_fields[0]["value"] == 185.0
+
+
+def test_random_blood_sugar_mmol_with_next_line_unit():
+    text = """
+    Random Blood Sugar (RBS)
+    11.2
+    mmol/L
+    4.0 - 7.8 mmol/L
+    """
+    res = extract_fields(text)
+    gluc_fields = [f for f in res["fields"] if f["kind"] == "glucose"]
+    assert len(gluc_fields) == 1
+    assert gluc_fields[0]["value"] == 11.2
+    assert gluc_fields[0]["unit"] == "mmol/L"
+    assert gluc_fields[0]["context"] == "random"
+    assert gluc_fields[0]["mg_dl"] == round(11.2 * 18.0, 1)
+
+
+def test_low_confidence_when_unit_missing_in_isolated_string():
+    text = "Fasting Blood Sugar: 145"
+    res = extract_fields(text)
+    gluc_fields = [f for f in res["fields"] if f["kind"] == "glucose"]
+    assert len(gluc_fields) == 1
+    assert gluc_fields[0]["value"] == 145.0
+    assert gluc_fields[0]["unit"] is None
+    assert gluc_fields[0]["confidence"] == "Low"
+    assert any("unit missing" in w for w in res["warnings"])
