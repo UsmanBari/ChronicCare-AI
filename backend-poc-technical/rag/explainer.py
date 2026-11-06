@@ -407,6 +407,7 @@ def get_template_explanation(
         attrib = get_source_attribution(src_id, chunk=c) if src_id else {}
         entry = {
             "chunk_id": c["chunk_id"],
+            "source_id": src_id,
             "title": c.get("title", ""),
             "edition": c.get("edition", ""),
             "section_path": c.get("section_path", ""),
@@ -658,6 +659,7 @@ def explain(
             attrib = get_source_attribution(src_id, chunk=c) if src_id else {}
             entry = {
                 "chunk_id": c["chunk_id"],
+                "source_id": src_id,
                 "title": c.get("title", ""),
                 "edition": c.get("edition", ""),
                 "section_path": c.get("section_path", ""),
