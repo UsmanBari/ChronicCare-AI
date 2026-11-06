@@ -37,6 +37,8 @@ from scripts.collect_eval_numbers import (
     collect_section_8_coverage,
     collect_section_9_stale_reconciliation,
     generate_markdown,
+    parse_pytest_output,
+    parse_vitest_output,
     to_repo_rel,
 )
 
@@ -63,6 +65,72 @@ def test_no_hardcoded_result_numbers():
     for pattern in prohibited_patterns:
         match = re.search(pattern, text)
         assert match is None, f"Found hard-coded result literal matching '{pattern}' in collect_eval_numbers.py: {match.group(0)}"
+
+
+def test_parse_pytest_output():
+    """Validates accurate parsing of pytest summary lines including failures without assuming 0 failed."""
+    # Successful run
+    clean_out = "1804 passed, 1 deselected, 12 warnings in 155.89s (0:02:35)"
+    res = parse_pytest_output(clean_out)
+    assert res["is_run"] is True
+    assert res["status"] == "PASS"
+    assert res["passed"] == 1804
+    assert res["failed"] == 0
+    assert res["deselected"] == 1
+
+    # Failure run - MUST NOT assume 0 failed
+    fail_out = "1 failed, 1803 passed, 1 deselected in 165.92s"
+    res_fail = parse_pytest_output(fail_out)
+    assert res_fail["is_run"] is True
+    assert res_fail["status"] == "FAIL"
+    assert res_fail["passed"] == 1803
+    assert res_fail["failed"] == 1
+    assert res_fail["deselected"] == 1
+
+
+def test_parse_vitest_output():
+    """Validates accurate parsing of vitest / npm test summary lines."""
+    out = """
+ Test Files  35 passed (35)
+      Tests  300 passed (300)
+   Duration  30.39s
+"""
+    res = parse_vitest_output(out)
+    assert res["is_run"] is True
+    assert res["status"] == "PASS"
+    assert res["passed"] == 300
+    assert res["failed"] == 0
+    assert res["files_passed"] == 35
+
+
+def test_section_1_not_run_never_writes_pass():
+    """If a test run is not executed, it must write 'collected N (not run)' and NEVER 'passed' or 'PASS'."""
+    res = collect_section_1_tests(run_suites=False)
+    assert res["backend_direct_is_run"] is False
+    assert res["backend_direct_status"] == "NOT RUN"
+    assert "collected" in res["backend_direct_count_display"]
+    assert "(not run)" in res["backend_direct_count_display"]
+    assert "passed" not in res["backend_direct_count_display"].lower()
+    assert "PASS" not in res["backend_direct_status"]
+
+
+def test_section_9_uses_same_numbers_as_section_1():
+    """Section 9 today_value must match Section 1 numbers directly."""
+    # When run was executed
+    s1_mock = {
+        "backend_direct_is_run": True,
+        "backend_direct_passed": 1804,
+        "backend_direct_failed": 0,
+        "backend_direct_deselected": 1,
+        "backend_ci_targets_count": 90,
+    }
+    s9_rows = collect_section_9_stale_reconciliation(s1_mock)
+    suite_row = next(r for r in s9_rows if "Backend Pytest" in r["metric_name"])
+    assert "1,804 passed" in suite_row["today_value"]
+    assert "0 failed" in suite_row["today_value"]
+    assert "1 deselected" in suite_row["today_value"]
+    assert "90 targets" in suite_row["today_value"]
+    assert "SUPERSEDED (+1,133 tests)" in suite_row["verdict"]
 
 
 def test_section_1_test_counts_dynamic():
@@ -154,7 +222,7 @@ def test_no_absolute_paths_in_markdown():
     s6 = collect_section_6_rag()
     s7 = collect_section_7_load()
     s8 = collect_section_8_coverage()
-    s9 = collect_section_9_stale_reconciliation()
+    s9 = collect_section_9_stale_reconciliation(s1)
 
     md = generate_markdown(s1, s2, s3, s4, s5, s6, s7, s8, s9)
     assert "C:\\" not in md, "Found Windows absolute path in generated markdown"

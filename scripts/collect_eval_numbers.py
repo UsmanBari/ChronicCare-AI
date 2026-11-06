@@ -47,11 +47,98 @@ def to_repo_rel(path_str: str) -> str:
     return clean
 
 
+def parse_pytest_output(output: str) -> Dict[str, Any]:
+    """Parses passed, failed, deselected, skipped, and collected counts from pytest output."""
+    clean = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", output)
+    res: Dict[str, Any] = {
+        "is_run": False,
+        "passed": 0,
+        "failed": 0,
+        "deselected": 0,
+        "skipped": 0,
+        "collected": None,
+        "status": "NOT RUN",
+    }
+    m_coll = re.search(r"(\d+)(?:/(\d+))?\s+tests?\s+collected(?:\s+\((\d+)\s+deselected\))?", clean)
+    if m_coll:
+        res["collected"] = int(m_coll.group(1))
+        if m_coll.group(3):
+            res["deselected"] = int(m_coll.group(3))
+
+    m_passed = re.search(r"\b(\d+)\s+passed\b", clean)
+    m_failed = re.search(r"\b(\d+)\s+failed\b", clean)
+    m_deselected = re.search(r"\b(\d+)\s+deselected\b", clean)
+    m_skipped = re.search(r"\b(\d+)\s+skipped\b", clean)
+
+    if m_passed or m_failed:
+        res["is_run"] = True
+        res["passed"] = int(m_passed.group(1)) if m_passed else 0
+        res["failed"] = int(m_failed.group(1)) if m_failed else 0
+        if m_deselected:
+            res["deselected"] = int(m_deselected.group(1))
+        if m_skipped:
+            res["skipped"] = int(m_skipped.group(1))
+
+        if res["failed"] == 0 and res["passed"] > 0:
+            res["status"] = "PASS"
+        else:
+            res["status"] = "FAIL"
+
+    return res
+
+
+def parse_vitest_output(output: str) -> Dict[str, Any]:
+    """Parses passed, failed, and total test/file counts from npm test / vitest output."""
+    clean = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", output)
+    res: Dict[str, Any] = {
+        "is_run": False,
+        "passed": 0,
+        "failed": 0,
+        "files_passed": 0,
+        "files_failed": 0,
+        "total_files": 0,
+        "collected": None,
+        "status": "NOT RUN",
+    }
+    m_tests = re.search(r"Tests\s+(?:(?P<failed>\d+)\s+failed\s*\|\s*)?(?P<passed>\d+)\s+passed", clean)
+    m_files = re.search(r"Test Files\s+(?:(?P<failed>\d+)\s+failed\s*\|\s*)?(?P<passed>\d+)\s+passed\s*\((?P<total>\d+)\)", clean)
+
+    if m_tests:
+        res["is_run"] = True
+        res["passed"] = int(m_tests.group("passed")) if m_tests.group("passed") else 0
+        res["failed"] = int(m_tests.group("failed")) if m_tests.group("failed") else 0
+        if m_files:
+            res["files_passed"] = int(m_files.group("passed")) if m_files.group("passed") else 0
+            res["files_failed"] = int(m_files.group("failed")) if m_files.group("failed") else 0
+            res["total_files"] = int(m_files.group("total")) if m_files.group("total") else 0
+
+        if res["failed"] == 0 and res["passed"] > 0:
+            res["status"] = "PASS"
+        else:
+            res["status"] = "FAIL"
+
+    return res
+
+
 # =============================================================================
 # Section 1: Automated Test & Verification Gates
 # =============================================================================
-def collect_section_1_tests() -> Dict[str, Any]:
-    """Dynamically collects test suite counts across backend, ML, frontend, and mutations."""
+def collect_section_1_tests(
+    run_suites: Optional[bool] = None,
+    backend_timeout: int = 1200,
+    ml_timeout: int = 1200,
+    vitest_timeout: int = 1200,
+) -> Dict[str, Any]:
+    """Collects test suite counts by running the real suites or falling back to collect-only.
+    
+    Conforms to review requirement:
+    - Runs real suites (CI pytest line in both direct and graph modes, ML tests, npm test) with 1200s timeout each.
+    - Parses 'N passed, M failed' from each output without assuming 0 failed.
+    - If a run isn't done, writes 'collected N (not run)', never 'passed' or 'PASS'.
+    """
+    if run_suites is None:
+        run_suites = os.environ.get("RUN_EVAL_SUITES", "0") == "1"
+
     now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     ci_yml_path = REPO_ROOT / ".github/workflows/ci.yml"
@@ -65,70 +152,190 @@ def collect_section_1_tests() -> Dict[str, Any]:
             backend_targets = [t for t in raw_tokens if t.endswith(".py") or t.endswith("/")]
             ci_targets_count = len(backend_targets)
 
-    # 1. Backend Hermetic Pytest (dynamic collect-only check)
-    direct_passed: Any = "NOT TRACED"
-    direct_deselected: Any = "NOT TRACED"
-    graph_passed: Any = "NOT TRACED"
-    graph_deselected: Any = "NOT TRACED"
+    # Pre-seed local database hermetically if needed
+    init_script = BACKEND_DIR / "init_local_db.py"
+    if init_script.exists():
+        try:
+            env_init = os.environ.copy()
+            env_init["PYTHONPATH"] = str(BACKEND_DIR)
+            subprocess.run([sys.executable, str(init_script)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(REPO_ROOT), timeout=30, env=env_init)
+        except Exception:
+            pass
 
+    # Determine collection baseline
+    collected_backend = None
+    deselected_backend = 0
     try:
-        env = os.environ.copy()
-        env["PYTHONPATH"] = str(BACKEND_DIR)
-        cmd = [sys.executable, "-m", "pytest", "--collect-only", "-q", "-k", "not run_source_blind_test"] + backend_targets
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(REPO_ROOT), timeout=45, env=env)
-        out = proc.stdout
-        m_coll = re.search(r"(\d+)(?:/(\d+))?\s+tests? collected(?:\s+\((\d+)\s+deselected\))?", out)
-        if m_coll:
-            collected = int(m_coll.group(1))
-            deselected = int(m_coll.group(3)) if m_coll.group(3) else 0
-            direct_passed = collected
-            direct_deselected = deselected
-            graph_passed = collected
-            graph_deselected = deselected
+        env_coll = os.environ.copy()
+        env_coll["PYTHONPATH"] = str(BACKEND_DIR)
+        cmd_coll = [sys.executable, "-m", "pytest", "--collect-only", "-q", "-k", "not run_source_blind_test"] + backend_targets
+        proc_coll = subprocess.run(cmd_coll, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(REPO_ROOT), timeout=60, env=env_coll)
+        m_c = re.search(r"(\d+)(?:/(\d+))?\s+tests?\s+collected(?:\s+\((\d+)\s+deselected\))?", proc_coll.stdout)
+        if m_c:
+            collected_backend = int(m_c.group(1))
+            if m_c.group(3):
+                deselected_backend = int(m_c.group(3))
     except Exception:
         pass
 
-    # 2. ML Pytest Suite (dynamic collect-only or def test_ count)
-    ml_tests_count: Any = "NOT TRACED"
+    # 1. Backend Hermetic Suite (ORCHESTRATOR=direct)
+    direct_res: Dict[str, Any] = {"is_run": False, "passed": 0, "failed": 0, "deselected": deselected_backend, "collected": collected_backend, "status": "NOT RUN"}
+    if run_suites and backend_targets:
+        try:
+            env_d = os.environ.copy()
+            env_d["PYTHONPATH"] = str(BACKEND_DIR)
+            env_d["ORCHESTRATOR"] = "direct"
+            cmd_d = [sys.executable, "-m", "pytest"] + backend_targets + ["-q", "-k", "not run_source_blind_test"]
+            proc_d = subprocess.run(cmd_d, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(REPO_ROOT), timeout=backend_timeout, env=env_d)
+            parsed_d = parse_pytest_output(proc_d.stdout + "\n" + proc_d.stderr)
+            if parsed_d["is_run"]:
+                direct_res = parsed_d
+                if direct_res["deselected"] == 0 and deselected_backend > 0:
+                    direct_res["deselected"] = deselected_backend
+        except Exception:
+            pass
+
+    # 2. Backend Hermetic Suite (ORCHESTRATOR=graph)
+    graph_res: Dict[str, Any] = {"is_run": False, "passed": 0, "failed": 0, "deselected": deselected_backend, "collected": collected_backend, "status": "NOT RUN"}
+    if run_suites and backend_targets:
+        try:
+            env_g = os.environ.copy()
+            env_g["PYTHONPATH"] = str(BACKEND_DIR)
+            env_g["ORCHESTRATOR"] = "graph"
+            cmd_g = [sys.executable, "-m", "pytest"] + backend_targets + ["-q", "-k", "not run_source_blind_test"]
+            proc_g = subprocess.run(cmd_g, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(REPO_ROOT), timeout=backend_timeout, env=env_g)
+            parsed_g = parse_pytest_output(proc_g.stdout + "\n" + proc_g.stderr)
+            if parsed_g["is_run"]:
+                graph_res = parsed_g
+                if graph_res["deselected"] == 0 and deselected_backend > 0:
+                    graph_res["deselected"] = deselected_backend
+        except Exception:
+            pass
+
+    # 3. ML Pytest Suite
+    ml_collected = None
     ml_dir = BACKEND_DIR / "ml/tests"
     if ml_dir.exists():
-        c = 0
+        c_ml = 0
         for p in ml_dir.glob("test_*.py"):
             txt = p.read_text(encoding="utf-8", errors="ignore")
-            c += len(re.findall(r"^\s*def test_", txt, re.MULTILINE))
-        if c > 0:
-            ml_tests_count = c
+            c_ml += len(re.findall(r"^\s*def test_", txt, re.MULTILINE))
+        ml_collected = c_ml
 
-    # 3. Vitest frontend tests (parse it/test count from tests/ directory)
-    vitest_files_count: Any = "NOT TRACED"
-    vitest_tests_count: Any = "NOT TRACED"
+    ml_res: Dict[str, Any] = {"is_run": False, "passed": 0, "failed": 0, "collected": ml_collected, "status": "NOT RUN"}
+    if run_suites and ml_dir.exists():
+        try:
+            env_ml = os.environ.copy()
+            env_ml["PYTHONPATH"] = str(BACKEND_DIR)
+            cmd_ml = [sys.executable, "-m", "pytest", "backend-poc-technical/ml/tests", "-q"]
+            proc_ml = subprocess.run(cmd_ml, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(REPO_ROOT), timeout=ml_timeout, env=env_ml)
+            parsed_ml = parse_pytest_output(proc_ml.stdout + "\n" + proc_ml.stderr)
+            if parsed_ml["is_run"]:
+                ml_res = parsed_ml
+        except Exception:
+            pass
+
+    # 4. Frontend Vitest Suite (npm test)
+    vitest_files_count = 0
     tests_dir = REPO_ROOT / "tests"
     if tests_dir.exists():
         ts_files = list(tests_dir.glob("*.test.tsx")) + list(tests_dir.glob("*.test.ts"))
         vitest_files_count = len(ts_files)
-        total_it = 0
-        for f in ts_files:
-            txt = f.read_text(encoding="utf-8", errors="ignore")
-            total_it += len(re.findall(r"^\s*(?:it|test)\s*\(", txt, re.MULTILINE))
-        vitest_tests_count = total_it
+
+    vitest_res: Dict[str, Any] = {"is_run": False, "passed": 0, "failed": 0, "total_files": vitest_files_count, "collected": None, "status": "NOT RUN"}
+    if run_suites:
+        try:
+            # On Windows, run through shell or cmd to resolve npm.cmd
+            npm_cmd = "npm test"
+            proc_v = subprocess.run(npm_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(REPO_ROOT), timeout=vitest_timeout)
+            parsed_v = parse_vitest_output(proc_v.stdout + "\n" + proc_v.stderr)
+            if parsed_v["is_run"]:
+                vitest_res = parsed_v
+        except Exception:
+            pass
+
+    # Build count displays adhering to strict "never write passed/PASS if not run" rule
+    if direct_res["is_run"]:
+        direct_status = direct_res["status"]
+        if direct_res["failed"] == 0:
+            direct_count = f"**{direct_res['passed']} passed**, {direct_res['deselected']} deselected, 0 failed"
+        else:
+            direct_count = f"**{direct_res['passed']} passed**, {direct_res['failed']} failed, {direct_res['deselected']} deselected"
+    else:
+        direct_status = "NOT RUN"
+        c_disp = direct_res["collected"] if direct_res["collected"] is not None else ci_targets_count
+        direct_count = f"collected {c_disp} (not run)"
+
+    if graph_res["is_run"]:
+        graph_status = graph_res["status"]
+        if graph_res["failed"] == 0:
+            graph_count = f"**{graph_res['passed']} passed**, {graph_res['deselected']} deselected, 0 failed"
+        else:
+            graph_count = f"**{graph_res['passed']} passed**, {graph_res['failed']} failed, {graph_res['deselected']} deselected"
+    else:
+        graph_status = "NOT RUN"
+        c_disp = graph_res["collected"] if graph_res["collected"] is not None else ci_targets_count
+        graph_count = f"collected {c_disp} (not run)"
+
+    if ml_res["is_run"]:
+        ml_status = ml_res["status"]
+        if ml_res["failed"] == 0:
+            ml_count = f"**{ml_res['passed']} passed**, 0 failed"
+        else:
+            ml_count = f"**{ml_res['passed']} passed**, {ml_res['failed']} failed"
+    else:
+        ml_status = "NOT RUN"
+        ml_c_disp = ml_res["collected"] if ml_res["collected"] is not None else "NOT TRACED"
+        ml_count = f"collected {ml_c_disp} (not run)"
+
+    if vitest_res["is_run"]:
+        vitest_status = vitest_res["status"]
+        if vitest_res["failed"] == 0:
+            vitest_count = f"**{vitest_res['passed']} passed**"
+        else:
+            vitest_count = f"**{vitest_res['passed']} passed**, {vitest_res['failed']} failed"
+    else:
+        vitest_status = "NOT RUN"
+        vitest_count = f"collected {vitest_files_count} files (not run)"
 
     return {
         "timestamp": now_str,
         "backend_ci_targets_count": ci_targets_count,
-        "backend_direct_passed": direct_passed,
-        "backend_direct_deselected": direct_deselected,
-        "backend_direct_failed": 0 if direct_passed != "NOT TRACED" else "NOT TRACED",
+        # Direct
+        "backend_direct_is_run": direct_res["is_run"],
+        "backend_direct_status": direct_status,
+        "backend_direct_passed": direct_res["passed"],
+        "backend_direct_failed": direct_res["failed"],
+        "backend_direct_deselected": direct_res["deselected"],
+        "backend_direct_collected": direct_res["collected"],
+        "backend_direct_count_display": direct_count,
         "backend_direct_citation": ".github/workflows/ci.yml:46 (Run Backend Pytest Suite, ORCHESTRATOR=direct)",
-        "backend_graph_passed": graph_passed,
-        "backend_graph_deselected": graph_deselected,
-        "backend_graph_failed": 0 if graph_passed != "NOT TRACED" else "NOT TRACED",
+        # Graph
+        "backend_graph_is_run": graph_res["is_run"],
+        "backend_graph_status": graph_status,
+        "backend_graph_passed": graph_res["passed"],
+        "backend_graph_failed": graph_res["failed"],
+        "backend_graph_deselected": graph_res["deselected"],
+        "backend_graph_collected": graph_res["collected"],
+        "backend_graph_count_display": graph_count,
         "backend_graph_citation": ".github/workflows/ci.yml:46 (Run Backend Pytest Suite, ORCHESTRATOR=graph)",
-        "ml_tests_passed": ml_tests_count,
-        "ml_tests_failed": 0 if ml_tests_count != "NOT TRACED" else "NOT TRACED",
+        # ML
+        "ml_tests_is_run": ml_res["is_run"],
+        "ml_tests_status": ml_status,
+        "ml_tests_passed": ml_res["passed"],
+        "ml_tests_failed": ml_res["failed"],
+        "ml_tests_collected": ml_res["collected"],
+        "ml_tests_count_display": ml_count,
         "ml_tests_citation": ".github/workflows/ci.yml:136 (Run ML Pytest Suite: python -m pytest backend-poc-technical/ml/tests -q)",
-        "vitest_passed": vitest_tests_count,
-        "vitest_test_files": vitest_files_count,
+        # Vitest
+        "vitest_is_run": vitest_res["is_run"],
+        "vitest_status": vitest_status,
+        "vitest_passed": vitest_res["passed"],
+        "vitest_failed": vitest_res["failed"],
+        "vitest_test_files": vitest_res["total_files"] or vitest_files_count,
+        "vitest_count_display": vitest_count,
         "vitest_citation": ".github/workflows/ci.yml:71 (npm test / vitest run)",
+        # Mutations
         "mutation_proofs_status": "PENDING: Usman's Day 6 checker fix",
         "mutation_citation": "scripts/verify_mutations.py:main",
     }
@@ -520,14 +727,32 @@ def collect_section_8_coverage() -> Dict[str, Any]:
 # =============================================================================
 # Section 9: Reconciliation vs MID1_EVIDENCE_PACK.md
 # =============================================================================
-def collect_section_9_stale_reconciliation() -> List[Dict[str, Any]]:
+def collect_section_9_stale_reconciliation(s1: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Reconciles empirical numbers between Mid-1 and today, strictly validating schema v15."""
+    if s1 and s1.get("backend_direct_is_run"):
+        p = s1["backend_direct_passed"]
+        f = s1["backend_direct_failed"]
+        d = s1["backend_direct_deselected"]
+        t = s1["backend_ci_targets_count"]
+        today_val = f"{p:,} passed ({f} failed, {d} deselected, {t} targets)"
+        diff = p - 671
+        diff_str = f"+{diff:,}" if diff >= 0 else f"{diff:,}"
+        verdict = f"SUPERSEDED ({diff_str} tests)"
+    elif s1 and s1.get("backend_direct_collected") is not None:
+        c = s1["backend_direct_collected"]
+        t = s1["backend_ci_targets_count"]
+        today_val = f"collected {c:,} (not run, {t} targets)"
+        verdict = "NOT RUN (collected)"
+    else:
+        today_val = "NOT TRACED"
+        verdict = "NOT TRACED"
+
     return [
         {
             "metric_name": "Backend Pytest Hermetic Suite Count",
             "mid1_value": "671 passed (0 failed, 1 deselected, 46 targets)",
-            "today_value": "1,803 passed (0 failed, 1 deselected, 90 targets)",
-            "verdict": "SUPERSEDED (+1,132 tests)",
+            "today_value": today_val,
+            "verdict": verdict,
             "reason": "Added RAG retriever/explainer suites, ML testing suites, trend analysis, risk scoring, schema migrations v11-v15, OCR upload validation, and LangGraph orchestrator parity suites.",
             "source_citation": "docs/MID1_EVIDENCE_PACK.md:32 vs .github/workflows/ci.yml:46",
         },
@@ -594,10 +819,10 @@ def generate_markdown(
         "",
         "| Gate / Test Suite | Scope | Target Mode | Status | Measured Count | Source Citation |",
         "| :--- | :--- | :---: | :---: | :--- | :--- |",
-        f"| **Backend Hermetic Suite** | {s1['backend_ci_targets_count']} CI test files | `ORCHESTRATOR=direct` | **PASS** | **{s1['backend_direct_passed']} passed**, {s1['backend_direct_deselected']} deselected, {s1['backend_direct_failed']} failed | `{to_repo_rel(s1['backend_direct_citation'])}` |",
-        f"| **Backend Hermetic Suite** | {s1['backend_ci_targets_count']} CI test files | `ORCHESTRATOR=graph` | **PASS** | **{s1['backend_graph_passed']} passed**, {s1['backend_graph_deselected']} deselected, {s1['backend_graph_failed']} failed | `{to_repo_rel(s1['backend_graph_citation'])}` |",
-        f"| **ML Unit Tests** | 14 test files | Offline / Hermetic | **PASS** | **{s1['ml_tests_passed']} passed**, {s1['ml_tests_failed']} failed | `{to_repo_rel(s1['ml_tests_citation'])}` |",
-        f"| **Frontend Vitest Suite** | {s1['vitest_test_files']} test files | Node / jsdom | **PASS** | **{s1['vitest_passed']} passed** | `{to_repo_rel(s1['vitest_citation'])}` |",
+        f"| **Backend Hermetic Suite** | {s1['backend_ci_targets_count']} CI test files | `ORCHESTRATOR=direct` | **{s1['backend_direct_status']}** | {s1['backend_direct_count_display']} | `{to_repo_rel(s1['backend_direct_citation'])}` |",
+        f"| **Backend Hermetic Suite** | {s1['backend_ci_targets_count']} CI test files | `ORCHESTRATOR=graph` | **{s1['backend_graph_status']}** | {s1['backend_graph_count_display']} | `{to_repo_rel(s1['backend_graph_citation'])}` |",
+        f"| **ML Unit Tests** | 14 test files | Offline / Hermetic | **{s1['ml_tests_status']}** | {s1['ml_tests_count_display']} | `{to_repo_rel(s1['ml_tests_citation'])}` |",
+        f"| **Frontend Vitest Suite** | {s1['vitest_test_files']} test files | Node / jsdom | **{s1['vitest_status']}** | {s1['vitest_count_display']} | `{to_repo_rel(s1['vitest_citation'])}` |",
         f"| **Mutation Testing** | Safety-critical rules | Subprocess engine | **PENDING** | **{s1['mutation_proofs_status']}** | `{to_repo_rel(s1['mutation_citation'])}` |",
         "",
         "---",
@@ -757,9 +982,10 @@ def generate_markdown(
 def main():
     parser = argparse.ArgumentParser(description="Collect authoritative FYP-1 evaluation numbers")
     parser.add_argument("--out", default="docs/EVALUATION_NUMBERS.md", help="Output markdown path")
+    parser.add_argument("--collect-only", action="store_true", help="Only collect counts without running full test suites")
     args = parser.parse_args()
 
-    s1 = collect_section_1_tests()
+    s1 = collect_section_1_tests(run_suites=not args.collect_only)
     s2 = collect_section_2_safety()
     s3 = collect_section_3_danger_phrases()
     s4 = collect_section_4_orchestrator()
@@ -767,7 +993,7 @@ def main():
     s6 = collect_section_6_rag()
     s7 = collect_section_7_load()
     s8 = collect_section_8_coverage()
-    s9 = collect_section_9_stale_reconciliation()
+    s9 = collect_section_9_stale_reconciliation(s1)
 
     md = generate_markdown(s1, s2, s3, s4, s5, s6, s7, s8, s9)
     out_path = REPO_ROOT / args.out
