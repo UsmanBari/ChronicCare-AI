@@ -74,17 +74,27 @@ Per Saad's Day 4 prompt in `docs/tasks/WEEK3_SAAD.md` (Part A, lines 621–633),
 | **Live Smoke (6 Nov): API & Job Latency** | `/complete` returned in 0.08–0.17 s; explanation ready in 1.1–2.2 s | Usman's live run 6 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-06 |
 | **Live Smoke (6 Nov): Token Consumption** | 5,454 Groq tokens recorded | Usman's live run 6 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-06 |
 | **Live Smoke (6 Nov, Real Corpus): Total Check-ins** | 10 diabetes, 10 hypertension against 1,175 real guideline chunks (`--real-chunks`) | Usman's live run 6 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
-| **Live Smoke (6 Nov, Real Corpus): Diabetes Resolution** | 4/10 llm/cache (3 LLM, 1 cache, 6 template fallbacks: 4 Urdu JSONDecodeError, 2 breaker open); **FAILED $\ge$ 9/10 rule** | Usman's live run 6 Nov, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
-| **Live Smoke (6 Nov, Real Corpus): Hypertension Resolution** | 4/10 llm/cache (cited `ada_2026_sec05` / `sec10` in 7/10 rows); **FAILED $\ge$ 9/10 rule** | Usman's live run 6 Nov, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
-| **Live Smoke (6 Nov, Real Corpus): Token Usage** | ~2,000 tokens/English row (up from ~700 in synthetic runs due to guideline passage lengths) | Usman's live run 6 Nov, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
+| **Live Smoke (6 Nov, Real Corpus - Baseline): Diabetes Resolution** | 4/10 llm/cache (3 LLM, 1 cache, 6 template fallbacks: 4 Urdu JSONDecodeError, 2 breaker open); **FAILED $\ge$ 9/10 rule** | Usman's live run 6 Nov, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
+| **Live Smoke (6 Nov, Real Corpus - Baseline): Hypertension Resolution** | 4/10 llm/cache (cited `ada_2026_sec05` / `sec10` in 7/10 rows); **FAILED $\ge$ 9/10 rule** | Usman's live run 6 Nov, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
+| **Live Smoke (6 Nov, Real Corpus - Baseline): Token Usage** | ~2,000 tokens/English row (up from ~700 in synthetic runs due to guideline passage lengths) | Usman's live run 6 Nov, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
+| **Live Smoke (6 Nov 22:20, Real Corpus - Post PR #123): Diabetes Resolution** | 10/10 llm/cache (6 LLM, 4 cache, 0 fallbacks); **PASSED $\ge$ 9/10 rule** | Usman's live run 6 Nov 22:20, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
+| **Live Smoke (6 Nov 22:20, Real Corpus - Post PR #123): Hypertension Resolution** | 3/10 llm/cache (3 LLM, 0 cache, 7 template fallbacks on "routine" check-ins with reason `no_chunks`); **FAILED $\ge$ 9/10 rule** | Usman's live run 6 Nov 22:20, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
 
 > [!WARNING]
-> **6 Nov Real-Corpus Live Smoke Evaluation & Remediation (Day 6e):**
-> Usman's live smoke evaluation against the complete loaded corpus (1,175 chunks, including 6 permitted ADA sections) failed the Release 2 gate ($\ge 9/10$ LLM or cache):
+> **6 Nov (22:20) Real-Corpus Live Smoke Evaluation & Pre-Ranking Fix (Day 6f):**
+> Following PR #123, Usman re-ran the live smoke against the complete 1,175 real loaded chunks (6 Nov, 22:20):
+> - **Diabetes Check-ins:** 10/10 resolved via LLM or cache (6 LLM + 4 cache, 0 fallbacks), achieving 100% pass rate and meeting the Release 2 operational threshold ($\ge 9/10$).
+> - **Hypertension Check-ins:** 3/10 resolved via LLM (3 LLM, 0 cache), failing the threshold due to 7 template fallbacks on "routine" triage with reason `no_chunks`.
+> - **Root Cause:** In PR #123, the ADA filter ran *after* retrieval ranking. The "routine" query (`condition="both"`, query text `"lifestyle modification salt sodium reduction physical activity blood pressure glucose targets"`) scored diabetes chunks (`ada_2026`, `idf_dar_2021`, `aku_diabetes_pk_2023`) in the top 3. For hypertension-only patients, post-filtering removed all 3 candidates, leaving zero chunks and forcing template fallback.
+> - **Remediation (Day 6f):** In `rag/retriever.py`, `BM25Retriever.retrieve` now accepts `exclude_source_prefixes`. Diabetes guidelines (ADA, IDF-DAR, AKU) are left out before ranking for patients without diabetes (`DIABETES_ONLY_SOURCE_PREFIXES`), allowing hypertension guidelines (WHO 2021, ISH 2020, PK-HTN 2023) to be scored and ranked into the top 3. Dual-condition and diabetic patients retain complete access.
+
+> [!WARNING]
+> **6 Nov Real-Corpus Live Smoke Initial Evaluation & Remediation (Day 6e):**
+> Usman's initial live smoke evaluation against the complete loaded corpus (1,175 chunks, including 6 permitted ADA sections) failed the Release 2 gate ($\ge 9/10$ LLM or cache):
 > - **Cause 1 (Urdu/Roman Urdu JSON truncation):** Both English and translation calls shared `max_tokens: 250`. Urdu script in JSON required ~2.5x more tokens, truncating translation JSON mid-string and causing 4 `JSONDecodeError` fallbacks. **Fix:** Added `EXPLAIN_TRANSLATION_MAX_TOKENS=700` and updated the Groq OTPM pacer to reserve each call's actual `max_tokens`.
 > - **Cause 2 (Malformed JSON tripped circuit breaker):** `JSONDecodeError` was caught as a generic exception and treated as an upstream outage (`record_failure`), causing 3 truncated answers to open the circuit breaker for subsequent check-ins. **Fix:** Parse errors are now classified as `validation_failed` (bad answer) without incrementing the circuit breaker failure counter.
 > - **Cause 3 (Hypertension patients received ADA diabetes guidelines):** Hypertension check-ins cited ADA diabetes sections (`ada_2026_sec05`, `ada_2026_sec10`) in 7 of 10 rows. **Fix:** `guarded_explain` now checks `patient_conditions`; patients without diabetes have all `ada_2026_*` chunks filtered before LLM prompting and removed from sources, while dual-condition patients retain ADA access on BP triggers.
-> Usman will re-run the real-corpus live smoke following PR merge.
+> Usman re-ran the real-corpus live smoke following PR merge (see 22:20 run above).
 
 > [!NOTE]
 > The live smoke script (`scripts/explain_live_smoke.py`) has been extended with the `--real-chunks` flag to safely copy and evaluate against the real loaded guideline corpus (including all 6 permitted ADA sections) rather than synthetic test chunks.

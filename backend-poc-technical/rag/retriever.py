@@ -96,10 +96,11 @@ class BM25Retriever:
         topics: list[str] | None = None,
         min_priority: int | None = None,
         as_of_date: Any = None,
+        exclude_source_prefixes: tuple[str, ...] = (),
     ) -> list[dict[str, Any]]:
         """
         Retrieve the top_k most relevant chunks matching the query.
-        Applies metadata filters (condition, topics, min_priority, licence expiry)
+        Applies metadata filters (condition, topics, min_priority, licence expiry, source prefix exclusions)
         and breaks ties by guideline priority.
         For diabetes queries, prefers ADA guideline sections over IDF-DAR unless fasting/Ramadan is queried.
         Returns a list of chunk dicts augmented with 'bm25_score' and 'rank'.
@@ -114,12 +115,28 @@ class BM25Retriever:
         norm_topics = [t.lower().strip() for t in topics] if topics else None
         norm_cond = condition.lower().strip() if condition else None
 
+        # Pre-lowercase exclude_source_prefixes once outside retriever loop
+        clean_exclude_prefixes = (
+            tuple(p.lower().strip() for p in exclude_source_prefixes)
+            if exclude_source_prefixes
+            else ()
+        )
+
         is_diabetes = (norm_cond == "diabetes")
         is_ramadan = is_ramadan_text(query)
 
         for idx, doc in enumerate(self.corpus):
-            # X2: Runtime licence expiry check
             src_id = str(doc.get("source_id", "")).strip().lower()
+            chunk_id = str(doc.get("id") or doc.get("chunk_id") or "").strip().lower()
+
+            # Exclude source prefixes filter (e.g. diabetes guidelines for non-diabetic patients)
+            if clean_exclude_prefixes and any(
+                src_id.startswith(p) or chunk_id.startswith(p)
+                for p in clean_exclude_prefixes
+            ):
+                continue
+
+            # X2: Runtime licence expiry check
             if src_id and is_source_expired(src_id, as_of=as_of_date):
                 logger.warning("Filtered expired guideline chunk for source: %s", src_id)
                 continue

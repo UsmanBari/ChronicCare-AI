@@ -79,6 +79,8 @@ DEFAULT_JOB_DEADLINE_SECONDS: float = 45.0
 DEFAULT_CALL_TIMEOUT_SECONDS: float = 20.0
 DEFAULT_GROQ_OTPM: int = 1000
 
+DIABETES_ONLY_SOURCE_PREFIXES: tuple[str, ...] = ("ada_2026", "idf_dar", "aku_diabetes")
+
 
 def get_budget_seconds() -> float:
     try:
@@ -1007,17 +1009,24 @@ def guarded_explain(
     if store is not None:
         retriever = get_or_build_retriever(store)
         if retriever is not None:
+            exclude_prefixes = (
+                ()
+                if is_patient_diabetic(patient_conditions=patient_conditions, condition=cond_str)
+                else DIABETES_ONLY_SOURCE_PREFIXES
+            )
             candidate_chunks = retriever.retrieve(
                 query=query_mapping.query_text,
                 top_k=3,
                 condition=query_mapping.condition,
                 min_priority=query_mapping.min_priority,
+                exclude_source_prefixes=exclude_prefixes,
             )
             if len(candidate_chunks) < 2:
                 candidate_chunks = retriever.retrieve(
                     query=query_mapping.query_text,
                     top_k=3,
                     min_priority=query_mapping.min_priority,
+                    exclude_source_prefixes=exclude_prefixes,
                 )
 
     # 2. Check Cache with Safety Re-Validation
@@ -1123,13 +1132,16 @@ def guarded_explain(
                 ["No valid ADA guideline chunks available for non-Ramadan diabetes explanation"]
             )
 
-    # F6: ADA Standards of Care are for people with diabetes.
-    # Use ada_2026_* chunks only when the PATIENT's conditions include diabetes (both-condition patients: allowed).
-    # For a hypertension-only patient, drop ada_2026_* chunks before the LLM call and from the sources list.
+    # F6: ADA and other diabetes-only guidelines are for people with diabetes.
+    # Use diabetes guidelines only when the PATIENT's conditions include diabetes (both-condition patients: allowed).
+    # For a patient without diabetes, drop any diabetes-only guideline chunks (DIABETES_ONLY_SOURCE_PREFIXES).
     if not is_patient_diabetic(patient_conditions=patient_conditions, condition=cond_str) and candidate_chunks:
         candidate_chunks = [
             c for c in candidate_chunks
-            if not str(c.get("source_id") or c.get("id") or c.get("chunk_id") or "").startswith("ada_2026")
+            if not any(
+                str(c.get("source_id") or c.get("id") or c.get("chunk_id") or "").startswith(p)
+                for p in DIABETES_ONLY_SOURCE_PREFIXES
+            )
         ]
         if not candidate_chunks and store is not None:
             return _make_template_fallback("no_chunks", ["No matching clinical guideline chunks found"])
