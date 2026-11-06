@@ -2768,7 +2768,8 @@ async def import_patient_record_endpoint(
 def _is_ocr_enabled() -> bool:
     if os.environ.get("OCR_ENABLED", "false").strip().lower() not in ("true", "1", "yes"):
         return False
-    return check_ocr_provider_available()
+    from data_sources.ocr.provider import check_ocr_provider_available as _check
+    return _check()
 
 
 def _validate_medication_entry(
@@ -2992,8 +2993,8 @@ async def upload_record_image_endpoint(
         # Re-open after verify
         img = Image.open(io.BytesIO(raw_bytes))
         img = ImageOps.exif_transpose(img)
-        if max(img.width, img.height) > 2000:
-            img.thumbnail((2000, 2000), Image.Resampling.LANCZOS)
+        if max(img.width, img.height) > 1280:
+            img.thumbnail((1280, 1280), Image.Resampling.LANCZOS)
         buf = io.BytesIO()
         if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
@@ -3006,7 +3007,6 @@ async def upload_record_image_endpoint(
             content={"code": "image_unreadable", "detail": "image_unreadable"},
         )
 
-    # Run OCR provider with strict error boundary
     try:
         provider = get_ocr_provider()
     except (ImportError, ModuleNotFoundError, RuntimeError) as e:

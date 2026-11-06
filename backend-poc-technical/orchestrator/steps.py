@@ -836,11 +836,14 @@ def step_explain(
         elif state and getattr(state, "active_condition", None):
             active_cond = state.active_condition
 
+        patient_conditions = getattr(state, "conditions_on_file", None) or ([active_cond] if active_cond else [])
+
         import copy
         from rag.explain_guards import (
             guarded_explain,
             get_explain_mode,
             check_llm_eligibility,
+            is_patient_diabetic,
             record_fallback,
             get_or_build_retriever,
         )
@@ -870,6 +873,13 @@ def step_explain(
                         top_k=3,
                         min_priority=query_mapping.min_priority,
                     )
+
+        # F6: For a hypertension-only patient, drop ada_2026_* chunks before the LLM call and from sources
+        if not is_patient_diabetic(patient_conditions=patient_conditions, condition=active_cond):
+            candidate_chunks = [
+                c for c in candidate_chunks
+                if not str(c.get("source_id") or c.get("id") or c.get("chunk_id") or "").startswith("ada_2026")
+            ]
 
         if active_explain_mode == "background":
             # Check eligibility before enqueuing using identical guards logic
@@ -933,6 +943,7 @@ def step_explain(
                 "_job_params": {
                     "user_id": user_id,
                     "condition": active_cond,
+                    "patient_conditions": patient_conditions,
                     "readings": readings,
                     "language": language,
                     "fallback_template": fallback_tmpl,
@@ -948,6 +959,7 @@ def step_explain(
             store=store,
             llm=llm,
             condition=active_cond,
+            patient_conditions=patient_conditions,
             mode="inline",
         )
         if "status" not in explain_res:
@@ -1069,6 +1081,7 @@ def step_persist_and_respond(
             language=job_params["language"],
             fallback_template=job_params["fallback_template"],
             store=job_params.get("store"),
+            patient_conditions=job_params.get("patient_conditions"),
         )
         if not enqueued:
             from data_sources.app_store import update_checkin_explanation

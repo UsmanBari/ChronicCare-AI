@@ -20,7 +20,7 @@ import queue
 import threading
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ class ExplanationJob:
     fallback_template: Dict[str, Any]
     store: Optional[Any] = None
     enqueued_at: float = 0.0
+    patient_conditions: Optional[List[str]] = None
 
 
 class ExplanationJobQueue:
@@ -91,6 +92,7 @@ class ExplanationJobQueue:
         language: str,
         fallback_template: Dict[str, Any],
         store: Optional[Any] = None,
+        patient_conditions: Optional[List[str]] = None,
         start_worker: bool = True,
     ) -> bool:
         """
@@ -107,6 +109,7 @@ class ExplanationJobQueue:
             fallback_template=copy.deepcopy(fallback_template),
             store=store,
             enqueued_at=time.monotonic(),
+            patient_conditions=patient_conditions,
         )
         try:
             q.put_nowait(job)
@@ -192,6 +195,7 @@ class ExplanationJobQueue:
                 language=job.language,
                 store=job.store,
                 condition=job.condition,
+                patient_conditions=job.patient_conditions,
                 budget_seconds=deadline_sec,
                 mode="background",
                 clock_fn=clock_fn,
@@ -238,6 +242,7 @@ def enqueue_job(
     language: str,
     fallback_template: Dict[str, Any],
     store: Optional[Any] = None,
+    patient_conditions: Optional[List[str]] = None,
 ) -> bool:
     return _GLOBAL_JOB_QUEUE.enqueue_job(
         checkin_id=checkin_id,
@@ -247,6 +252,7 @@ def enqueue_job(
         language=language,
         fallback_template=fallback_template,
         store=store,
+        patient_conditions=patient_conditions,
     )
 
 

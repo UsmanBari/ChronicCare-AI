@@ -1,0 +1,2 @@
+{"theme":"base","themeVariables":{"fontSize":"16px","fontFamily":"Arial, Helvetica, sans-serif","primaryColor":"#EEF4FB","primaryBorderColor":"#3B6EA8","primaryTextColor":"#1A1A1A","lineColor":"#4A4A4A","clusterBkg":"#FAFAFA","clusterBorder":"#9AA5B1","edgeLabelBackground":"#FFFFFF"},
+ "flowchart":{"htmlLabels":true,"nodeSpacing":28,"rankSpacing":30,"padding":10,"wrappingWidth":320,"curve":"basis"}}

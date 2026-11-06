@@ -340,6 +340,8 @@ export interface PatientExplanationSource {
   edition?: string | null;
   section_path?: string | null;
   page_start?: number | null;
+  full_citation?: string | null;
+  doi?: string | null;
 }
 
 export interface PatientExplanation {

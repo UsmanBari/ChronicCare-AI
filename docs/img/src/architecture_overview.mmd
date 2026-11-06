@@ -1,0 +1,25 @@
+flowchart TB
+  P["<b>Patient check-in</b><br/>text or voice · en / ur / roman_ur"]
+  I["<b>Interview</b><br/>v2 (default) · v3 behind INTERVIEW_ENGINE"]
+  D{{"<b>Danger screens on every answer</b><br/>input triage · word groups ¹"}}
+  E["<b>EMERGENCY</b><br/>interview stops · 1122 note<br/>no LLM is ever called"]
+  subgraph ORC["POST /complete · orchestrator (ORCHESTRATOR = direct | graph)"]
+    direction TB
+    O1["intake → fetch_prior → build_bundles"]
+    O2["reconcile → verify → persist_local"]
+    O3["<b>decide_triage</b><br/>clinical rules decide the level"]
+    O4["<b>risk</b> ¹ · provider view only<br/>can only raise the level ¹"]
+    O5["<b>explain</b> ¹ · marks explanation pending"]
+    O6["<b>persist</b> · saves the result,<br/>then queues the explanation job ¹"]
+  end
+  R["<b>Patient result</b><br/>level + “Why this result?”"]
+  Q["<b>Provider review queue</b><br/>trace · explanation · risk panel"]
+  P --> I --> D
+  D -- "danger found" --> E
+  D -- "no danger" --> O1
+  O1 --> O2 --> O3 --> O4 --> O5 --> O6
+  O6 --> R
+  O6 --> Q
+  E --> Q
+  classDef emerg fill:#FDECEC,stroke:#B42318,color:#1A1A1A;
+  class E emerg;

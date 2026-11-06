@@ -34,3 +34,20 @@ def test_mutation_runner_executes_and_kills_in_ci():
     elapsed = time.time() - t0
     # Must complete well within 90 seconds
     assert elapsed < 90.0, f"Mutation runner took {elapsed:.2f}s (exceeded 90s limit)"
+
+
+def test_invalid_test_node_reported_invalid_and_never_killed():
+    """Q1: Verify that a mutation pointing to an invalid/non-existent test node reports INVALID and never killed."""
+    fake_mut = {
+        "id": "MUT-INVALID-TEST",
+        "name": "Invalid Test Node Check",
+        "file": verify_mutations.BACKEND_DIR / "agents" / "input_triage.py",
+        "target": "    is_danger, danger_cat = screen_multilingual_danger_phrases(clean_text)",
+        "replacement": "    is_danger, danger_cat = False, None",
+        "test_node": "backend-poc-technical/test_vomiting_fluids_red_flags.py::non_existent_test_function_xyz",
+    }
+    res = verify_mutations.run_mutation(fake_mut)
+    assert res["valid"] is False
+    assert res["killed"] is False
+    assert res["status"] == "INVALID"
+    assert "FAILED on UNCHANGED code" in res["failing_output"]

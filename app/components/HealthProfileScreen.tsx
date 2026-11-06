@@ -895,11 +895,12 @@ export const HealthProfileScreen = () => {
 
         {/* Smoking Status */}
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-          <label className="text-xs font-bold uppercase tracking-wider text-navy-800 block">
+          <label htmlFor="smoking-status-select" className="text-xs font-bold uppercase tracking-wider text-navy-800 block">
             {isUrdu ? "تمباکو نوشی کی کیفیت" : "Smoking Status"}
           </label>
           <select
             id="smoking-status-select"
+            aria-label={isUrdu ? "تمباکو نوشی کی کیفیت" : "Smoking Status"}
             value={smokingStatus}
             onChange={(e) => setSmokingStatus(e.target.value)}
             className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"

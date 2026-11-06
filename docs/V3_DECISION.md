@@ -28,23 +28,28 @@ For **Release 2**, the production system strictly retains **v2 as the default in
 
 ---
 
-## 3. Rationale: Measured NO-GO in PR #113 Readiness Report
+## 3. Rationale: Measured NO-GO in docs/V3_READINESS.md
 
-The objective readiness criteria defined in `docs/INTERVIEW_AUDIT.md` Section 6 require that an interview engine change must introduce **zero demotions** on clinical triage levels.
+The objective readiness criteria defined in `docs/INTERVIEW_AUDIT.md` Section 6 require that an interview engine change must introduce zero demotions on clinical triage levels and satisfy full persona invariance.
 
-The measured readiness evaluation conducted on 4 November 2026 in PR #113 yielded a computed **NO-GO** verdict:
+The measured readiness evaluation documented in `docs/V3_READINESS.md` yielded a computed **NO-GO** verdict across the 64 persona evaluation suite:
 
 1. **Gate 3 (Persona Invariance & Demotion Audit) FAILED:**
-   - Out of 64 standardized clinical personas evaluated across both engines, v3 resulted in **18 demotions** where the final triage level assigned was lower than the v2 baseline (`v3 < v2`).
-   - While zero chest pain emergencies were missed, our core medical safety invariant is: *"never lower a triage level"*. Under no circumstance can an interview engine demote clinical triage levels compared to established protocol.
+   - **Total Personas Simulated:** 64
+   - **V3 Misses (v3 below expected level, v2 not):** 4
+   - **Both Miss (both v2 and v3 below expected):** 8
+   - **Demotions Below v2 (`v3 < v2`):** 1 (`p24_dont_know_to_everything`: v2 emergency $\rightarrow$ v3 review)
+   - **Incomplete Runs (v2 / v3):** 0 / 0
+   - **V2 Over-triages Resolved:** 7
+   - While zero chest pain emergencies were missed, our core medical safety invariant is: *"the model proposes, the rules decide; never lower a triage level"*. Because v3 exhibits 4 V3 misses below expected level and 1 demotion below v2, v2 stays the default for Release 2.
 
 2. **Progress in PR #113 (Non-Doctor Gaps Resolved):**
-   - PR #113 successfully validated:
-     - **G-02 Unclear Adherence:** Clarifies once; routes to clinician review if unresolved (`test_v3_adherence_unclear.py` 32/32 pass).
-     - **G-14 Caregiver Vernacular:** Correctly preserves readings with `answered_by="caregiver"` (`test_v3_caregiver_roman_ur.py` 36/36 pass).
+   - PR #113 successfully resolved and verified non-doctor readiness gaps:
+     - **G-02 Unclear Adherence Handling:** Clarifies once; unresolved routes to clinician review (`test_v3_adherence_unclear.py` 32/32 pass).
+     - **G-14 Caregiver Vernacular & Slot Safety:** Correctly preserves readings with `answered_by="caregiver"` in Roman Urdu without leaking yes/no (`test_v3_caregiver_roman_ur.py` 39/39 pass).
      - **No English-Only Leakage:** 0 leaks across 79 patient-facing strings in Urdu and Roman Urdu.
      - **Hermetic Equivalence:** 7/7 clinical scenario tests pass in `test_engine_equivalence.py`.
-   - However, until the 18 persona demotions are fully resolved and eliminated, v3 cannot be promoted to the production default.
+   - However, until the rule questions behind the 4 V3 misses and 8 both-misses are resolved with clinical advisors, v3 cannot be promoted to the production default. Thus, v2 stays the default for Release 2.
 
 ---
 

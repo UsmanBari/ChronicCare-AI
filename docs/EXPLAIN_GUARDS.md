@@ -76,7 +76,7 @@ sequenceDiagram
 1. **Immediate Check-in Return:** `POST /api/checkins/{id}/complete` returns immediately with the decided triage level and `explanation: {"status": "pending"}`. Extra `/complete` latency is under 10 ms.
 2. **Bounded Job Queue (`EXPLAIN_QUEUE_MAX`):** Capacity 50 (`EXPLAIN_QUEUE_MAX=50`). If the queue overflows, the check-in immediately stores the pre-computed template fallback with `reason="queue_full"`.
 3. **Lazy Worker Thread:** The background daemon worker thread starts lazily upon arrival of the first job.
-4. **Groq Rolling 60s OTPM Pacer (`TokenPacer`):** Groq allows 1,000 output tokens per minute on its free tier. `TokenPacer` maintains a sliding 60-second window of recorded completion tokens. If generating 250 completion tokens would exceed 1,000 OTPM, the worker thread sleeps for the exact seconds required for older tokens to roll out of the window.
+4. **Groq Rolling 60s OTPM Pacer (`TokenPacer`):** Groq allows 1,000 output tokens per minute on its free tier. `TokenPacer` maintains a sliding 60-second window of recorded completion tokens. Before each LLM call, the pacer checks rolling completion tokens against `EXPLAIN_GROQ_OTPM` (1,000). It reserves the exact tokens needed for the specific call: `EXPLAIN_MAX_TOKENS` (default 250) for English generation, and `EXPLAIN_TRANSLATION_MAX_TOKENS` (default 700) for Urdu / Roman Urdu translation (which requires more tokens due to non-Latin script tokenization in JSON). If generating the needed completion tokens would exceed 1,000 OTPM, the worker thread sleeps for the exact seconds required for older tokens to roll out of the window.
 5. **Non-Tripping 429 Retries in Background:** In background mode, an HTTP 429 does **not** trip the circuit breaker. It parses the upstream `retry-after` header and sleeps (default 5.0s, capped at 30.0s), retrying once before failing over to Gemini.
 6. **Stale Job Protection:** If an explanation remains in `status="pending"` for longer than `EXPLAIN_JOB_DEADLINE_SECONDS + 30.0s` (75.0 s), `app_store.get_checkin_explanation` automatically replaces it with the stored fallback template with `reason="job_lost"`.
 
@@ -166,6 +166,13 @@ sequenceDiagram
 | `EXPLAIN_JOB_DEADLINE_SECONDS` | float | `45.0` | `10.0` - `120.0` | Total wall-clock deadline for background explanation job. |
 | `EXPLAIN_CALL_TIMEOUT_SECONDS` | float | `20.0` | `5.0` - `60.0` | Per-provider call timeout for background explanation job. |
 | `EXPLAIN_GROQ_OTPM` | int | `1000` | `100` - `10000` | Groq output tokens per minute pacer limit (60s rolling window). |
+| `EXPLAIN_MODE` | str | `background` | `background`, `inline` | Job execution mode: `background` worker or synchronous `inline`. |
+| `EXPLAIN_QUEUE_MAX` | int | `50` | `1` - `500` | Bounded capacity for background explanation job queue. |
+| `EXPLAIN_JOB_DEADLINE_SECONDS` | float | `45.0` | `10.0` - `120.0` | Total wall-clock deadline for background explanation job. |
+| `EXPLAIN_CALL_TIMEOUT_SECONDS` | float | `20.0` | `5.0` - `60.0` | Per-provider call timeout for background explanation job. |
+| `EXPLAIN_GROQ_OTPM` | int | `1000` | `100` - `10000` | Groq output tokens per minute pacer limit (60s rolling window). |
+| `EXPLAIN_MAX_TOKENS` | int | `250` | `100` - `1000` | Maximum completion tokens for English LLM generation call. |
+| `EXPLAIN_TRANSLATION_MAX_TOKENS` | int | `700` | `250` - `2000` | Maximum completion tokens for Urdu / Roman Urdu translation LLM call (higher token density in JSON). |
 
 > [!NOTE]
 > **Gemini Thinking Budget:** To avoid budget timeouts on reasoning models (`gemini-flash-latest`), `GEMINI_THINKING_BUDGET` defaults to `0` (`thinkingConfig.thinkingBudget = 0`) when unset or empty. Set `GEMINI_THINKING_BUDGET=none` only if calling a legacy model that rejects `thinkingConfig`.
@@ -197,6 +204,15 @@ The presentation of the explanation is strictly segregated between patient and p
 
 ---
 
+### 5.1 Patient Excerpt Policy & Licence Caps (Rule X5)
+
+In ChronicCare AI, patients never see raw, unformatted chunk text:
+1. **Plain Language Synthesis:** Explanations are either synthesized in patient-friendly plain language by authorized LLMs (Groq) or generated from pre-verified clinical templates.
+2. **Attribution and Citation:** When guideline sources are shown to patients, only verified academic citations and external DOI links are displayed.
+3. **Future Excerpt Cap:** If brief verbatim excerpts are ever introduced in a future release, the maximum number of excerpts per check-in is strictly capped by the guideline's licence specification (`max_excerpts_per_checkin` in `rag/licences.json` — strictly capped at **3 excerpts** for ADA 2026).
+
+---
+
 ## 6. Troubleshooting & Fallback Reason Codes
 
 Whenever `mode == "template"`, the `reason` field indicates why deterministic fallback was selected:
@@ -211,7 +227,7 @@ Whenever `mode == "template"`, the `reason` field indicates why deterministic fa
 | `no_llm` | API key is not configured or LLM client initialization failed. | Configure `GROQ_API_KEY` and/or `GEMINI_API_KEY` in environment. |
 | `no_chunks` | Retrieval returned 0 relevant guideline chunks for this condition. | Check database seeding (`init_local_db.py`). |
 | `busy` | All worker semaphore slots (`EXPLAIN_POOL_MAX_WORKERS`) are in use. | High concurrent traffic spike. Increase `EXPLAIN_POOL_MAX_WORKERS` (default 8). |
-| `licence_restricted` | Retrieved guideline chunk is from a restricted licence corpus (G3) and Gemini cannot be used. | Normal safety behavior. The system falls back to verified deterministic templates or alternative providers. |
+| `licence_restricted` | Retrieved guideline chunk is restricted by licence terms (G3/X3), lacks required attribution (X4), or provider is prohibited (e.g. Gemini prohibited for ADA 2026; AHA/ACC blocked). | Normal safety behavior. The system safely falls back to verified deterministic templates or alternative permitted providers. |
 | `condition_template_only` | Check-in condition is not in `EXPLAIN_LLM_CONDITIONS` (e.g. diabetes). | Normal clinical safety behavior. Diabetes explanations are deterministic template-only. |
 | `template_corrected` | Deterministic template contradicted actual vitals and was replaced with neutral routine template. | Normal safety invariant enforcement. Check trigger mapping logic. |
 | `error` | Upstream JSON deserialization or network socket exception. | Inspect backend application error logs. |

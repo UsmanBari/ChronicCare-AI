@@ -40,7 +40,13 @@ from rag.explainer import (
     validate_level_consistency,
     validate_number_grounding,
 )
-from rag.query_map import build_query_from_triage
+from rag.licences import (
+    get_restricted_gemini_sources,
+    has_complete_attribution,
+    is_llm_allowed_for_source,
+    is_source_expired,
+)
+from rag.query_map import build_query_from_triage, is_ramadan_text
 from rag.retriever import BM25Retriever
 from rag.store import ChunkStore
 
@@ -48,19 +54,10 @@ logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Guideline Corpus Licensing Restrictions (G3)
-# Source IDs with allowed_for_rag == FALSE in docs/GUIDELINE_CORPUS.md.
-# These guidelines carry text/data mining prohibitions or copyright restrictions.
-# Chunks derived from these sources must NEVER be sent to Google Gemini under any circumstances.
+# Source IDs that must NEVER be sent to Google Gemini under any circumstances.
+# Backed by single machine-readable source of truth in rag.licences.
 # =============================================================================
-LICENCE_RESTRICTED_SOURCES: Set[str] = {
-    "ada_2026_sec02",
-    "ada_2026_sec05",
-    "ada_2026_sec06",
-    "ada_2026_sec10",
-    "ada_2026_sec11",
-    "ada_2026_sec13",
-    "aha_acc_2025",
-}
+LICENCE_RESTRICTED_SOURCES: Set[str] = get_restricted_gemini_sources()
 
 # =============================================================================
 # Configuration & Defaults
@@ -176,6 +173,21 @@ def is_condition_allowed_for_llm(condition: str, trigger_category: str) -> bool:
         return trigger_category in bp_triggers and "hypertension" in allowed
 
     return cond in allowed
+
+
+def is_patient_diabetic(
+    patient_conditions: Optional[List[str]] = None,
+    condition: Optional[str] = None,
+) -> bool:
+    """
+    Returns True if the patient is considered diabetic based on patient_conditions
+    or fallback single condition string.
+    """
+    if patient_conditions is not None:
+        p_conds = {str(c).lower().strip() for c in patient_conditions}
+        return bool(p_conds & {"diabetes", "t2d", "type 2 diabetes", "both"})
+    c_clean = str(condition or "").lower().strip()
+    return c_clean in ("diabetes", "both") or "diabetes" in c_clean
 
 
 def get_explain_mode() -> str:
@@ -338,7 +350,7 @@ class ExplainCache:
         if store is not None:
             for cid in cited_cids:
                 if cid not in existing_chunks_by_id:
-                    chunk = store.get(cid)
+                    chunk = store.get_chunk(cid) if hasattr(store, "get_chunk") else store.get(cid)
                     if not chunk:
                         with self._lock:
                             self.misses += 1
@@ -938,6 +950,7 @@ def guarded_explain(
     mode: Optional[str] = None,
     clock_fn: Optional[Callable[[], float]] = None,
     sleep_fn: Optional[Callable[[float], None]] = None,
+    patient_conditions: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Executes a fully guarded clinical explanation:
@@ -1065,11 +1078,61 @@ def guarded_explain(
     if not candidate_chunks and store is not None:
         return _make_template_fallback("no_chunks", ["No matching clinical guideline chunks found"])
 
-    # 5. Check G3 Licence Restriction across chunks
+    # Filter expired chunks at runtime (X2)
+    if candidate_chunks:
+        candidate_chunks = [c for c in candidate_chunks if not is_source_expired(c.get("source_id", ""))]
+
+    is_ramadan_checkin = (
+        trigger_category == "ramadan_fasting"
+        or is_ramadan_text(query_mapping.query_text)
+        or any(is_ramadan_text(str(r)) for r in triage_copy.get("reasons", []))
+    )
+
+    # Point 1: IDF-DAR (idf_dar_2021) chunks may be used only for Ramadan check-ins
+    if cond_str == "diabetes" and not is_ramadan_checkin and candidate_chunks:
+        candidate_chunks = [
+            c for c in candidate_chunks
+            if not str(c.get("source_id", "")).strip().lower().startswith("idf_dar")
+        ]
+
+    # 5. Check G3 Licence Restriction across chunks (Gemini prohibited if ANY candidate chunk is restricted)
     has_restricted_chunk = any(
         str(c.get("source_id", "")).strip().lower() in LICENCE_RESTRICTED_SOURCES
         for c in candidate_chunks
     )
+
+    # Attribution check (X4): sources requiring attribution cannot be used if citation or DOI is missing or 'TO FILL BY USMAN'
+    if candidate_chunks:
+        attribution_valid_chunks = [
+            c for c in candidate_chunks
+            if has_complete_attribution(c.get("source_id", ""), chunk=c)
+        ]
+        if len(attribution_valid_chunks) < len(candidate_chunks) and not attribution_valid_chunks and store is not None:
+            return _make_template_fallback("licence_restricted", ["Sources require full citation and DOI attribution before use"])
+        candidate_chunks = attribution_valid_chunks
+
+    # Point 1: Diabetes, non-Ramadan check-ins: if no ADA chunk survives attribution/licence filters, do NOT send other chunks to LLM
+    if cond_str == "diabetes" and not is_ramadan_checkin and store is not None:
+        has_surviving_ada = any(
+            str(c.get("source_id", "")).strip().lower().startswith("ada_2026")
+            for c in candidate_chunks
+        )
+        if not has_surviving_ada:
+            return _make_template_fallback(
+                "licence_restricted",
+                ["No valid ADA guideline chunks available for non-Ramadan diabetes explanation"]
+            )
+
+    # F6: ADA Standards of Care are for people with diabetes.
+    # Use ada_2026_* chunks only when the PATIENT's conditions include diabetes (both-condition patients: allowed).
+    # For a hypertension-only patient, drop ada_2026_* chunks before the LLM call and from the sources list.
+    if not is_patient_diabetic(patient_conditions=patient_conditions, condition=cond_str) and candidate_chunks:
+        candidate_chunks = [
+            c for c in candidate_chunks
+            if not str(c.get("source_id") or c.get("id") or c.get("chunk_id") or "").startswith("ada_2026")
+        ]
+        if not candidate_chunks and store is not None:
+            return _make_template_fallback("no_chunks", ["No matching clinical guideline chunks found"])
 
     # 6. Resolve Candidate Providers
     active_mode = (provider or get_llm_provider()).strip().lower()
@@ -1083,6 +1146,27 @@ def guarded_explain(
     # Filter by licence restriction: G3 forbids Gemini if any restricted chunk
     if has_restricted_chunk:
         provider_candidates = [p for p in provider_candidates if p != "gemini"]
+
+    # Filter by licence restrictions (X3 enforces provider permissions)
+    filtered_provider_candidates: List[str] = []
+    licence_skipped: List[str] = []
+
+    for p in provider_candidates:
+        if candidate_chunks:
+            allowed_chunks = [
+                c for c in candidate_chunks
+                if is_llm_allowed_for_source(c.get("source_id", ""), provider=p)
+            ]
+            if not allowed_chunks:
+                licence_skipped.append(p)
+                continue
+
+        filtered_provider_candidates.append(p)
+
+    if (not provider_candidates and has_restricted_chunk) or (not filtered_provider_candidates and licence_skipped):
+        return _make_template_fallback("licence_restricted", ["Retrieved chunks restricted by guideline licence for configured LLM provider"])
+
+    provider_candidates = filtered_provider_candidates
 
     # Filter by configuration, breakers, and token caps
     eligible_providers: List[str] = []
@@ -1162,7 +1246,12 @@ def guarded_explain(
 
             # Groq OTPM pacer in background mode
             if active_explain_mode == "background" and current_provider == "groq":
-                wait_sec = _GLOBAL_GROQ_PACER.get_wait_seconds(tokens_needed=250, otpm_limit=get_groq_otpm(), clock_fn=now_fn)
+                from rag.explainer import get_explain_max_tokens
+                wait_sec = _GLOBAL_GROQ_PACER.get_wait_seconds(
+                    tokens_needed=get_explain_max_tokens(),
+                    otpm_limit=get_groq_otpm(),
+                    clock_fn=now_fn,
+                )
                 if wait_sec > 0.0:
                     if (now_fn() + wait_sec + 2.0) <= deadline:
                         nap_fn(wait_sec)
@@ -1217,9 +1306,10 @@ def guarded_explain(
                         def _timed_llm(**kwargs):
                             try:
                                 # Check pacer before every Groq call (English and translation) in background mode
+                                call_max_tokens = int(kwargs.get("max_tokens") or 250)
                                 if active_explain_mode == "background" and current_provider == "groq":
                                     wait_sec = _GLOBAL_GROQ_PACER.get_wait_seconds(
-                                        tokens_needed=250,
+                                        tokens_needed=call_max_tokens,
                                         otpm_limit=get_groq_otpm(),
                                         clock_fn=now_fn,
                                     )
@@ -1273,12 +1363,18 @@ def guarded_explain(
                                 worker_error["error"] = exc
                                 raise
 
+                        allowed_for_curr = [
+                            c for c in candidate_chunks
+                            if is_llm_allowed_for_source(c.get("source_id", ""), provider=current_provider)
+                        ]
                         res = explain(
                             triage_result=triage_copy,
                             readings=readings_copy,
                             language=target_lang,
                             store=store,
                             llm=_timed_llm,
+                            candidate_chunks=allowed_for_curr,
+                            provider=current_provider,
                         )
                         worker_result["data"] = res
                     except Exception as exc:
@@ -1306,8 +1402,14 @@ def guarded_explain(
                     err = worker_error["error"]
                     err_str = str(err).lower()
                     is_429 = "rate limit" in err_str or "429" in err_str or type(err).__name__ in ("RateLimitError", "GeminiRateLimitError")
+                    is_parse = type(err).__name__ in ("JSONDecodeError",) or "jsondecodeerror" in err_str or "parse_error" in err_str
                     exc_type = type(err).__name__
-                    if is_429:
+                    if is_parse:
+                        # Malformed model answer is a validation failure, not an outage: do not trip breaker
+                        if has_next:
+                            break
+                        return _make_template_fallback("validation_failed", [f"parse_error: {exc_type}"])
+                    elif is_429:
                         sanitized_reason = f"rate_limited: {exc_type}: HTTP 429"
                         if active_explain_mode == "background":
                             # In background mode, 429 does NOT trip circuit breaker!
@@ -1343,6 +1445,15 @@ def guarded_explain(
                 # Check template fallback from explain()
                 if res_data.get("mode") == "template":
                     rej_list = res_data.get("rejected_reasons", [])
+                    # F4: Parse error is a bad answer, not an outage: validation_failed without tripping breaker
+                    if any("parse_error" in str(r).lower() for r in rej_list) or res_data.get("reason") == "validation_failed":
+                        res_data["reason"] = "validation_failed"
+                        res_data["provider"] = None
+                        res_data["providers_tried"] = list(providers_tried)
+                        res_data["provider_timings"] = dict(provider_timings)
+                        record_fallback("validation_failed")
+                        return res_data
+
                     if any("LLM execution error" in r for r in rej_list):
                         is_429 = any("rate limit" in r.lower() or "429" in r.lower() for r in rej_list)
                         if is_429:

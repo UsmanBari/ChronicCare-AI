@@ -2,8 +2,9 @@
 
 **Document ID**: `docs/OCR_DESIGN.md`  
 **Iteration**: I2-5 (Day 5 Design & Measured Spike — Correction 3)  
-**Author**: Hassaan Mudassar (AI Assistant Antigravity)  
+**Author**: Hassaan (with AI coding assistant)  
 **Target Milestone**: Day 7 (OCR v1 behind feature flag)  
+**Date**: 06-Nov-2026  
 
 ---
 
@@ -17,7 +18,7 @@ All performance and accuracy numbers below are **MEASURED** directly from progra
 |---|---|---|---|---|---|---|---|
 | **Option A1: Tesseract.js ('eng' only)** | **MEASURED** | 462.0 ms | **24.9%** | 100.0% (24/24) | 100.0% | 100.0% (7/7) | **0 MB Server RAM** (Client: 131.07 MB) |
 | **Option A2: Tesseract.js ('eng+urd' bilingual)** | **MEASURED** | 529.7 ms | **25.5%** | 100.0% (24/24) | 100.0% | 100.0% (7/7) | **0 MB Server RAM** (Client: 140.74 MB) |
-| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 2,047.2 ms | **24.4%** | 95.8% (23/24) | 95.8% | 100.0% (7/7) | **108.99 MB Server RAM** (Fits 512 MB ceiling) |
+| **Option B: RapidOCR (Server ONNX)** | **MEASURED** | 2,047.2 ms | **24.4%** | 95.8% (23/24) | 95.8% | 100.0% (7/7) | **Linux Peak: 426–608 MB** (Exceeds Render 512 MB; see Section 6.3) |
 | **Reference: Tesseract Desktop (v5.3.4)** | **MEASURED** | 1,904.2 ms | **25.4%** | 91.7% (22/24) | 100.0% | 100.0% (7/7) | **48.2 MB Server RAM** (WSL2 / Linux binary) |
 
 #### Table 1B: Rotated, Blurred & Noisy Documents (3 Samples: lab_08, lab_09, rx_06)
@@ -46,8 +47,8 @@ All performance and accuracy numbers below are **MEASURED** directly from progra
 | Dimension | Option A: Tesseract.js (Client Phone) | Option B: RapidOCR (Server ONNX) | Dropped: EasyOCR | Dropped: Groq Vision |
 |---|---|---|---|---|
 | **Execution Host** | **Patient Browser / Phone** | **Render Web Service Backend** | Render Web Service Backend | Remote Cloud API |
-| **Server RAM Footprint** | **0 MB Server RAM** (Client: 131.07 MB) | **108.99 MB Peak** (MEASURED via psutil) | EXPECTED: 400–700 MB — source: [PyTorch/EasyOCR memory specs](https://github.com/JaidedAI/EasyOCR) | EXPECTED: ~15 MB HTTP Client — source: [Groq Python SDK](https://github.com/groq/groq-python) |
-| **Fits Render 512 MB Tier?** | **YES** (Zero server impact) | **YES** (~109 MB + 70 MB app = 179 MB) | **NO** (Triggers Linux OOM Kill 137) | **YES** (API client only) |
+| **Server RAM Footprint** | **0 MB Server RAM** (Client: 131.07 MB) | **426.1–608 MB Peak (In-Process)** / **450–529 MB Peak (Subprocess Tree)** (Linux measurements; Section 6.3) | EXPECTED: 400–700 MB — source: [PyTorch/EasyOCR memory specs](https://github.com/JaidedAI/EasyOCR) | EXPECTED: ~15 MB HTTP Client — source: [Groq Python SDK](https://github.com/groq/groq-python) |
+| **Fits Render 512 MB Tier?** | **YES** (Zero server impact) | **NO** (In-process peak 426–608 MB; subprocess tree peak 450–529 MB; risks Linux OOM Kill 137) | **NO** (Triggers Linux OOM Kill 137) | **YES** (API client only) |
 | **Server Binary Dependencies**| **None** (Browser JavaScript) | **None** (Precompiled ONNX wheels) | Requires PyTorch C++ wheels (~1.5 GB) | **None** (Python HTTP client) |
 | **Model / Asset Download** | **4.96 MB** (`eng`) / **6.29 MB** (`eng+urd`) | **15.44 MB** (MEASURED: 3 ONNX models) | EXPECTED: > 1.5 GB PyTorch distribution | 0 MB (Hosted off-site) |
 | **Urdu Script Support** | **YES** (MEASURED: `urd.traineddata` 1.33 MB) | **NO** (Latin / Chinese only) | Poor on connected Nastaliq | **NOT SUPPORTED** (No vision model provisioned on Groq account) |
@@ -61,7 +62,7 @@ All performance and accuracy numbers below are **MEASURED** directly from progra
 1. **Selection**: Applying the project decision rule (best measured handwriting medicine recall + field recall fitting Render), **Option B: RapidOCR on the FastAPI backend server** is selected as the winning architecture for ChronicCare-AI.
    - **Handwritten Medicine Recall**: RapidOCR achieved **100.0% (9/9)** with **22.3% CER**, cleanly extracting prescribed medications across all 4 phone photos.
    - **Comparison with Tesseract.js**: Tesseract.js ('eng' only) achieved **11.1% (1/9)** with **75.8% CER**; its LSTM engine severely fragments cursive strokes into discontinuous characters.
-   - **Server Feasibility**: RapidOCR's peak RSS of **108.99 MB** plus FastAPI's ~70 MB baseline totals **~180 MB**, well below Render's 512 MB ceiling without Docker or root/apt dependencies.
+   - **Server Feasibility**: While initial synthetic runs suggested a small baseline, actual Linux memory profiling (Section 6.3) shows that in-process execution peaks at **426.1–608 MB** (holding ~240–436 MB in the server process), and isolated subprocess mode (`OCR_USE_SUBPROCESS=true`) bounds the parent to **~131–139 MB** steady state but still exhibits a combined inference tree peak of **450–529 MB**. Because both options exceed or unacceptably crowd Render's 512 MB free tier ceiling, `OCR_ENABLED` is **not safe to enable** on the free tier and remains `false` by default.
 2. **Privacy & Ephemeral Server Processing (Zero Storage)**:
    - The uploaded document photo is decoded, auto-oriented (EXIF transpose), downscaled to max 2,000 px, and processed **strictly in RAM memory**.
    - The image is **never written to disk**, never stored in the database or S3, and **never transmitted to any third party** (adhering to the exact ephemeral security model established for voice audio transcription).
@@ -271,11 +272,49 @@ In step (a) verification in a clean Python 3.11 venv:
 - **Atomicity with Staging Retention**: If any confirmed item violates clinical validation bounds (e.g., glucose outside 20–600 mg/dL, systolic BP outside 60–260 mmHg, diastolic BP outside 30–160 mmHg, duplicate active medication, invalid status), the entire save transaction is rejected (HTTP 422). The staged upload remains active in the in-memory staging store.
 - **Frontend Interaction**: `OcrConfirmScreen.tsx` receives the structured error, maps it to the specific card (`invalidItem = { index: i, reasonCode: ... }`), displays a translated warning banner with a distinct red card border, and guides the patient to either Fix or Remove the item without losing any other confirmed items.
 
-### 6.3 Memory & Spike Measurements Summary (A2 / A8)
-Backend process memory was measured directly in a clean Python 3.11 Linux environment (Ubuntu 24.04, Python 3.11.18) via `/proc/self/status` VmRSS and `resource.getrusage` sampled every 50 ms:
-1. **Base Server Memory (after importing main, `OCR_ENABLED=false`)**: **70.15 MB** RSS.
-2. **After First Real OCR Call (`OCR_ENABLED=true`, `OCR_PROVIDER=rapidocr` on `rx_photo_01.jpg`)**: **226.51 MB** RSS.
-3. **Peak RSS During OCR Inference Call**: **436.09 MB** RSS (measured via 50ms background thread sampling and `ru_maxrss`).
-4. **Render Free Tier Headroom**: **75.91 MB** headroom remaining (14.8% free under the 512 MB memory limit).
-- **Latency**: ~2–4 seconds per prescription/lab photo scan.
-- **Handwritten Medicine Accuracy**: RapidOCR achieved 9/9 handwritten medications recognized (100.0% recall, 22.3% CER) vs 1/9 (11.1% recall, 75.8% CER) for Tesseract.js.
+### 6.3 Memory & Hardening Measurements Summary (Day 6 Verification)
+
+**Measurement Host**: Linux (WSL2 Ubuntu 24.04.1 LTS, x86_64, Kernel 6.6.36), Python 3.11.10 (simulating Render's Linux runtime container).  
+**Execution Tool**: `scripts/measure_ocr_memory.py` on `rx_photo_01.jpg` (140,846 bytes, downscaled to 1280 px max dimension).  
+**Date**: 06-Nov-2026
+
+#### Process Architecture Configuration
+
+- **`OCR_USE_SUBPROCESS`** (bool, default: `true` in backend config):
+  When enabled, RapidOCR inference runs in an isolated `multiprocessing.Process` child worker. The child process loads ONNX weights and tensor buffers, performs inference, passes structured extraction back across an IPC queue, and terminates. When the worker exits, the OS immediately reclaims all of its allocated memory (~300–400 MB). The parent FastAPI server drops back to a stable **~131–139 MB** post-call steady state rather than permanently holding **~240–436 MB** in main server RSS as seen in in-process mode.
+- **`OCR_SUBPROCESS_TIMEOUT`** (int, default: `30` seconds):
+  Parent watchdog timeout. If a child worker hangs or crashes, the parent terminates/cleans it up via `p.kill()` and returns HTTP 502 with error code `ocr_provider_error` (as enforced by code and tests: `{"code": "ocr_provider_error", "detail": "..."}`). Queue extraction drains before `p.join()` (`q.get(timeout=0.1)`) while polling child liveness to ensure large extraction payloads (>100 KB) never deadlock the IPC pipe.
+
+#### Measured Profiling Runs on Linux Across Options (3 Runs Each)
+
+| Architecture / Mode | Idle RSS | After 1st Call RSS | Steady RSS (After 5 Calls) | Peak RSS (During Inference) | Mean Latency | Headroom on 512 MB | Notes |
+|---|---|---|---|---|---|---|---|
+| **In-Process (`OCR_USE_SUBPROCESS=false`)** | 71.0 MB | 239.9 MB | 246.1 MB | **426.1 MB** (reviewer's Linux container (6 Nov): 436 MB after the first call, 573-608 MB peak) | 3.46 s | **Negative / Zero** on Render free tier | ONNX runtime retains persistent tensor buffers in main web server process |
+| **Subprocess (`OCR_USE_SUBPROCESS=true`)** | 70.3 MB | **131.5 MB** | **132.7 MB** | **493.3 MB** (combined tree peak; up to **518–529 MB**) | 4.51 s | **Negative / Zero** on Render free tier | Parent drops back to ~131–139 MB; worker process RAM reclaimed on exit |
+
+*Raw run logs on Linux (WSL2 Ubuntu 24.04, Python 3.11):*
+- *In-Process Run 1*: Idle 72.21 MB, 1st call 241.33 MB, steady 246.73 MB, peak 429.54 MB, latency 3.337 s
+- *In-Process Run 2*: Idle 70.42 MB, 1st call 239.44 MB, steady 244.57 MB, peak 422.94 MB, latency 3.487 s
+- *In-Process Run 3*: Idle 70.33 MB, 1st call 239.08 MB, steady 247.13 MB, peak 425.79 MB, latency 3.561 s
+- *Subprocess Run 1*: Idle 70.34 MB, 1st call 131.58 MB, steady 132.88 MB, peak 510.63 MB, latency 4.400 s
+- *Subprocess Run 2*: Idle 70.30 MB, 1st call 131.21 MB, steady 132.34 MB, peak 450.86 MB, latency 4.638 s
+- *Subprocess Run 3*: Idle 70.35 MB, 1st call 131.62 MB, steady 132.83 MB, peak 518.31 MB, latency 4.478 s
+
+#### Day 6 Hardening Before vs After Summary
+
+| Metric | Before Hardening (In-Process) | After Hardening (Subprocess + 1280px) | Delta / Clinical Effect |
+|---|---|---|---|
+| **Parent Web Server RSS (Post-Call)** | 239.9–436 MB (retains buffers) | **131.5–139 MB** (drops back post-call) | Mitigates persistent high memory in parent web server process |
+| **Worker Memory Reclamation** | None (in-process) | **Worker RAM reclaimed on exit** | Worker process terminates and releases memory upon completion |
+| **Combined Tree Peak RSS** | 426.1–608 MB | **493.3–529 MB** | Includes child worker execution + ONNX runtime buffers |
+| **Mean Latency per Upload** | 3.46 s | **4.51 s** | Modest ~1.05s overhead for process spawn on Linux |
+| **Prescription Medicine Recall** | 100.0% (9/9) | **100.0% (9/9)** | Zero regressions across handwritten test cases |
+| **Pakistani Lab Layout Recall** | 66.7% (10/15 TP, 25 FP) | **100.0% (15/15 TP, 0 FP)** | Multiline tabular windows + strict reference range exclusion |
+
+#### Recommendation for Usman
+
+> **Safe to enable on Render free tier: NO.**
+> 
+> **Technical Justification**: While `OCR_USE_SUBPROCESS=true` successfully prevents the parent FastAPI process from holding ONNX runtime buffers (allowing parent RSS to drop back to ~131–139 MB after each call), the transient combined peak memory during active inference reaches **493.3 MB** locally and **529 MB** in reviewer's Linux container (6 Nov). Both the in-process peak (426–608 MB) and the subprocess combined peak (493–529 MB) exceed or dangerously collide with Render's 512 MB free tier container ceiling. Under simultaneous traffic or multi-page uploads, this will trigger Linux Out-Of-Memory (OOM) termination (`exit code 137`).
+> 
+> Therefore, **`OCR_ENABLED` must remain `false` by default for FYP-1 production**. The endpoint correctly returns `503 Service Unavailable` with friendly user feedback when disabled. For FYP-2, enabling OCR safely on Render requires either upgrading to a 1 GB instance ($7/mo) or migrating client-side inference to WebAssembly via Tesseract.js.

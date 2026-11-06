@@ -1,0 +1,24 @@
+flowchart TB
+  S["<b>Check-in result saved</b><br/>explanation = pending"]
+  Q["<b>Job queue</b> (max 50)<br/>one worker · 45 s deadline per job"]
+  R["<b>Retrieve</b> top-3 guideline passages (BM25)"]
+  C{{"Cached answer that<br/>re-validates for these readings?"}}
+  G{{"<b>LLM allowed?</b><br/>hypertension only · passages found<br/>breaker closed · under token cap"}}
+  L["<b>LLM call</b> · Groq first, Gemini as fallback<br/>pacer: 1,000 output tokens/min<br/>one retry after a 429 · ADA / AHA text never to Gemini"]
+  V{{"<b>5 validators pass?</b><br/>structure · citations · numbers<br/>banned phrases · level"}}
+  T["<b>Template</b> in the patient's language<br/>H2: must not contradict the readings"]
+  OK["<b>Stored: ready</b><br/>LLM or cached answer"]
+  TS["<b>Stored: ready</b><br/>template"]
+  API["<b>GET /api/checkins/{id}/explanation</b><br/>patient sees sentences + sources only<br/>polls every 3 s, up to 90 s · stuck job → template after 60 s"]
+  S --> Q --> R --> C
+  C -- "yes" --> OK
+  C -- "no" --> G
+  G -- "no" --> T
+  G -- "yes" --> L --> V
+  V -- "yes" --> OK
+  V -- "no" --> T
+  T --> TS
+  OK --> API
+  TS --> API
+  classDef tmpl fill:#F3F0FA,stroke:#6941C6,color:#1A1A1A;
+  class T,TS tmpl;

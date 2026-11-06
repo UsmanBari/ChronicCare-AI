@@ -517,6 +517,7 @@ export interface Translations {
   hideWhyThisResultBtn: string;
   explanationSourcesTitle: string;
   explanationPending: string;
+  explanationDoiLabel: string;
   adminConfigTitle: string;
   adminConfigSubtitle: string;
 
@@ -1060,6 +1061,7 @@ export const translations: Record<Language, Translations> = {
     hideWhyThisResultBtn: "Hide explanation",
     explanationSourcesTitle: "Clinical Sources",
     explanationPending: "Preparing your explanation...",
+    explanationDoiLabel: "DOI / Source Link",
     adminConfigTitle: "System Configuration & Guards Status",
     adminConfigSubtitle: "Live runtime feature flags, LLM keys presence, and explainer performance metrics",
 
@@ -1603,6 +1605,7 @@ export const translations: Record<Language, Translations> = {
     hideWhyThisResultBtn: "وضاحت چھپائیں",
     explanationSourcesTitle: "طبی ذرائع",
     explanationPending: "آپ کی وضاحت تیار کی جا رہی ہے...",
+    explanationDoiLabel: "طبی حوالہ / ربط",
     adminConfigTitle: "سسٹم کنفیگریشن اور گارڈز کی حالت",
     adminConfigSubtitle: "لائیو رن ٹائم فیچر فلیگز، ایل ایل ایم کیز اور وضاحت کار کی کارکردگی کے میٹرکس",
 

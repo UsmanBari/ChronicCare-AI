@@ -200,14 +200,22 @@ MUTATIONS = [
         "replacement": "            \"free_text_note\": None,",
         "test_node": "backend-poc-technical/test_interview_v2_3_questions.py::test_diabetes_v2_3_full_path",
     },
-    # --- Stage 9A-7 Vomiting Red Flag Mutation ---
+    # --- Stage 9A-7 Vomiting Red Flag Mutations (R4) ---
     {
-        "id": "MUT-9A7-1",
-        "name": "Stage 9A-7: Cannot Keep Fluids Down Red Flag Rule",
+        "id": "MUT-9A7-1-V2",
+        "name": "R4 Inability to Keep Fluids Down Emergency (v2: demoted to urgent)",
         "file": BACKEND_DIR / "agents" / "adaptive_interview_agent.py",
-        "target": "        \"cannot keep fluids down\",",
-        "replacement": "        # \"cannot keep fluids down\",",
-        "test_node": "backend-poc-technical/test_vomiting_fluids_red_flags.py::test_mutation_proof_vomiting_fluids",
+        "target": '    "unable_to_keep_fluids": "emergency",',
+        "replacement": '    "unable_to_keep_fluids": "urgent",',
+        "test_node": "backend-poc-technical/test_vomiting_fluids_red_flags.py::test_v2_unable_to_keep_fluids_immediate_emergency",
+    },
+    {
+        "id": "MUT-9A7-1-V3",
+        "name": "R4 Inability to Keep Fluids Down Emergency (v3: wrong reason self_harm_statement if skipped)",
+        "file": BACKEND_DIR / "agents" / "interview_v3_runner.py",
+        "target": '        elif rf_screen_reason == "unable_to_keep_fluids":',
+        "replacement": '        elif False and rf_screen_reason == "unable_to_keep_fluids":',
+        "test_node": "backend-poc-technical/test_vomiting_fluids_red_flags.py::test_v3_unable_to_keep_fluids_immediate_emergency",
     },
     # --- Day 2 Mutations (M-H2-1 to M-H2-5) ---
     {
@@ -372,8 +380,8 @@ MUTATIONS = [
         "id": "M-U7-2",
         "name": "Explain step mutates clinical triage decision",
         "file": BACKEND_DIR / "orchestrator" / "steps.py",
-        "target": '        explain_res = guarded_explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n            condition=active_cond,\n            mode="inline",\n        )\n        if "status" not in explain_res:\n            explain_res["status"] = "ready"\n        return explain_res',
-        "replacement": '        explain_res = guarded_explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n            condition=active_cond,\n            mode="inline",\n        )\n        triage_decision["final_triage_level"] = "routine"\n        if "status" not in explain_res:\n            explain_res["status"] = "ready"\n        return explain_res',
+        "target": '        explain_res = guarded_explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n            condition=active_cond,\n            patient_conditions=patient_conditions,\n            mode="inline",\n        )\n        if "status" not in explain_res:\n            explain_res["status"] = "ready"\n        return explain_res',
+        "replacement": '        explain_res = guarded_explain(\n            triage_result=triage_copy,\n            readings=readings,\n            language=language,\n            store=store,\n            llm=llm,\n            condition=active_cond,\n            patient_conditions=patient_conditions,\n            mode="inline",\n        )\n        triage_decision["final_triage_level"] = "routine"\n        if "status" not in explain_res:\n            explain_res["status"] = "ready"\n        return explain_res',
         "test_node": "backend-poc-technical/test_checkin_risk_explain.py::test_mutation_proof_m_u7_2_explain_never_modifies_triage",
     },
     # --- Day 2 Danger Word Groups Mutations (M-U-WG-1 to M-U-WG-4) ---
@@ -543,6 +551,56 @@ def run_mutation(mut: dict) -> dict:
             except OSError:
                 pass
 
+    # Pre-check: run test_node on UNCHANGED code to verify it passes (Q1)
+    cmd_pre = [
+        sys.executable,
+        "-B",
+        "-m",
+        "pytest",
+        mut["test_node"],
+        "-c",
+        str(BACKEND_DIR / "pytest.ini"),
+        "-o",
+        "norecursedirs=node_modules .next",
+        "-x",
+        "--tb=line",
+        "-q",
+    ]
+    sub_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
+    proc_pre = subprocess.run(
+        cmd_pre,
+        cwd=str(REPO_ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        env=sub_env,
+    )
+    if proc_pre.returncode != 0:
+        pre_err = proc_pre.stderr.strip() or proc_pre.stdout.strip()
+        failing_line = ""
+        for line in (proc_pre.stdout or "").splitlines():
+            if "ERROR" in line or "FAILED" in line or "no tests collected" in line or "error" in line.lower():
+                failing_line = line.strip()
+                break
+        return {
+            "id": mut["id"],
+            "name": mut["name"],
+            "file": file_path.name,
+            "line_no": 0,
+            "sha_before": orig_sha,
+            "sha_after": orig_sha,
+            "diff": "",
+            "test_node": mut["test_node"],
+            "return_code": proc_pre.returncode,
+            "valid": False,
+            "killed": False,
+            "status": "INVALID",
+            "failing_output": f"Test node FAILED on UNCHANGED code (exit {proc_pre.returncode}): {failing_line or pre_err}",
+        }
+
     # Find line number (1-indexed)
     lines_before = orig_text[:orig_text.find(target)].splitlines()
     line_no = len(lines_before) + 1
@@ -579,7 +637,6 @@ def run_mutation(mut: dict) -> dict:
             "--tb=line",
             "-q",
         ]
-        sub_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8"}
         proc = subprocess.run(
             cmd,
             cwd=str(REPO_ROOT),
@@ -623,7 +680,9 @@ def run_mutation(mut: dict) -> dict:
         "diff": diff_str,
         "test_node": mut["test_node"],
         "return_code": proc.returncode,
+        "valid": True,
         "killed": killed,
+        "status": "KILLED (PASS)" if killed else "SURVIVED (FAIL)",
         "failing_output": failing_line or proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else proc.stderr.strip(),
     }
 
@@ -638,22 +697,37 @@ def main():
 
     all_passed = True
     results = []
+    valid_count = 0
+    killed_count = 0
+    survived_count = 0
+    invalid_count = 0
 
     for mut in mutations_to_run:
         res = run_mutation(mut)
         results.append(res)
-        status = "KILLED (PASS)" if res["killed"] else "SURVIVED (FAIL)"
-        if not res["killed"]:
+        if not res.get("valid", True):
+            status = "INVALID"
+            invalid_count += 1
+            all_passed = False
+        elif res["killed"]:
+            status = "KILLED (PASS)"
+            valid_count += 1
+            killed_count += 1
+        else:
+            status = "SURVIVED (FAIL)"
+            valid_count += 1
+            survived_count += 1
             all_passed = False
 
         print(f"\n[{res['id']}] {res['name']} -> {status}")
         print(f"  File: {res['file']}:{res['line_no']} (SHA256: {res['sha_before'][:12]}...)")
         safe_diff = res['diff'].strip().encode('ascii', 'backslashreplace').decode('ascii')
-        print(f"  Unified Diff:\n{safe_diff}")
+        if safe_diff:
+            print(f"  Unified Diff:\n{safe_diff}")
         print(f"  Pytest Subprocess: {res['test_node']}")
         print(f"  Exit Code: {res['return_code']}")
         safe_out = res['failing_output'].encode('ascii', 'backslashreplace').decode('ascii')
-        print(f"  Real Failure Output: {safe_out}")
+        print(f"  Output: {safe_out}")
         print(f"  Byte Integrity Verified: SHA matches ({res['sha_after'][:12]}...)")
 
     # Diagnostic proof that missing target exits non-zero
@@ -666,7 +740,7 @@ def main():
             "file": BACKEND_DIR / "agents" / "input_triage.py",
             "target": "THIS_STRING_DOES_NOT_EXIST_IN_THE_CODE",
             "replacement": "FOO",
-            "test_node": "backend-poc-technical/test_mutation_proofs_v3.py",
+            "test_node": "backend-poc-technical/test_mutation_proofs_v3.py::test_mutation_proof_1_danger_screen_on_free_text",
         })
         print("FAIL: Harness did not exit non-zero on missing target!")
         all_passed = False
@@ -674,7 +748,8 @@ def main():
         print(f"PASS: Harness caught missing target with expected ValueError: {e}")
 
     print("=" * 105)
-    print(f"All {len(MUTATIONS)} Mutations Verified & Killed: {'YES' if all_passed else 'NO'}")
+    print(f"MUTATION TOTALS: Valid: {valid_count} | Killed: {killed_count} | Survived: {survived_count} | Invalid: {invalid_count}")
+    print(f"All {len(mutations_to_run)} Mutations Verified & Killed: {'YES' if all_passed else 'NO'}")
     return 0 if all_passed else 1
 
 

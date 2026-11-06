@@ -26,8 +26,9 @@ if str(BACKEND_DIR) not in sys.path:
 
 try:
     from data_sources.app_store import get_db_cursor, _utc_now_iso
+    from rag.licences import get_licence_spec, is_source_allowed_for_rag, is_source_expired
 except ImportError as e:
-    print(f"Error importing app_store: {e}", file=sys.stderr)
+    print(f"Error importing dependencies: {e}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -65,6 +66,8 @@ def load_chunks(
     now = _utc_now_iso()
     inserted_count = 0
     updated_count = 0
+    source_status_cache: dict[str, tuple[bool, str]] = {}
+    skipped_counts: dict[str, int] = {}
 
     with open(file_path, "r", encoding="utf-8") as f:
         with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
@@ -83,6 +86,36 @@ def load_chunks(
                     continue
 
                 source_id = str(record.get("source_id", "")).strip()
+
+                # X1: Licence and permission token check
+                if source_id not in source_status_cache:
+                    spec = get_licence_spec(source_id)
+                    if spec is not None:
+                        is_licensed = source_id.startswith("ada_") or source_id.startswith("aha_")
+                        token_ok = True
+                        if is_licensed:
+                            data_dir_env = os.environ.get("CHRONICCARE_DATA_DIR", "")
+                            token_file = Path(data_dir_env) / "guidelines" / "permissions" / f"{source_id}.granted" if data_dir_env else None
+                            token_ok = bool(token_file and token_file.exists())
+
+                        if is_licensed and not token_ok:
+                            source_status_cache[source_id] = (False, "missing .granted token")
+                            print(f"SKIPPED {source_id}: missing .granted token")
+                        elif not is_source_allowed_for_rag(source_id):
+                            source_status_cache[source_id] = (False, "licence not allowed for RAG")
+                            print(f"SKIPPED {source_id}: licence not allowed for RAG")
+                        elif is_source_expired(source_id):
+                            source_status_cache[source_id] = (False, "licence expired")
+                            print(f"SKIPPED {source_id}: licence expired")
+                        else:
+                            source_status_cache[source_id] = (True, "allowed")
+                    else:
+                        source_status_cache[source_id] = (True, "allowed")
+
+                is_allowed, skip_reason = source_status_cache[source_id]
+                if not is_allowed:
+                    skipped_counts[source_id] = skipped_counts.get(source_id, 0) + 1
+                    continue
                 title = str(record.get("title", "")).strip()
                 edition = record.get("edition")
                 priority = int(record.get("priority", 1))

@@ -54,7 +54,8 @@ export const ReconciliationAlertDetail = () => {
     if (!isLiveMode || selectedPatient === "Ali Khan") {
       const isRiskEnabled =
         process.env.NEXT_PUBLIC_RISK_ENABLED === "true" ||
-        (typeof window !== "undefined" &&
+        (process.env.NEXT_PUBLIC_E2E_HOOKS === "1" &&
+          typeof window !== "undefined" &&
           (new URLSearchParams(window.location.search).get("risk") === "true" ||
             new URLSearchParams(window.location.search).get("risk") === "1"));
 
@@ -157,6 +158,55 @@ export const ReconciliationAlertDetail = () => {
               caveats: ["home_bp_not_exam_bp", "not_validated_pakistan"],
             }
           : null,
+        checkin_risk: isRiskEnabled
+          ? {
+              disease: "diabetes",
+              model_name: "diabetes_full_nhanes",
+              model_version: "1.0.0",
+              status: "ok",
+              band: "moderate",
+              probability: 0.145,
+              raised: false,
+              label_text: {
+                en: "Cardiometabolic risk assessment computed from check-in vitals.",
+                ur: "چیک ان وائٹلز سے کارڈیک خطرے کا تخمینہ۔",
+              },
+              reasons: [
+                {
+                  feature: "systolic",
+                  contribution: 0.38,
+                  label: { en: "Systolic blood pressure", ur: "سسٹولک بلڈ پریشر" },
+                },
+              ],
+              caveats: ["home_bp_not_exam_bp"],
+            }
+          : null,
+        explanation: isRiskEnabled
+          ? {
+              status: "ready",
+              mode: "background",
+              sentences: [
+                {
+                  text: isUrdu
+                    ? "ڈیمو مثال (حقیقی رہنمائی نہیں ہے)۔"
+                    : "Demo example (not real guidance).",
+                  cites: [],
+                },
+              ],
+              sources: [],
+              reason: "Demo example (not real guidance)",
+            }
+          : null,
+        trace: isRiskEnabled
+          ? [
+              { node: "intake", started_at: "2026-11-06T10:00:00Z", summary: "Parsed BP 142/90", duration_ms: 120 },
+              { node: "reconcile", started_at: "2026-11-06T10:00:01Z", summary: "Compared with baseline", duration_ms: 85 },
+              { node: "verify", started_at: "2026-11-06T10:00:02Z", summary: "Verified adherence", duration_ms: 95 },
+              { node: "decide_triage", started_at: "2026-11-06T10:00:03Z", summary: "Assigned moderate review", duration_ms: 110 },
+              { node: "risk", started_at: "2026-11-06T10:00:04Z", summary: "Calculated risk band: moderate", duration_ms: 340 },
+              { node: "explain", started_at: "2026-11-06T10:00:05Z", summary: "Generated patient guidance", duration_ms: 450 },
+            ]
+          : null,
       });
       setIsLoading(false);
       return;
@@ -180,7 +230,7 @@ export const ReconciliationAlertDetail = () => {
     return () => {
       isMounted = false;
     };
-  }, [isLiveMode, selectedPatient, demoScenario]);
+  }, [isLiveMode, selectedPatient, demoScenario, isUrdu]);
 
   const isResolved =
     resolvedCases.includes(selectedPatient || "Ali Khan") ||
@@ -314,6 +364,7 @@ export const ReconciliationAlertDetail = () => {
             type="button"
             onClick={() => setProviderScreen("review_queue")}
             id="reconciliation-back-btn"
+            aria-label={isUrdu ? "واپس جائیں" : "Back to review queue"}
             className="w-11 h-11 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 flex items-center justify-center transition-colors shadow-xs"
           >
             <ArrowLeft className={`w-5 h-5 ${isUrdu ? "rotate-180" : ""}`} />

@@ -12,13 +12,17 @@ For USMAN to run (with real API keys):
 - Stops early if token usage reaches 20,000 per provider
 """
 import argparse
+from collections import defaultdict
 import copy
 import json
 import os
+from pathlib import Path
+import shutil
+import sqlite3
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -35,12 +39,42 @@ import jwt
 
 from auth import firebase_verify
 from data_sources import app_store, local_store
+from data_sources.db_config import get_sqlite_path
 from main import app
 from rag.explain_guards import get_explain_guard_metrics, reset_explain_guards
 
 TEST_PROJECT_ID = "live-smoke-test-project"
 TEST_KID = "live-smoke-test-kid"
 MAX_TOKEN_BUDGET_PER_PROVIDER = 20000
+
+HTN_CHECKINS = [
+    {"cond": "hypertension", "bp_sys": 135.0, "bp_dia": 85.0, "glucose": None, "lang": "en"},
+    {"cond": "hypertension", "bp_sys": 135.0, "bp_dia": 85.0, "glucose": None, "lang": "en"},        # Cache hit
+    {"cond": "hypertension", "bp_sys": 145.0, "bp_dia": 92.0, "glucose": None, "lang": "en"},
+    {"cond": "hypertension", "bp_sys": 132.0, "bp_dia": 84.0, "glucose": None, "lang": "ur"},
+    {"cond": "hypertension", "bp_sys": 132.0, "bp_dia": 84.0, "glucose": None, "lang": "ur"},        # Cache hit
+    {"cond": "hypertension", "bp_sys": 150.0, "bp_dia": 95.0, "glucose": None, "lang": "ur"},
+    {"cond": "hypertension", "bp_sys": 125.0, "bp_dia": 82.0, "glucose": None, "lang": "roman_ur"},
+    {"cond": "hypertension", "bp_sys": 125.0, "bp_dia": 82.0, "glucose": None, "lang": "roman_ur"},  # Cache hit
+    {"cond": "hypertension", "bp_sys": 142.0, "bp_dia": 91.0, "glucose": None, "lang": "roman_ur"},
+    {"cond": "hypertension", "bp_sys": 135.0, "bp_dia": 85.0, "glucose": None, "lang": "en"},        # Cache hit
+]
+
+DIABETES_CHECKINS = [
+    {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 115.0, "lang": "en"},
+    {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 115.0, "lang": "en"},        # Cache hit
+    {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 195.0, "lang": "en"},
+    {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 145.0, "lang": "ur"},
+    {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 145.0, "lang": "ur"},        # Cache hit
+    {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 260.0, "lang": "ur"},
+    {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 125.0, "lang": "roman_ur"},
+    {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 125.0, "lang": "roman_ur"},  # Cache hit
+    {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 65.0, "lang": "roman_ur"},
+    {"cond": "diabetes", "bp_sys": None, "bp_dia": None, "glucose": 115.0, "lang": "en"},        # Cache hit
+]
+
+htn_checkins = HTN_CHECKINS
+diabetes_checkins = DIABETES_CHECKINS
 
 
 def generate_cert(rsa_key):
@@ -97,6 +131,10 @@ def setup_db(db_file: str, cert_pem: str):
          "Target blood pressure for adults with hypertension is below 130/80 mmHg.", now),
         ("c_htn_2", "who_2021_htn", "Stage 2 Targets", "hypertension",
          "Blood pressure 140/90 mmHg or higher requires clinical management.", now),
+        ("c_dm_1", "ada_2026_sec02", "Classification and Diagnosis", "diabetes",
+         "Fasting plasma glucose 126 mg/dL or higher or HbA1c 6.5 percent or higher confirms diabetes.", now),
+        ("c_dm_2", "ada_2026_sec06", "Glycemic Goals", "diabetes",
+         "Target fasting blood glucose for nonpregnant adults is 80-130 mg/dL.", now),
     ]
     with app_store.get_db_cursor(backend="sqlite", db_path=db_file) as (cur, be, ph):
         for cid, src, title, cond, text, updated in chunks:
@@ -139,24 +177,52 @@ def main():
         default=30.0,
         help="Poll timeout for background explanation in seconds (default: 30.0)",
     )
+    parser.add_argument(
+        "--condition",
+        choices=["hypertension", "diabetes", "both"],
+        default="hypertension",
+        help="Condition focus for smoke test check-ins (default: hypertension)",
+    )
+    parser.add_argument(
+        "--real-chunks",
+        action="store_true",
+        default=False,
+        help="Run against a copy of the real loaded guideline chunks store instead of 4 synthetic test chunks",
+    )
     args = parser.parse_args()
 
     pause = args.pause if args.pause is not None else (2.0 if args.provider == "groq" else 0.0)
 
-    print("=" * 105)
+    print("=" * 115)
     print("CHRONICCARE AI - LIVE EXPLAINER SMOKE TEST (Groq & Gemini Dual Provider)")
-    print("=" * 105)
+    print("=" * 115)
+
+    backend_conf = os.environ.get("DB_BACKEND", "sqlite").strip().lower()
+    raw_db_path = os.environ.get("LOCAL_DB_PATH", "local_store.db")
+    resolved_db_path = get_sqlite_path()
+
+    print(f"Provider mode requested: {args.provider}")
+    print(f"Condition:               {args.condition}")
+    print(f"Explain mode:            {args.mode}")
+    if args.mode == "background":
+        job_deadline = float(os.getenv("EXPLAIN_JOB_DEADLINE_SECONDS", "45.0"))
+        print(f"Job Deadline:            {job_deadline:.1f} s")
+    else:
+        print(f"Time Budget:             {args.budget:.1f} s")
+    print(f"Pause between calls:     {pause:.1f} s")
+    print(f"Poll timeout:            {args.poll_timeout:.1f} s")
+    print(f"Backend configured:      {backend_conf}")
+    print(f"LOCAL_DB_PATH (env):     {raw_db_path}")
+    print(f"Resolved SQLite path:    {resolved_db_path}")
 
     groq_set = "SET" if os.getenv("GROQ_API_KEY", "").strip() else "NOT SET"
     gemini_set = "SET" if os.getenv("GEMINI_API_KEY", "").strip() else "NOT SET"
-
-    print(f"Provider mode requested: {args.provider}")
-    print(f"Explain mode:            {args.mode}")
-    print(f"Time Budget:             {args.budget:.1f} s")
-    print(f"Pause between calls:     {pause:.1f} s")
-    print(f"Poll timeout:            {args.poll_timeout:.1f} s")
     print(f"GROQ_API_KEY:            {groq_set}")
     print(f"GEMINI_API_KEY:          {gemini_set}")
+
+    if args.real_chunks and backend_conf == "mysql":
+        print("[ERROR] --real-chunks only supports the local SQLite store", file=sys.stderr)
+        return 1
 
     if args.provider == "groq" and groq_set != "SET":
         print("[INFO] GROQ_API_KEY is NOT SET. Exiting cleanly (code 0).")
@@ -172,42 +238,115 @@ def main():
     os.environ["EXPLAIN_MODE"] = args.mode
     os.environ["LLM_PROVIDER"] = args.provider
     os.environ["EXPLAIN_BUDGET_SECONDS"] = str(args.budget)
-    os.environ["EXPLAIN_LLM_CONDITIONS"] = "hypertension"
+    os.environ["EXPLAIN_LLM_CONDITIONS"] = "hypertension,diabetes" if args.condition in ("diabetes", "both") else "hypertension"
     reset_explain_guards()
 
     rsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     cert_pem = generate_cert(rsa_key)
-    db_file = str(REPO_ROOT / "temp_live_smoke.db")
-    setup_db(db_file, cert_pem)
-
-    client = TestClient(app)
-
-    # 10 test check-ins across en, ur, roman_ur with repeated readings to test cache
-    test_checkins = [
-        {"bp_sys": 135.0, "bp_dia": 85.0, "lang": "en"},
-        {"bp_sys": 135.0, "bp_dia": 85.0, "lang": "en"},        # Cache hit
-        {"bp_sys": 145.0, "bp_dia": 92.0, "lang": "en"},
-        {"bp_sys": 132.0, "bp_dia": 84.0, "lang": "ur"},
-        {"bp_sys": 132.0, "bp_dia": 84.0, "lang": "ur"},        # Cache hit
-        {"bp_sys": 150.0, "bp_dia": 95.0, "lang": "ur"},
-        {"bp_sys": 125.0, "bp_dia": 82.0, "lang": "roman_ur"},
-        {"bp_sys": 125.0, "bp_dia": 82.0, "lang": "roman_ur"},  # Cache hit
-        {"bp_sys": 142.0, "bp_dia": 91.0, "lang": "roman_ur"},
-        {"bp_sys": 135.0, "bp_dia": 85.0, "lang": "en"},        # Cache hit
-    ]
-
-    print("\nRunning 10 pipeline check-ins (Hypertension only, en / ur / roman_ur)...\n")
-    if args.mode == "background":
-        print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Lat.Pend':<10} | {'Lat.Ready':<10} | {'Provider Latency':<25}")
-        print("-" * 130)
-    else:
-        print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Elapsed':<10} | {'Provider Latency':<25}")
-        print("-" * 115)
+    db_file = None
 
     try:
+        if args.real_chunks:
+            if not os.path.exists(resolved_db_path):
+                print(f"[ERROR] Local store not found at {resolved_db_path}. Run python scripts/rag/load_chunks.py first.", file=sys.stderr)
+                return 1
+
+            fd, db_file = tempfile.mkstemp(prefix="chroniccare_smoke_", suffix=".db")
+            os.close(fd)
+
+            # Use SQLite backup API for consistent atomic copy (including WAL data)
+            src_conn = sqlite3.connect(resolved_db_path)
+            dst_conn = sqlite3.connect(db_file)
+            src_conn.backup(dst_conn)
+            dst_conn.close()
+            src_conn.close()
+
+            os.environ["LOCAL_DB_PATH"] = db_file
+            os.environ["DB_BACKEND"] = "sqlite"
+            os.environ["FIREBASE_PROJECT_ID"] = TEST_PROJECT_ID
+            os.environ["REQUIRE_INCLUSION"] = "0"
+
+            app_store.migrate(db_path=db_file, backend="sqlite")
+            local_store.init_db(db_path=db_file)
+
+            mock_keys = {TEST_KID: cert_pem}
+            firebase_verify._KEY_CACHE = {"keys": mock_keys, "expires_at": time.time() + 3600}
+            firebase_verify.fetch_google_public_keys = lambda force_refresh=False: mock_keys
+
+            with app_store.get_db_cursor(backend="sqlite", db_path=db_file) as (cur, be, ph):
+                cur.execute("SELECT chunk_id, source_id, condition FROM guideline_chunks")
+                all_chunks = cur.fetchall()
+
+            total_chunks = len(all_chunks)
+            chunks_by_source = defaultdict(int)
+            chunks_by_cond = defaultdict(int)
+            ada_chunks_count = 0
+            for row in all_chunks:
+                c_id, s_id, cond = row[0], row[1], row[2]
+                chunks_by_source[s_id] += 1
+                chunks_by_cond[cond] += 1
+                if s_id and s_id.startswith("ada_2026"):
+                    ada_chunks_count += 1
+
+            if args.condition == "hypertension":
+                if chunks_by_cond["hypertension"] == 0:
+                    print("[ERROR] Hypertension condition selected but 0 hypertension chunks found in store.", file=sys.stderr)
+                    return 1
+            elif args.condition == "diabetes":
+                if chunks_by_cond["diabetes"] == 0:
+                    print("[ERROR] Diabetes condition selected but 0 diabetes chunks found in store.", file=sys.stderr)
+                    return 1
+                if ada_chunks_count == 0:
+                    print("[ERROR] Diabetes condition selected but no ADA 2026 chunks found in store. Follow the permission steps in docs/tasks/WEEK3_USMAN.md before running with --real-chunks.", file=sys.stderr)
+                    return 1
+            elif args.condition == "both":
+                if chunks_by_cond["hypertension"] == 0 and chunks_by_cond["diabetes"] == 0:
+                    print("[ERROR] Both conditions selected but no hypertension or diabetes chunks found in store.", file=sys.stderr)
+                    return 1
+                if ada_chunks_count == 0:
+                    print("[ERROR] Diabetes condition selected but no ADA 2026 chunks found in store. Follow the permission steps in docs/tasks/WEEK3_USMAN.md before running with --real-chunks.", file=sys.stderr)
+                    return 1
+
+            print(f"\nCHUNKS: real loaded corpus (copy of {resolved_db_path})")
+            print(f"Total chunks in store: {total_chunks}")
+            print("Chunks per source:")
+            for s_id in sorted(chunks_by_source.keys()):
+                print(f"  - {s_id}: {chunks_by_source[s_id]}")
+        else:
+            db_file = str(REPO_ROOT / "temp_live_smoke.db")
+            setup_db(db_file, cert_pem)
+            print("\nCHUNKS: 4 synthetic test chunks (not the real corpus)")
+
+        chunk_to_source = {}
+        with app_store.get_db_cursor(backend="sqlite", db_path=db_file) as (cur, be, ph):
+            cur.execute("SELECT chunk_id, source_id FROM guideline_chunks")
+            for r in cur.fetchall():
+                chunk_to_source[r[0]] = r[1]
+
+        client = TestClient(app)
+
+        if args.condition == "hypertension":
+            test_checkins = list(htn_checkins)
+        elif args.condition == "diabetes":
+            test_checkins = list(diabetes_checkins)
+        else:
+            test_checkins = [
+                htn_checkins[i] if i % 2 == 0 else diabetes_checkins[i]
+                for i in range(min(len(htn_checkins), len(diabetes_checkins)))
+            ]
+
+        print(f"\nRunning {len(test_checkins)} pipeline check-ins (Condition: {args.condition}, en / ur / roman_ur)...\n")
+        if args.mode == "background":
+            print(f"{'#':<3} | {'Lang':<8} | {'Category':<16} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Lat.Pend':<10} | {'Lat.Ready':<10} | {'Provider Latency':<20} | {'Cited (Chunk / Source)':<32}")
+            print("-" * 180)
+        else:
+            print(f"{'#':<3} | {'Lang':<8} | {'Category':<16} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Elapsed':<10} | {'Provider Latency':<20} | {'Cited (Chunk / Source)':<32}")
+            print("-" * 165)
+
         run_id = int(time.time())
         prev_tokens_groq = 0
         prev_tokens_gemini = 0
+        cited_sources_by_source_id = defaultdict(int)
 
         for idx, item in enumerate(test_checkins, start=1):
             metrics = get_explain_guard_metrics()
@@ -227,22 +366,30 @@ def main():
             local_store.add_local_patient_if_missing(f"local-{uid}", name=f"Smoke User {idx}", date_of_birth="1980-01-01")
             client.post("/api/me/consent", headers=headers, json={"granted": True, "provider_notification": True})
             client.post("/api/me/provider-notification-consent", headers=headers, json={"granted": True})
+            cond = item.get("cond", "hypertension")
             client.put(
                 "/api/me/profile",
                 headers=headers,
                 json={
-                    "conditions": ["hypertension"],
+                    "conditions": [cond],
                     "date_of_birth": "1980-01-01",
                     "inclusion_confirmed": True,
                     "language": item["lang"],
                 },
             )
 
+            readings_dict = {}
+            if item.get("bp_sys") is not None:
+                readings_dict["blood_pressure_systolic"] = item["bp_sys"]
+                readings_dict["blood_pressure_diastolic"] = item["bp_dia"]
+            if item.get("glucose") is not None:
+                readings_dict["glucose"] = item["glucose"]
+
             raw_state = {
                 "engine": "v3",
                 "completed": True,
-                "conditions_on_file": ["hypertension"],
-                "readings": {"blood_pressure_systolic": item["bp_sys"], "blood_pressure_diastolic": item["bp_dia"]},
+                "conditions_on_file": [cond],
+                "readings": readings_dict,
                 "findings": [],
             }
             app_store.create_checkin(
@@ -305,15 +452,36 @@ def main():
             else:
                 prov_timing_str = "-"
 
+            sources_list = explanation.get("sources", [])
+            cited_chunk_ids = sorted(set(str(s.get("chunk_id", "")) for s in sources_list if s.get("chunk_id")))
+            cited_src_ids = sorted(set(str(s.get("source_id") or chunk_to_source.get(s.get("chunk_id", ""), "")) for s in sources_list if (s.get("source_id") or chunk_to_source.get(s.get("chunk_id", "")))))
+
+            for src in cited_src_ids:
+                cited_sources_by_source_id[src] += 1
+
+            chunk_str = ", ".join(cited_chunk_ids) if cited_chunk_ids else "-"
+            src_str = ", ".join(cited_src_ids) if cited_src_ids else "-"
+            if cited_chunk_ids or src_str != "-":
+                cited_display = f"{chunk_str} [{src_str}]"
+            else:
+                cited_display = "-"
+
+            from rag.query_map import build_query_from_triage
+            q_map = build_query_from_triage(
+                {"level": triage_level, "symptom": item.get("symptom")},
+                readings_dict,
+            )
+            trigger_cat = q_map.trigger_category
+
             if args.mode == "background":
                 print(
-                    f"{idx:<3} | {item['lang']:<8} | {triage_level:<10} | {provider_used:<10} | "
-                    f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {lat_ready:<10.3f} | {prov_timing_str:<25}"
+                    f"{idx:<3} | {item['lang']:<8} | {trigger_cat:<16} | {triage_level:<10} | {provider_used:<10} | "
+                    f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {lat_ready:<10.3f} | {prov_timing_str:<20} | {cited_display:<32}"
                 )
             else:
                 print(
-                    f"{idx:<3} | {item['lang']:<8} | {triage_level:<10} | {provider_used:<10} | "
-                    f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {prov_timing_str:<25}"
+                    f"{idx:<3} | {item['lang']:<8} | {trigger_cat:<16} | {triage_level:<10} | {provider_used:<10} | "
+                    f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {prov_timing_str:<20} | {cited_display:<32}"
                 )
 
             if pause > 0 and idx < len(test_checkins):
@@ -340,15 +508,25 @@ def main():
         print(f"Gemini Tokens Used:    {final_gemini_tokens} / {MAX_TOKEN_BUDGET_PER_PROVIDER}")
         print(f"Gemini Breaker State:  {final_gemini_breaker}")
         print(f"Template Fallbacks:    {final_metrics.get('template_fallbacks_by_reason', {})}")
+        print(f"Cited Sources by ID:   {dict(sorted(cited_sources_by_source_id.items()))}")
         print("=" * 105)
+
+        if args.real_chunks and db_file:
+            print(f"\nTemp Database: {db_file}")
+            print("This file contains licensed guideline text: delete it after review.")
+            print(f"Review with:   python scripts/print_recent_explanations.py --db {db_file}")
         return 0
 
     finally:
-        if os.path.exists(db_file):
-            try:
-                os.remove(db_file)
-            except OSError:
-                pass
+        if db_file and not args.real_chunks and os.path.exists(db_file):
+            import gc
+            gc.collect()
+            for _ in range(5):
+                try:
+                    os.remove(db_file)
+                    break
+                except OSError:
+                    time.sleep(0.1)
 
 
 if __name__ == "__main__":
