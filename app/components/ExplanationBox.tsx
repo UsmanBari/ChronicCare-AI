@@ -31,36 +31,10 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
   const { liveCheckinResult, activeLiveCheckin, t, isUrdu } = useApp();
   const [isOpen, setIsOpen] = useState(false);
 
-  const hasExplainParam =
-    typeof window !== "undefined" &&
-    (new URLSearchParams(window.location.search).get("explain") === "true" ||
-      new URLSearchParams(window.location.search).get("explain") === "1");
-
-  const fallbackDemoExplanation: PatientExplanation | null = hasExplainParam
-    ? {
-        status: "ready",
-        sentences: [
-          {
-            text: isUrdu
-              ? "بلڈ پریشر قدرے بڑھا ہوا ہے۔ بلڈ پریشر پر نظر رکھیں اور ڈاکٹر کی ہدایت کے مطابق دوائیں جاری رکھیں۔"
-              : "Blood pressure is slightly elevated. Continue monitoring and maintain current medications as advised by your doctor.",
-            cites: ["ADA Standards of Care 2026"],
-          },
-        ],
-        sources: [
-          {
-            chunk_id: "ada-2026-bp",
-            title: "ADA Standards of Care 2026",
-            section_path: "Glycemic targets for non-pregnant adults with type 2 diabetes.",
-          },
-        ],
-      }
-    : null;
-
   const initialExplanation =
     propExplanation !== undefined
       ? propExplanation
-      : liveCheckinResult?.explanation || fallbackDemoExplanation;
+      : liveCheckinResult?.explanation;
   const isEmergency = propEmergency !== undefined ? propEmergency : liveCheckinResult?.emergency;
   const effectiveCheckinId = propCheckinId || activeLiveCheckin?.checkin_id;
 

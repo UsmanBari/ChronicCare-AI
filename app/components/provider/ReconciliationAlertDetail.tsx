@@ -54,7 +54,8 @@ export const ReconciliationAlertDetail = () => {
     if (!isLiveMode || selectedPatient === "Ali Khan") {
       const isRiskEnabled =
         process.env.NEXT_PUBLIC_RISK_ENABLED === "true" ||
-        (typeof window !== "undefined" &&
+        (process.env.NEXT_PUBLIC_E2E_HOOKS === "1" &&
+          typeof window !== "undefined" &&
           (new URLSearchParams(window.location.search).get("risk") === "true" ||
             new URLSearchParams(window.location.search).get("risk") === "1"));
 
@@ -187,19 +188,13 @@ export const ReconciliationAlertDetail = () => {
               sentences: [
                 {
                   text: isUrdu
-                    ? "بلڈ پریشر قدرے بڑھا ہوا ہے۔ بلڈ پریشر پر نظر رکھیں اور ڈاکٹر کی ہدایت کے مطابق دوائیں جاری رکھیں۔"
-                    : "Blood pressure is slightly elevated. Continue monitoring and maintain current medications as advised by your doctor.",
-                  cites: ["ADA Standards of Care 2026"],
+                    ? "ڈیمو مثال (حقیقی رہنمائی نہیں ہے)۔"
+                    : "Demo example (not real guidance).",
+                  cites: [],
                 },
               ],
-              sources: [
-                {
-                  chunk_id: "ada-2026-bp",
-                  title: "ADA Standards of Care 2026",
-                  section_path: "Glycemic targets for non-pregnant adults with type 2 diabetes.",
-                },
-              ],
-              reason: "Moderate systolic elevation without acute red-flag symptoms.",
+              sources: [],
+              reason: "Demo example (not real guidance)",
             }
           : null,
         trace: isRiskEnabled

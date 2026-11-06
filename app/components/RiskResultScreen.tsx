@@ -219,8 +219,8 @@ export const RiskResultScreen = () => {
           </p>
         </div>
 
-        {/* Guideline Explanation Box (flags on / param on) */}
-        {(liveCheckinResult?.explanation || (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("explain") === "true")) && (
+        {/* Guideline Explanation Box (flags on) */}
+        {liveCheckinResult?.explanation && (
           <ExplanationBox />
         )}
 

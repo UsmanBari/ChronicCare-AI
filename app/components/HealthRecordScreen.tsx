@@ -295,29 +295,7 @@ export const HealthRecordScreen = () => {
       setStagedOcrUpload(res);
       setScreen("ocr_confirm");
     } catch (err: any) {
-      if (!isLiveMode) {
-        setStagedOcrUpload({
-          upload_id: "up-mock-staged-1",
-          expires_in_seconds: 1800,
-          extracted: {
-            observations: [
-              { id: "obs-0", type: "glucose", value: 142, unit: "mg/dL", evidence: "FBS: 142 mg/dL" },
-              { id: "obs-1", type: "blood_pressure_systolic", value: 130, unit: "mmHg", evidence: "BP: 130/85" },
-            ],
-            medications: [
-              { id: "med-0", name: "Glimepiride", dosage: "2mg daily", status: "active", evidence: "Glimepiride 2mg" },
-            ],
-            allergies: [
-              { id: "all-0", substance: "Penicillin", reaction: "Rash", severity: "moderate", status: "active", evidence: "Allergic to Penicillin" },
-            ],
-            raw_lines: ["FBS: 142 mg/dL", "BP: 130/85", "Glimepiride 2mg", "Allergic to Penicillin"],
-            has_urdu: false,
-          },
-        });
-        setScreen("ocr_confirm");
-      } else {
-        setError(err?.detail || err?.message || t.ocrUploadFailed);
-      }
+      setError(err?.detail || err?.message || t.ocrUploadFailed);
     } finally {
       setIsUploadingOcr(false);
       if (ocrFileInputRef.current) ocrFileInputRef.current.value = "";

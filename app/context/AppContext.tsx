@@ -216,22 +216,24 @@ export function computeNextPatientScreen(
 }
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
+  const e2eHooksEnabled = process.env.NEXT_PUBLIC_E2E_HOOKS === "1";
+
   const [portal, setPortalState] = useState<PortalType>(() => {
-    if (typeof window !== "undefined") {
+    if (e2eHooksEnabled && typeof window !== "undefined") {
       const p = new URLSearchParams(window.location.search).get("portal");
       if (p === "patient" || p === "provider" || p === "admin" || p === "landing") return p;
     }
     return "landing";
   });
   const [screen, setScreenState] = useState<PatientScreenType>(() => {
-    if (typeof window !== "undefined") {
+    if (e2eHooksEnabled && typeof window !== "undefined") {
       const s = new URLSearchParams(window.location.search).get("screen");
       if (s) return s as PatientScreenType;
     }
     return "home";
   });
   const [providerScreen, setProviderScreenState] = useState<ProviderScreenType>(() => {
-    if (typeof window !== "undefined") {
+    if (e2eHooksEnabled && typeof window !== "undefined") {
       const ps = new URLSearchParams(window.location.search).get("provider_screen");
       if (ps) return ps as ProviderScreenType;
     }
@@ -271,13 +273,38 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Presenter controls
   const [demoScenario, setDemoScenario] = useState<DemoScenario>(() => {
-    if (typeof window !== "undefined") {
+    if (e2eHooksEnabled && typeof window !== "undefined") {
       const p = new URLSearchParams(window.location.search).get("scenario");
       if (p === "conflict" || p === "emergency" || p === "ehr_update") return p;
     }
     return "normal";
   });
-  const [stagedOcrUpload, setStagedOcrUpload] = useState<OcrUploadResponse | null>(null);
+  const [stagedOcrUpload, setStagedOcrUpload] = useState<OcrUploadResponse | null>(() => {
+    if (e2eHooksEnabled && typeof window !== "undefined") {
+      const s = new URLSearchParams(window.location.search).get("screen");
+      if (s === "ocr_confirm") {
+        return {
+          upload_id: "up-mock-staged-1",
+          expires_in_seconds: 1800,
+          extracted: {
+            observations: [
+              { id: "obs-0", type: "glucose", value: 142, unit: "mg/dL", evidence: "FBS: 142 mg/dL" },
+              { id: "obs-1", type: "blood_pressure_systolic", value: 130, unit: "mmHg", evidence: "BP: 130/85" },
+            ],
+            medications: [
+              { id: "med-0", name: "Glimepiride", dosage: "2mg daily", status: "active", evidence: "Glimepiride 2mg" },
+            ],
+            allergies: [
+              { id: "all-0", substance: "Penicillin", reaction: "Rash", severity: "moderate", status: "active", evidence: "Allergic to Penicillin" },
+            ],
+            raw_lines: ["FBS: 142 mg/dL", "BP: 130/85", "Glimepiride 2mg", "Allergic to Penicillin"],
+            has_urdu: false,
+          },
+        };
+      }
+    }
+    return null;
+  });
 
   // Patient Baseline Profile (Mock mode fallback)
   const [profile, setProfile] = useState<HealthProfile>({

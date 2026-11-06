@@ -4,6 +4,13 @@ import fs from "fs";
 import path from "path";
 
 const REPORT_DATA_PATH = path.resolve(process.cwd(), "tests-e2e/a11y-audit-data.json");
+const SCREENSHOT_DIR = path.resolve(process.cwd(), "docs/screenshots/w3/e2e");
+
+test.beforeAll(() => {
+  if (!fs.existsSync(SCREENSHOT_DIR)) {
+    fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+  }
+});
 
 interface ScreenAuditResult {
   screen: string;
@@ -108,6 +115,9 @@ test.describe("H3-5-03: Full Accessibility & Responsive Audit Across 9 Screens",
 
     await expect(page.locator("h1:has-text('Patient Privacy & Care Consent'), h1:has-text('طبی نگرانی اور رضامندی')")).toBeVisible({ timeout: 8000 });
 
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j1_consent_en.png") });
+
     const axe = await runAxe(page);
     expect(axe.critical).toBe(0);
     expect(axe.serious).toBe(0);
@@ -141,6 +151,9 @@ test.describe("H3-5-03: Full Accessibility & Responsive Audit Across 9 Screens",
 
     await page.locator("#language-toggle-btn").click();
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
+
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j1_profile_ur.png") });
 
     const axeUr = await runAxe(page, "Screen 2 Profile");
 
@@ -188,10 +201,13 @@ test.describe("H3-5-03: Full Accessibility & Responsive Audit Across 9 Screens",
   });
 
   test("Screen 4: Routine Result with ExplanationBox", async ({ page }) => {
-    await page.goto("/?portal=patient&screen=risk_result&explain=true");
+    await page.goto("/?portal=patient&screen=risk_result");
     await dismissPreloader(page);
 
     await expect(page.locator("h1:has-text('Daily Health Analysis'), h1:has-text('آپ کے روزانہ نتائج'), h1:has-text('Check-in Recorded')")).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j1_result_routine.png") });
 
     const axe = await runAxe(page);
     expect(axe.critical).toBe(0);
@@ -217,6 +233,9 @@ test.describe("H3-5-03: Full Accessibility & Responsive Audit Across 9 Screens",
     await dismissPreloader(page);
 
     await expect(page.locator("h1:has-text('Emergency Attention Advised'), h1:has-text('فوری طبی نگہداشت کی ضرورت'), span:has-text('CRITICAL CLINICAL ALERT')").first()).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j2_urgent_emergency.png") });
 
     const axe = await runAxe(page);
     expect(axe.critical).toBe(0);
@@ -244,9 +263,15 @@ test.describe("H3-5-03: Full Accessibility & Responsive Audit Across 9 Screens",
     await expect(page.locator("h1:has-text('Your Health Record'), h1:has-text('آپ کا ذاتی ہیلتھ ریکارڈ')")).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-testid="view-full-history-btn"]')).toBeVisible({ timeout: 10000 });
 
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j3_record_edits.png") });
+
     // Open history modal
     await page.locator('[data-testid="view-full-history-btn"]').click();
     await expect(page.locator('[data-testid="record-history-modal"]')).toBeVisible({ timeout: 5000 });
+
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j3_record_history.png") });
 
     const axe = await runAxe(page, "Screen 6 Health Record History");
 
@@ -298,7 +323,7 @@ test.describe("H3-5-03: Full Accessibility & Responsive Audit Across 9 Screens",
   });
 
   test("Screen 8: Provider Review Detail (Trace + Explanation + Edits)", async ({ page }) => {
-    await page.goto("/?portal=provider&provider_screen=dashboard&scenario=conflict&risk=true&trace=true&explain=true");
+    await page.goto("/?portal=provider&provider_screen=dashboard&scenario=conflict&risk=true&trace=true");
     await dismissPreloader(page);
 
     const patientRow = page.locator("#patient-row-ali-khan");
@@ -306,6 +331,9 @@ test.describe("H3-5-03: Full Accessibility & Responsive Audit Across 9 Screens",
     await patientRow.click();
 
     await expect(page.locator("h1:has-text('Reconciliation Alert'), h1:has-text('تطبیق کا الرٹ')")).toBeVisible({ timeout: 8000 });
+
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j4_provider_trace.png") });
 
     const axe = await runAxe(page, "Screen 8 Provider Detail");
 
@@ -328,19 +356,13 @@ test.describe("H3-5-03: Full Accessibility & Responsive Audit Across 9 Screens",
   });
 
   test("Screen 9: OCR Confirmation Screen", async ({ page }) => {
-    await page.goto("/?portal=patient&screen=health_record");
+    await page.goto("/?portal=patient&screen=ocr_confirm");
     await dismissPreloader(page);
 
-    await expect(page.locator("h1:has-text('Your Health Record'), h1:has-text('آپ کا ذاتی ہیلتھ ریکارڈ')")).toBeVisible({ timeout: 10000 });
-
-    const fileInput = page.locator('[data-testid="ocr-file-input"], #ocr-file-input');
-    await fileInput.setInputFiles({
-      name: "prescription_audit.png",
-      mimeType: "image/png",
-      buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64"),
-    });
-
     await expect(page.locator('[data-testid="ocr-confirm-screen"]')).toBeVisible({ timeout: 10000 });
+
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j5_ocr_confirm.png") });
 
     const axe = await runAxe(page);
     expect(axe.critical).toBe(0);
