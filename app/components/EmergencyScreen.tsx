@@ -55,9 +55,12 @@ export const EmergencyScreen = () => {
         {/* Emergency Services Shortcut Pill */}
         <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs text-slate-600">
           <span className="font-medium">{t.directHotlineDispatch}</span>
-          <span className="font-bold text-emergencyRed-800 flex items-center gap-1">
-            <PhoneCall className="w-3.5 h-3.5" /> 1122
-          </span>
+             <a
+               href="tel:1122"
+               className="font-bold text-emergencyRed-800 hover:underline flex items-center gap-1"
+             >
+               <PhoneCall className="w-3.5 h-3.5" /> 1122
+             </a>
         </div>
 
         {/* Return to Home button */}
