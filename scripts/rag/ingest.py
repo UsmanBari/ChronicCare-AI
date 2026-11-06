@@ -25,12 +25,14 @@ from rag.chunking import (
     chunk_section,
     build_chunk_record,
 )
+from rag.licences import is_source_allowed_for_rag, is_source_expired
 from scripts.rag.build_manifest import build_manifest, GUIDELINES_DIR, DATA_DIR, LOGS_DIR
 
 # Ensure UTF-8 output
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 RAG_DIR = DATA_DIR / "rag"
+PERMISSIONS_DIR = GUIDELINES_DIR / "permissions"
 CHUNKS_JSONL = RAG_DIR / "chunks.jsonl"
 CHUNKS_META_JSON = RAG_DIR / "chunks_meta.json"
 
@@ -47,13 +49,45 @@ def ingest_corpus() -> Dict[str, Any]:
         source_id = spec["source_id"]
         filename = spec["filename"]
         pdf_path = GUIDELINES_DIR / filename
-        allowed = spec.get("allowed_for_rag", False)
+        is_licensed = source_id.startswith("ada_") or source_id == "aha_acc_2025"
+        token_path = PERMISSIONS_DIR / f"{source_id}.granted"
+        has_token = token_path.exists()
+        rag_permitted = is_source_allowed_for_rag(source_id)
+        expired = is_source_expired(source_id)
 
-        if not allowed:
-            print(f"[BLOCKED: licence] Skipping {source_id} ({filename}) - permission pending")
+        if is_licensed and not has_token:
+            print(f"SKIPPED {source_id}: missing .granted token")
             source_stats.append({
                 "source_id": source_id,
-                "status": "BLOCKED: licence",
+                "status": "SKIPPED: missing .granted token",
+                "pages": spec.get("page_count", 0),
+                "sections": 0,
+                "chunks": 0,
+                "rec_chunks": 0,
+                "mean_words": 0,
+                "sample_headings": [],
+            })
+            continue
+
+        if not rag_permitted:
+            print(f"SKIPPED {source_id}: licence not allowed for RAG")
+            source_stats.append({
+                "source_id": source_id,
+                "status": "SKIPPED: licence not allowed for RAG",
+                "pages": spec.get("page_count", 0),
+                "sections": 0,
+                "chunks": 0,
+                "rec_chunks": 0,
+                "mean_words": 0,
+                "sample_headings": [],
+            })
+            continue
+
+        if expired:
+            print(f"SKIPPED {source_id}: licence expired")
+            source_stats.append({
+                "source_id": source_id,
+                "status": "SKIPPED: licence expired",
                 "pages": spec.get("page_count", 0),
                 "sections": 0,
                 "chunks": 0,

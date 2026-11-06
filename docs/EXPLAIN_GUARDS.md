@@ -197,6 +197,15 @@ The presentation of the explanation is strictly segregated between patient and p
 
 ---
 
+### 5.1 Patient Excerpt Policy & Licence Caps (Rule X5)
+
+In ChronicCare AI, patients never see raw, unformatted chunk text:
+1. **Plain Language Synthesis:** Explanations are either synthesized in patient-friendly plain language by authorized LLMs (Groq) or generated from pre-verified clinical templates.
+2. **Attribution and Citation:** When guideline sources are shown to patients, only verified academic citations and external DOI links are displayed.
+3. **Future Excerpt Cap:** If brief verbatim excerpts are ever introduced in a future release, the maximum number of excerpts per check-in is strictly capped by the guideline's licence specification (`max_excerpts_per_checkin` in `rag/licences.json` — strictly capped at **3 excerpts** for ADA 2026).
+
+---
+
 ## 6. Troubleshooting & Fallback Reason Codes
 
 Whenever `mode == "template"`, the `reason` field indicates why deterministic fallback was selected:
@@ -211,7 +220,7 @@ Whenever `mode == "template"`, the `reason` field indicates why deterministic fa
 | `no_llm` | API key is not configured or LLM client initialization failed. | Configure `GROQ_API_KEY` and/or `GEMINI_API_KEY` in environment. |
 | `no_chunks` | Retrieval returned 0 relevant guideline chunks for this condition. | Check database seeding (`init_local_db.py`). |
 | `busy` | All worker semaphore slots (`EXPLAIN_POOL_MAX_WORKERS`) are in use. | High concurrent traffic spike. Increase `EXPLAIN_POOL_MAX_WORKERS` (default 8). |
-| `licence_restricted` | Retrieved guideline chunk is from a restricted licence corpus (G3) and Gemini cannot be used. | Normal safety behavior. The system falls back to verified deterministic templates or alternative providers. |
+| `licence_restricted` | Retrieved guideline chunk is restricted by licence terms (G3/X3), lacks required attribution (X4), or provider is prohibited (e.g. Gemini prohibited for ADA 2026; AHA/ACC blocked). | Normal safety behavior. The system safely falls back to verified deterministic templates or alternative permitted providers. |
 | `condition_template_only` | Check-in condition is not in `EXPLAIN_LLM_CONDITIONS` (e.g. diabetes). | Normal clinical safety behavior. Diabetes explanations are deterministic template-only. |
 | `template_corrected` | Deterministic template contradicted actual vitals and was replaced with neutral routine template. | Normal safety invariant enforcement. Check trigger mapping logic. |
 | `error` | Upstream JSON deserialization or network socket exception. | Inspect backend application error logs. |

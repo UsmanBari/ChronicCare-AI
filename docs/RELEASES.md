@@ -130,3 +130,10 @@ Checked and verified in Render dashboard:
 4. **Flaky Test Fixed in PR #101:**
    CI on release PR #100 initially failed on `test_ocr_upload.py::test_audit_logs_contain_counts_only_no_phi_no_filename` because `uuid.uuid4()` produced an `upload_id` containing the substring `"125"` (`...3c125d3c947b`), triggering a false-positive PHI check. PR #101 resolved this by isolating `upload_id` verification before running PHI assertions on the remaining payload.
 
+---
+
+## Scheduled Events
+
+- **Release 2 Flag Plan:** Release 2 sets `EXPLAIN_LLM_CONDITIONS=hypertension,diabetes` on Render to activate LLM explanations for diabetes check-ins using permitted ADA 2026 guideline sections via Groq.
+- **2027-06-30:** Purge all stored ADA 2026 guideline chunks upon conclusion of academic evaluation period (`python scripts/rag/delete_source.py --licence ada_2026 --yes`).
+
