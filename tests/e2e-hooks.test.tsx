@@ -60,3 +60,4 @@ describe("E2E URL Hooks Build-Time Gating (PR #119)", () => {
     expect(screen.getByTestId("scenario-val").textContent).toBe("emergency");
   });
 });
+

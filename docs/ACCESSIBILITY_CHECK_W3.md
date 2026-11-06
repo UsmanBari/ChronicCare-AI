@@ -49,7 +49,7 @@ All 4 fixes are verified in `tests-e2e/accessibility.playwright.ts` and confirme
 - **Tab Traversal**: No focus traps were observed in any screen. Modals (`record-history-modal`) trap focus internally while open and restore focus cleanly to the trigger element on close.
 - **Escape Key**: Pressing `Escape` closes the History modal and returns focus to `[data-testid="view-full-history-btn"]`.
 - **Expandable Accordion**: `ExplanationBox` (`#explanation-toggle-btn`) exposes `aria-expanded="true|false"` and responds to both `Enter` and `Space`.
-- **Emergency Telephony**: Verified emergency hotlines (`1122` and `911`) are prominent and accessible to assistive technology.
+- **Emergency Telephony**: Verified emergency hotline (`1122`) is prominent and accessible to assistive technology.
 
 ---
 
@@ -65,11 +65,11 @@ All 4 fixes are verified in `tests-e2e/accessibility.playwright.ts` and confirme
 
 | Journey | Status | Outcome / Reason |
 |---|---|---|
-| **J1: Onboarding -> Routine Result** | **RUN & PASS** | Complete flow: Consent -> Profile (EN/UR) -> Check-in -> Routine Result verified. |
-| **J2: Urgent Emergency Reporting** | **RUN & PASS** | Complete flow: Urgent trigger from Home -> Critical Alert screen with emergency hotlines 1122 & 911 visible. |
-| **J3: Health Record Management** | **RUN & PASS** | Complete flow: Add medication -> Toggle active/stopped -> Edit History modal (Esc key & focus trap) -> JSON Export download. |
-| **J4: Provider Review with Trace** | **NOT RUN (Live System)** | Requires end-to-end Firebase authentication session tokens to complete check-in against live backend `/api/checkins/start` and `/api/checkins/.../complete`. In offline hermetic testing without live Firebase credentials, live backend returns 401/503. Demo screen accessibility is independently audited in Screen 8. |
-| **J5: OCR Prescription Reconciliation** | **NOT RUN (Live System without Mocks)** | `POST /api/me/record/uploads` enforces `require_role('patient')`, returning 401 Unauthorized in offline environment without cloud Firebase credentials. Per safety review, fake route intercepts were removed. Screen accessibility is independently audited in Screen 9. |
+| **J1: Onboarding -> Routine Result** | **RUN & PASS (DEMO mode)** | Ran in DEMO mode (frontend only, no sign-in, backend not called): Consent -> Profile (EN/UR) -> Check-in -> Routine Result. |
+| **J2: Urgent Emergency Reporting** | **RUN & PASS (DEMO mode)** | Ran in DEMO mode (frontend only, no sign-in, backend not called): Urgent trigger from Home -> Critical Alert screen with emergency hotline 1122 visible (911 absent). |
+| **J3: Health Record Management** | **RUN & PASS (DEMO mode)** | Ran in DEMO mode (frontend only, no sign-in, backend not called): Add medication -> Toggle active/stopped -> Edit History modal (Esc key & focus trap) -> JSON Export download. |
+| **J4: Provider Review with Trace** | **NOT RUN** | NOT RUN: need real sign-in tokens. Patient check-in completion and explanation endpoints require live Firebase authentication tokens against the backend. Demo screen accessibility is independently audited in Screen 8. |
+| **J5: OCR Prescription Reconciliation** | **NOT RUN** | NOT RUN: need real sign-in tokens. `POST /api/me/record/uploads` enforces `require_role('patient')`, requiring live Firebase authentication tokens. Demo screen accessibility is independently audited in Screen 9. |
 
 ---
 

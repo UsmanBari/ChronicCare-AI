@@ -141,7 +141,7 @@ test.describe("H3-5-01: Five End-to-End User Journeys", () => {
     await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
   });
 
-  test("J2: Urgent / Emergency symptom reporting -> critical result screen with 1122 and 911 visible", async ({ page }) => {
+  test("J2: Urgent / Emergency symptom reporting -> critical result screen with 1122 visible", async ({ page }) => {
     await page.goto("/?scenario=emergency");
     await dismissPreloader(page);
 
@@ -156,11 +156,11 @@ test.describe("H3-5-01: Five End-to-End User Journeys", () => {
     const alertBanner = page.locator("span:has-text('CRITICAL CLINICAL ALERT'), span:has-text('فوری طبی الرٹ')");
     await expect(alertBanner).toBeVisible({ timeout: 8000 });
 
-    // Assert emergency telephone numbers (1122 and 911) are visible in the DOM
+    // Assert emergency telephone number 1122 is visible and 911 is NOT on the page
     const hotlineText = page.locator("text=1122").first();
     await expect(hotlineText).toBeVisible({ timeout: 5000 });
-    const fallbackText = page.locator("text=911").first();
-    await expect(fallbackText).toBeVisible({ timeout: 5000 });
+    const fallbackText = page.locator("text=911");
+    await expect(fallbackText).toHaveCount(0);
 
     // Capture screenshot
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j2_urgent_emergency.png") });
