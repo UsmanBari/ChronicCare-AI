@@ -1,0 +1,146 @@
+{
+  "consent": {
+    "screen": "Patient Consent",
+    "axe": {
+      "critical": 0,
+      "serious": 0,
+      "moderate": 0,
+      "minor": 0,
+      "violations": []
+    },
+    "keyboard": true,
+    "screenReader": true,
+    "touchTargets360": true,
+    "rtl": true,
+    "horizontalOverflow360": true,
+    "overall": "PASS"
+  },
+  "profile": {
+    "screen": "Profile (en + ur)",
+    "axe": {
+      "critical": 0,
+      "serious": 0,
+      "moderate": 0,
+      "minor": 0,
+      "violations": []
+    },
+    "keyboard": true,
+    "screenReader": true,
+    "touchTargets360": true,
+    "rtl": true,
+    "horizontalOverflow360": true,
+    "overall": "PASS"
+  },
+  "interview": {
+    "screen": "Interview / Check-in",
+    "axe": {
+      "critical": 0,
+      "serious": 0,
+      "moderate": 0,
+      "minor": 0,
+      "violations": []
+    },
+    "keyboard": true,
+    "screenReader": true,
+    "touchTargets360": true,
+    "rtl": true,
+    "horizontalOverflow360": true,
+    "overall": "PASS"
+  },
+  "routine_result": {
+    "screen": "Routine Result + ExplanationBox",
+    "axe": {
+      "critical": 0,
+      "serious": 0,
+      "moderate": 0,
+      "minor": 0,
+      "violations": []
+    },
+    "keyboard": true,
+    "screenReader": true,
+    "touchTargets360": true,
+    "rtl": true,
+    "horizontalOverflow360": true,
+    "overall": "PASS"
+  },
+  "emergency_result": {
+    "screen": "Urgent / Emergency Result",
+    "axe": {
+      "critical": 0,
+      "serious": 0,
+      "moderate": 0,
+      "minor": 0,
+      "violations": []
+    },
+    "keyboard": true,
+    "screenReader": true,
+    "touchTargets360": true,
+    "rtl": true,
+    "horizontalOverflow360": true,
+    "overall": "PASS"
+  },
+  "health_record": {
+    "screen": "Health Record + Edit History Modal",
+    "axe": {
+      "critical": 0,
+      "serious": 0,
+      "moderate": 0,
+      "minor": 0,
+      "violations": []
+    },
+    "keyboard": true,
+    "screenReader": true,
+    "touchTargets360": true,
+    "rtl": true,
+    "horizontalOverflow360": true,
+    "overall": "PASS"
+  },
+  "provider_list": {
+    "screen": "Provider Review List",
+    "axe": {
+      "critical": 0,
+      "serious": 0,
+      "moderate": 0,
+      "minor": 0,
+      "violations": []
+    },
+    "keyboard": true,
+    "screenReader": true,
+    "touchTargets360": true,
+    "rtl": true,
+    "horizontalOverflow360": true,
+    "overall": "PASS"
+  },
+  "provider_detail": {
+    "screen": "Provider Review Detail",
+    "axe": {
+      "critical": 0,
+      "serious": 0,
+      "moderate": 0,
+      "minor": 0,
+      "violations": []
+    },
+    "keyboard": true,
+    "screenReader": true,
+    "touchTargets360": true,
+    "rtl": true,
+    "horizontalOverflow360": true,
+    "overall": "PASS"
+  },
+  "ocr_confirm": {
+    "screen": "OCR Confirmation Screen",
+    "axe": {
+      "critical": 0,
+      "serious": 0,
+      "moderate": 0,
+      "minor": 0,
+      "violations": []
+    },
+    "keyboard": true,
+    "screenReader": true,
+    "touchTargets360": true,
+    "rtl": true,
+    "horizontalOverflow360": true,
+    "overall": "PASS"
+  }
+}
