@@ -830,11 +830,17 @@ def step_explain(
 
         # If llm is None, guarded_explain will route dynamically across configured providers (groq/gemini)
 
-        active_cond = "diabetes"
-        if state and getattr(state, "conditions_on_file", None):
-            active_cond = state.conditions_on_file[0]
+        cond_list = [c.lower().strip() for c in (getattr(state, "conditions_on_file", None) or [])]
+        if "hypertension" in cond_list and "diabetes" in cond_list:
+            active_cond = "both"
+        elif cond_list:
+            active_cond = cond_list[0]
         elif state and getattr(state, "active_condition", None):
             active_cond = state.active_condition
+        else:
+            active_cond = "diabetes"
+
+        patient_conditions = getattr(state, "conditions_on_file", None) or [active_cond]
 
         import copy
         from rag.explain_guards import (
@@ -870,6 +876,15 @@ def step_explain(
                         top_k=3,
                         min_priority=query_mapping.min_priority,
                     )
+
+        # F6: For a hypertension-only patient, drop ada_2026_* chunks before the LLM call and from sources
+        patient_conds_clean = {str(c).lower().strip() for c in patient_conditions}
+        has_diabetes_cond = bool(patient_conds_clean & {"diabetes", "t2d", "type 2 diabetes", "both"})
+        if not has_diabetes_cond:
+            candidate_chunks = [
+                c for c in candidate_chunks
+                if not str(c.get("source_id") or c.get("id") or c.get("chunk_id") or "").startswith("ada_2026")
+            ]
 
         if active_explain_mode == "background":
             # Check eligibility before enqueuing using identical guards logic
@@ -933,6 +948,7 @@ def step_explain(
                 "_job_params": {
                     "user_id": user_id,
                     "condition": active_cond,
+                    "patient_conditions": patient_conditions,
                     "readings": readings,
                     "language": language,
                     "fallback_template": fallback_tmpl,

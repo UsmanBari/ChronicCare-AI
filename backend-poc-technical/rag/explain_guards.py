@@ -935,6 +935,7 @@ def guarded_explain(
     mode: Optional[str] = None,
     clock_fn: Optional[Callable[[], float]] = None,
     sleep_fn: Optional[Callable[[float], None]] = None,
+    patient_conditions: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Executes a fully guarded clinical explanation:
@@ -1107,6 +1108,22 @@ def guarded_explain(
                 ["No valid ADA guideline chunks available for non-Ramadan diabetes explanation"]
             )
 
+    # F6: ADA Standards of Care are for people with diabetes.
+    # Use ada_2026_* chunks only when the PATIENT's conditions include diabetes (both-condition patients: allowed).
+    # For a hypertension-only patient, drop ada_2026_* chunks before the LLM call and from the sources list.
+    if patient_conditions is not None:
+        patient_conds_clean = {str(c).lower().strip() for c in patient_conditions}
+        has_diabetes = bool(patient_conds_clean & {"diabetes", "t2d", "type 2 diabetes", "both"})
+    else:
+        c_clean = str(condition or "").lower().strip()
+        has_diabetes = c_clean in ("diabetes", "both") or "diabetes" in c_clean
+
+    if not has_diabetes and candidate_chunks:
+        candidate_chunks = [
+            c for c in candidate_chunks
+            if not str(c.get("source_id") or c.get("id") or c.get("chunk_id") or "").startswith("ada_2026")
+        ]
+
     # 6. Resolve Candidate Providers
     active_mode = (provider or get_llm_provider()).strip().lower()
     if active_mode == "groq":
@@ -1219,7 +1236,12 @@ def guarded_explain(
 
             # Groq OTPM pacer in background mode
             if active_explain_mode == "background" and current_provider == "groq":
-                wait_sec = _GLOBAL_GROQ_PACER.get_wait_seconds(tokens_needed=250, otpm_limit=get_groq_otpm(), clock_fn=now_fn)
+                from rag.explainer import get_explain_max_tokens
+                wait_sec = _GLOBAL_GROQ_PACER.get_wait_seconds(
+                    tokens_needed=get_explain_max_tokens(),
+                    otpm_limit=get_groq_otpm(),
+                    clock_fn=now_fn,
+                )
                 if wait_sec > 0.0:
                     if (now_fn() + wait_sec + 2.0) <= deadline:
                         nap_fn(wait_sec)
@@ -1274,9 +1296,10 @@ def guarded_explain(
                         def _timed_llm(**kwargs):
                             try:
                                 # Check pacer before every Groq call (English and translation) in background mode
+                                call_max_tokens = int(kwargs.get("max_tokens") or 250)
                                 if active_explain_mode == "background" and current_provider == "groq":
                                     wait_sec = _GLOBAL_GROQ_PACER.get_wait_seconds(
-                                        tokens_needed=250,
+                                        tokens_needed=call_max_tokens,
                                         otpm_limit=get_groq_otpm(),
                                         clock_fn=now_fn,
                                     )
@@ -1369,8 +1392,14 @@ def guarded_explain(
                     err = worker_error["error"]
                     err_str = str(err).lower()
                     is_429 = "rate limit" in err_str or "429" in err_str or type(err).__name__ in ("RateLimitError", "GeminiRateLimitError")
+                    is_parse = type(err).__name__ in ("JSONDecodeError",) or "jsondecodeerror" in err_str or "parse_error" in err_str
                     exc_type = type(err).__name__
-                    if is_429:
+                    if is_parse:
+                        # Malformed model answer is a validation failure, not an outage: do not trip breaker
+                        if has_next:
+                            break
+                        return _make_template_fallback("validation_failed", [f"parse_error: {exc_type}"])
+                    elif is_429:
                         sanitized_reason = f"rate_limited: {exc_type}: HTTP 429"
                         if active_explain_mode == "background":
                             # In background mode, 429 does NOT trip circuit breaker!
@@ -1406,6 +1435,15 @@ def guarded_explain(
                 # Check template fallback from explain()
                 if res_data.get("mode") == "template":
                     rej_list = res_data.get("rejected_reasons", [])
+                    # F4: Parse error is a bad answer, not an outage: validation_failed without tripping breaker
+                    if any("parse_error" in str(r).lower() for r in rej_list) or res_data.get("reason") == "validation_failed":
+                        res_data["reason"] = "validation_failed"
+                        res_data["provider"] = None
+                        res_data["providers_tried"] = list(providers_tried)
+                        res_data["provider_timings"] = dict(provider_timings)
+                        record_fallback("validation_failed")
+                        return res_data
+
                     if any("LLM execution error" in r for r in rej_list):
                         is_429 = any("rate limit" in r.lower() or "429" in r.lower() for r in rej_list)
                         if is_429:
