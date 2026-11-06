@@ -372,8 +372,8 @@ export const HomeScreen = () => {
             <div className="p-4 rounded-2xl bg-emergencyRed-50 border border-emergencyRed-800/20 text-xs sm:text-sm text-emergencyRed-950 leading-relaxed space-y-2">
               <p className="font-bold">
                 {isUrdu
-                  ? "اگر آپ کو شدید بے چینی، سینے میں درد، سانس لینے میں شدید دشواری یا بے ہوشی محسوس ہو رہی ہے تو فوراً ایمرجنسی سروسز (1122 / 911) پر کال کریں۔"
-                  : "If you are experiencing severe shortness of breath, acute chest distress, sudden weakness, or confusion, contact emergency services (911 / 1122) immediately."}
+                  ? "اگر آپ کو شدید بے چینی، سینے میں درد، سانس لینے میں شدید دشواری یا بے ہوشی محسوس ہو رہی ہے تو فوراً ایمرجنسی سروسز (1122) پر کال کریں۔"
+                  : "If you are experiencing severe shortness of breath, acute chest distress, sudden weakness, or confusion, contact emergency services (1122) immediately."}
               </p>
               <p className="text-slate-600 text-xs">
                 {isUrdu
