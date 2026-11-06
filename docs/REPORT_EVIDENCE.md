@@ -73,9 +73,21 @@ Per Saad's Day 4 prompt in `docs/tasks/WEEK3_SAAD.md` (Part A, lines 621–633),
 | **Live Smoke (6 Nov): Circuit Breakers** | Groq breaker closed; Gemini 0 calls | Usman's live run 6 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-06 |
 | **Live Smoke (6 Nov): API & Job Latency** | `/complete` returned in 0.08–0.17 s; explanation ready in 1.1–2.2 s | Usman's live run 6 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-06 |
 | **Live Smoke (6 Nov): Token Consumption** | 5,454 Groq tokens recorded | Usman's live run 6 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py` | 2026-11-06 |
+| **Live Smoke (6 Nov, Real Corpus): Total Check-ins** | 10 diabetes, 10 hypertension against 1,175 real guideline chunks (`--real-chunks`) | Usman's live run 6 Nov (raw output with Usman), SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
+| **Live Smoke (6 Nov, Real Corpus): Diabetes Resolution** | 4/10 llm/cache (3 LLM, 1 cache, 6 template fallbacks: 4 Urdu JSONDecodeError, 2 breaker open); **FAILED $\ge$ 9/10 rule** | Usman's live run 6 Nov, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
+| **Live Smoke (6 Nov, Real Corpus): Hypertension Resolution** | 4/10 llm/cache (cited `ada_2026_sec05` / `sec10` in 7/10 rows); **FAILED $\ge$ 9/10 rule** | Usman's live run 6 Nov, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
+| **Live Smoke (6 Nov, Real Corpus): Token Usage** | ~2,000 tokens/English row (up from ~700 in synthetic runs due to guideline passage lengths) | Usman's live run 6 Nov, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
+
+> [!WARNING]
+> **6 Nov Real-Corpus Live Smoke Evaluation & Remediation (Day 6e):**
+> Usman's live smoke evaluation against the complete loaded corpus (1,175 chunks, including 6 permitted ADA sections) failed the Release 2 gate ($\ge 9/10$ LLM or cache):
+> - **Cause 1 (Urdu/Roman Urdu JSON truncation):** Both English and translation calls shared `max_tokens: 250`. Urdu script in JSON required ~2.5x more tokens, truncating translation JSON mid-string and causing 4 `JSONDecodeError` fallbacks. **Fix:** Added `EXPLAIN_TRANSLATION_MAX_TOKENS=700` and updated the Groq OTPM pacer to reserve each call's actual `max_tokens`.
+> - **Cause 2 (Malformed JSON tripped circuit breaker):** `JSONDecodeError` was caught as a generic exception and treated as an upstream outage (`record_failure`), causing 3 truncated answers to open the circuit breaker for subsequent check-ins. **Fix:** Parse errors are now classified as `validation_failed` (bad answer) without incrementing the circuit breaker failure counter.
+> - **Cause 3 (Hypertension patients received ADA diabetes guidelines):** Hypertension check-ins cited ADA diabetes sections (`ada_2026_sec05`, `ada_2026_sec10`) in 7 of 10 rows. **Fix:** `guarded_explain` now checks `patient_conditions`; patients without diabetes have all `ada_2026_*` chunks filtered before LLM prompting and removed from sources, while dual-condition patients retain ADA access on BP triggers.
+> Usman will re-run the real-corpus live smoke following PR merge.
 
 > [!NOTE]
-> The live smoke script (`scripts/explain_live_smoke.py`) has been extended with the `--real-chunks` flag to safely copy and evaluate against the real loaded guideline corpus (including all 6 permitted ADA sections) rather than synthetic test chunks. Usman will run live smoke with `--real-chunks` once ADA chunks are loaded on his machine.
+> The live smoke script (`scripts/explain_live_smoke.py`) has been extended with the `--real-chunks` flag to safely copy and evaluate against the real loaded guideline corpus (including all 6 permitted ADA sections) rather than synthetic test chunks.
 
 ### Explainer Latency Benchmark (`scripts/measure_explain_latency.py`)
 Run on 5 November 2026 in an isolated benchmark session across 50 check-ins per mode:

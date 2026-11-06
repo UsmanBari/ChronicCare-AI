@@ -23,6 +23,23 @@ logger = logging.getLogger(__name__)
 
 EXPLAINER_VERSION = "1.0.0"
 
+DEFAULT_MAX_TOKENS = 250
+DEFAULT_TRANSLATION_MAX_TOKENS = 700
+
+
+def get_explain_max_tokens() -> int:
+    try:
+        return int(os.environ.get("EXPLAIN_MAX_TOKENS", str(DEFAULT_MAX_TOKENS)))
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_TOKENS
+
+
+def get_explain_translation_max_tokens() -> int:
+    try:
+        return int(os.environ.get("EXPLAIN_TRANSLATION_MAX_TOKENS", str(DEFAULT_TRANSLATION_MAX_TOKENS)))
+    except (TypeError, ValueError):
+        return DEFAULT_TRANSLATION_MAX_TOKENS
+
 # Banned clinical patterns across languages
 BANNED_DIAGNOSIS_PATTERNS = [
     r"\byou have (?:type [12] )?diabetes\b",
@@ -550,7 +567,7 @@ def explain(
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": 0.0,
-            "max_tokens": 250,
+            "max_tokens": get_explain_max_tokens(),
             "timeout": 8.0,
         }
         if model:
@@ -570,7 +587,22 @@ def explain(
             clean_json_str = re.sub(r"^```(?:json)?\s*", "", clean_json_str)
             clean_json_str = re.sub(r"\s*```$", "", clean_json_str)
 
-        parsed_data = json.loads(clean_json_str)
+        try:
+            parsed_data = json.loads(clean_json_str)
+        except (json.JSONDecodeError, ValueError) as parse_exc:
+            parse_err_name = type(parse_exc).__name__
+            logger.warning(f"LLM explanation JSON parse error: {parse_err_name}")
+            rejected_reasons.append(f"parse_error: {parse_err_name}")
+            tmpl_res = get_template_explanation(
+                query_mapping.trigger_category,
+                readings_copy,
+                triage_copy,
+                target_lang,
+                candidate_chunks,
+                rejected_reasons,
+            )
+            tmpl_res["reason"] = "validation_failed"
+            return tmpl_res
 
         # Run Validators V1-V5
         v1_errs = validate_sentence_structure(parsed_data)
@@ -618,6 +650,7 @@ def explain(
                 f"Source English sentences:\n{json.dumps(resolved_sentences, ensure_ascii=False)}"
             )
             trans_call_kwargs = dict(call_kwargs)
+            trans_call_kwargs["max_tokens"] = get_explain_translation_max_tokens()
             trans_call_kwargs["messages"] = [
                 {"role": "system", "content": "You are a professional medical translator for ChronicCare AI."},
                 {"role": "user", "content": trans_prompt},
@@ -632,7 +665,23 @@ def explain(
                 clean_trans_str = re.sub(r"^```(?:json)?\s*", "", clean_trans_str)
                 clean_trans_str = re.sub(r"\s*```$", "", clean_trans_str)
 
-            trans_data = json.loads(clean_trans_str)
+            try:
+                trans_data = json.loads(clean_trans_str)
+            except (json.JSONDecodeError, ValueError) as parse_exc:
+                parse_err_name = type(parse_exc).__name__
+                logger.warning(f"LLM translation JSON parse error: {parse_err_name}")
+                rejected_reasons.append(f"parse_error: {parse_err_name}")
+                tmpl_res = get_template_explanation(
+                    query_mapping.trigger_category,
+                    readings_copy,
+                    triage_copy,
+                    target_lang,
+                    candidate_chunks,
+                    rejected_reasons,
+                )
+                tmpl_res["reason"] = "validation_failed"
+                return tmpl_res
+
             trans_v1 = validate_sentence_structure(trans_data)
             trans_v2, trans_resolved = validate_citations(trans_data.get("sentences", []), candidate_chunks)
             trans_v3 = validate_number_grounding(trans_resolved, allowed_nums)

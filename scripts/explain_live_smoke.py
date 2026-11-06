@@ -337,11 +337,11 @@ def main():
 
         print(f"\nRunning {len(test_checkins)} pipeline check-ins (Condition: {args.condition}, en / ur / roman_ur)...\n")
         if args.mode == "background":
-            print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Lat.Pend':<10} | {'Lat.Ready':<10} | {'Provider Latency':<20} | {'Cited (Chunk / Source)':<32}")
-            print("-" * 160)
+            print(f"{'#':<3} | {'Lang':<8} | {'Category':<16} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Lat.Pend':<10} | {'Lat.Ready':<10} | {'Provider Latency':<20} | {'Cited (Chunk / Source)':<32}")
+            print("-" * 180)
         else:
-            print(f"{'#':<3} | {'Lang':<8} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Elapsed':<10} | {'Provider Latency':<20} | {'Cited (Chunk / Source)':<32}")
-            print("-" * 145)
+            print(f"{'#':<3} | {'Lang':<8} | {'Category':<16} | {'Level':<10} | {'Provider':<10} | {'Mode':<10} | {'Reason':<16} | {'Tokens':<8} | {'Elapsed':<10} | {'Provider Latency':<20} | {'Cited (Chunk / Source)':<32}")
+            print("-" * 165)
 
         run_id = int(time.time())
         prev_tokens_groq = 0
@@ -466,14 +466,21 @@ def main():
             else:
                 cited_display = "-"
 
+            from rag.query_map import build_query_from_triage
+            q_map = build_query_from_triage(
+                {"level": triage_level, "symptom": item.get("symptom")},
+                readings_dict,
+            )
+            trigger_cat = q_map.trigger_category
+
             if args.mode == "background":
                 print(
-                    f"{idx:<3} | {item['lang']:<8} | {triage_level:<10} | {provider_used:<10} | "
+                    f"{idx:<3} | {item['lang']:<8} | {trigger_cat:<16} | {triage_level:<10} | {provider_used:<10} | "
                     f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {lat_ready:<10.3f} | {prov_timing_str:<20} | {cited_display:<32}"
                 )
             else:
                 print(
-                    f"{idx:<3} | {item['lang']:<8} | {triage_level:<10} | {provider_used:<10} | "
+                    f"{idx:<3} | {item['lang']:<8} | {trigger_cat:<16} | {triage_level:<10} | {provider_used:<10} | "
                     f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {prov_timing_str:<20} | {cited_display:<32}"
                 )
 
