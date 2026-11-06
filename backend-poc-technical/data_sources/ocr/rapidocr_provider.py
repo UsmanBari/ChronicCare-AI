@@ -7,6 +7,7 @@ Lazy-loads rapidocr_onnxruntime so imports never fail when rapidocr is not used.
 from __future__ import annotations
 
 import io
+import os
 import re
 import uuid
 from typing import Any, Dict, List, Optional
@@ -20,14 +21,20 @@ class RapidOcrProvider(OcrProvider):
     Processes images via RapidOCR on ONNX runtime (CPU hermetic execution).
     """
 
-    def __init__(self):
+    def __init__(self, use_subprocess: Optional[bool] = None):
         self._engine = None
+        if use_subprocess is None:
+            flag = os.environ.get("OCR_USE_SUBPROCESS", "true").lower()
+            self.use_subprocess = flag in ("true", "1", "yes")
+        else:
+            self.use_subprocess = use_subprocess
 
     def _get_engine(self):
         if self._engine is None:
             try:
                 from rapidocr_onnxruntime import RapidOCR
-                self._engine = RapidOCR()
+                # Pass single-thread session options to restrict CPU memory allocations on low-memory containers (Render 512MB)
+                self._engine = RapidOCR(intra_op_num_threads=1, inter_op_num_threads=1)
             except ImportError as e:
                 raise RuntimeError(
                     "RapidOCR engine is not installed. Please install requirements from requirements-ocr.txt."
@@ -46,6 +53,9 @@ class RapidOcrProvider(OcrProvider):
         return "\n".join(lines)
 
     def extract(self, image_bytes: bytes) -> Dict[str, Any]:
+        if self.use_subprocess:
+            return run_ocr_in_subprocess(image_bytes)
+
         engine = self._get_engine()
         result, _ = engine(image_bytes)
         if not result:
@@ -157,3 +167,92 @@ class RapidOcrProvider(OcrProvider):
             "warnings": parsed.get("warnings", []),
             "unmatched_lines": parsed.get("unmatched_lines", []),
         }
+
+
+def _ocr_subprocess_worker(result_queue, image_bytes: bytes, provider_name: Optional[str] = None):
+    """
+    Isolated worker process function for running OCR.
+    Executes in a separate process, puts extracted dictionary or error into result_queue, and exits.
+    """
+    import os
+
+    # Ensure worker executes inference in-process without recursing subprocesses
+    os.environ["OCR_USE_SUBPROCESS"] = "false"
+
+    try:
+        from data_sources.ocr.provider import get_ocr_provider
+        provider = get_ocr_provider(provider_name)
+        extracted = provider.extract(image_bytes)
+        result_queue.put({"status": "ok", "data": extracted})
+    except (ImportError, ModuleNotFoundError) as e:
+        result_queue.put({"status": "unavailable", "error": type(e).__name__})
+    except Exception as e:
+        result_queue.put({"status": "error", "error": type(e).__name__})
+
+
+def run_ocr_in_subprocess(
+    image_bytes: bytes,
+    provider_name: Optional[str] = None,
+    timeout_seconds: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Executes OCR in a short-lived spawn subprocess to guarantee immediate memory reclamation
+    by the operating system upon process termination (preventing ONNX runtime resident accumulation on Render free tier).
+    """
+    import multiprocessing as mp
+    import queue
+    import os
+
+    if timeout_seconds is None:
+        timeout_seconds = float(os.environ.get("OCR_SUBPROCESS_TIMEOUT", "30.0"))
+
+    ctx = mp.get_context("spawn")
+    q = ctx.Queue()
+    target_fn = globals().get("_ocr_subprocess_worker")
+    p = ctx.Process(
+        target=target_fn,
+        args=(q, image_bytes, provider_name or os.environ.get("OCR_PROVIDER")),
+    )
+    p.start()
+
+    # Read queue result BEFORE joining the process.
+    # Python documentation warns that a child that has put a large item on a Queue cannot
+    # terminate until the item is consumed by the parent process, risking deadlocks if join() precedes get().
+    import time
+    t_end = time.time() + timeout_seconds
+    msg = None
+    while time.time() < t_end:
+        try:
+            msg = q.get(timeout=0.1)
+            break
+        except queue.Empty:
+            if not p.is_alive():
+                break
+
+    if msg is None:
+        p.join(timeout=1.0)
+        if p.exitcode is not None and p.exitcode != 0:
+            raise RuntimeError(f"OCR worker crashed with exitcode {p.exitcode}")
+        if p.is_alive():
+            p.terminate()
+            p.join(timeout=1.0)
+            if p.is_alive():
+                p.kill()
+            raise TimeoutError(f"OCR worker timed out after {timeout_seconds}s")
+        raise RuntimeError("OCR worker exited without returning result")
+
+    p.join(timeout=2.0)
+    if p.is_alive():
+        p.terminate()
+        p.join(timeout=1.0)
+
+    if p.exitcode is not None and p.exitcode != 0:
+        raise RuntimeError(f"OCR worker crashed with exitcode {p.exitcode}")
+
+    if msg.get("status") == "unavailable":
+        raise ModuleNotFoundError(f"OCR provider unavailable: {msg.get('error')}")
+    if msg.get("status") == "error":
+        raise RuntimeError(f"OCR extraction failed: {msg.get('error')}")
+
+    return msg.get("data")
+

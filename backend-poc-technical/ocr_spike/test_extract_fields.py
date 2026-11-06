@@ -269,3 +269,140 @@ def test_medication_digit_ocr_slip():
     res = extract_fields(text)
     med_names = {f["name"] for f in res["fields"] if f["kind"] == "medication"}
     assert "lisinopril" in med_names
+
+
+def test_multiline_table_hba1c_extracted_without_percent_on_same_line():
+    text = """
+    Test Description
+    Observed Value
+    Unit
+    Reference Range
+    HbA1c (Glycated Haemoglobin)
+    7.6
+    %
+    < 5.7 %
+    """
+    res = extract_fields(text)
+    hba1c_fields = [f for f in res["fields"] if f["kind"] == "hba1c"]
+    assert len(hba1c_fields) == 1
+    assert hba1c_fields[0]["value"] == 7.6
+    assert hba1c_fields[0]["unit"] == "%"
+
+
+def test_reference_range_hyphen_never_extracted_as_glucose():
+    text = "Fasting Blood Sugar\n148 mg/dL\nReference Interval: 70 - 100 mg/dL"
+    res = extract_fields(text)
+    gluc_fields = [f for f in res["fields"] if f["kind"] == "glucose"]
+    assert len(gluc_fields) == 1
+    assert gluc_fields[0]["value"] == 148.0
+    # 70 and 100 in the reference interval must NOT be extracted
+    assert all(f["value"] not in (70.0, 100.0) for f in gluc_fields)
+
+
+def test_reference_range_operator_never_extracted_as_glucose():
+    text = "Random Blood Sugar: 215 mg/dL\nNormal: < 200 mg/dL"
+    res = extract_fields(text)
+    gluc_fields = [f for f in res["fields"] if f["kind"] == "glucose"]
+    assert len(gluc_fields) == 1
+    assert gluc_fields[0]["value"] == 215.0
+    # Threshold 200 must be excluded
+    assert all(f["value"] != 200.0 for f in gluc_fields)
+
+
+def test_reference_range_bp_never_extracted_as_patient_vitals():
+    text = """
+    Test Description Observed Value Unit Reference Range
+    B.P 145/95 mmHg 120/80 mmHg
+    """
+    res = extract_fields(text)
+    bp_fields = [f for f in res["fields"] if f["kind"] == "bp"]
+    assert len(bp_fields) == 1
+    assert bp_fields[0]["value"] == [145, 95]
+
+
+def test_footnote_text_does_not_leak_glucose_keywords():
+    text = """
+    Random Blood Sugar 185 mg/dL
+    Note: Hexokinase enzymatic methodology for Glucose determination.
+    """
+    res = extract_fields(text)
+    gluc_fields = [f for f in res["fields"] if f["kind"] == "glucose"]
+    assert len(gluc_fields) == 1
+    assert gluc_fields[0]["value"] == 185.0
+
+
+def test_random_blood_sugar_mmol_with_next_line_unit():
+    text = """
+    Random Blood Sugar (RBS)
+    11.2
+    mmol/L
+    4.0 - 7.8 mmol/L
+    """
+    res = extract_fields(text)
+    gluc_fields = [f for f in res["fields"] if f["kind"] == "glucose"]
+    assert len(gluc_fields) == 1
+    assert gluc_fields[0]["value"] == 11.2
+    assert gluc_fields[0]["unit"] == "mmol/L"
+    assert gluc_fields[0]["context"] == "random"
+    assert gluc_fields[0]["mg_dl"] == round(11.2 * 18.0, 1)
+
+
+def test_low_confidence_when_unit_missing_in_isolated_string():
+    text = "Fasting Blood Sugar: 145"
+    res = extract_fields(text)
+    gluc_fields = [f for f in res["fields"] if f["kind"] == "glucose"]
+    assert len(gluc_fields) == 1
+    assert gluc_fields[0]["value"] == 145.0
+    assert gluc_fields[0]["unit"] is None
+    assert gluc_fields[0]["confidence"] == "Low"
+    assert any("unit missing" in w for w in res["warnings"])
+
+
+def test_scoring_counts_at_most_one_tp_per_sample_per_field(tmp_path):
+    """Proves scoring logic counts at most 1 TP per sample per field; duplicate matches of expected value are counted as FP."""
+    import json
+    from ocr_spike.run_compare import evaluate_pk_labs_scoring
+
+    single_gt = {
+        "pk_lab_01.png": {
+            "hba1c_pct": 8.4,
+            "glucose": {"value": 148.0, "unit": "mg/dL", "context": "fasting"},
+            "bp": [138, 88],
+        }
+    }
+    gt_file = tmp_path / "ground_truth.json"
+    gt_file.write_text(json.dumps(single_gt), encoding="utf-8")
+
+    # Mock extractor returning duplicate matches for expected values
+    def mock_duplicate_extractor(text: str):
+        return {
+            "fields": [
+                {"kind": "hba1c", "value": 8.4, "unit": "%"},
+                {"kind": "hba1c", "value": 8.4, "unit": "%"},          # duplicate hba1c
+                {"kind": "glucose", "value": 148.0, "unit": "mg/dL"},
+                {"kind": "glucose", "value": 148.0, "unit": "mg/dL"},  # duplicate expected value
+                {"kind": "bp", "value": [138, 88], "unit": "mmHg"},
+                {"kind": "bp", "value": [138, 88], "unit": "mmHg"},    # duplicate expected BP
+            ],
+            "warnings": [],
+            "unmatched_lines": [],
+        }
+
+    res = evaluate_pk_labs_scoring(
+        extractor_fn=mock_duplicate_extractor,
+        gt_path=gt_file,
+    )
+    # GT is 1 for each field
+    assert res["hba1c"]["gt"] == 1
+    assert res["glucose"]["gt"] == 1
+    assert res["bp"]["gt"] == 1
+
+    # Exactly 1 TP per field (never inflated to 2)
+    assert res["hba1c"]["tp"] == 1
+    assert res["glucose"]["tp"] == 1
+    assert res["bp"]["tp"] == 1
+
+    # Duplicates counted as FP
+    assert res["hba1c"]["fp"] == 1
+    assert res["glucose"]["fp"] == 1
+    assert res["bp"]["fp"] == 1

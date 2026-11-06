@@ -42,9 +42,52 @@ HBA1C_MIN = 3.0
 HBA1C_MAX = 20.0
 
 NON_GLUCOSE_ANALYTE_PATTERN = re.compile(
-    r"\b(?:cholesterol|triglyceride[s]?|creatinine|urea|hdl|ldl|bilirubin|uric\s+acid|sgpt|alt|ast|platelet[s]?|wbc)\b",
+    r"\b(?:cholesterol|triglyceride[s]?|creatinine|urea|blood\s+urea\s+nitrogen|bun|uric\s+acid|bilirubin|sgpt|alt|ast|alkaline\s+phosphatase|platelet[s]?|wbc)\b",
     re.IGNORECASE,
 )
+
+GLUCOSE_KEYWORD_PATTERN = re.compile(
+    r"(?:glucose|blood\s+sugar|fbs|rbs|fasting|random|post[- ]?prandial|pp\b|plasma\s+glucose)",
+    re.IGNORECASE,
+)
+
+
+def is_in_reference_context(text: str, match_start: int, match_end: int) -> bool:
+    """
+    Checks if a matched numeric position in text is part of a reference range, interval, or threshold.
+    Guarantees clinical reference bounds (e.g. '< 5.7%', '70 - 100 mg/dL', '< 120/80') are NEVER read as patient values.
+    """
+    prefix = text[max(0, match_start - 35) : match_start].strip().lower()
+    suffix = text[match_end : min(len(text), match_end + 35)].strip().lower()
+
+    # 1. Direct comparison operators in prefix (< 5.7, <= 120, > 100)
+    if re.search(r"[<>≤≥]|(?:less|greater)\s+than", prefix):
+        return True
+
+    # 2. Range hyphens / conjunctions (70 - 100, 4.0 to 7.8)
+    if any(prefix.endswith(sym) for sym in ["-", "–", "—", "to"]):
+        return True
+    if any(suffix.startswith(sym) for sym in ["-", "–", "—", "to"]):
+        return True
+
+    # 3. Reference indicators in prefix (e.g. "Reference: 80 - 140", "Normal: 70 - 110", "Limits: < 130")
+    if re.search(r"\b(?:reference|ref|interval|normal|standard|limits?|desirable|biological)\b", prefix):
+        return True
+
+    # 4. Enclosed in descriptive parenthetical status (e.g. "(Normal)", "(Prediabetes)", "(Desirable)")
+    surrounding = text[max(0, match_start - 40) : min(len(text), match_end + 40)].lower()
+    if any(k in surrounding for k in ["(normal", "(prediabetes", "(desirable", "(non-diabetic"]):
+        open_paren = text.rfind("(", 0, match_start)
+        close_paren = text.find(")", match_end)
+        if open_paren != -1 and close_paren != -1 and open_paren < close_paren:
+            return True
+
+    # 5. Multi-column table check: a BP reading preceded by an earlier BP reading in the same row/context is in the reference column
+    matched_token = text[match_start:match_end]
+    if "/" in matched_token and re.search(r"\b[0-9]{2,3}\s*/\s*[0-9]{2,3}\b", text[max(0, match_start - 60) : match_start]):
+        return True
+
+    return False
 
 
 def levenshtein_distance(s1: str, s2: str) -> int:
@@ -163,28 +206,46 @@ def extract_fields(ocr_text: str) -> Dict[str, Any]:
     raw_lines = ocr_text.splitlines()
     clean_lines = [l.strip() for l in raw_lines if l.strip()]
 
-    # Build evaluation windows: individual lines and adjacent merged pairs
-    windows = []
+    # Separate clinical rows from report footnotes/methodology lines
+    test_lines = []
     for line in clean_lines:
+        # Exclude report footnotes/disclaimers from merging into test rows
+        if not re.match(r"^(?:note|method|verified|signature|consult|disclaimer|affiliated|accredited)\b", line, re.IGNORECASE):
+            test_lines.append(line)
+
+    # Build evaluation windows: 1, 2, 3, and 4 consecutive clinical lines
+    windows = []
+    for line in test_lines:
         windows.append(line)
-    for i in range(len(clean_lines) - 1):
-        windows.append(f"{clean_lines[i]} {clean_lines[i+1]}")
+    for i in range(len(test_lines) - 1):
+        windows.append(f"{test_lines[i]} {test_lines[i+1]}")
+    for i in range(len(test_lines) - 2):
+        windows.append(f"{test_lines[i]} {test_lines[i+1]} {test_lines[i+2]}")
+    for i in range(len(test_lines) - 3):
+        windows.append(f"{test_lines[i]} {test_lines[i+1]} {test_lines[i+2]} {test_lines[i+3]}")
 
     seen_fields = set()
+    seen_glucose_values = set()
 
     # 1. HbA1c Extraction
-    # Pattern: a number + % within 35 characters after HbA1c / A1c / glycated / glycosylated
+    # Matches HbA1c, A1c, Glycated/Glycosylated Haemoglobin/Hemoglobin across tabular line wraps
     hba1c_keyword_pattern = re.compile(
-        r"(?:hba[1li|]\.?c|a1c|glycated\s+haemoglobin|glycated|glycosylated|۲۸۹)",
+        r"(?:hba[1li|]\.?c|a1c|glycated\s*h[ae]moglobin|glycosylated\s*h[ae]moglobin|glycosylated\s*hb|glycated\s*hb|glycated|glycosylated|۲۸۹)",
         re.IGNORECASE,
     )
     for win in windows:
         for km in hba1c_keyword_pattern.finditer(win):
             kw_end = km.end()
-            window_slice = win[kw_end : kw_end + 35]
-            pct_match = re.search(r"[:=\s]*([0-9]+(?:\.[0-9]+)?)\s*%", window_slice, re.IGNORECASE)
-            if pct_match:
+            window_slice = win[kw_end : kw_end + 45]
+            for pct_match in re.finditer(r"[:=\s]*([0-9]+(?:\.[0-9]+)?)\s*%", window_slice, re.IGNORECASE):
                 val = float(pct_match.group(1))
+                match_start_in_win = kw_end + pct_match.start(1)
+                match_end_in_win = kw_end + pct_match.end(1)
+
+                # Never extract reference range thresholds (e.g. "< 5.7%", "4.0 - 5.6%")
+                if is_in_reference_context(win, match_start_in_win, match_end_in_win):
+                    continue
+
                 evidence = win[km.start() : kw_end + pct_match.end()].strip()
                 if HBA1C_MIN <= val <= HBA1C_MAX:
                     field_key = ("hba1c", val)
@@ -201,19 +262,19 @@ def extract_fields(ocr_text: str) -> Dict[str, Any]:
                     warnings.append(f"Implausible HbA1c value {val}% dropped outside [3.0, 20.0]")
 
     # 2. Glucose Extraction
-    # Look for glucose values with unit (mg/dL or mmol/L) or without unit
-    glucose_line_pattern = re.compile(
-        r"(?:glucose|blood\s+sugar|fbs|rbs|fasting|random|post-prandial|postprandial|pp)",
-        re.IGNORECASE,
-    )
+    # Pass 1: Explicit units (mmol/L and mg/dL)
     for win in windows:
         win_lower = win.lower()
 
-        # Exclude non-glucose analytes (e.g. cholesterol, creatinine)
+        # Must exclude non-glucose analytes
         if NON_GLUCOSE_ANALYTE_PATTERN.search(win):
             continue
 
-        # Check context
+        # Must have an explicit glucose keyword in this window
+        if not GLUCOSE_KEYWORD_PATTERN.search(win):
+            continue
+
+        # Context detection
         context = None
         if "fasting" in win_lower or "fbs" in win_lower:
             context = "fasting"
@@ -223,12 +284,18 @@ def extract_fields(ocr_text: str) -> Dict[str, Any]:
             context = "post-prandial"
 
         # Explicit unit: mmol/L or mmol/l
-        mmol_match = re.search(r"(\b[0-9]+(?:\.[0-9]+)?)\s*(?:mmol/l|mmol/L)\b", win, re.IGNORECASE)
-        if mmol_match:
+        for mmol_match in re.finditer(r"(\b[0-9]+(?:\.[0-9]+)?)\s*(?:mmol/l|mmol/L)\b", win, re.IGNORECASE):
             val = float(mmol_match.group(1))
+            val_start, val_end = mmol_match.start(1), mmol_match.end(1)
+
+            # Never extract reference ranges (e.g. "4.0 - 7.8 mmol/L")
+            if is_in_reference_context(win, val_start, val_end):
+                continue
+
             field_key = ("glucose", val, "mmol/L")
             if field_key not in seen_fields:
                 seen_fields.add(field_key)
+                seen_glucose_values.add(val)
                 fields.append({
                     "kind": "glucose",
                     "value": val,
@@ -238,15 +305,20 @@ def extract_fields(ocr_text: str) -> Dict[str, Any]:
                     "evidence": win.strip(),
                     "confidence": "High",
                 })
-            continue
 
         # Explicit unit: mg/dL, mg/dl, mgdl
-        mg_match = re.search(r"(\b[0-9]+(?:\.[0-9]+)?)\s*(?:mg/dl|mg/dL|mgdl)\b", win, re.IGNORECASE)
-        if mg_match:
+        for mg_match in re.finditer(r"(\b[0-9]+(?:\.[0-9]+)?)\s*(?:mg/dl|mg/dL|mgdl)\b", win, re.IGNORECASE):
             val = float(mg_match.group(1))
+            val_start, val_end = mg_match.start(1), mg_match.end(1)
+
+            # Never extract reference ranges (e.g. "70 - 100 mg/dL", "< 200 mg/dL")
+            if is_in_reference_context(win, val_start, val_end):
+                continue
+
             field_key = ("glucose", val, "mg/dL")
             if field_key not in seen_fields:
                 seen_fields.add(field_key)
+                seen_glucose_values.add(val)
                 fields.append({
                     "kind": "glucose",
                     "value": val,
@@ -255,37 +327,72 @@ def extract_fields(ocr_text: str) -> Dict[str, Any]:
                     "evidence": win.strip(),
                     "confidence": "High",
                 })
-            continue
 
-        # If line mentions glucose keyword but no unit found
-        if glucose_line_pattern.search(win) and not re.search(r"%", win):
-            num_match = re.search(r"(\b[0-9]+(?:\.[0-9]+)?)\b", win)
-            # Ensure it's not a reference range or BP
-            if num_match and "/" not in win:
+    # Pass 2: Unitless glucose fallback (only if value not already extracted with explicit unit)
+    for line in test_lines:
+        line_lower = line.lower()
+        if (
+            GLUCOSE_KEYWORD_PATTERN.search(line)
+            and not NON_GLUCOSE_ANALYTE_PATTERN.search(line)
+            and not re.search(r"%", line)
+            and not re.search(r"(?:mg/dl|mmol/l)", line, re.IGNORECASE)
+        ):
+            context = None
+            if "fasting" in line_lower or "fbs" in line_lower:
+                context = "fasting"
+            elif "random" in line_lower or "rbs" in line_lower:
+                context = "random"
+            elif "post-prandial" in line_lower or "postprandial" in line_lower or " pp" in line_lower:
+                context = "post-prandial"
+
+            for num_match in re.finditer(r"(\b[0-9]+(?:\.[0-9]+)?)\b", line):
+                if "/" in line:
+                    continue
                 val = float(num_match.group(1))
+                if val in seen_glucose_values:
+                    continue
+                val_start, val_end = num_match.start(1), num_match.end(1)
+                if is_in_reference_context(line, val_start, val_end):
+                    continue
+
                 field_key = ("glucose", val, None)
                 if field_key not in seen_fields:
                     seen_fields.add(field_key)
+                    seen_glucose_values.add(val)
                     warnings.append(f"Glucose value {val} unit missing; kept as low confidence")
                     fields.append({
                         "kind": "glucose",
                         "value": val,
                         "unit": None,
                         "context": context,
-                        "evidence": win.strip(),
+                        "evidence": line.strip(),
                         "confidence": "Low",
                     })
 
     # 3. Blood Pressure Extraction
-    # Pattern: \d{2,3}\s*/\s*\d{2,3} near "BP" or "blood pressure"
     bp_pair_pattern = re.compile(r"\b([0-9]{2,3})\s*/\s*([0-9]{2,3})\b")
     for win in windows:
-        for bpm in bp_pair_pattern.finditer(win):
+        bp_matches = list(bp_pair_pattern.finditer(win))
+        for idx_m, bpm in enumerate(bp_matches):
+            # In multi-column lab reports, subsequent BP readings in the same row represent the reference column
+            if idx_m > 0:
+                continue
+
             start, end = bpm.start(), bpm.end()
-            window_slice = win[max(0, start - 25) : min(len(win), end + 25)]
-            if re.search(r"(?:bp|blood\s+pressure|mmhg)", window_slice, re.IGNORECASE):
+
+            # Never extract reference range BP thresholds (e.g. "< 120/80 mmHg", "Standard: 120/80")
+            if is_in_reference_context(win, start, end):
+                continue
+
+            window_slice = win[max(0, start - 40) : min(len(win), end + 40)]
+            if re.search(r"(?:bp\b|b\.?p\.?|blood\s*pressure|vitals?|sitting|standing|supine)", window_slice, re.IGNORECASE):
                 sys_val = int(bpm.group(1))
                 dia_val = int(bpm.group(2))
+
+                # If another BP reading is already recorded, standard reference intervals (120/80, 130/80) are reference columns
+                if any(k[0] == "bp" for k in seen_fields) and (sys_val, dia_val) in [(120, 80), (130, 80)]:
+                    continue
+
                 if (
                     BP_SYSTOLIC_MIN <= sys_val <= BP_SYSTOLIC_MAX
                     and BP_DIASTOLIC_MIN <= dia_val <= BP_DIASTOLIC_MAX

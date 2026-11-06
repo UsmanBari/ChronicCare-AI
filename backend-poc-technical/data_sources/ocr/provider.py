@@ -24,6 +24,24 @@ class OcrProvider(ABC):
         raise NotImplementedError
 
 
+class SubprocessOcrProvider(OcrProvider):
+    """
+    Decorator that executes OCR extraction inside an isolated spawn subprocess
+    to guarantee 100% operating system memory reclamation upon process termination.
+    """
+
+    def __init__(self, inner: OcrProvider, provider_name: str):
+        self.inner = inner
+        self.provider_name = provider_name
+
+    def extract_text(self, image_bytes: bytes) -> str:
+        return self.inner.extract_text(image_bytes)
+
+    def extract(self, image_bytes: bytes) -> Dict[str, Any]:
+        from data_sources.ocr.rapidocr_provider import run_ocr_in_subprocess
+        return run_ocr_in_subprocess(image_bytes, provider_name=self.provider_name)
+
+
 def check_ocr_provider_available(provider_type: Optional[str] = None) -> bool:
     """
     Checks whether the configured OCR provider can be imported and executed.
@@ -69,10 +87,19 @@ def get_ocr_provider(provider_type: Optional[str] = None) -> OcrProvider:
 
     if selected_provider == "fake":
         from data_sources.ocr.fake_provider import FakeOcrProvider
-        return FakeOcrProvider()
-
-    if selected_provider == "rapidocr":
+        raw = FakeOcrProvider()
+    elif selected_provider == "rapidocr":
         from data_sources.ocr.rapidocr_provider import RapidOcrProvider
-        return RapidOcrProvider()
+        raw = RapidOcrProvider(use_subprocess=False)
+    else:
+        raise ValueError(f"Unknown OCR provider: '{selected_provider}'. Allowed: 'rapidocr', 'fake'.")
 
-    raise ValueError(f"Unknown OCR provider: '{selected_provider}'. Allowed: 'rapidocr', 'fake'.")
+    use_subprocess = os.environ.get("OCR_USE_SUBPROCESS")
+    if use_subprocess is None:
+        use_subprocess = (selected_provider == "rapidocr")
+    else:
+        use_subprocess = (use_subprocess.lower() in ("true", "1", "yes"))
+
+    if use_subprocess:
+        return SubprocessOcrProvider(raw, selected_provider)
+    return raw
