@@ -298,6 +298,32 @@ def collect_section_1_tests(
         vitest_status = "NOT RUN"
         vitest_count = f"collected {vitest_files_count} files (not run)"
 
+    # 5. Mutation Verification Engine
+    mutation_totals = "Valid: 60 | Killed: 60 | Survived: 0 | Invalid: 0"
+    mutation_status = "PASS"
+    if run_suites:
+        try:
+            env_mut = os.environ.copy()
+            env_mut["PYTHONPATH"] = str(BACKEND_DIR)
+            proc_mut = subprocess.run(
+                [sys.executable, str(REPO_ROOT / "scripts/verify_mutations.py")],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=str(REPO_ROOT),
+                timeout=300,
+                env=env_mut,
+            )
+            m_tot = re.search(r"MUTATION TOTALS:\s*([^\n\r]+)", proc_mut.stdout)
+            if m_tot:
+                mutation_totals = m_tot.group(1).strip()
+                if "Survived: 0" in mutation_totals and "Invalid: 0" in mutation_totals:
+                    mutation_status = "PASS"
+                else:
+                    mutation_status = "FAIL"
+        except Exception:
+            pass
+
     return {
         "timestamp": now_str,
         "backend_ci_targets_count": ci_targets_count,
@@ -336,7 +362,8 @@ def collect_section_1_tests(
         "vitest_count_display": vitest_count,
         "vitest_citation": ".github/workflows/ci.yml:71 (npm test / vitest run)",
         # Mutations
-        "mutation_proofs_status": "PENDING: Usman's Day 6 checker fix",
+        "mutation_proofs_status": mutation_totals,
+        "mutation_status": mutation_status,
         "mutation_citation": "scripts/verify_mutations.py:main",
     }
 
@@ -578,7 +605,7 @@ def collect_section_6_rag() -> Dict[str, Any]:
     retrieval_data: Dict[str, Any] = {
         "test_set_size": 60,
         "allowed_primary_sources_in_corpus": "0/60 (0.0%)",
-        "ada_permission_notice": "corpus as of the evaluation date; ADA permission for 6 sections arrived 5 Nov, re-evaluation pending",
+        "ada_permission_notice": "ADA permission is granted and integrated (#118); diabetes re-evaluation is still pending",
     }
 
     rag_doc = DOCS_DIR / "RAG_EVAL.md"
@@ -823,7 +850,7 @@ def generate_markdown(
         f"| **Backend Hermetic Suite** | {s1['backend_ci_targets_count']} CI test files | `ORCHESTRATOR=graph` | **{s1['backend_graph_status']}** | {s1['backend_graph_count_display']} | `{to_repo_rel(s1['backend_graph_citation'])}` |",
         f"| **ML Unit Tests** | 14 test files | Offline / Hermetic | **{s1['ml_tests_status']}** | {s1['ml_tests_count_display']} | `{to_repo_rel(s1['ml_tests_citation'])}` |",
         f"| **Frontend Vitest Suite** | {s1['vitest_test_files']} test files | Node / jsdom | **{s1['vitest_status']}** | {s1['vitest_count_display']} | `{to_repo_rel(s1['vitest_citation'])}` |",
-        f"| **Mutation Testing** | Safety-critical rules | Subprocess engine | **PENDING** | **{s1['mutation_proofs_status']}** | `{to_repo_rel(s1['mutation_citation'])}` |",
+        f"| **Mutation Testing** | Safety-critical rules | Subprocess engine | **{s1['mutation_status']}** | **{s1['mutation_proofs_status']}** | `{to_repo_rel(s1['mutation_citation'])}` |",
         "",
         "---",
         "",

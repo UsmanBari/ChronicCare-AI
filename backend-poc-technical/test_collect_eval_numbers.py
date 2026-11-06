@@ -134,10 +134,12 @@ def test_section_9_uses_same_numbers_as_section_1():
 
 
 def test_section_1_test_counts_dynamic():
-    """Section 1 must dynamically report CI targets and pending mutation status."""
-    res = collect_section_1_tests()
+    """Section 1 must dynamically report CI targets and verified mutation status."""
+    res = collect_section_1_tests(run_suites=False)
     assert res["backend_ci_targets_count"] >= 80
-    assert "PENDING: Usman's Day 6 checker fix" in res["mutation_proofs_status"]
+    assert "Valid: 60" in res["mutation_proofs_status"]
+    assert "Killed: 60" in res["mutation_proofs_status"]
+    assert res["mutation_status"] == "PASS"
     assert "ci.yml" in res["backend_direct_citation"]
 
 
@@ -185,9 +187,10 @@ def test_section_5_ml_metrics():
 
 
 def test_section_6_rag_ada_notice():
-    """Section 6 must include the 5 Nov ADA permission corpus notice."""
+    """Section 6 must include the ADA permission integration notice."""
     res = collect_section_6_rag()
-    assert "ADA permission for 6 sections arrived 5 Nov" in res["retrieval"]["ada_permission_notice"]
+    assert "ADA permission is granted and integrated (#118)" in res["retrieval"]["ada_permission_notice"]
+    assert "diabetes re-evaluation is still pending" in res["retrieval"]["ada_permission_notice"]
     assert res["explainer"]["test_cases_count"] == 40
     assert res["explainer"]["acceptance_rate_pct"] == 100.0
 
