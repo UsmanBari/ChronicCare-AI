@@ -219,6 +219,11 @@ export const RiskResultScreen = () => {
           </p>
         </div>
 
+        {/* Guideline Explanation Box (flags on) */}
+        {liveCheckinResult?.explanation && (
+          <ExplanationBox />
+        )}
+
         {/* Toggle to view Why / Contributing Factors */}
         {!showWhyPanel ? (
           <button

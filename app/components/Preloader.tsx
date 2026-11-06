@@ -11,6 +11,11 @@ export const Preloader = ({ onComplete }: { onComplete: () => void }) => {
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      onComplete();
+      return;
+    }
+
     const duration = 1600;
     const start = Date.now();
     let frameId: number;
@@ -59,6 +64,17 @@ export const Preloader = ({ onComplete }: { onComplete: () => void }) => {
       transition={{ duration: 1.0, ease: "easeInOut" }}
       className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0A0F1C] select-none overflow-hidden px-4 text-center"
     >
+      {/* Skip button for screen readers / keyboard users / testing */}
+      <button
+        type="button"
+        onClick={onComplete}
+        data-testid="skip-preloader-btn"
+        className="absolute top-4 right-4 z-50 text-xs text-teal-400 hover:text-teal-200 border border-teal-500/40 rounded-lg px-3 py-1.5 bg-slate-900/60 backdrop-blur-xs transition-colors"
+        aria-label={isUrdu ? "تعارف چھوڑیں" : "Skip intro animation"}
+      >
+        {isUrdu ? "چھوڑیں" : "Skip"}
+      </button>
+
       {/* Part B: Full-screen Animated Heartbeat / EKG Waveform in Background */}
       <svg
         className="absolute inset-0 w-full h-full opacity-20 pointer-events-none"
@@ -117,7 +133,14 @@ export const Preloader = ({ onComplete }: { onComplete: () => void }) => {
             </div>
 
             {/* Glowing Wide Progress Bar */}
-            <div className="w-[85%] sm:w-[70%] max-w-xl h-2 sm:h-2.5 rounded-full bg-[#141E33] overflow-hidden border border-slate-800 shadow-inner mb-4">
+            <div
+              role="progressbar"
+              aria-valuenow={progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={isUrdu ? "سسٹم لوڈ ہو رہا ہے" : "Clinical engine initialization"}
+              className="w-[85%] sm:w-[70%] max-w-xl h-2 sm:h-2.5 rounded-full bg-[#141E33] overflow-hidden border border-slate-800 shadow-inner mb-4"
+            >
               <motion.div
                 className="h-full bg-gradient-to-r from-teal-500 via-teal-400 to-teal-300 rounded-full"
                 style={{
