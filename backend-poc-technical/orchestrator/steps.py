@@ -830,23 +830,20 @@ def step_explain(
 
         # If llm is None, guarded_explain will route dynamically across configured providers (groq/gemini)
 
-        cond_list = [c.lower().strip() for c in (getattr(state, "conditions_on_file", None) or [])]
-        if "hypertension" in cond_list and "diabetes" in cond_list:
-            active_cond = "both"
-        elif cond_list:
-            active_cond = cond_list[0]
+        active_cond = "diabetes"
+        if state and getattr(state, "conditions_on_file", None):
+            active_cond = state.conditions_on_file[0]
         elif state and getattr(state, "active_condition", None):
             active_cond = state.active_condition
-        else:
-            active_cond = "diabetes"
 
-        patient_conditions = getattr(state, "conditions_on_file", None) or [active_cond]
+        patient_conditions = getattr(state, "conditions_on_file", None) or ([active_cond] if active_cond else [])
 
         import copy
         from rag.explain_guards import (
             guarded_explain,
             get_explain_mode,
             check_llm_eligibility,
+            is_patient_diabetic,
             record_fallback,
             get_or_build_retriever,
         )
@@ -878,9 +875,7 @@ def step_explain(
                     )
 
         # F6: For a hypertension-only patient, drop ada_2026_* chunks before the LLM call and from sources
-        patient_conds_clean = {str(c).lower().strip() for c in patient_conditions}
-        has_diabetes_cond = bool(patient_conds_clean & {"diabetes", "t2d", "type 2 diabetes", "both"})
-        if not has_diabetes_cond:
+        if not is_patient_diabetic(patient_conditions=patient_conditions, condition=active_cond):
             candidate_chunks = [
                 c for c in candidate_chunks
                 if not str(c.get("source_id") or c.get("id") or c.get("chunk_id") or "").startswith("ada_2026")
@@ -964,6 +959,7 @@ def step_explain(
             store=store,
             llm=llm,
             condition=active_cond,
+            patient_conditions=patient_conditions,
             mode="inline",
         )
         if "status" not in explain_res:
@@ -1085,6 +1081,7 @@ def step_persist_and_respond(
             language=job_params["language"],
             fallback_template=job_params["fallback_template"],
             store=job_params.get("store"),
+            patient_conditions=job_params.get("patient_conditions"),
         )
         if not enqueued:
             from data_sources.app_store import update_checkin_explanation

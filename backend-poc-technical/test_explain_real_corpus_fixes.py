@@ -11,12 +11,19 @@ import inspect
 import json
 import os
 import sys
-from typing import Any, Dict, List
+import tempfile
+import time
+from typing import Any, Dict, List, Optional, Tuple
 import unittest
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+from agents.adaptive_interview_agent import InterviewState
+from data_sources import app_store
+import llm.gemini_client as gemini_client
+import llm.groq_client as groq_client
+from orchestrator.steps import step_explain, step_persist_and_respond
 from rag import explainer, explain_guards
 from rag.explain_guards import (
     CircuitBreaker,
@@ -24,6 +31,11 @@ from rag.explain_guards import (
     ExplainCache,
     TokenPacer,
     guarded_explain,
+)
+from rag.explain_jobs import (
+    execute_job_synchronous,
+    get_job_queue,
+    reset_job_queue,
 )
 from rag.explainer import (
     get_explain_max_tokens,
@@ -45,6 +57,9 @@ class MockChunkStore:
     def get_chunk(self, chunk_id: str):
         return self._by_id.get(chunk_id)
 
+    def get(self, chunk_id: str):
+        return self._by_id.get(chunk_id)
+
     def list_chunks(
         self,
         condition=None,
@@ -56,11 +71,30 @@ class MockChunkStore:
     def total_chunks(self) -> int:
         return len(self._chunks)
 
+    def count(self) -> int:
+        return len(self._chunks)
+
 
 class TestRealCorpusExplainerFixes(unittest.TestCase):
     def setUp(self):
         # Ensure fresh state for tests
         explain_guards.reset_explain_guards()
+        reset_job_queue()
+        # Initialize isolated test SQLite database for app_store
+        self.temp_db_fd, self.temp_db_path = tempfile.mkstemp(prefix="chroniccare_test_p3_", suffix=".db")
+        os.close(self.temp_db_fd)
+        os.environ["LOCAL_DB_PATH"] = self.temp_db_path
+        os.environ["DB_BACKEND"] = "sqlite"
+        app_store.migrate(db_path=self.temp_db_path, backend="sqlite")
+
+    def tearDown(self):
+        reset_job_queue()
+        explain_guards.reset_explain_guards()
+        if hasattr(self, "temp_db_path") and os.path.exists(self.temp_db_path):
+            try:
+                os.remove(self.temp_db_path)
+            except Exception:
+                pass
 
     # -------------------------------------------------------------------------
     # F1 / F3: Token Limits and Translation Call
@@ -339,17 +373,18 @@ class TestRealCorpusExplainerFixes(unittest.TestCase):
         self.assertEqual(breaker._consecutive_failures, 3)
 
     # -------------------------------------------------------------------------
-    # F6 / F7: ADA Chunks Filtering by Patient Condition
+    # P3: ADA Chunks Filtering through REAL Execution Path (Step & Worker)
     # -------------------------------------------------------------------------
     def _create_mixed_store(self) -> MockChunkStore:
         store = MockChunkStore()
         store.add_chunk({
             "chunk_id": "c_htn_who",
             "source_id": "who_ish_2020",
-            "title": "WHO Hypertension",
+            "title": "WHO Hypertension Guidelines",
+            "section_path": "Blood pressure targets",
             "condition": "hypertension",
-            "text": "Hypertension management guideline for adults.",
-            "full_citation": "WHO 2020",
+            "text": "blood pressure stage 2 hypertension 140 90 mmhg re-check seated rest 5 minutes WHO guidance.",
+            "full_citation": "WHO 2020 Guidelines for Hypertension",
             "doi": "10.1234/who",
             "priority": 1,
         })
@@ -357,113 +392,226 @@ class TestRealCorpusExplainerFixes(unittest.TestCase):
             "chunk_id": "c_ada_sec10",
             "source_id": "ada_2026_sec10",
             "title": "ADA Standards of Care Sec 10 - Cardiovascular Disease",
+            "section_path": "Cardiovascular risk and hypertension",
             "condition": "both",
-            "text": "Cardiovascular risk reduction and blood pressure targets for people with diabetes.",
-            "full_citation": "ADA 2026 Sec 10",
-            "doi": "10.2337/ada10",
+            "text": "blood pressure stage 2 hypertension 140 90 mmhg re-check seated rest 5 minutes for people with diabetes.",
+            "full_citation": "ADA Standards of Care in Diabetes-2026, Section 10",
+            "doi": "10.2337/dc26-S010",
             "priority": 1,
         })
         store.add_chunk({
             "chunk_id": "c_ada_sec05",
             "source_id": "ada_2026_sec05",
             "title": "ADA Standards of Care Sec 05 - Facilitating Positive Health Behaviors",
+            "section_path": "Nutrition and lifestyle",
             "condition": "diabetes",
-            "text": "Lifestyle management and nutrition in type 2 diabetes.",
-            "full_citation": "ADA 2026 Sec 05",
-            "doi": "10.2337/ada05",
+            "text": "glucose high blood sugar 250 300 mgdl hyperglycemia hydration follow up in type 2 diabetes.",
+            "full_citation": "ADA Standards of Care in Diabetes-2026, Section 5",
+            "doi": "10.2337/dc26-S005",
             "priority": 1,
         })
         return store
 
-    def test_f6_hypertension_only_patient_drops_all_ada_chunks(self):
-        """Hypertension-only patient never receives, cites, or exposes ADA chunks."""
-        store = self._create_mixed_store()
+    def _drive_real_path(
+        self,
+        conditions_on_file: List[str],
+        readings: Dict[str, Any],
+        mode: str,
+    ) -> Tuple[Dict[str, Any], str, List[str]]:
+        """
+        Executes check-in explanation through the real execution path:
+        - Inline mode: step_explain calls guarded_explain directly.
+        - Background mode: step_explain sets _job_params, step_persist_and_respond enqueues job,
+          and execute_job_synchronous runs the background worker processing the job.
+        Returns: (final_result, active_cond, prompt_calls)
+        """
+        explain_guards.reset_explain_guards()
+        reset_job_queue()
 
-        def mock_llm(**kwargs):
-            # Check prompt text: must NOT contain ADA text
-            prompt = kwargs.get("messages", [])[-1]["content"]
-            self.assertNotIn("ADA Standards of Care", prompt)
-            self.assertNotIn("ada_2026", prompt)
-            return json.dumps({
+        store = self._create_mixed_store()
+        prompt_calls: List[str] = []
+
+        def fake_groq_chat(**kwargs):
+            messages = kwargs.get("messages", [])
+            content = messages[-1]["content"] if messages else ""
+            prompt_calls.append(content)
+            body = json.dumps({
                 "sentences": [
-                    {"text": "Your blood pressure is 150 mmHg. [S1]", "cites": ["S1"]},
-                    {"text": "Follow lifestyle modifications. [S1]", "cites": ["S1"]},
+                    {"text": "Your reading requires clinical attention. [S1]", "cites": ["S1"]},
+                    {"text": "Please consult your healthcare team for management. [S1]", "cites": ["S1"]},
                 ]
             })
+            return body, {"total_tokens": 50, "completion_tokens": 25}
 
-        with patch.dict(os.environ, {"EXPLAIN_LLM_CONDITIONS": "hypertension,diabetes"}):
-            res = guarded_explain(
-                triage_result={"level": "review"},
-                readings={"blood_pressure_systolic": 150, "blood_pressure_diastolic": 90},
-                language="en",
-                store=store,
-                llm=mock_llm,
-                condition="hypertension",
-                patient_conditions=["hypertension"],
-                provider="groq",
-            )
+        state = InterviewState(
+            patient_id=f"pat_test_{mode}_{'_'.join(conditions_on_file)}",
+            conditions_on_file=list(conditions_on_file),
+            intakes=[{"readings": readings}],
+        )
+        triage_decision = {
+            "final_triage_level": "review",
+            "final_requires_review": True,
+            "final_max_sev": "moderate",
+            "review_status": "open",
+            "triage_dict": {"level": "review"},
+        }
+        user_id = f"usr_{mode}_{'_'.join(conditions_on_file)}"
+        checkin_id = f"chk_{mode}_{int(time.time() * 1000)}"
 
-        self.assertEqual(res.get("mode"), "llm")
-        # Verify sources list contains NO ada_2026 chunks
-        for src in res.get("sources", []):
-            self.assertFalse(str(src.get("source_id", "")).startswith("ada_2026"))
-            self.assertFalse(str(src.get("chunk_id", "")).startswith("ada_2026"))
+        class DummyResult:
+            def to_dict(self):
+                return {}
 
-    def test_f7_diabetes_patient_allows_ada_chunks(self):
-        """Diabetes patient retains access to ADA chunks."""
-        store = self._create_mixed_store()
+        with patch.dict(
+            os.environ,
+            {
+                "EXPLAIN_ENABLED": "true",
+                "EXPLAIN_MODE": mode,
+                "EXPLAIN_LLM_CONDITIONS": "hypertension,diabetes",
+                "LLM_PROVIDER": "groq",
+            },
+        ), patch.object(
+            groq_client, "is_configured", return_value=True, spec=lambda: True
+        ), patch.object(
+            gemini_client, "is_configured", return_value=False, spec=lambda: False
+        ), patch.object(
+            groq_client, "chat_with_detailed_usage", side_effect=fake_groq_chat, spec=fake_groq_chat
+        ), patch.object(
+            groq_client, "chat_with_usage", side_effect=lambda **kw: (fake_groq_chat(**kw)[0], 50), spec=lambda **kw: ("", 0)
+        ), patch.object(
+            get_job_queue(), "start_worker_if_needed", lambda: None
+        ):
+            if mode == "inline":
+                res = step_explain(
+                    user_id=user_id,
+                    state=state,
+                    triage_decision=triage_decision,
+                    get_patient_profile_fn=lambda uid: {"conditions": conditions_on_file, "language": "en"},
+                    store=store,
+                    checkin_id=checkin_id,
+                )
+                active_cond = conditions_on_file[0] if conditions_on_file else "diabetes"
+                return res, active_cond, prompt_calls
+            else:
+                pending_res = step_explain(
+                    user_id=user_id,
+                    state=state,
+                    triage_decision=triage_decision,
+                    get_patient_profile_fn=lambda uid: {"conditions": conditions_on_file, "language": "en"},
+                    store=store,
+                    checkin_id=checkin_id,
+                )
+                self.assertIsNotNone(pending_res)
+                self.assertEqual(pending_res.get("status"), "pending")
+                self.assertIn("_job_params", pending_res)
 
-        def mock_llm(**kwargs):
-            return json.dumps({
-                "sentences": [
-                    {"text": "Your glucose reading is 210 mg/dL. [S1]", "cites": ["S1"]},
-                    {"text": "Follow your dietary plan and check your levels regularly. [S1]", "cites": ["S1"]},
-                ]
-            })
+                job_params = pending_res["_job_params"]
+                active_cond = job_params["condition"]
+                self.assertEqual(job_params["patient_conditions"], conditions_on_file)
 
-        with patch.dict(os.environ, {"EXPLAIN_LLM_CONDITIONS": "hypertension,diabetes"}):
-            res = guarded_explain(
-                triage_result={"level": "review"},
-                readings={"glucose": 210},
-                language="en",
-                store=store,
-                llm=mock_llm,
-                condition="diabetes",
-                patient_conditions=["diabetes"],
-                provider="groq",
-            )
+                step_persist_and_respond(
+                    checkin_id=checkin_id,
+                    state=state,
+                    recon_result=DummyResult(),
+                    verif_result=DummyResult(),
+                    triage_decision=triage_decision,
+                    med_state=None,
+                    protocol_state=None,
+                    record_label="test",
+                    explanation=pending_res,
+                )
 
-        self.assertEqual(res.get("mode"), "llm")
-        source_ids = [s.get("source_id", "") for s in res.get("sources", [])]
-        self.assertTrue(any(s.startswith("ada_2026") for s in source_ids), f"Expected ADA sources in {source_ids}")
+                q = get_job_queue()._get_queue()
+                self.assertFalse(q.empty(), "Job should be enqueued into explanation queue")
+                job = q.get_nowait()
+                self.assertEqual(job.checkin_id, checkin_id)
+                self.assertEqual(job.condition, active_cond)
+                self.assertEqual(job.patient_conditions, conditions_on_file)
 
-    def test_f7_both_condition_patient_with_bp_trigger_allows_ada_chunks(self):
-        """Both-condition patient with BP trigger still retains ADA access."""
-        store = self._create_mixed_store()
+                final_res = execute_job_synchronous(job)
+                return final_res, active_cond, prompt_calls
 
-        def mock_llm(**kwargs):
-            return json.dumps({
-                "sentences": [
-                    {"text": "Your blood pressure is 165/95 mmHg. [S1]", "cites": ["S1"]},
-                    {"text": "Follow up with your clinician for guidance. [S1]", "cites": ["S1"]},
-                ]
-            })
+    def test_p3_hypertension_only_real_path_zero_ada_both_modes(self):
+        """Hypertension-only patient: zero ada_2026 chunks sent to LLM or returned in sources (inline & background)."""
+        readings = {"blood_pressure_systolic": 150.0, "blood_pressure_diastolic": 90.0}
 
-        with patch.dict(os.environ, {"EXPLAIN_LLM_CONDITIONS": "hypertension,diabetes"}):
-            res = guarded_explain(
-                triage_result={"level": "urgent"},
-                readings={"blood_pressure_systolic": 165, "blood_pressure_diastolic": 95},
-                language="en",
-                store=store,
-                llm=mock_llm,
-                condition="both",
-                patient_conditions=["hypertension", "diabetes"],
-                provider="groq",
-            )
+        for mode in ("inline", "background"):
+            with self.subTest(mode=mode):
+                res, active_cond, prompts = self._drive_real_path(
+                    conditions_on_file=["hypertension"],
+                    readings=readings,
+                    mode=mode,
+                )
+                self.assertEqual(res.get("mode"), "llm")
+                self.assertEqual(res.get("status"), "ready")
+                self.assertEqual(active_cond, "hypertension")
 
-        self.assertEqual(res.get("mode"), "llm")
-        source_ids = [s.get("source_id", "") for s in res.get("sources", [])]
-        self.assertTrue(any(s.startswith("ada_2026") for s in source_ids), f"Expected ADA chunks for dual condition patient: {source_ids}")
+                # 1. Assert zero ada_2026 sent to the LLM
+                self.assertTrue(len(prompts) > 0, f"Expected LLM calls for mode {mode}")
+                for p in prompts:
+                    self.assertNotIn("ADA Standards of Care", p)
+                    self.assertNotIn("ada_2026", p)
+
+                # 2. Assert zero ada_2026 chunks returned in sources
+                sources = res.get("sources", [])
+                self.assertTrue(len(sources) > 0, f"Expected non-empty sources for mode {mode}")
+                for s in sources:
+                    sid = str(s.get("source_id", "") or s.get("chunk_id", ""))
+                    self.assertFalse(sid.startswith("ada_2026"), f"Found ADA chunk {sid} in sources for mode {mode}")
+
+    def test_p3_both_condition_real_path_ada_allowed_both_modes(self):
+        """Dual-condition patient (hypertension listed first!): ADA chunks allowed in both modes, active_cond is conditions_on_file[0]."""
+        readings = {"blood_pressure_systolic": 150.0, "blood_pressure_diastolic": 90.0}
+        conditions = ["hypertension", "diabetes"]
+
+        for mode in ("inline", "background"):
+            with self.subTest(mode=mode):
+                res, active_cond, prompts = self._drive_real_path(
+                    conditions_on_file=conditions,
+                    readings=readings,
+                    mode=mode,
+                )
+                # Assert active_cond for both-condition patient is conditions_on_file[0], exactly as dev had it
+                self.assertEqual(active_cond, conditions[0])
+                self.assertEqual(active_cond, "hypertension")
+
+                self.assertEqual(res.get("mode"), "llm")
+                self.assertEqual(res.get("status"), "ready")
+
+                # Assert ADA chunks allowed in prompt
+                self.assertTrue(len(prompts) > 0)
+                ada_in_prompt = any("ADA Standards of Care" in p or "ada_2026" in p for p in prompts)
+                self.assertTrue(ada_in_prompt, f"Expected ADA chunks in prompt for mode {mode}")
+
+                # Assert ADA chunks allowed in sources
+                sources = res.get("sources", [])
+                source_ids = [str(s.get("source_id", "") or s.get("chunk_id", "")) for s in sources]
+                self.assertTrue(any(sid.startswith("ada_2026") for sid in source_ids), f"Expected ADA in sources {source_ids} for mode {mode}")
+
+    def test_p3_diabetes_only_real_path_ada_allowed_both_modes(self):
+        """Diabetes-only patient: ADA chunks allowed in both modes."""
+        readings = {"glucose": 260.0}
+        conditions = ["diabetes"]
+
+        for mode in ("inline", "background"):
+            with self.subTest(mode=mode):
+                res, active_cond, prompts = self._drive_real_path(
+                    conditions_on_file=conditions,
+                    readings=readings,
+                    mode=mode,
+                )
+                self.assertEqual(active_cond, "diabetes")
+                self.assertEqual(res.get("mode"), "llm")
+                self.assertEqual(res.get("status"), "ready")
+
+                # Assert ADA chunks allowed in prompt and sources
+                self.assertTrue(len(prompts) > 0)
+                ada_in_prompt = any("ADA Standards of Care" in p or "ada_2026" in p for p in prompts)
+                self.assertTrue(ada_in_prompt, f"Expected ADA chunks in prompt for mode {mode}")
+
+                sources = res.get("sources", [])
+                source_ids = [str(s.get("source_id", "") or s.get("chunk_id", "")) for s in sources]
+                self.assertTrue(any(sid.startswith("ada_2026") for sid in source_ids), f"Expected ADA in sources {source_ids} for mode {mode}")
 
     # -------------------------------------------------------------------------
     # Doc-vs-Code Parity & Validator AST Invariance

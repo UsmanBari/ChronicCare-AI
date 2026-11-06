@@ -175,6 +175,21 @@ def is_condition_allowed_for_llm(condition: str, trigger_category: str) -> bool:
     return cond in allowed
 
 
+def is_patient_diabetic(
+    patient_conditions: Optional[List[str]] = None,
+    condition: Optional[str] = None,
+) -> bool:
+    """
+    Returns True if the patient is considered diabetic based on patient_conditions
+    or fallback single condition string.
+    """
+    if patient_conditions is not None:
+        p_conds = {str(c).lower().strip() for c in patient_conditions}
+        return bool(p_conds & {"diabetes", "t2d", "type 2 diabetes", "both"})
+    c_clean = str(condition or "").lower().strip()
+    return c_clean in ("diabetes", "both") or "diabetes" in c_clean
+
+
 def get_explain_mode() -> str:
     m = os.environ.get("EXPLAIN_MODE", DEFAULT_EXPLAIN_MODE).strip().lower()
     return m if m in ("background", "inline") else DEFAULT_EXPLAIN_MODE
@@ -1111,18 +1126,13 @@ def guarded_explain(
     # F6: ADA Standards of Care are for people with diabetes.
     # Use ada_2026_* chunks only when the PATIENT's conditions include diabetes (both-condition patients: allowed).
     # For a hypertension-only patient, drop ada_2026_* chunks before the LLM call and from the sources list.
-    if patient_conditions is not None:
-        patient_conds_clean = {str(c).lower().strip() for c in patient_conditions}
-        has_diabetes = bool(patient_conds_clean & {"diabetes", "t2d", "type 2 diabetes", "both"})
-    else:
-        c_clean = str(condition or "").lower().strip()
-        has_diabetes = c_clean in ("diabetes", "both") or "diabetes" in c_clean
-
-    if not has_diabetes and candidate_chunks:
+    if not is_patient_diabetic(patient_conditions=patient_conditions, condition=cond_str) and candidate_chunks:
         candidate_chunks = [
             c for c in candidate_chunks
             if not str(c.get("source_id") or c.get("id") or c.get("chunk_id") or "").startswith("ada_2026")
         ]
+        if not candidate_chunks and store is not None:
+            return _make_template_fallback("no_chunks", ["No matching clinical guideline chunks found"])
 
     # 6. Resolve Candidate Providers
     active_mode = (provider or get_llm_provider()).strip().lower()
