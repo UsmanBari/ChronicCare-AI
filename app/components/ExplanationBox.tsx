@@ -31,7 +31,10 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
   const { liveCheckinResult, activeLiveCheckin, t, isUrdu } = useApp();
   const [isOpen, setIsOpen] = useState(false);
 
-  const initialExplanation = propExplanation !== undefined ? propExplanation : liveCheckinResult?.explanation;
+  const initialExplanation =
+    propExplanation !== undefined
+      ? propExplanation
+      : liveCheckinResult?.explanation;
   const isEmergency = propEmergency !== undefined ? propEmergency : liveCheckinResult?.emergency;
   const effectiveCheckinId = propCheckinId || activeLiveCheckin?.checkin_id;
 

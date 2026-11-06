@@ -8,7 +8,7 @@ import { api, ApiError } from "../lib/api";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
 
 export const LoginScreen = () => {
-  const { setScreen, setUserIdentifier, setUserRole, setLiveProfile, sessionNotice, setSessionNotice, t, isUrdu } = useApp();
+  const { setScreen, setUserIdentifier, setUserRole, setLiveProfile, setProfile, sessionNotice, setSessionNotice, t, isUrdu } = useApp();
   const [isSignUp, setIsSignUp] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -147,7 +147,19 @@ export const LoginScreen = () => {
     // 4. Mock / Offline Demo Mode (Strictly when AUTH_MODE is unset or mock)
     setError("");
     setUserIdentifier(cleanId);
-    setScreen("connection");
+    setUserRole("patient");
+    if (isSignUp) {
+      setProfile({
+        conditions: [],
+        medications: [],
+        date_of_birth: "",
+        sex_at_birth: "",
+        pregnancy_status: "",
+      });
+      setScreen("consent");
+    } else {
+      setScreen("connection");
+    }
   };
 
   return (
