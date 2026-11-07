@@ -79,6 +79,17 @@ Per Saad's Day 4 prompt in `docs/tasks/WEEK3_SAAD.md` (Part A, lines 621–633),
 | **Live Smoke (6 Nov, Real Corpus - Baseline): Token Usage** | ~2,000 tokens/English row (up from ~700 in synthetic runs due to guideline passage lengths) | Usman's live run 6 Nov, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
 | **Live Smoke (6 Nov 22:20, Real Corpus - Post PR #123): Diabetes Resolution** | 10/10 llm/cache (6 LLM, 4 cache, 0 fallbacks); **PASSED $\ge$ 9/10 rule** | Usman's live run 6 Nov 22:20, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
 | **Live Smoke (6 Nov 22:20, Real Corpus - Post PR #123): Hypertension Resolution** | 3/10 llm/cache (3 LLM, 0 cache, 7 template fallbacks on "routine" check-ins with reason `no_chunks`); **FAILED $\ge$ 9/10 rule** | Usman's live run 6 Nov 22:20, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
+| **Live Smoke (7 Nov 06:45, Real Corpus - Post PR #125): Diabetes Resolution** | 10/10 llm/cache; **PASSED $\ge$ 9/10 rule** | Usman's live run 7 Nov 06:45, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-07 |
+| **Live Smoke (7 Nov 06:45, Real Corpus - Post PR #125): Hypertension Resolution** | 6/10 llm/cache (4 LLM + 2 cache, 4 Urdu/Roman Urdu fallbacks); **FAILED $\ge$ 9/10 rule** | Usman's live run 7 Nov 06:45, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-07 |
+
+> [!WARNING]
+> **7 Nov (06:45) Real-Corpus Live Smoke Evaluation & Pacer Deadline Fix (Day 6g):**
+> Following PR #125, Usman re-ran the live smoke against the complete 1,175 real loaded chunks (7 Nov, 06:45):
+> - **Diabetes Check-ins:** 10/10 resolved via LLM or cache (100% pass rate; Release 2 threshold met).
+> - **Hypertension Check-ins:** 6/10 resolved via LLM or cache (4 LLM + 2 cache, 4 fallbacks; fell short of $\ge 9/10$).
+> - **PR #125 Verification:** The PR #125 fix worked completely: routine check-in rows cited `ish_2020_htn` and `who_2021_htn`, with zero ADA / IDF / AKU citations and zero `no_chunks` rejections.
+> - **Root Cause:** All 4 failures were Urdu or Roman Urdu routine rows. In background mode when Gemini is a possible next provider, Groq's call timeout was capped to `min(time_left, EXPLAIN_CALL_TIMEOUT_SECONDS = 20 s)`. Inside `_timed_llm`, the Groq OTPM pacer check checked `now + wait + 1.0 <= prov_deadline` against that 20 s per-call provider timeout. Urdu translation required ~30 s pacer wait (1,000 OTPM limit, 700 token reservation), raising `TimeoutError('Pacer wait exceeds deadline')` and falling back to Gemini. Gemini's free tier then failed under concurrency/latency limits (HTTP 503, ReadTimeout). Diabetes check-ins succeeded 10/10 because ADA chunks restrict Gemini (Rule G3), leaving Groq as the sole provider with the full 45 s budget.
+> - **Remediation (Day 6g):** In `rag/explain_guards.py`, the pacer wait check now evaluates against the overall job deadline (`deadline`), not the 20 s call timeout. When the wait fits in the job deadline, the worker sleeps and extends the provider's deadline (`prov_deadline_ref[0] = min(deadline, prov_deadline_ref[0] + wait)`), while capping the actual HTTP call to `get_call_timeout_seconds()`. The main thread join loop joins against `prov_deadline_ref[0]` while ensuring termination if wall-clock exceeds job deadline + 5 s.
 
 > [!WARNING]
 > **6 Nov (22:20) Real-Corpus Live Smoke Evaluation & Pre-Ranking Fix (Day 6f):**

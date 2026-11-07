@@ -8,7 +8,7 @@ For USMAN to run (with real API keys):
 - Checks API keys presence; if missing for chosen provider, prints a clear message and exits 0
 - Prints keys strictly as SET or NOT SET (never prints key characters or masked strings)
 - Runs 10 fake check-ins (hypertension only, en/ur/roman_ur)
-- In background mode: check-in returns pending, script polls /api/checkins/{id}/explanation until ready or timeout (default 30s), then reports final status, mode, reason, provider, tokens, latency-to-pending, latency-to-ready
+- In background mode: check-in returns pending, script polls /api/checkins/{id}/explanation until ready or timeout (default 60s), then reports final status, mode, reason, provider, tokens, latency-to-pending, latency-to-ready
 - Stops early if token usage reaches 20,000 per provider
 """
 import argparse
@@ -174,8 +174,8 @@ def main():
     parser.add_argument(
         "--poll-timeout",
         type=float,
-        default=30.0,
-        help="Poll timeout for background explanation in seconds (default: 30.0)",
+        default=float(os.getenv("EXPLAIN_JOB_DEADLINE_SECONDS", "45.0")) + 15.0,
+        help="Poll timeout for background explanation in seconds (default: job deadline + 15s, 60.0)",
     )
     parser.add_argument(
         "--condition",
@@ -483,6 +483,12 @@ def main():
                     f"{idx:<3} | {item['lang']:<8} | {trigger_cat:<16} | {triage_level:<10} | {provider_used:<10} | "
                     f"{mode:<10} | {str(reason):<16} | {tokens_delta:<8} | {lat_pending:<10.3f} | {prov_timing_str:<20} | {cited_display:<32}"
                 )
+
+            if mode == "template" and str(reason) in ("budget_timeout", "error"):
+                rej_reasons = explanation.get("rejected_reasons", [])
+                if rej_reasons:
+                    raw_rej = str(rej_reasons[0])[:120]
+                    print(f"    ↳ Rejected reason: {raw_rej}")
 
             if pause > 0 and idx < len(test_checkins):
                 time.sleep(pause)
