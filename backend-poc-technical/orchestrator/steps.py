@@ -846,6 +846,7 @@ def step_explain(
             is_patient_diabetic,
             record_fallback,
             get_or_build_retriever,
+            DIABETES_ONLY_SOURCE_PREFIXES,
         )
         from rag.explainer import get_template_explanation
         from rag.query_map import build_query_from_triage
@@ -861,24 +862,34 @@ def step_explain(
         if store is not None:
             retriever = get_or_build_retriever(store)
             if retriever is not None:
+                exclude_prefixes = (
+                    ()
+                    if is_patient_diabetic(patient_conditions=patient_conditions, condition=active_cond)
+                    else DIABETES_ONLY_SOURCE_PREFIXES
+                )
                 candidate_chunks = retriever.retrieve(
                     query=query_mapping.query_text,
                     top_k=3,
                     condition=query_mapping.condition,
                     min_priority=query_mapping.min_priority,
+                    exclude_source_prefixes=exclude_prefixes,
                 )
                 if len(candidate_chunks) < 2:
                     candidate_chunks = retriever.retrieve(
                         query=query_mapping.query_text,
                         top_k=3,
                         min_priority=query_mapping.min_priority,
+                        exclude_source_prefixes=exclude_prefixes,
                     )
 
-        # F6: For a hypertension-only patient, drop ada_2026_* chunks before the LLM call and from sources
+        # F6: For a patient without diabetes, drop any diabetes-only guideline chunks before LLM call and from sources
         if not is_patient_diabetic(patient_conditions=patient_conditions, condition=active_cond):
             candidate_chunks = [
                 c for c in candidate_chunks
-                if not str(c.get("source_id") or c.get("id") or c.get("chunk_id") or "").startswith("ada_2026")
+                if not any(
+                    str(c.get("source_id") or c.get("id") or c.get("chunk_id") or "").startswith(p)
+                    for p in DIABETES_ONLY_SOURCE_PREFIXES
+                )
             ]
 
         if active_explain_mode == "background":

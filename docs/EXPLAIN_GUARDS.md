@@ -136,6 +136,7 @@ sequenceDiagram
 - **Diabetes Template-Only:** Based on clinical review, diabetes clinical explanations are restricted to pre-verified deterministic templates (`reason='condition_template_only'`).
 - **Eligible Conditions:** Only conditions configured in `EXPLAIN_LLM_CONDITIONS` (default `hypertension`) are permitted to invoke generative LLMs.
 - **Dual-Condition Handling:** For patients diagnosed with both diabetes and hypertension, the LLM is invoked ONLY if the primary trigger for the check-in is an elevated blood pressure trigger (`bp_systolic_urgent`, `bp_diastolic_urgent`, `bp_both_urgent`, `bp_systolic_elevated`, `bp_diastolic_elevated`, `bp_both_elevated`, `bp_normal`). If the trigger is glucose-related or routine, deterministic templates are returned.
+- **Pre-Ranking Guideline Exclusion:** Diabetes guidelines (ADA, IDF-DAR, AKU) are left out before ranking for patients without diabetes (`exclude_source_prefixes=("ada_2026", "idf_dar", "aku_diabetes")`). Diabetic and dual-condition patients retain full access to diabetes guidelines.
 
 ### Guard 9: Deterministic Template Consistency Guard (H2)
 - **Reading-Template Alignment:** Whenever a deterministic template is selected, `is_template_consistent` validates that the template language does not contradict actual numerical vitals (e.g., normal BP or normal glucose paired with an urgent/high template).
