@@ -1335,8 +1335,8 @@ def guarded_explain(
                                     )
                                     if wait_sec > 0.0:
                                         if (now_fn() + wait_sec + 1.0) <= deadline:
-                                            nap_fn(wait_sec)
                                             prov_deadline_ref[0] = min(deadline, prov_deadline_ref[0] + wait_sec)
+                                            nap_fn(wait_sec)
                                         else:
                                             raise TimeoutError("Pacer wait exceeds deadline")
 

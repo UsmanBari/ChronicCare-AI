@@ -424,6 +424,140 @@ class TestPacerJobDeadline(unittest.TestCase):
             self.assertLessEqual(to, call_timeout_cap, f"HTTP call timeout {to}s exceeds {call_timeout_cap}s cap")
             self.assertLessEqual(clk + to, abs_deadline + 0.001, f"Call finish time {clk + to} exceeds job deadline {abs_deadline}")
 
+    def test_real_clock_pacer_wait_fits_job_deadline_groq_succeeds(self) -> None:
+        """
+        P2 Real-Clock Test (wait fits in job deadline):
+        EXPLAIN_CALL_TIMEOUT_SECONDS=0.5, budget_seconds=4.0.
+        Hypertension chunk (Gemini eligible).
+        Fake Groq (instant) and a fake Gemini that fails the test if called.
+        Seed pacer: record 500 tokens at time.monotonic() - 60 + 1.5 (wait ~1.5 s).
+        Asserts mode 'llm', providers_tried == ['groq'], Gemini not called,
+        elapsed between 1.3 and 3.0 s.
+        """
+        import time as _real_time
+        os.environ["EXPLAIN_CALL_TIMEOUT_SECONDS"] = "0.5"
+
+        now = _real_time.monotonic()
+        _GLOBAL_GROQ_PACER.record_tokens(500, clock_fn=lambda: now - 60.0 + 1.5)
+
+        groq_calls: List[Dict[str, Any]] = []
+        gemini_calls: List[Dict[str, Any]] = []
+
+        def fake_groq(**kwargs: Any) -> Any:
+            groq_calls.append(kwargs)
+            messages = kwargs.get("messages", [])
+            is_trans = any("Translate the following" in m.get("content", "") for m in messages)
+            if not is_trans:
+                return json.dumps({
+                    "sentences": [
+                        {"text": "Your blood pressure of 120/75 mmHg is within routine target range [who_chunk_1].", "cites": ["who_chunk_1"]},
+                        {"text": "Regular blood pressure monitoring supports normal cardiovascular health [who_chunk_1].", "cites": ["who_chunk_1"]},
+                    ]
+                }), {"total_tokens": 100, "completion_tokens": 50}
+            else:
+                return json.dumps({
+                    "sentences": [
+                        {"text": "آپ کا بلڈ پریشر 120/75 mmHg معمول کی حد میں ہے [who_chunk_1]۔", "cites": ["who_chunk_1"]},
+                        {"text": "بلڈ پریشر کی باقاعدہ نگرانی صحت کو برقرار رکھتی ہے [who_chunk_1]۔", "cites": ["who_chunk_1"]},
+                    ]
+                }), {"total_tokens": 100, "completion_tokens": 50}
+
+        def fake_gemini(**kwargs: Any) -> Any:
+            gemini_calls.append(kwargs)
+            self.fail("Gemini should not be called when Groq pacer wait fits within the job deadline")
+
+        t0 = _real_time.monotonic()
+        res = guarded_explain(
+            triage_result={"level": "routine"},
+            readings={"blood_pressure_systolic": 120.0, "blood_pressure_diastolic": 75.0},
+            store=self.mock_store,
+            language="ur",
+            patient_conditions=["hypertension"],
+            provider="auto",
+            mode="background",
+            budget_seconds=4.0,
+            llm={"groq": fake_groq, "gemini": fake_gemini},
+        )
+        elapsed = _real_time.monotonic() - t0
+
+        self.assertEqual(res["mode"], "llm", f"Expected mode 'llm', got {res.get('mode')}: {res.get('rejected_reasons')}")
+        self.assertEqual(res["provider"], "groq")
+        self.assertEqual(res["providers_tried"], ["groq"])
+        self.assertEqual(len(gemini_calls), 0)
+        self.assertGreaterEqual(elapsed, 1.3, f"Expected elapsed >= 1.3s, got {elapsed:.2f}s")
+        self.assertLessEqual(elapsed, 3.0, f"Expected elapsed <= 3.0s, got {elapsed:.2f}s")
+
+    def test_real_clock_pacer_wait_exceeds_job_deadline_falls_back_to_gemini(self) -> None:
+        """
+        P2 Real-Clock Test (wait exceeds job deadline):
+        EXPLAIN_CALL_TIMEOUT_SECONDS=0.5, budget_seconds=1.0, wait ~1.5 s.
+        Since wait exceeds job deadline (1.0 s), Groq raises TimeoutError and Gemini is tried.
+        """
+        import time as _real_time
+        os.environ["EXPLAIN_CALL_TIMEOUT_SECONDS"] = "0.5"
+
+        now = _real_time.monotonic()
+        _GLOBAL_GROQ_PACER.record_tokens(500, clock_fn=lambda: now - 60.0 + 1.5)
+
+        groq_calls: List[Dict[str, Any]] = []
+        gemini_calls: List[Dict[str, Any]] = []
+
+        def fake_groq(**kwargs: Any) -> Any:
+            groq_calls.append(kwargs)
+            messages = kwargs.get("messages", [])
+            is_trans = any("Translate the following" in m.get("content", "") for m in messages)
+            if not is_trans:
+                return json.dumps({
+                    "sentences": [
+                        {"text": "Your blood pressure of 120/75 mmHg is within routine target range [who_chunk_1].", "cites": ["who_chunk_1"]},
+                        {"text": "Regular blood pressure monitoring supports normal cardiovascular health [who_chunk_1].", "cites": ["who_chunk_1"]},
+                    ]
+                }), {"total_tokens": 100, "completion_tokens": 50}
+            else:
+                return json.dumps({
+                    "sentences": [
+                        {"text": "آپ کا بلڈ پریشر 120/75 mmHg معمول کی حد میں ہے [who_chunk_1]۔", "cites": ["who_chunk_1"]},
+                        {"text": "بلڈ پریشر کی باقاعدہ نگرانی صحت کو برقرار رکھتی ہے [who_chunk_1]۔", "cites": ["who_chunk_1"]},
+                    ]
+                }), {"total_tokens": 100, "completion_tokens": 50}
+
+        def fake_gemini(**kwargs: Any) -> Any:
+            gemini_calls.append(kwargs)
+            messages = kwargs.get("messages", [])
+            is_trans = any("Translate the following" in m.get("content", "") for m in messages)
+            if not is_trans:
+                return json.dumps({
+                    "sentences": [
+                        {"text": "Your blood pressure of 120/75 mmHg is within routine target range [who_chunk_1].", "cites": ["who_chunk_1"]},
+                        {"text": "Regular blood pressure monitoring supports normal cardiovascular health [who_chunk_1].", "cites": ["who_chunk_1"]},
+                    ]
+                }), {"total_tokens": 100, "completion_tokens": 50}
+            else:
+                return json.dumps({
+                    "sentences": [
+                        {"text": "آپ کا بلڈ پریشر 120/75 mmHg معمول کی حد میں ہے [who_chunk_1]۔", "cites": ["who_chunk_1"]},
+                        {"text": "بلڈ پریشر کی باقاعدہ نگرانی صحت کو برقرار رکھتی ہے [who_chunk_1]۔", "cites": ["who_chunk_1"]},
+                    ]
+                }), {"total_tokens": 100, "completion_tokens": 50}
+
+        res = guarded_explain(
+            triage_result={"level": "routine"},
+            readings={"blood_pressure_systolic": 120.0, "blood_pressure_diastolic": 75.0},
+            store=self.mock_store,
+            language="ur",
+            patient_conditions=["hypertension"],
+            provider="auto",
+            mode="background",
+            budget_seconds=1.0,
+            llm={"groq": fake_groq, "gemini": fake_gemini},
+        )
+
+        self.assertEqual(res["mode"], "llm")
+        self.assertEqual(res["provider"], "gemini")
+        self.assertIn("groq", res["providers_tried"])
+        self.assertIn("gemini", res["providers_tried"])
+        self.assertEqual(len(gemini_calls), 2)
+
     def test_c4_inline_mode_bypasses_pacer_and_strictly_bounded(self) -> None:
         """
         C4: Inline mode test: pacer background wait is bypassed; inline budget remains strictly bounded by 3.0 s
@@ -476,7 +610,7 @@ class TestPacerJobDeadline(unittest.TestCase):
         self.assertLessEqual(captured_timeouts[0], 3.0)
 
     def test_c5_validator_and_consistency_ast_hashes_invariant(self) -> None:
-        """Verify the 5 validators and is_template_consistent are 100% byte-identical in AST."""
+        """Verify the 5 validators and is_template_consistent are 100% byte-identical in AST (Python 3.11)."""
         expected_hashes_311 = {
             "validate_sentence_structure": "513d2a7f86f78064325e58477c026cf7ed1c86da6b537b8a25bb6d9e874c8cd8",
             "validate_citations": "6e0eab7f62bbbc4995f95279d83f008f107bdb59ae0b9a2cad67d40097013954",
@@ -485,25 +619,17 @@ class TestPacerJobDeadline(unittest.TestCase):
             "validate_level_consistency": "c5d798b6172b4e515c921f71a4e02a1725589cacfb504115edb6a1656254b26b",
             "is_template_consistent": "54ca30d6a46081bfe54a18088f5144f9cb7a09cd63c7a9d608527f29c697ca1b",
         }
-        expected_hashes_314 = {
-            "validate_sentence_structure": "54bddabce0c2ab5fb075922c519eb5813871bfcee4be5468d7a8c2e61e18fcae",
-            "validate_citations": "4bebfac3f05cceb0284a0b6ddd626ed1c77261c83d27b569712d851ede80bc8c",
-            "validate_number_grounding": "9a0adcc2847422df52c14a30cf6352a6d240f63048ebd3c85921508d3acf63b6",
-            "validate_banned_patterns": "dd8bd5bbe703ab386e780bd48fe730c7f1b8251890558afb8885c0722144aac2",
-            "validate_level_consistency": "884ff910024ab25db6bdff3c53ba70d416934ce7e882e433f53ab3ffc9076727",
-            "is_template_consistent": "1536ffccf30afa5fc12f394bd7f1aab0a763294e5347bd3dcb87c2b78a42b77d",
-        }
 
-        for func_name in expected_hashes_311:
+        for func_name, expected_hash in expected_hashes_311.items():
             fn = getattr(explainer, func_name)
             src = inspect.getsource(fn)
             tree = ast.parse(src)
             dumped = ast.dump(tree)
             actual_hash = hashlib.sha256(dumped.encode("utf-8")).hexdigest()
-            self.assertIn(
+            self.assertEqual(
                 actual_hash,
-                (expected_hashes_311[func_name], expected_hashes_314[func_name]),
-                f"AST Hash mismatch for {func_name}: {actual_hash}",
+                expected_hash,
+                f"AST Hash mismatch for {func_name}: {actual_hash} != {expected_hash}",
             )
 
 
