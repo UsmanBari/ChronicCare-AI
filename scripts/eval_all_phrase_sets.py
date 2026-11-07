@@ -200,6 +200,12 @@ PHRASE_FILES = [
         "format": "gold_list",
         "heldout": True,
     },
+    {
+        "name": "Saad Blind Set 3",
+        "path": REPO_ROOT / "tests" / "sim" / "blind_set_3_saad.json",
+        "format": "gold_list",
+        "heldout": True,
+    },
 ]
 
 
@@ -208,7 +214,7 @@ def load_dataset(file_info: dict[str, Any]) -> list[tuple[str, bool]] | None:
     if not path.is_file():
         return None
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8-sig") as f:
         raw = json.load(f)
 
     samples: list[tuple[str, bool]] = []
@@ -227,15 +233,17 @@ def load_dataset(file_info: dict[str, Any]) -> list[tuple[str, bool]] | None:
     return samples
 
 
-def eval_engine(engine_name: str, samples: list[tuple[str, bool]]) -> tuple[int, int, int, int]:
+def eval_engine(engine_name: str, samples: list[tuple[str, bool]]) -> tuple[int, int, int, int, list[str], list[str]]:
     """
     Evaluates engine across samples.
-    Returns: (danger_caught, danger_total, false_alarms, safe_total)
+    Returns: (danger_caught, danger_total, false_alarms, safe_total, missed_list, false_alarm_list)
     """
     danger_caught = 0
     danger_total = 0
     false_alarms = 0
     safe_total = 0
+    missed_list: list[str] = []
+    fa_list: list[str] = []
 
     for text, expected in samples:
         if expected:
@@ -269,10 +277,13 @@ def eval_engine(engine_name: str, samples: list[tuple[str, bool]]) -> tuple[int,
 
         if expected and caught:
             danger_caught += 1
+        elif expected and not caught:
+            missed_list.append(text)
         elif not expected and caught:
             false_alarms += 1
+            fa_list.append(text)
 
-    return danger_caught, danger_total, false_alarms, safe_total
+    return danger_caught, danger_total, false_alarms, safe_total, missed_list, fa_list
 
 
 def main():
@@ -283,6 +294,11 @@ def main():
         help="Run evaluation on held-out test sets in counts-only mode (no individual samples printed).",
     )
     parser.add_argument(
+        "--verbose-misses",
+        action="store_true",
+        help="Print missed danger phrases and false alarms for evaluation.",
+    )
+    parser.add_argument(
         "--markdown",
         type=str,
         default=None,
@@ -290,7 +306,7 @@ def main():
     )
     args = parser.parse_args()
 
-    engines = ["v2", "v3", "WG_V1", "V2_PLUS_WG", "V3_PLUS_WG"]
+    engines = ["v2", "v3", "WG_V1", "V2_PLUS_WG", "V3_PLUS_WG", "PROTOTYPE"]
 
     print("=" * 105)
     print("MULTILINGUAL DANGER PHRASE BENCHMARK & WORD GROUPS V1 EVALUATION")
@@ -329,10 +345,19 @@ def main():
             continue
 
         for eng in engines:
-            caught, d_tot, fa, s_tot = eval_engine(eng, samples)
+            caught, d_tot, fa, s_tot, missed, fa_items = eval_engine(eng, samples)
             d_str = f"{caught} / {d_tot} ({caught/d_tot*100:.1f}%)" if d_tot > 0 else "0 / 0 (N/A)"
             fa_str = f"{fa} / {s_tot} ({fa/s_tot*100:.1f}%)" if s_tot > 0 else f"{fa} / 0 (N/A)"
             print(f"{name:<32} | {eng:<12} | {d_str:<24} | {fa_str:<22}")
+            if args.verbose_misses and (missed or fa_items):
+                if missed:
+                    print(f"    [{eng} Missed Positives ({len(missed)})]:")
+                    for m in missed:
+                        print(f"      - {m}")
+                if fa_items:
+                    print(f"    [{eng} False Alarms ({len(fa_items)})]:")
+                    for f_item in fa_items:
+                        print(f"      - {f_item}")
             results_for_report.append({
                 "name": name,
                 "engine": eng,
@@ -340,6 +365,8 @@ def main():
                 "d_tot": d_tot,
                 "fa": fa,
                 "s_tot": s_tot,
+                "missed": missed,
+                "fa_items": fa_items,
                 "heldout": is_heldout,
             })
         print("-" * 105)
