@@ -92,14 +92,13 @@ PR numbers traced from repository git merge history on `origin/dev` and current 
 
 ## 5. Items Waiting on Doctor / Clinical Review
 
-Traced directly from `docs/CLINICIAN_RESPONSES.md` and `docs/V3_READINESS.md`:
+Traced directly from `docs/DOCTOR_REVIEW_PACK_W2.md` and `docs/V3_READINESS.md`:
 
 1. **V3 Persona Both-Miss Clinical Handling (`docs/V3_READINESS.md` Section 3):**
    - *Persona 21 (`p21_low_mood_distress`):* Whether psychological distress / low mood without somatic red flags should trigger clinical review.
    - *Persona 44 (`p44_diabetic_foot_ulcer`):* Triage severity distinction for long-standing stable ulcer vs newly acute lesion.
    - *Persona 52 (`p52_swollen_ankles_salty_diet`):* Bilateral dependent edema following acute high-salt dietary trigger vs progressive cardiopulmonary worsening.
-2. **Longitudinal Trend Thresholds (Decision 9 in `docs/CLINICIAN_RESPONSES.md`):**
-   - Confirmation on whether a 10 mg/dL or 20 mg/dL blood glucose shift over the 8-day observation window constitutes a clinically actionable rising/falling trajectory.
+2. D9 trend thresholds: two doctors kept 10 / 5 / 20 (mmHg / mmHg / mg/dL) with 5 readings; Doctor C suggested 10 mg/dL for sugar; not adopted yet (docs/DOCTOR_REVIEW_PACK_W2.md, D9).
 
 ---
 
