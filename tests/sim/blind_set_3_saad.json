@@ -1,0 +1,352 @@
+[
+  {
+    "author": "saad",
+    "category": "chest_pain",
+    "expected_danger": true,
+    "language": "english",
+    "text": "There is an unbearable heavy elephant sitting on my chest and radiating to my left jaw"
+  },
+  {
+    "author": "saad",
+    "category": "breathing",
+    "expected_danger": true,
+    "language": "english",
+    "text": "I cannot breathe at all, gasping for air and my lips are turning blue"
+  },
+  {
+    "author": "saad",
+    "category": "stroke_fast",
+    "expected_danger": true,
+    "language": "english",
+    "text": "My mother suddenly cannot speak properly and her right arm went completely limp"
+  },
+  {
+    "author": "saad",
+    "category": "unresponsive_faint",
+    "expected_danger": true,
+    "language": "english",
+    "text": "He just collapsed and lost consciousness on the kitchen floor"
+  },
+  {
+    "author": "saad",
+    "category": "vomiting_blood",
+    "expected_danger": true,
+    "language": "english",
+    "text": "Throwing up dark red blood and severe stomach cramps since one hour"
+  },
+  {
+    "author": "saad",
+    "category": "chest_pain",
+    "expected_danger": true,
+    "language": "english",
+    "text": "Sudden severe chest tightness with cold sweats while resting in bed"
+  },
+  {
+    "author": "saad",
+    "category": "vision_loss",
+    "expected_danger": true,
+    "language": "english",
+    "text": "I have complete loss of vision in my right eye that started 10 minutes ago"
+  },
+  {
+    "author": "saad",
+    "category": "vomiting_blood",
+    "expected_danger": true,
+    "language": "english",
+    "text": "Black sticky tarry stool and feeling faint whenever I sit up"
+  },
+  {
+    "author": "saad",
+    "category": "stroke_fast",
+    "expected_danger": true,
+    "language": "roman_urdu",
+    "text": "Ammi ka chehra achanak aik taraf dhalak gaya hai aur bazu sunn ho gaya hai"
+  },
+  {
+    "author": "saad",
+    "category": "chest_pain",
+    "expected_danger": true,
+    "language": "roman_urdu",
+    "text": "Seenay mein intahai shadeed dabao aur jalan hai jo ultay bazu ki taraf ja rahi hai"
+  },
+  {
+    "author": "saad",
+    "category": "breathing",
+    "expected_danger": true,
+    "language": "roman_urdu",
+    "text": "Saans bilkul nahi aa rahi dam ghut raha hai foran madad chahiye"
+  },
+  {
+    "author": "saad",
+    "category": "unresponsive_faint",
+    "expected_danger": true,
+    "language": "roman_urdu",
+    "text": "Abba achanak chakkar kha kar gir pare aur behosh ho gaye hain"
+  },
+  {
+    "author": "saad",
+    "category": "vomiting_blood",
+    "expected_danger": true,
+    "language": "roman_urdu",
+    "text": "Khoon ki ulti aayi hai shadeed aur pait mein sakht maror uth rahe hain"
+  },
+  {
+    "author": "saad",
+    "category": "stroke_fast",
+    "expected_danger": true,
+    "language": "roman_urdu",
+    "text": "Zuban ladkhada rahi hai aur bol nahi pa rahe theek se achanak"
+  },
+  {
+    "author": "saad",
+    "category": "chest_pain",
+    "expected_danger": true,
+    "language": "roman_urdu",
+    "text": "Seene par shadeed bojh mehsoos ho raha hai aur paseenay chhoot rahe hain"
+  },
+  {
+    "author": "saad",
+    "category": "vision_loss",
+    "expected_danger": true,
+    "language": "roman_urdu",
+    "text": "Achanak se aik aankh se dikhna bilkul band ho gaya hai"
+  },
+  {
+    "author": "saad",
+    "category": "breathing",
+    "expected_danger": true,
+    "language": "roman_urdu",
+    "text": "Sans ruk ruk kar aa rahi hai aur gale mein phanda lag raha hai"
+  },
+  {
+    "author": "saad",
+    "category": "chest_pain",
+    "expected_danger": true,
+    "language": "urdu",
+    "text": "سینے میں شدید درد اور دباؤ ہے جو بائیں کندھے اور جبڑے میں جا رہا ہے"
+  },
+  {
+    "author": "saad",
+    "category": "breathing",
+    "expected_danger": true,
+    "language": "urdu",
+    "text": "سانس لینا انتہائی مشکل ہو گیا ہے اور دم گھٹ رہا ہے"
+  },
+  {
+    "author": "saad",
+    "category": "stroke_fast",
+    "expected_danger": true,
+    "language": "urdu",
+    "text": "والد صاحب کا اچانک چہرہ ٹیڑھا ہو گیا اور دایاں بازو کام نہیں کر رہا"
+  },
+  {
+    "author": "saad",
+    "category": "unresponsive_faint",
+    "expected_danger": true,
+    "language": "urdu",
+    "text": "اچانک بے ہوش ہو کر گر پڑے اور کوئی جواب نہیں دے رہے"
+  },
+  {
+    "author": "saad",
+    "category": "vomiting_blood",
+    "expected_danger": true,
+    "language": "urdu",
+    "text": "خون کی قے آئی ہے بہت زیادہ مقدار میں اور چکر آ رہے ہیں"
+  },
+  {
+    "author": "saad",
+    "category": "chest_pain",
+    "expected_danger": true,
+    "language": "urdu",
+    "text": "سینے پر ہاتھی جیسا بوجھ ہے اور ٹھنڈے پسینے آ رہے ہیں"
+  },
+  {
+    "author": "saad",
+    "category": "stroke_fast",
+    "expected_danger": true,
+    "language": "urdu",
+    "text": "زبان لڑکھڑا گئی ہے اور ایک طرف کا جسم بالکل سن ہو گیا ہے"
+  },
+  {
+    "author": "saad",
+    "category": "vomiting_blood",
+    "expected_danger": true,
+    "language": "urdu",
+    "text": "کالا تارکول جیسا پاخانہ آ رہا ہے اور شدید کمزوری سے کھڑے نہیں ہو پا رہے"
+  },
+  {
+    "author": "saad",
+    "category": "benign_musculoskeletal",
+    "expected_danger": false,
+    "language": "english",
+    "text": "My chest wall feels sore when I touch it after doing bench presses yesterday"
+  },
+  {
+    "author": "saad",
+    "category": "benign_reflux",
+    "expected_danger": false,
+    "language": "english",
+    "text": "Mild heartburn after having oily nihari for lunch, relieved after antacid"
+  },
+  {
+    "author": "saad",
+    "category": "benign_exertion",
+    "expected_danger": false,
+    "language": "english",
+    "text": "A little out of breath when I ran up three flights of stairs carrying groceries"
+  },
+  {
+    "author": "saad",
+    "category": "benign_orthostatic",
+    "expected_danger": false,
+    "language": "english",
+    "text": "Felt mild dizziness for two seconds when I stood up quickly from the sofa"
+  },
+  {
+    "author": "saad",
+    "category": "chronic_neuropathy",
+    "expected_danger": false,
+    "language": "english",
+    "text": "Chronic numbness in my toes on both feet for the past three years due to sugar"
+  },
+  {
+    "author": "saad",
+    "category": "past_family_history",
+    "expected_danger": false,
+    "language": "english",
+    "text": "My father had a severe heart attack five years ago but he is healthy now"
+  },
+  {
+    "author": "saad",
+    "category": "negated_symptom",
+    "expected_danger": false,
+    "language": "english",
+    "text": "No chest pain, no shortness of breath, just checking my routine blood sugar reading"
+  },
+  {
+    "author": "saad",
+    "category": "benign_gi_medication",
+    "expected_danger": false,
+    "language": "english",
+    "text": "Feeling slightly nauseous after taking metformin on an empty stomach this morning"
+  },
+  {
+    "author": "saad",
+    "category": "benign_musculoskeletal",
+    "expected_danger": false,
+    "language": "roman_urdu",
+    "text": "Wazan uthane se seenay ke pathon mein halka sa khichao aur dard hai dabane par"
+  },
+  {
+    "author": "saad",
+    "category": "benign_reflux",
+    "expected_danger": false,
+    "language": "roman_urdu",
+    "text": "Tez mirch masalay khane ki wajah se seenay mein jalan ho rahi thi jo eno peene se theek ho gayi"
+  },
+  {
+    "author": "saad",
+    "category": "benign_exertion",
+    "expected_danger": false,
+    "language": "roman_urdu",
+    "text": "Seedhiyan charhne par thodi si saans phool jati hai aam routine ki tarah"
+  },
+  {
+    "author": "saad",
+    "category": "past_history",
+    "expected_danger": false,
+    "language": "roman_urdu",
+    "text": "Pichle saal seenay mein infection hua tha jis ke liye doctor ne dawa di thi"
+  },
+  {
+    "author": "saad",
+    "category": "benign_gi",
+    "expected_danger": false,
+    "language": "roman_urdu",
+    "text": "Khatay dakar aa rahe hain aur pait mein thodi gas hai subah se"
+  },
+  {
+    "author": "saad",
+    "category": "benign_orthostatic",
+    "expected_danger": false,
+    "language": "roman_urdu",
+    "text": "Achanak uthne se sar mein halka sa chakkar aya tha magar foran theek ho gaya"
+  },
+  {
+    "author": "saad",
+    "category": "negated_symptom",
+    "expected_danger": false,
+    "language": "roman_urdu",
+    "text": "Seenay mein koi dard ya dabao bilkul nahi hai alhamdulillah"
+  },
+  {
+    "author": "saad",
+    "category": "chronic_neuropathy",
+    "expected_danger": false,
+    "language": "roman_urdu",
+    "text": "Dono paon ke talwe purani sugar ki wajah se pichle do saal se sunn rehte hain"
+  },
+  {
+    "author": "saad",
+    "category": "negated_symptom",
+    "expected_danger": false,
+    "language": "roman_urdu",
+    "text": "Khoon ki ulti ya behoshi jaisi koi baat nahi hai bas halki si khansi hai"
+  },
+  {
+    "author": "saad",
+    "category": "benign_musculoskeletal",
+    "expected_danger": false,
+    "language": "urdu",
+    "text": "کل بھاری سامان اٹھانے سے سینے کے پٹھوں میں ہلکا درد ہے چھونے سے"
+  },
+  {
+    "author": "saad",
+    "category": "benign_reflux",
+    "expected_danger": false,
+    "language": "urdu",
+    "text": "کھانے کے بعد سینے میں تیزابیت اور جلن ہو رہی ہے"
+  },
+  {
+    "author": "saad",
+    "category": "past_history",
+    "expected_danger": false,
+    "language": "urdu",
+    "text": "دو سال پہلے ہسپتال داخل ہوئے تھے اب بالکل ٹھیک ہیں"
+  },
+  {
+    "author": "saad",
+    "category": "benign_orthostatic",
+    "expected_danger": false,
+    "language": "urdu",
+    "text": "تیزی سے کھڑے ہونے پر معمولی چکر آیا جو فوراً ختم ہو گیا"
+  },
+  {
+    "author": "saad",
+    "category": "negated_symptom",
+    "expected_danger": false,
+    "language": "urdu",
+    "text": "سینے میں کوئی درد یا سانس کا مسئلہ نہیں ہے الحمدللہ"
+  },
+  {
+    "author": "saad",
+    "category": "benign_exertion",
+    "expected_danger": false,
+    "language": "urdu",
+    "text": "سیڑھیاں چڑھنے سے معمولی سانس پھولتی ہے"
+  },
+  {
+    "author": "saad",
+    "category": "chronic_neuropathy",
+    "expected_danger": false,
+    "language": "urdu",
+    "text": "دونوں پاؤں کی انگلیاں شوگر کی وجہ سے کافی عرصے سے سن رہتی ہیں"
+  },
+  {
+    "author": "saad",
+    "category": "negated_symptom",
+    "expected_danger": false,
+    "language": "urdu",
+    "text": "متلی یا قے کا کوئی مسئلہ نہیں ہے صرف شوگر کی روٹین جانچ کروانی ہے"
+  }
+]
