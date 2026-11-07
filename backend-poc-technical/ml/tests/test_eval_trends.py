@@ -213,3 +213,42 @@ def test_sensitivity_matrix_execution() -> None:
     assert len(proposed_rows) == 1
     assert proposed_rows[0]["threshold"] == 10.0
     assert proposed_rows[0]["min_readings"] == 5
+
+
+def test_noise_free_straight_line_half_split_behavior() -> None:
+    """Verifies straight-line series behavior against half-split median delta logic (T1).
+
+    For an evenly spaced series with total rise D over n=15 readings:
+    - total rise = 4x threshold (40 mmHg for SBP with threshold 10 mmHg):
+      half-split delta ≈ 2x threshold (20 mmHg) -> evaluates to RISING.
+    - total rise = 1x threshold (10 mmHg for SBP with threshold 10 mmHg):
+      half-split delta ≈ 0.5x threshold (5 mmHg) -> evaluates to STABLE.
+    """
+    now_str = "2026-10-31T12:00:00Z"
+    threshold = trend_agent.TREND_THRESHOLDS[TYPE_SYSTOLIC]  # 10.0 mmHg
+    n = 15
+
+    # 1. Total rise = 4x threshold (40.0 mmHg) -> RISING
+    rise_4x = [
+        {
+            "observation_type": TYPE_SYSTOLIC,
+            "value": 120.0 + (i * (4.0 * threshold) / (n - 1)),
+            "timestamp": f"2026-10-{1+i:02d}T10:00:00Z",
+        }
+        for i in range(n)
+    ]
+    res_4x = compute_trends(rise_4x, now=now_str, window_days=30)
+    assert res_4x["trends"][TYPE_SYSTOLIC]["direction"] == DIRECTION_RISING
+
+    # 2. Total rise = 1x threshold (10.0 mmHg) -> STABLE (half-split delta ≈ 5.7 mmHg < 10.0 threshold)
+    rise_1x = [
+        {
+            "observation_type": TYPE_SYSTOLIC,
+            "value": 120.0 + (i * (1.0 * threshold) / (n - 1)),
+            "timestamp": f"2026-10-{1+i:02d}T10:00:00Z",
+        }
+        for i in range(n)
+    ]
+    res_1x = compute_trends(rise_1x, now=now_str, window_days=30)
+    assert res_1x["trends"][TYPE_SYSTOLIC]["direction"] == DIRECTION_STABLE
+
