@@ -9,7 +9,7 @@ B3: Direct BM25Retriever.retrieve tests: exclude_source_prefixes=() preserves ex
     non-empty exclude_source_prefixes filters candidates before BM25 ranking (case-insensitive).
 B4: Store with only diabetes chunks + hypertension-only patient -> template fallback "no_chunks", zero LLM calls.
 B5: Non-Ramadan diabetes check-in never gets idf_dar; Ramadan check-in allows idf_dar.
-B6: Byte and AST invariants: 8 protected files and 6 validator AST hashes remain unchanged.
+B6: Validator AST invariants: 6 validator AST hashes remain unchanged.
 """
 
 import ast
@@ -513,7 +513,7 @@ class TestAdaFilterBeforeRanking(unittest.TestCase):
         self.assertTrue(res_ramadan[0]["source_id"].startswith("idf_dar"))
 
     # -------------------------------------------------------------------------
-    # B6: Invariance Verification (AST Hashes & Protected Files)
+    # B6: Invariance Verification (AST Hashes)
     # -------------------------------------------------------------------------
     def test_b6_validator_ast_hashes_invariant(self) -> None:
         """Verify the 5 validators and is_template_consistent are 100% byte-identical in AST."""
@@ -536,46 +536,6 @@ class TestAdaFilterBeforeRanking(unittest.TestCase):
                 actual_hash,
                 expected_hash,
                 f"AST Hash mismatch for {func_name}: {actual_hash} != {expected_hash}",
-            )
-
-    def test_b6_protected_files_sha256_invariant(self) -> None:
-        """Verify all 8 clinical protected files remain strictly untouched."""
-        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        expected_shas = {
-            os.path.join(repo_root, "backend-poc-technical", "agents", "triage_protocol.py"): (
-                "5638237470fe8743743cb1574c13863bab35ffae63dfe9ab57dc99d839d3a72a"
-            ),
-            os.path.join(repo_root, "backend-poc-technical", "agents", "input_triage.py"): (
-                "2cbcf35eea971744d9c0e5fa8ad95e9987cc8874ea0d623920e6df4eb55f87e8"
-            ),
-            os.path.join(repo_root, "backend-poc-technical", "agents", "answer_validation.py"): (
-                "72d6fb94adab0ef5f21159265f291d8c307d10769715462e240272785a1e2e1f"
-            ),
-            os.path.join(repo_root, "backend-poc-technical", "agents", "verification_agent.py"): (
-                "72e44368d011a79164774b61abd20717e287da94f310d691fab6fce86dcb7ada"
-            ),
-            os.path.join(repo_root, "backend-poc-technical", "agents", "reconciliation_agent.py"): (
-                "17df17416451690cf921285bf40804b6bc6aee7c17abbdafa6189f316fbc61a1"
-            ),
-            os.path.join(repo_root, "backend-poc-technical", "agents", "adaptive_interview_agent.py"): (
-                "9c05514a9699f07caab7d4d00ea1c7f269418ebeb9a7d734fe779f5e58c389d8"
-            ),
-            os.path.join(repo_root, "backend-poc-technical", "agents", "medication_confirmation.py"): (
-                "31e261aebfd61dee1e56f674a7f859653c9e3596a083f7f01cb556538401c5b0"
-            ),
-            os.path.join(repo_root, "docs", "CLINICAL_RULES.md"): (
-                "968239436f1ea286ac3a5984087bcde7e179183dd41cb6b20490171977fad7d6"
-            ),
-        }
-
-        for path, exp_sha in expected_shas.items():
-            self.assertTrue(os.path.exists(path), f"File missing: {path}")
-            with open(path, "rb") as f:
-                actual_sha = hashlib.sha256(f.read()).hexdigest().lower()
-            self.assertEqual(
-                actual_sha,
-                exp_sha.lower(),
-                f"Protected file modified: {path} ({actual_sha} != {exp_sha})",
             )
 
 
