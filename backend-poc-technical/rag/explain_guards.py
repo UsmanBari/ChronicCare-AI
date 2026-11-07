@@ -1243,6 +1243,30 @@ def guarded_explain(
                 return _make_template_fallback("budget_timeout", ["Total time budget exhausted"])
 
             has_next = (idx < len(eligible_providers) - 1)
+
+            # Groq OTPM pacer in background mode (before the job's first Groq call)
+            if active_explain_mode == "background" and current_provider == "groq":
+                from rag.explainer import get_explain_max_tokens
+                wait_sec = _GLOBAL_GROQ_PACER.get_wait_seconds(
+                    tokens_needed=get_explain_max_tokens(),
+                    otpm_limit=get_groq_otpm(),
+                    clock_fn=now_fn,
+                )
+                if wait_sec > 0.0:
+                    if (now_fn() + wait_sec + 1.0) <= deadline:
+                        nap_fn(wait_sec)
+                    elif has_next:
+                        # Skip directly to Gemini fallback if pacer wait exceeds deadline
+                        continue
+                    else:
+                        return _make_template_fallback("budget_timeout", ["Pacer wait exceeds deadline"])
+
+            time_left = deadline - now_fn()
+            if time_left <= 0.0:
+                p_breaker = breaker if breaker is not None else (_GLOBAL_BREAKER_GROQ if current_provider == "groq" else _GLOBAL_BREAKER_GEMINI)
+                p_breaker.record_failure(is_rate_limit=False)
+                return _make_template_fallback("budget_timeout", ["Total time budget exhausted"])
+
             if active_explain_mode == "background":
                 # In background mode, Groq gets up to call timeout; Gemini gets remaining time
                 if current_provider == "groq" and has_next:
@@ -1256,24 +1280,8 @@ def guarded_explain(
                 else:
                     prov_budget = time_left
 
-            # Groq OTPM pacer in background mode
-            if active_explain_mode == "background" and current_provider == "groq":
-                from rag.explainer import get_explain_max_tokens
-                wait_sec = _GLOBAL_GROQ_PACER.get_wait_seconds(
-                    tokens_needed=get_explain_max_tokens(),
-                    otpm_limit=get_groq_otpm(),
-                    clock_fn=now_fn,
-                )
-                if wait_sec > 0.0:
-                    if (now_fn() + wait_sec + 2.0) <= deadline:
-                        nap_fn(wait_sec)
-                    elif has_next:
-                        # Skip directly to Gemini fallback if pacer wait exceeds deadline
-                        continue
-                    else:
-                        return _make_template_fallback("budget_timeout", ["Pacer wait exceeds deadline"])
-
             prov_deadline = now_fn() + prov_budget
+            prov_deadline_ref = [prov_deadline]
             prov_t0 = now_fn()
             providers_tried.append(current_provider)
             record_llm_call(current_provider)
@@ -1326,12 +1334,19 @@ def guarded_explain(
                                         clock_fn=now_fn,
                                     )
                                     if wait_sec > 0.0:
-                                        if (now_fn() + wait_sec + 1.0) <= prov_deadline:
+                                        if (now_fn() + wait_sec + 1.0) <= deadline:
+                                            prov_deadline_ref[0] = min(deadline, prov_deadline_ref[0] + wait_sec)
                                             nap_fn(wait_sec)
                                         else:
                                             raise TimeoutError("Pacer wait exceeds deadline")
 
-                                kwargs["timeout"] = max(0.1, prov_deadline - now_fn())
+                                if active_explain_mode == "background":
+                                    kwargs["timeout"] = min(
+                                        get_call_timeout_seconds(),
+                                        max(0.1, prov_deadline_ref[0] - now_fn()),
+                                    )
+                                else:
+                                    kwargs["timeout"] = max(0.1, prov_deadline - now_fn())
                                 kwargs["max_retries"] = 0
                                 kwargs["sdk_max_retries"] = 0
 
@@ -1397,8 +1412,19 @@ def guarded_explain(
                 thread = threading.Thread(target=_worker, daemon=True)
                 thread.start()
 
-                # Wait at most prov_budget
-                thread.join(timeout=max(0.0, prov_deadline - now_fn()))
+                wall_t0 = time.monotonic()
+                wall_limit = (deadline - start_time) + 5.0
+
+                if active_explain_mode == "background":
+                    while thread.is_alive():
+                        rem_prov = prov_deadline_ref[0] - now_fn()
+                        if rem_prov <= 0.0:
+                            break
+                        if (time.monotonic() - wall_t0) > wall_limit:
+                            break
+                        thread.join(timeout=min(0.2, max(0.05, rem_prov)))
+                else:
+                    thread.join(timeout=max(0.0, prov_deadline - now_fn()))
                 prov_duration = now_fn() - prov_t0
                 provider_timings[current_provider] = round(prov_duration, 3)
 
