@@ -1,9 +1,9 @@
 # ChronicCare AI — User Guide & Clinical Interface Manual
 
 **Version:** 1.0 (Iteration 3 Final)  
-**Date:** 8 November 2026  
+**Date:** 7 November 2026  
 **Target Audience:** Patients, Caregivers, General Physicians, and Clinic Staff in Pakistan  
-**Emergency Contact:** 1122 (Rescue 1122 — Punjab, KPK, and nationwide emergency service)
+**Emergency Contact:** Emergency: 1122
 
 ---
 
@@ -85,14 +85,14 @@ During a daily check-in, the system prompts for current glucose, blood pressure,
 
 ### 2.4 Check-in Results & Emergency Escalation
 Once responses are verified, the deterministic clinical rules engine computes the triage outcome:
-- **Routine Result:** Confirms normal or stable readings, schedules the next check-in reminder, and displays non-prescriptive lifestyle guidance.
-- **Urgent / Emergency Escalation:** If red-flag symptoms (severe chest pain, shortness of breath, meter LO/HI, unremitting vomiting) appear, the app immediately locks routine guidance, sounds an alert banner, and surfaces a one-touch **Emergency Call: 1122** button.
+- **Routine Result:** Confirms normal or stable readings, shows the result, and displays non-prescriptive lifestyle guidance.
+- **Urgent / Emergency Escalation:** If red-flag symptoms (severe chest pain, shortness of breath, meter LO/HI, unremitting vomiting) appear, the app immediately locks routine guidance, shows an emergency screen, and surfaces a one-touch **Emergency Call: 1122** button.
 
 ![Routine Check-in Result](screenshots/w3/e2e/j1_result_routine.png)
 *Figure 2.4a: Routine triage result screen confirming stable parameters and next review interval.*
 
 ![Emergency Red Flag Escalation](screenshots/w3/e2e/j2_urgent_emergency.png)
-*Figure 2.4b: Urgent emergency escalation screen directing the patient to call Rescue 1122 immediately.*
+*Figure 2.4b: Urgent emergency escalation screen directing the patient to call 1122 immediately.*
 
 ---
 
@@ -124,7 +124,7 @@ Patients maintain sovereign ownership of their longitudinal health data:
 ---
 
 ### 2.7 OCR Lab Report Digitization (Experimental Feature)
-When enabled by clinic administrators (`OCR_ENABLED=true`), patients can photograph printed lab reports (such as Chughtai Lab, Essa, IDC, or Shaukat Khanum formats).
+When enabled by clinic administrators (`OCR_ENABLED=true`), patients can photograph printed lab reports (tested on 5 script-generated synthetic lab layouts (+2 generated held-out)).
 - **Subprocess Memory Isolation:** OCR runs in an isolated worker process to preserve server stability.
 - **Confirmation Screen:** Extracted blood glucose, HbA1c, blood pressure, medications, or allergies are presented with bounding evidence. The patient can **Confirm**, **Fix (درست کریں)**, or **Remove (ہٹائیں)** before anything is saved to the record.
 
@@ -191,7 +191,7 @@ Doctors can correct incorrectly logged self-reported observations. All changes a
 #### 1. یہ ایپ کیا نہیں کرتی (بنیادی احتیاطیں):
 - **یہ کوئی ڈاکٹر نہیں ہے:** یہ ایپ کسی نئی بیماری کی حتمی تشخیص نہیں کرتی۔
 - **دوائی تجویز نہیں کرتی:** یہ ایپ دوا کی مقدار (Dose) میں کوئی تبدیلی نہیں کرتی اور نہ ہی کوئی نئی دوا شروع یا بند کرنے کا مشورہ دیتی ہے۔ تمام ادویات اپنے معالج کے مشورے سے لیں۔
-- **ایمرجنسی میں تاخیر نہ کریں:** اگر شدید نوعیت کی علامات ظاہر ہوں (جیسے سینے میں شدید درد، سانس کا رکنا، شوگر میٹر پر LO یا HI آنا، یا مسلسل الٹیاں ہونا) تو فوراً **1122 (ریسکیو 1122)** پر کال کریں یا قریبی ہسپتال تشریف لے جائیں۔
+- **ایمرجنسی میں تاخیر نہ کریں:** اگر شدید نوعیت کی علامات ظاہر ہوں (جیسے سینے میں شدید درد، سانس کا رکنا، شوگر میٹر پر LO یا HI آنا، یا مسلسل الٹیاں ہونا) تو فوراً **1122** پر کال کریں یا قریبی ہسپتال تشریف لے جائیں۔
 
 #### 2. روزانہ کا چیک ان اور زبان کا انتخاب:
 - آپ روزانہ اپنی شوگر کی ریڈنگ، بلڈ پریشر، وزن اور دوائی لینے کی تفصیل درج کر سکتے ہیں۔

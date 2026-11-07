@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -36,7 +35,7 @@ def parse_messages_json(content: str) -> dict:
         return {}
     try:
         return json.loads(content)
-    except Exception:
+    except (json.JSONDecodeError, ValueError):
         return {}
 
 
