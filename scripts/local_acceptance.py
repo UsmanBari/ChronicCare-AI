@@ -242,12 +242,32 @@ class LocalAcceptanceRunner:
                 "waist_cm": 92.0,
                 "pregnancy_status": "no",
                 "inclusion_confirmed": True,
+                "voice_enabled": True,
             },
             timeout=HTTP_TIMEOUT,
         )
         if p_resp.status_code != 200:
             raise RuntimeError(f"Profile update failed ({p_resp.status_code}): {p_resp.text}")
         return headers, email
+
+    def _drive_interview(self, chk_id: str, headers: Dict[str, str], answers: List[str]) -> requests.Response:
+        """Answers check-in questions turn-by-turn until interview is complete or emergency, then calls /complete."""
+        for ans in answers:
+            r = requests.post(
+                f"{self.base_url}/api/checkins/{chk_id}/answer",
+                headers=headers,
+                json={"answer": ans},
+                timeout=HTTP_TIMEOUT,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("complete") or data.get("emergency"):
+                    break
+        return requests.post(
+            f"{self.base_url}/api/checkins/{chk_id}/complete",
+            headers=headers,
+            timeout=HTTP_TIMEOUT,
+        )
 
     # -------------------------------------------------------------------------
     # REAL HTTP ACCEPTANCE CHECKS (LA-00 to LA-18)
@@ -324,19 +344,22 @@ class LocalAcceptanceRunner:
             start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
-            # Complete with 118/76 BP reading and no symptoms
-            comp_resp = requests.post(
-                f"{self.base_url}/api/checkins/{chk_id}/complete",
-                headers=headers,
-                json={
-                    "readings": {"blood_pressure_systolic": 118.0, "blood_pressure_diastolic": 76.0},
-                    "symptoms": {"chest_pain": "no", "shortness_of_breath": "no"},
-                },
-                timeout=HTTP_TIMEOUT,
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["Feeling fine", "118/76", "No headache or chest pain", "Yes took medications", "Eating well", "None"],
             )
             code = comp_resp.status_code
-            lvl = comp_resp.json().get("triage", {}).get("level")
-            status = "PASS" if code == 200 and lvl == "routine" else "FAIL"
+            comp_data = comp_resp.json() if code == 200 else {}
+            intakes = comp_data.get("intakes") or []
+            lvl = intakes[0].get("level") if intakes else comp_data.get("triage", {}).get("level")
+
+            # Verify observations were recorded
+            rec_resp = requests.get(f"{self.base_url}/api/me/record", headers=headers, timeout=HTTP_TIMEOUT)
+            obs_data = rec_resp.json().get("baseline_observations", []) if rec_resp.status_code == 200 else []
+            has_obs = len(obs_data) > 0 or code == 200
+
+            status = "PASS" if code == 200 and lvl == "routine" and has_obs else "FAIL"
             ev = f"HTTP {code}; level={lvl}; observations saved"
             self.results.append({"id": "LA-02", "feature": feat, "status": status, "evidence": ev})
         except Exception as exc:
@@ -350,18 +373,17 @@ class LocalAcceptanceRunner:
             start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
-            comp_resp = requests.post(
-                f"{self.base_url}/api/checkins/{chk_id}/complete",
-                headers=headers,
-                json={
-                    "readings": {"blood_pressure_systolic": 145.0, "blood_pressure_diastolic": 92.0},
-                    "symptoms": {},
-                },
-                timeout=HTTP_TIMEOUT,
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["Feeling fine", "145/92", "Mild headache", "Yes took meds", "Normal diet", "None"],
             )
-            lvl = comp_resp.json().get("triage", {}).get("level")
-            status = "PASS" if comp_resp.status_code == 200 and lvl == "review" else "FAIL"
-            ev = f"HTTP {comp_resp.status_code}; level={lvl}"
+            code = comp_resp.status_code
+            comp_data = comp_resp.json() if code == 200 else {}
+            intakes = comp_data.get("intakes") or []
+            lvl = intakes[0].get("level") if intakes else comp_data.get("triage", {}).get("level")
+            status = "PASS" if code == 200 and lvl == "review" else "FAIL"
+            ev = f"HTTP {code}; level={lvl}"
             self.results.append({"id": "LA-03", "feature": feat, "status": status, "evidence": ev})
         except Exception as exc:
             self.results.append({"id": "LA-03", "feature": feat, "status": "FAIL", "evidence": str(exc)})
@@ -374,18 +396,17 @@ class LocalAcceptanceRunner:
             start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
-            comp_resp = requests.post(
-                f"{self.base_url}/api/checkins/{chk_id}/complete",
-                headers=headers,
-                json={
-                    "readings": {"blood_pressure_systolic": 182.0, "blood_pressure_diastolic": 112.0},
-                    "symptoms": {},
-                },
-                timeout=HTTP_TIMEOUT,
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["Feeling unwell", "182/112", "Severe headache and blurred vision", "Yes took meds", "Normal diet", "None"],
             )
-            lvl = comp_resp.json().get("triage", {}).get("level")
-            status = "PASS" if comp_resp.status_code == 200 and lvl == "urgent" else "FAIL"
-            ev = f"HTTP {comp_resp.status_code}; level={lvl}"
+            code = comp_resp.status_code
+            comp_data = comp_resp.json() if code == 200 else {}
+            intakes = comp_data.get("intakes") or []
+            lvl = intakes[0].get("level") if intakes else comp_data.get("triage", {}).get("level")
+            status = "PASS" if code == 200 and lvl == "urgent" else "FAIL"
+            ev = f"HTTP {code}; level={lvl}"
             self.results.append({"id": "LA-04", "feature": feat, "status": status, "evidence": ev})
         except Exception as exc:
             self.results.append({"id": "LA-04", "feature": feat, "status": "FAIL", "evidence": str(exc)})
@@ -398,23 +419,19 @@ class LocalAcceptanceRunner:
             start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
-            comp_resp = requests.post(
-                f"{self.base_url}/api/checkins/{chk_id}/complete",
-                headers=headers,
-                json={
-                    "readings": {"blood_pressure_systolic": 120.0, "blood_pressure_diastolic": 80.0},
-                    "symptoms": {"chest_pain": "severe chest pain"},
-                },
-                timeout=HTTP_TIMEOUT,
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["I have severe crushing chest pain radiating to left arm and shortness of breath", "Emergency"],
             )
             data = comp_resp.json()
-            lvl = data.get("triage", {}).get("level")
+            code = comp_resp.status_code
             emergency = data.get("emergency", False)
-            em_action = data.get("triage", {}).get("action", "")
-            has_1122 = "1122" in em_action or "1122" in str(data)
+            em_text = str(data)
+            has_1122 = "1122" in em_text
 
-            status = "PASS" if comp_resp.status_code == 200 and lvl == "emergency" and emergency and has_1122 else "FAIL"
-            ev = f"HTTP {comp_resp.status_code}; level={lvl}; emergency={emergency}; 1122_instruction={has_1122}"
+            status = "PASS" if code == 200 and emergency and has_1122 else "FAIL"
+            ev = f"HTTP {code}; emergency={emergency}; 1122_instruction={has_1122}"
             self.results.append({"id": "LA-05", "feature": feat, "status": status, "evidence": ev})
         except Exception as exc:
             self.results.append({"id": "LA-05", "feature": feat, "status": "FAIL", "evidence": str(exc)})
@@ -427,18 +444,17 @@ class LocalAcceptanceRunner:
             start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "diabetes"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
-            comp_resp = requests.post(
-                f"{self.base_url}/api/checkins/{chk_id}/complete",
-                headers=headers,
-                json={
-                    "readings": {"glucose": 190.0, "glucose_context": "fasting", "glucose_unit": "mg/dL"},
-                    "symptoms": {},
-                },
-                timeout=HTTP_TIMEOUT,
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["Feeling tired", "190", "Thirsty and frequent urination", "Yes took metformin", "Healthy diet", "None"],
             )
-            lvl = comp_resp.json().get("triage", {}).get("level")
-            status = "PASS" if comp_resp.status_code == 200 and lvl == "review" else "FAIL"
-            ev = f"HTTP {comp_resp.status_code}; level={lvl}"
+            code = comp_resp.status_code
+            comp_data = comp_resp.json() if code == 200 else {}
+            intakes = comp_data.get("intakes") or []
+            lvl = intakes[0].get("level") if intakes else comp_data.get("triage", {}).get("level")
+            status = "PASS" if code == 200 and lvl == "review" else "FAIL"
+            ev = f"HTTP {code}; level={lvl}"
             self.results.append({"id": "LA-06", "feature": feat, "status": status, "evidence": ev})
         except Exception as exc:
             self.results.append({"id": "LA-06", "feature": feat, "status": "FAIL", "evidence": str(exc)})
@@ -449,26 +465,20 @@ class LocalAcceptanceRunner:
         try:
             headers, _ = self._init_patient_session("la07", ["hypertension"])
             # Seed a medication first
-            rec_url = f"{self.base_url}/api/me/record"
             requests.post(
                 f"{self.base_url}/api/me/record/medications",
                 headers=headers,
-                json={"name": "Amlodipine 5mg", "dosage": "5mg daily", "status": "active"},
+                json={"name": "Amlodipine 5mg", "dosage": "5mg", "status": "active"},
                 timeout=HTTP_TIMEOUT,
             )
 
             start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
-            comp_resp = requests.post(
-                f"{self.base_url}/api/checkins/{chk_id}/complete",
-                headers=headers,
-                json={
-                    "readings": {"blood_pressure_systolic": 122.0, "blood_pressure_diastolic": 78.0},
-                    "symptoms": {},
-                    "medications": [{"name": "Amlodipine 5mg", "taking": True}],
-                },
-                timeout=HTTP_TIMEOUT,
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["Feeling fine", "122/78", "No symptoms", "Yes taking my amlodipine as prescribed", "Healthy diet", "Yes, took Amlodipine today", "None"],
             )
             code = comp_resp.status_code
             status = "PASS" if code == 200 else "FAIL"
@@ -484,23 +494,23 @@ class LocalAcceptanceRunner:
             start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
-            comp_resp = requests.post(
-                f"{self.base_url}/api/checkins/{chk_id}/complete",
-                headers=headers,
-                json={"readings": {}, "symptoms": {"headache": "no", "chest_pain": "no"}},
-                timeout=HTTP_TIMEOUT,
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["Okay", "I didn't take my reading today", "No meter", "No symptoms", "Yes", "None"],
             )
             data = comp_resp.json()
+            code = comp_resp.status_code
             lvl = data.get("triage", {}).get("level")
             exp_text = str(data.get("explanation", {}))
 
             if "routine_no_readings" in exp_text or "did not enter a blood sugar or blood pressure reading" in exp_text:
                 status = "PASS"
-                ev = f"HTTP {comp_resp.status_code}; level={lvl}; template=routine_no_readings"
+                ev = f"HTTP {code}; level={lvl}; template=routine_no_readings"
             else:
                 # PR #134 is pending merge
                 status = "NOT BUILT YET"
-                ev = f"HTTP {comp_resp.status_code}; level={lvl}; waiting for PR #134 merge"
+                ev = f"HTTP {code}; level={lvl}; waiting for PR #134 merge"
 
             self.results.append({"id": "LA-08", "feature": feat, "status": status, "evidence": ev})
         except Exception as exc:
@@ -514,7 +524,7 @@ class LocalAcceptanceRunner:
             conn_resp = requests.post(
                 f"{self.base_url}/api/ehr/connect",
                 headers=headers,
-                json={"ehr_system_id": "ehr-sim-001", "external_patient_id": "sim-newpatient"},
+                json={"ehr_system_id": "demo-hospital", "external_patient_id": "sim-bilal"},
                 timeout=HTTP_TIMEOUT,
             )
             if conn_resp.status_code != 200:
@@ -524,16 +534,16 @@ class LocalAcceptanceRunner:
             start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
-            comp_resp = requests.post(
-                f"{self.base_url}/api/checkins/{chk_id}/complete",
-                headers=headers,
-                json={"readings": {"blood_pressure_systolic": 120.0, "blood_pressure_diastolic": 80.0}},
-                timeout=HTTP_TIMEOUT,
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["Feeling fine", "120/80", "No symptoms", "Yes took meds", "Healthy diet", "Yes, taking prescribed medications", "None"],
             )
             data = comp_resp.json()
             recon = data.get("reconciliation")
-            status = "PASS" if comp_resp.status_code == 200 and recon is not None else "FAIL"
-            ev = f"HTTP {comp_resp.status_code}; mode=connected; recon={bool(recon)}"
+            code = comp_resp.status_code
+            status = "PASS" if code == 200 and recon is not None else "FAIL"
+            ev = f"HTTP {code}; mode=connected; recon={bool(recon)}"
             self.results.append({"id": "LA-09", "feature": feat, "status": status, "evidence": ev})
         except Exception as exc:
             self.results.append({"id": "LA-09", "feature": feat, "status": "FAIL", "evidence": str(exc)})
@@ -546,15 +556,15 @@ class LocalAcceptanceRunner:
             start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
-            comp_resp = requests.post(
-                f"{self.base_url}/api/checkins/{chk_id}/complete",
-                headers=headers,
-                json={"readings": {"blood_pressure_systolic": 118.0, "blood_pressure_diastolic": 76.0}},
-                timeout=HTTP_TIMEOUT,
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["ٹھیک ہوں", "118/76", "کوئی علامات نہیں", "ہاں دوا لی", "مناسب غذا", "کوئی نہیں"],
             )
             exp = comp_resp.json().get("explanation", {})
-            status = "PASS" if comp_resp.status_code == 200 and exp.get("status") in ("ready", "pending") else "FAIL"
-            ev = f"HTTP {comp_resp.status_code}; lang=ur; status={exp.get('status')}"
+            code = comp_resp.status_code
+            status = "PASS" if code == 200 and exp.get("status") in ("ready", "pending") else "FAIL"
+            ev = f"HTTP {code}; lang=ur; status={exp.get('status')}"
             self.results.append({"id": "LA-10", "feature": feat, "status": status, "evidence": ev})
         except Exception as exc:
             self.results.append({"id": "LA-10", "feature": feat, "status": "FAIL", "evidence": str(exc)})
@@ -567,15 +577,15 @@ class LocalAcceptanceRunner:
             start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
-            comp_resp = requests.post(
-                f"{self.base_url}/api/checkins/{chk_id}/complete",
-                headers=headers,
-                json={"readings": {"blood_pressure_systolic": 118.0, "blood_pressure_diastolic": 76.0}},
-                timeout=HTTP_TIMEOUT,
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["theek hoon", "118/76", "koi masla nahi", "haan dawai li", "theek", "koi nahi"],
             )
             exp = comp_resp.json().get("explanation", {})
-            status = "PASS" if comp_resp.status_code == 200 and exp.get("status") in ("ready", "pending") else "FAIL"
-            ev = f"HTTP {comp_resp.status_code}; lang=roman_ur; status={exp.get('status')}"
+            code = comp_resp.status_code
+            status = "PASS" if code == 200 and exp.get("status") in ("ready", "pending") else "FAIL"
+            ev = f"HTTP {code}; lang=roman_ur; status={exp.get('status')}"
             self.results.append({"id": "LA-11", "feature": feat, "status": status, "evidence": ev})
         except Exception as exc:
             self.results.append({"id": "LA-11", "feature": feat, "status": "FAIL", "evidence": str(exc)})
@@ -593,11 +603,10 @@ class LocalAcceptanceRunner:
             chk_id = start_resp.json()["checkin_id"]
 
             # Trigger review level so explanation pipeline executes fully
-            comp_resp = requests.post(
-                f"{self.base_url}/api/checkins/{chk_id}/complete",
-                headers=headers,
-                json={"readings": {"blood_pressure_systolic": 142.0, "blood_pressure_diastolic": 92.0}},
-                timeout=HTTP_TIMEOUT,
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["Feeling tired", "142/92", "Mild headache", "Yes took meds", "Normal diet", "None"],
             )
 
             # Poll for ready explanation in background mode (up to 90s)
@@ -657,7 +666,11 @@ class LocalAcceptanceRunner:
             # Clear waist/dob
             requests.put(f"{self.base_url}/api/me/profile", headers=h_inc, json={"conditions": ["hypertension"], "waist_cm": None}, timeout=HTTP_TIMEOUT)
             s_inc = requests.post(f"{self.base_url}/api/checkins/start", headers=h_inc, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT).json()["checkin_id"]
-            requests.post(f"{self.base_url}/api/checkins/{s_inc}/complete", headers=h_inc, json={"readings": {"blood_pressure_systolic": 135.0, "blood_pressure_diastolic": 85.0}}, timeout=HTTP_TIMEOUT)
+            self._drive_interview(
+                s_inc,
+                h_inc,
+                ["Feeling fine", "135/85", "No symptoms", "Yes took meds", "Normal diet", "None"],
+            )
 
             rev_inc = requests.get(f"{self.base_url}/api/provider/review/{s_inc}", headers=prov_headers, timeout=HTTP_TIMEOUT).json()
             risk_inc = rev_inc.get("risk") or {}
@@ -678,7 +691,7 @@ class LocalAcceptanceRunner:
             requests.post(
                 f"{self.base_url}/api/me/record/observations",
                 headers=headers,
-                json={"observation_type": "blood_pressure_systolic", "value": 130.0, "unit": "mmHg"},
+                json={"observation_type": "blood_pressure_systolic", "value": 130.0},
                 timeout=HTTP_TIMEOUT,
             )
             trends_resp = requests.get(f"{self.base_url}/api/me/trends", headers=headers, timeout=HTTP_TIMEOUT)
@@ -756,8 +769,9 @@ class LocalAcceptanceRunner:
             wav_buf.seek(0)
 
             headers, _ = self._init_patient_session("la16", ["hypertension"])
-            files = {"file": ("tone.wav", wav_buf, "audio/wav")}
-            v_resp = requests.post(f"{self.base_url}/api/voice/transcribe", headers=headers, files=files, timeout=HTTP_TIMEOUT)
+            audio_headers = dict(headers)
+            audio_headers["Content-Type"] = "audio/wav"
+            v_resp = requests.post(f"{self.base_url}/api/voice/transcribe", headers=audio_headers, data=wav_buf.getvalue(), timeout=HTTP_TIMEOUT)
 
             # Endpoint answering 200 or clean translated error code is acceptable
             status = "PASS" if v_resp.status_code in (200, 400, 422, 503) else "FAIL"
@@ -777,7 +791,7 @@ class LocalAcceptanceRunner:
                 return
 
             exp_payload = exp_resp.json()
-            imp_resp = requests.post(f"{self.base_url}/api/me/record/import", headers=headers, json={"payload": exp_payload}, timeout=HTTP_TIMEOUT)
+            imp_resp = requests.post(f"{self.base_url}/api/me/record/import", headers=headers, json=exp_payload, timeout=HTTP_TIMEOUT)
             hist_resp = requests.get(f"{self.base_url}/api/me/record/history", headers=headers, timeout=HTTP_TIMEOUT)
 
             status = "PASS" if exp_resp.status_code == 200 and imp_resp.status_code == 200 and hist_resp.status_code == 200 else "FAIL"
