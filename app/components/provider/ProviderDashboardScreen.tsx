@@ -23,6 +23,9 @@ export const ProviderDashboardScreen = () => {
     demoScenario,
     resolvedCases,
     acknowledgedPatients,
+    providerIdentifier,
+    providerDisplayName,
+    language,
     isLiveMode,
     t,
     isUrdu,
@@ -34,27 +37,35 @@ export const ProviderDashboardScreen = () => {
   const isAliResolved = resolvedCases.includes("Ali Khan");
   const isSaraResolved = resolvedCases.includes("Sara Ahmed");
 
-  let activeCasesCount = 2; // Baseline: Ahmed + Sara Ahmed
+  let activeCasesCount = isLiveMode ? 0 : 2; // Baseline: Ahmed + Sara Ahmed (demo only)
   let activeCasesSubtext = "";
   let urgentCasesCount = 0;
 
-  if (demoScenario === "conflict") {
-    if (!isAliResolved) {
-      activeCasesCount = 3;
-      activeCasesSubtext = " — New: Ali Khan";
-    }
-  } else if (demoScenario === "emergency") {
-    if (!isAliResolved) {
-      activeCasesCount = 3;
-      activeCasesSubtext = " — New: Ali Khan";
-      urgentCasesCount = 1;
+  if (!isLiveMode) {
+    if (demoScenario === "conflict") {
+      if (!isAliResolved) {
+        activeCasesCount = 3;
+        activeCasesSubtext = " — New: Ali Khan";
+      }
+    } else if (demoScenario === "emergency") {
+      if (!isAliResolved) {
+        activeCasesCount = 3;
+        activeCasesSubtext = " — New: Ali Khan";
+        urgentCasesCount = 1;
+      }
     }
   }
 
   // Pending queue items count
-  const pendingQueueCount =
-    (isSaraResolved ? 0 : 1) +
-    (demoScenario !== "normal" && !isAliResolved ? 1 : 0);
+  const pendingQueueCount = isLiveMode
+    ? 0
+    : (isSaraResolved ? 0 : 1) +
+      (demoScenario !== "normal" && !isAliResolved ? 1 : 0);
+
+  const fallbackProvider = isUrdu ? "ڈاکٹر" : ((language as string) === "roman_ur" ? "Doctor" : "Provider");
+  const providerHeaderLabel = isLiveMode
+    ? (providerDisplayName || providerIdentifier || fallbackProvider)
+    : "Dr. Sana Malik — City General Clinic";
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-7 animate-fadeIn py-2" dir={isUrdu ? "rtl" : "ltr"}>
@@ -64,7 +75,7 @@ export const ProviderDashboardScreen = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-teal-300 block mb-1.5">
-              Dr. Sana Malik — City General Clinic
+              {providerHeaderLabel}
             </span>
             <div className="flex items-center gap-3">
               <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold text-white tracking-tight">
@@ -179,11 +190,17 @@ export const ProviderDashboardScreen = () => {
               <span>{t.patientListTitle}</span>
             </h3>
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
-              3 Assigned Patients
+              {isLiveMode ? (isUrdu ? "0 مریض تفویض شدہ" : "0 Assigned Patients") : "3 Assigned Patients"}
             </span>
           </div>
 
           <div className="space-y-3">
+            {isLiveMode ? (
+              <div className="p-8 text-center text-slate-500 text-sm">
+                <p className="font-medium">{isUrdu ? "ابھی کوئی مریض تفویض نہیں کیا گیا" : "No assigned patients yet"}</p>
+              </div>
+            ) : (
+              <>
             {/* Patient 1: Ali Khan (Dynamic) */}
             <div
               onClick={() => {
@@ -311,6 +328,8 @@ export const ProviderDashboardScreen = () => {
               </div>
               <ChevronRight className={`w-5 h-5 text-slate-400 ${isUrdu ? "rotate-180" : ""}`} />
             </div>
+            </>
+            )}
           </div>
         </div>
 
@@ -327,51 +346,59 @@ export const ProviderDashboardScreen = () => {
           </div>
 
           <div className="space-y-3 text-sm">
-            {demoScenario === "emergency" && !isAliResolved && (
-              <div className="p-4 rounded-2xl bg-emergencyRed-50 border border-emergencyRed-800/30 text-emergencyRed-800 space-y-1 animate-fadeIn">
-                <div className="flex items-center gap-2 font-bold text-sm">
-                  <AlertOctagon className="w-4 h-4 shrink-0 text-emergencyRed-800 animate-pulse" />
-                  <span>Urgent Case Escalation</span>
-                </div>
-                <p className="text-xs leading-relaxed">
-                  New urgent case — Ali Khan, high-risk pattern detected.
-                </p>
+            {isLiveMode ? (
+              <div className="p-8 text-center text-slate-500 text-sm">
+                <p className="font-medium">{isUrdu ? "ابھی کوئی سرگرمی نہیں ہے" : "No activity yet"}</p>
               </div>
-            )}
+            ) : (
+              <>
+                {demoScenario === "emergency" && !isAliResolved && (
+                  <div className="p-4 rounded-2xl bg-emergencyRed-50 border border-emergencyRed-800/30 text-emergencyRed-800 space-y-1 animate-fadeIn">
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                      <AlertOctagon className="w-4 h-4 shrink-0 text-emergencyRed-800 animate-pulse" />
+                      <span>Urgent Case Escalation</span>
+                    </div>
+                    <p className="text-xs leading-relaxed">
+                      New urgent case — Ali Khan, high-risk pattern detected.
+                    </p>
+                  </div>
+                )}
 
-            {demoScenario === "conflict" && !isAliResolved && (
-              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 space-y-1 animate-fadeIn">
-                <div className="flex items-center gap-2 font-bold text-sm">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-800" />
-                  <span>Reconciliation Conflict</span>
-                </div>
-                <p className="text-xs leading-relaxed">
-                  Review required — Ali Khan, conflicting glucose readings.
-                </p>
-              </div>
-            )}
+                {demoScenario === "conflict" && !isAliResolved && (
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 space-y-1 animate-fadeIn">
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-800" />
+                      <span>Reconciliation Conflict</span>
+                    </div>
+                    <p className="text-xs leading-relaxed">
+                      Review required — Ali Khan, conflicting glucose readings.
+                    </p>
+                  </div>
+                )}
 
-            {!isSaraResolved && (
-              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-300 text-amber-900 space-y-1">
-                <div className="flex items-center gap-2 font-bold text-sm">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-800" />
-                  <span>Incomplete Check-In</span>
-                </div>
-                <p className="text-xs leading-relaxed">
-                  Review required — Sara Ahmed, incomplete check-in survey.
-                </p>
-              </div>
-            )}
+                {!isSaraResolved && (
+                  <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-300 text-amber-900 space-y-1">
+                    <div className="flex items-center gap-2 font-bold text-sm">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-800" />
+                      <span>Incomplete Check-In</span>
+                    </div>
+                    <p className="text-xs leading-relaxed">
+                      Review required — Sara Ahmed, incomplete check-in survey.
+                    </p>
+                  </div>
+                )}
 
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-slate-700 space-y-1">
-              <div className="flex items-center gap-2 font-semibold text-sm text-navy-800">
-                <ShieldCheck className="w-4 h-4 text-teal-700 shrink-0" />
-                <span>FHIR Sync Active</span>
-              </div>
-              <p className="text-xs text-slate-500">
-                City General EHR nightly reconciliation completed (140 records).
-              </p>
-            </div>
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-slate-700 space-y-1">
+                  <div className="flex items-center gap-2 font-semibold text-sm text-navy-800">
+                    <ShieldCheck className="w-4 h-4 text-teal-700 shrink-0" />
+                    <span>FHIR Sync Active</span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    City General EHR nightly reconciliation completed (140 records).
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
