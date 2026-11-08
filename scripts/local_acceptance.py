@@ -31,6 +31,8 @@ TARGET_BASE_URL = "http://localhost:8000"
 FIREBASE_SIGNUP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={api_key}"
 FIREBASE_SIGNIN_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
 FIREBASE_DELETE_URL = "https://identitytoolkit.googleapis.com/v1/accounts:delete?key={api_key}"
+HTTP_TIMEOUT = 30.0
+MAX_OVERALL_RUN_SECONDS = 1200.0
 
 
 def validate_target_host(url: str) -> None:
@@ -181,7 +183,7 @@ class LocalAcceptanceRunner:
         password = secrets.token_urlsafe(16)
 
         url = FIREBASE_SIGNUP_URL.format(api_key=self.firebase_web_key)
-        resp = requests.post(url, json={"email": email, "password": password, "returnSecureToken": True}, timeout=15)
+        resp = requests.post(url, json={"email": email, "password": password, "returnSecureToken": True}, timeout=HTTP_TIMEOUT)
         if resp.status_code != 200:
             raise RuntimeError(f"Firebase patient signup failed ({resp.status_code}): {resp.text}")
 
@@ -197,7 +199,7 @@ class LocalAcceptanceRunner:
             raise RuntimeError("FIREBASE_WEB_API_KEY not set in environment.")
 
         url = FIREBASE_SIGNIN_URL.format(api_key=self.firebase_web_key)
-        resp = requests.post(url, json={"email": email, "password": password, "returnSecureToken": True}, timeout=15)
+        resp = requests.post(url, json={"email": email, "password": password, "returnSecureToken": True}, timeout=HTTP_TIMEOUT)
         if resp.status_code != 200:
             raise RuntimeError(f"Firebase signin failed for {email} ({resp.status_code}): {resp.text}")
         return resp.json()["idToken"]
@@ -206,7 +208,7 @@ class LocalAcceptanceRunner:
         """Calls POST /api/auth/session with Bearer token and returns Authorization headers."""
         url = f"{self.base_url}/api/auth/session"
         headers = {"Authorization": f"Bearer {id_token}"}
-        resp = requests.post(url, headers=headers, json={"id_token": id_token}, timeout=10)
+        resp = requests.post(url, headers=headers, json={"id_token": id_token}, timeout=HTTP_TIMEOUT)
         if resp.status_code != 200:
             raise RuntimeError(f"Backend session init failed ({resp.status_code}): {resp.text}")
         return headers
@@ -222,7 +224,7 @@ class LocalAcceptanceRunner:
             consent_url,
             headers=headers,
             json={"granted": True, "provider_notification": True},
-            timeout=10,
+            timeout=HTTP_TIMEOUT,
         )
         if c_resp.status_code != 200:
             raise RuntimeError(f"Consent grant failed ({c_resp.status_code}): {c_resp.text}")
@@ -241,7 +243,7 @@ class LocalAcceptanceRunner:
                 "pregnancy_status": "no",
                 "inclusion_confirmed": True,
             },
-            timeout=10,
+            timeout=HTTP_TIMEOUT,
         )
         if p_resp.status_code != 200:
             raise RuntimeError(f"Profile update failed ({p_resp.status_code}): {p_resp.text}")
@@ -259,7 +261,7 @@ class LocalAcceptanceRunner:
             id_token, email = self._firebase_signup_fresh_patient("la00")
             url = f"{self.base_url}/api/auth/session"
             headers = {"Authorization": f"Bearer {id_token}"}
-            resp = requests.post(url, headers=headers, json={"id_token": id_token}, timeout=10)
+            resp = requests.post(url, headers=headers, json={"id_token": id_token}, timeout=HTTP_TIMEOUT)
             if resp.status_code != 200:
                 err_msg = f"HTTP {resp.status_code}: {resp.text}"
                 self.log(f"[AUTH SMOKE FAILED] {err_msg}")
@@ -277,7 +279,7 @@ class LocalAcceptanceRunner:
         """LA-01: Health + Admin config status (verifies pure SQLite and demo flags)."""
         feat = "Health check & admin config status (Sec 13.2)"
         try:
-            h_resp = requests.get(f"{self.base_url}/api/health", timeout=5)
+            h_resp = requests.get(f"{self.base_url}/api/health", timeout=HTTP_TIMEOUT)
             if h_resp.status_code != 200:
                 self.results.append({"id": "LA-01", "feature": feat, "status": "FAIL", "evidence": f"Health HTTP {h_resp.status_code}"})
                 return
@@ -289,7 +291,7 @@ class LocalAcceptanceRunner:
             admin_token = self._firebase_signin(self.admin_email, self.admin_password)
             admin_headers = self._backend_session_auth(admin_token)
 
-            cfg_resp = requests.get(f"{self.base_url}/api/admin/config-status", headers=admin_headers, timeout=10)
+            cfg_resp = requests.get(f"{self.base_url}/api/admin/config-status", headers=admin_headers, timeout=HTTP_TIMEOUT)
             if cfg_resp.status_code != 200:
                 self.results.append({"id": "LA-01", "feature": feat, "status": "FAIL", "evidence": f"Config-status HTTP {cfg_resp.status_code}"})
                 return
@@ -319,7 +321,7 @@ class LocalAcceptanceRunner:
         feat = "Isolated-mode check-in with BP 118/76 (Sec 13.1, Hotfix)"
         try:
             headers, _ = self._init_patient_session("la02", ["hypertension"])
-            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=10)
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
             # Complete with 118/76 BP reading and no symptoms
@@ -330,7 +332,7 @@ class LocalAcceptanceRunner:
                     "readings": {"blood_pressure_systolic": 118.0, "blood_pressure_diastolic": 76.0},
                     "symptoms": {"chest_pain": "no", "shortness_of_breath": "no"},
                 },
-                timeout=15,
+                timeout=HTTP_TIMEOUT,
             )
             code = comp_resp.status_code
             lvl = comp_resp.json().get("triage", {}).get("level")
@@ -345,7 +347,7 @@ class LocalAcceptanceRunner:
         feat = "Isolated BP 145/92 triage review (Sec 15)"
         try:
             headers, _ = self._init_patient_session("la03", ["hypertension"])
-            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=10)
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
             comp_resp = requests.post(
@@ -355,7 +357,7 @@ class LocalAcceptanceRunner:
                     "readings": {"blood_pressure_systolic": 145.0, "blood_pressure_diastolic": 92.0},
                     "symptoms": {},
                 },
-                timeout=15,
+                timeout=HTTP_TIMEOUT,
             )
             lvl = comp_resp.json().get("triage", {}).get("level")
             status = "PASS" if comp_resp.status_code == 200 and lvl == "review" else "FAIL"
@@ -369,7 +371,7 @@ class LocalAcceptanceRunner:
         feat = "Isolated BP 182/112 triage urgent (Sec 15)"
         try:
             headers, _ = self._init_patient_session("la04", ["hypertension"])
-            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=10)
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
             comp_resp = requests.post(
@@ -379,7 +381,7 @@ class LocalAcceptanceRunner:
                     "readings": {"blood_pressure_systolic": 182.0, "blood_pressure_diastolic": 112.0},
                     "symptoms": {},
                 },
-                timeout=15,
+                timeout=HTTP_TIMEOUT,
             )
             lvl = comp_resp.json().get("triage", {}).get("level")
             status = "PASS" if comp_resp.status_code == 200 and lvl == "urgent" else "FAIL"
@@ -393,7 +395,7 @@ class LocalAcceptanceRunner:
         feat = "Emergency bypass with 1122 note (Sec 13.2)"
         try:
             headers, _ = self._init_patient_session("la05", ["hypertension"])
-            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=10)
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
             comp_resp = requests.post(
@@ -403,7 +405,7 @@ class LocalAcceptanceRunner:
                     "readings": {"blood_pressure_systolic": 120.0, "blood_pressure_diastolic": 80.0},
                     "symptoms": {"chest_pain": "severe chest pain"},
                 },
-                timeout=15,
+                timeout=HTTP_TIMEOUT,
             )
             data = comp_resp.json()
             lvl = data.get("triage", {}).get("level")
@@ -422,7 +424,7 @@ class LocalAcceptanceRunner:
         feat = "Diabetes check-in glucose 190 review (Sec 15)"
         try:
             headers, _ = self._init_patient_session("la06", ["diabetes"])
-            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "diabetes"}, timeout=10)
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "diabetes"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
             comp_resp = requests.post(
@@ -432,7 +434,7 @@ class LocalAcceptanceRunner:
                     "readings": {"glucose": 190.0, "glucose_context": "fasting", "glucose_unit": "mg/dL"},
                     "symptoms": {},
                 },
-                timeout=15,
+                timeout=HTTP_TIMEOUT,
             )
             lvl = comp_resp.json().get("triage", {}).get("level")
             status = "PASS" if comp_resp.status_code == 200 and lvl == "review" else "FAIL"
@@ -452,10 +454,10 @@ class LocalAcceptanceRunner:
                 f"{self.base_url}/api/me/record/medications",
                 headers=headers,
                 json={"name": "Amlodipine 5mg", "dosage": "5mg daily", "status": "active"},
-                timeout=10,
+                timeout=HTTP_TIMEOUT,
             )
 
-            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=10)
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
             comp_resp = requests.post(
@@ -466,7 +468,7 @@ class LocalAcceptanceRunner:
                     "symptoms": {},
                     "medications": [{"name": "Amlodipine 5mg", "taking": True}],
                 },
-                timeout=15,
+                timeout=HTTP_TIMEOUT,
             )
             code = comp_resp.status_code
             status = "PASS" if code == 200 else "FAIL"
@@ -479,14 +481,14 @@ class LocalAcceptanceRunner:
         feat = "Routine no-readings wording template (PR #134, Rule R8)"
         try:
             headers, _ = self._init_patient_session("la08", ["hypertension"])
-            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=10)
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
             comp_resp = requests.post(
                 f"{self.base_url}/api/checkins/{chk_id}/complete",
                 headers=headers,
                 json={"readings": {}, "symptoms": {"headache": "no", "chest_pain": "no"}},
-                timeout=15,
+                timeout=HTTP_TIMEOUT,
             )
             data = comp_resp.json()
             lvl = data.get("triage", {}).get("level")
@@ -513,20 +515,20 @@ class LocalAcceptanceRunner:
                 f"{self.base_url}/api/ehr/connect",
                 headers=headers,
                 json={"ehr_system_id": "ehr-sim-001", "external_patient_id": "sim-newpatient"},
-                timeout=10,
+                timeout=HTTP_TIMEOUT,
             )
             if conn_resp.status_code != 200:
                 self.results.append({"id": "LA-09", "feature": feat, "status": "FAIL", "evidence": f"Connect HTTP {conn_resp.status_code}"})
                 return
 
-            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=10)
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
             comp_resp = requests.post(
                 f"{self.base_url}/api/checkins/{chk_id}/complete",
                 headers=headers,
                 json={"readings": {"blood_pressure_systolic": 120.0, "blood_pressure_diastolic": 80.0}},
-                timeout=15,
+                timeout=HTTP_TIMEOUT,
             )
             data = comp_resp.json()
             recon = data.get("reconciliation")
@@ -541,14 +543,14 @@ class LocalAcceptanceRunner:
         feat = "Urdu language deterministic template routing (Sec 13.2)"
         try:
             headers, _ = self._init_patient_session("la10", ["hypertension"], lang="ur")
-            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=10)
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
             comp_resp = requests.post(
                 f"{self.base_url}/api/checkins/{chk_id}/complete",
                 headers=headers,
                 json={"readings": {"blood_pressure_systolic": 118.0, "blood_pressure_diastolic": 76.0}},
-                timeout=15,
+                timeout=HTTP_TIMEOUT,
             )
             exp = comp_resp.json().get("explanation", {})
             status = "PASS" if comp_resp.status_code == 200 and exp.get("status") in ("ready", "pending") else "FAIL"
@@ -562,14 +564,14 @@ class LocalAcceptanceRunner:
         feat = "Roman Urdu deterministic template routing (Sec 13.2)"
         try:
             headers, _ = self._init_patient_session("la11", ["hypertension"], lang="roman_ur")
-            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=10)
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
             comp_resp = requests.post(
                 f"{self.base_url}/api/checkins/{chk_id}/complete",
                 headers=headers,
                 json={"readings": {"blood_pressure_systolic": 118.0, "blood_pressure_diastolic": 76.0}},
-                timeout=15,
+                timeout=HTTP_TIMEOUT,
             )
             exp = comp_resp.json().get("explanation", {})
             status = "PASS" if comp_resp.status_code == 200 and exp.get("status") in ("ready", "pending") else "FAIL"
@@ -587,7 +589,7 @@ class LocalAcceptanceRunner:
                 return
 
             headers, _ = self._init_patient_session("la12", ["hypertension"], lang="en")
-            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=10)
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
             # Trigger review level so explanation pipeline executes fully
@@ -595,25 +597,34 @@ class LocalAcceptanceRunner:
                 f"{self.base_url}/api/checkins/{chk_id}/complete",
                 headers=headers,
                 json={"readings": {"blood_pressure_systolic": 142.0, "blood_pressure_diastolic": 92.0}},
-                timeout=15,
+                timeout=HTTP_TIMEOUT,
             )
 
-            # Poll for ready explanation in background mode (up to 30s)
+            # Poll for ready explanation in background mode (up to 90s)
             exp_status = "pending"
-            for _ in range(15):
-                exp_resp = requests.get(f"{self.base_url}/api/checkins/{chk_id}/explanation", headers=headers, timeout=5)
-                if exp_resp.status_code == 200:
-                    exp_data = exp_resp.json()
-                    exp_status = exp_data.get("status")
-                    if exp_status == "ready":
-                        break
+            poll_start = time.time()
+            max_poll_sec = 90.0
+            while time.time() - poll_start < max_poll_sec:
+                try:
+                    exp_resp = requests.get(f"{self.base_url}/api/checkins/{chk_id}/explanation", headers=headers, timeout=HTTP_TIMEOUT)
+                    if exp_resp.status_code == 200:
+                        exp_data = exp_resp.json()
+                        exp_status = exp_data.get("status")
+                        if exp_status == "ready":
+                            break
+                except Exception as poll_err:
+                    self.log(f"  [LA-12 poll warning]: {poll_err}")
                 time.sleep(2)
+
+            if exp_status != "ready":
+                self.results.append({"id": "LA-12", "feature": feat, "status": "FAIL", "evidence": "explanation not ready in 90s"})
+                return
 
             # Authenticate as provider to inspect clinical review details
             prov_token = self._firebase_signin(self.provider_email, self.provider_password)
             prov_headers = self._backend_session_auth(prov_token)
 
-            rev_resp = requests.get(f"{self.base_url}/api/provider/review/{chk_id}", headers=prov_headers, timeout=10)
+            rev_resp = requests.get(f"{self.base_url}/api/provider/review/{chk_id}", headers=prov_headers, timeout=HTTP_TIMEOUT)
             if rev_resp.status_code != 200:
                 self.results.append({"id": "LA-12", "feature": feat, "status": "FAIL", "evidence": f"Provider review HTTP {rev_resp.status_code}"})
                 return
@@ -644,11 +655,11 @@ class LocalAcceptanceRunner:
             # Check-in 1: Incomplete profile
             h_inc, _ = self._init_patient_session("la13inc", ["hypertension"])
             # Clear waist/dob
-            requests.put(f"{self.base_url}/api/me/profile", headers=h_inc, json={"conditions": ["hypertension"], "waist_cm": None}, timeout=10)
-            s_inc = requests.post(f"{self.base_url}/api/checkins/start", headers=h_inc, json={"condition": "hypertension"}, timeout=10).json()["checkin_id"]
-            requests.post(f"{self.base_url}/api/checkins/{s_inc}/complete", headers=h_inc, json={"readings": {"blood_pressure_systolic": 135.0, "blood_pressure_diastolic": 85.0}}, timeout=10)
+            requests.put(f"{self.base_url}/api/me/profile", headers=h_inc, json={"conditions": ["hypertension"], "waist_cm": None}, timeout=HTTP_TIMEOUT)
+            s_inc = requests.post(f"{self.base_url}/api/checkins/start", headers=h_inc, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT).json()["checkin_id"]
+            requests.post(f"{self.base_url}/api/checkins/{s_inc}/complete", headers=h_inc, json={"readings": {"blood_pressure_systolic": 135.0, "blood_pressure_diastolic": 85.0}}, timeout=HTTP_TIMEOUT)
 
-            rev_inc = requests.get(f"{self.base_url}/api/provider/review/{s_inc}", headers=prov_headers, timeout=10).json()
+            rev_inc = requests.get(f"{self.base_url}/api/provider/review/{s_inc}", headers=prov_headers, timeout=HTTP_TIMEOUT).json()
             risk_inc = rev_inc.get("risk") or {}
             has_missing = "not_enough_information" in risk_inc or "missing" in str(risk_inc)
 
@@ -668,9 +679,9 @@ class LocalAcceptanceRunner:
                 f"{self.base_url}/api/me/record/observations",
                 headers=headers,
                 json={"observation_type": "blood_pressure_systolic", "value": 130.0, "unit": "mmHg"},
-                timeout=10,
+                timeout=HTTP_TIMEOUT,
             )
-            trends_resp = requests.get(f"{self.base_url}/api/me/trends", headers=headers, timeout=10)
+            trends_resp = requests.get(f"{self.base_url}/api/me/trends", headers=headers, timeout=HTTP_TIMEOUT)
             code = trends_resp.status_code
             data = trends_resp.json()
             series = data.get("series", {})
@@ -704,7 +715,7 @@ class LocalAcceptanceRunner:
                 f"{self.base_url}/api/me/record/uploads",
                 headers=ocr_headers,
                 data=buf.getvalue(),
-                timeout=15,
+                timeout=HTTP_TIMEOUT,
             )
 
             if up_resp.status_code != 200:
@@ -717,7 +728,7 @@ class LocalAcceptanceRunner:
                 f"{self.base_url}/api/me/record/uploads/{upload_id}/confirm",
                 headers=headers,
                 json={"items": [{"type": "medication", "name": "Amlodipine 5mg", "dosage": "5mg", "status": "active"}]},
-                timeout=10,
+                timeout=HTTP_TIMEOUT,
             )
             status = "PASS" if conf_resp.status_code == 200 else "FAIL"
             ev = f"upload=200; confirm={conf_resp.status_code}"
@@ -746,7 +757,7 @@ class LocalAcceptanceRunner:
 
             headers, _ = self._init_patient_session("la16", ["hypertension"])
             files = {"file": ("tone.wav", wav_buf, "audio/wav")}
-            v_resp = requests.post(f"{self.base_url}/api/voice/transcribe", headers=headers, files=files, timeout=10)
+            v_resp = requests.post(f"{self.base_url}/api/voice/transcribe", headers=headers, files=files, timeout=HTTP_TIMEOUT)
 
             # Endpoint answering 200 or clean translated error code is acceptable
             status = "PASS" if v_resp.status_code in (200, 400, 422, 503) else "FAIL"
@@ -760,14 +771,14 @@ class LocalAcceptanceRunner:
         feat = "Record edit history & export/import (Sec 13.2)"
         try:
             headers, _ = self._init_patient_session("la17", ["hypertension"])
-            exp_resp = requests.get(f"{self.base_url}/api/me/record/export", headers=headers, timeout=10)
+            exp_resp = requests.get(f"{self.base_url}/api/me/record/export", headers=headers, timeout=HTTP_TIMEOUT)
             if exp_resp.status_code != 200:
                 self.results.append({"id": "LA-17", "feature": feat, "status": "FAIL", "evidence": f"Export HTTP {exp_resp.status_code}"})
                 return
 
             exp_payload = exp_resp.json()
-            imp_resp = requests.post(f"{self.base_url}/api/me/record/import", headers=headers, json={"payload": exp_payload}, timeout=10)
-            hist_resp = requests.get(f"{self.base_url}/api/me/record/history", headers=headers, timeout=10)
+            imp_resp = requests.post(f"{self.base_url}/api/me/record/import", headers=headers, json={"payload": exp_payload}, timeout=HTTP_TIMEOUT)
+            hist_resp = requests.get(f"{self.base_url}/api/me/record/history", headers=headers, timeout=HTTP_TIMEOUT)
 
             status = "PASS" if exp_resp.status_code == 200 and imp_resp.status_code == 200 and hist_resp.status_code == 200 else "FAIL"
             ev = f"export=200; import={imp_resp.status_code}; history={hist_resp.status_code}"
@@ -786,7 +797,7 @@ class LocalAcceptanceRunner:
             admin_token = self._firebase_signin(self.admin_email, self.admin_password)
             admin_headers = self._backend_session_auth(admin_token)
 
-            aud_resp = requests.get(f"{self.base_url}/api/admin/audit?limit=50", headers=admin_headers, timeout=10)
+            aud_resp = requests.get(f"{self.base_url}/api/admin/audit?limit=50", headers=admin_headers, timeout=HTTP_TIMEOUT)
             if aud_resp.status_code != 200:
                 self.results.append({"id": "LA-18", "feature": feat, "status": "FAIL", "evidence": f"Audit HTTP {aud_resp.status_code}"})
                 return
@@ -843,7 +854,7 @@ class LocalAcceptanceRunner:
 
         for email, token in self.created_patient_accounts:
             try:
-                resp = requests.post(del_url, json={"idToken": token}, timeout=10)
+                resp = requests.post(del_url, json={"idToken": token}, timeout=HTTP_TIMEOUT)
                 if resp.status_code == 200:
                     deleted_count += 1
                 else:
@@ -857,6 +868,19 @@ class LocalAcceptanceRunner:
                 self.log(f"  - {em}: {reason}")
         else:
             self.log(f"[CLEANUP COMPLETE] Successfully deleted all {deleted_count} temporary accounts.")
+
+    def _run_check(self, cid: str, check_fn: Any) -> None:
+        """Executes a single check with timing, progress logging, and exception protection."""
+        self.log(f"[{cid} start]")
+        t0 = time.time()
+        try:
+            check_fn()
+        except Exception as exc:
+            self.log(f"  [{cid} unhandled exception]: {exc}")
+            if not any(r.get("id") == cid for r in self.results):
+                self.results.append({"id": cid, "feature": getattr(check_fn, "__doc__", cid) or cid, "status": "FAIL", "evidence": f"Unhandled exception: {exc}"})
+        elapsed = time.time() - t0
+        self.log(f"[{cid} done ({elapsed:.1f}s)]")
 
     def run_all(self) -> None:
         self.print_env_status()
@@ -876,24 +900,36 @@ class LocalAcceptanceRunner:
             return
 
         self.log("Running Real HTTP Acceptance Checks (LA-01 to LA-18)...")
-        self.run_la_01()
-        self.run_la_02()
-        self.run_la_03()
-        self.run_la_04()
-        self.run_la_05()
-        self.run_la_06()
-        self.run_la_07()
-        self.run_la_08()
-        self.run_la_09()
-        self.run_la_10()
-        self.run_la_11()
-        self.run_la_12()
-        self.run_la_13()
-        self.run_la_14()
-        self.run_la_15()
-        self.run_la_16()
-        self.run_la_17()
-        self.run_la_18()
+        checks = [
+            ("LA-01", self.run_la_01),
+            ("LA-02", self.run_la_02),
+            ("LA-03", self.run_la_03),
+            ("LA-04", self.run_la_04),
+            ("LA-05", self.run_la_05),
+            ("LA-06", self.run_la_06),
+            ("LA-07", self.run_la_07),
+            ("LA-08", self.run_la_08),
+            ("LA-09", self.run_la_09),
+            ("LA-10", self.run_la_10),
+            ("LA-11", self.run_la_11),
+            ("LA-12", self.run_la_12),
+            ("LA-13", self.run_la_13),
+            ("LA-14", self.run_la_14),
+            ("LA-15", self.run_la_15),
+            ("LA-16", self.run_la_16),
+            ("LA-17", self.run_la_17),
+            ("LA-18", self.run_la_18),
+        ]
+
+        run_start = time.time()
+        for cid, fn in checks:
+            if getattr(self, "safety_abort", False):
+                self.log(f"[ABORT] Safety abort active. Skipping {cid}.")
+                continue
+            if time.time() - run_start > MAX_OVERALL_RUN_SECONDS:
+                self.log(f"\n[TIMEOUT] Overall run exceeded 20 minutes ({MAX_OVERALL_RUN_SECONDS}s). Aborting remaining checks.")
+                break
+            self._run_check(cid, fn)
 
         self.log("Registering Sprint Placeholders (LA-20 to LA-31)...")
         self.add_placeholders()
