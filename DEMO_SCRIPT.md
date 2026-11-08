@@ -23,6 +23,7 @@ The system runs under strictly verified Release 2 flags. If any live cloud depen
 | `ORCHESTRATOR` | `"direct"` | Check-in orchestrator (`direct` default; LangGraph `graph` mode proven 100% equivalent across 78/78 cases). | direct execution has zero external dependencies. |
 | `EXPLAIN_ENABLED` | `"true"` (or `"false"`) | Asynchronous background explainer. Turned on only if Day 7 smoke passes. | **Instant Fallback**: turning `EXPLAIN_ENABLED=false` routes all check-ins to deterministic templates (`rag/templates.json`). |
 | `EXPLAIN_MODE` | `"background"` | Non-blocking /complete API response; LLM explanation processed asynchronously by worker. | If worker is delayed, UI polls up to 90s then cleanly displays templates. |
+| `LLM_PROVIDER` | `"groq"` | Primary LLM provider configured with `GROQ_MODEL="qwen/qwen3.8-27b"`. (Gemini held unset due to 503s). | Automated fallback to human-reviewed clinical templates. |
 | `EXPLAIN_LLM_LANGUAGES` | `"en"` | Release 2 setting: LLM explanations generated in English only. Urdu and Roman Urdu check-ins route safely to verified deterministic templates. | Instant automated fallback to templates via `language_template_only` guard. |
 | `RISK_ENABLED` | `"true"` | Provider-only cardiometabolic risk panel (#90). | Strictly hidden from patient view (response risk is `null`). |
 | `RISK_CAN_RAISE` | `"false"` | Risk model is advisory only; cannot raise patient triage level. | Invariant enforced by `triage_protocol.py`. |
@@ -34,6 +35,7 @@ The system runs under strictly verified Release 2 flags. If any live cloud depen
 ## 2. Cold-Start & Slow LLM Contingency Talking Points
 
 ### Cold-Start Server Wakeup (15–40s delay)
+- **Pre-Demo Procedure**: Open the live site 10 minutes before the demo to warm up the backend container. If the free Render instance gets stuck while waking up (no response > 2 min, no log lines), navigate to Render dashboard and select **Manual Deploy -> Restart service**.
 - **What happens**: The live cloud API (Render free tier) spins down containers after inactivity. The first HTTP request triggers container wakeup.
 - **What to say**:  
   > *"The live backend runs on a managed free-tier container. When idle, container wake-up takes 15 to 40 seconds. Observe that the user interface immediately informs the patient with a calm notification bar: 'Waking up the server, this can take up to a minute on the free test plan'. It clears automatically the moment the backend health check succeeds."*

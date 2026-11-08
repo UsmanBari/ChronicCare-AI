@@ -30,6 +30,14 @@
 | `FHIR_BASE_URL` | No | Optional default FHIR server URL override. | Target hospital or sandbox endpoint. |
 | `REQUIRE_INCLUSION` | No | Enforces adult inclusion confirmation on check-in start (`1` or `0`). | Internal policy. |
 | `INTERVIEW_ENGINE` | No | Check-in engine version: `v2` (default legacy engine) or `v3` (Adaptive modular engine). | Set to `v3` to activate Adaptive Interview v3. |
+| `RISK_ENABLED` | No | Activates risk advisory evaluation for provider review (`true`/`false`). Gated: patient view is strictly null. | Render Dashboard -> Environment. |
+| `RISK_CAN_RAISE` | No | Must remain `false` in production. Prevents risk model from escalating deterministic triage. | Render Dashboard -> Environment. |
+| `DANGER_WORDGROUPS_ENABLED` | No | Activates acute symptom word-groups red-flag detector (`true`/`false`). | Render Dashboard -> Environment. |
+| `EXPLAIN_MODE` | No | Explanation execution mode: `background` (asynchronous queue) or `inline`. Set to `background` for Release 2. | Render Dashboard -> Environment. |
+| `LLM_PROVIDER` | No | Provider selection: `groq` (production sole provider for Release 2) or `auto`. | Render Dashboard -> Environment. |
+| `EXPLAIN_LLM_CONDITIONS` | No | Comma-separated list of conditions permitted for LLM explanations (e.g. `hypertension,diabetes`). | Render Dashboard -> Environment. |
+| `EXPLAIN_LLM_LANGUAGES` | No | Comma-separated list of languages permitted for LLM explanations. Set to `en` for Release 2. | Render Dashboard -> Environment. |
+| `EXPLAIN_ENABLED` | No | Master switch for RAG guideline explainer (`true`/`false`). Activate after loading chunks. | Render Dashboard -> Environment. |
 
 ### B. Netlify (Frontend Site)
 
@@ -112,7 +120,15 @@ In Firebase Console -> **Authentication** -> **Settings** -> **Authorized domain
      python scripts/mysql_preflight.py
      ```
 
-4. **Step 4: Deploy Frontend to Netlify**:
+4. **Step 3b: Load Guideline Chunks into Production MySQL (Release 2)**:
+   - When deploying Release 2 (RAG guideline explainer), the human operator loads the guideline corpus from the local data directory into the production database using this exact command:
+     ```powershell
+     $env:DB_BACKEND="mysql"; python scripts/rag/load_chunks.py --file "$env:CHRONICCARE_DATA_DIR\rag\chunks.jsonl"; Remove-Item Env:DB_BACKEND
+     ```
+   - Verify that chunks are loaded using `scripts/prod_schema_readonly.py` (assert `guideline_chunks` row count equals 1,175).
+   - Once chunks are verified, set `EXPLAIN_ENABLED=true` in Render dashboard.
+
+5. **Step 4: Deploy Frontend to Netlify**:
    - Link repository to Netlify with build command `npm run build` and publish directory `out`.
    - Add the `NEXT_PUBLIC_*` environment variables in Netlify site settings.
    - Trigger build and note the live Netlify domain URL.
