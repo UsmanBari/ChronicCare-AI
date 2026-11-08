@@ -900,6 +900,7 @@ def step_explain(
                 store=store,
                 candidate_chunks=candidate_chunks,
                 llm=llm,
+                language=language,
             )
             if not is_eligible:
                 # Ineligible check-in: generate template explanation immediately with status ready

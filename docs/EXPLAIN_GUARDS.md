@@ -139,6 +139,10 @@ sequenceDiagram
 - **Dual-Condition Handling:** For patients diagnosed with both diabetes and hypertension, the LLM is invoked ONLY if the primary trigger for the check-in is an elevated blood pressure trigger (`bp_systolic_urgent`, `bp_diastolic_urgent`, `bp_both_urgent`, `bp_systolic_elevated`, `bp_diastolic_elevated`, `bp_both_elevated`, `bp_normal`). If the trigger is glucose-related or routine, deterministic templates are returned.
 - **Pre-Ranking Guideline Exclusion:** Diabetes guidelines (ADA, IDF-DAR, AKU) are left out before ranking for patients without diabetes (`exclude_source_prefixes=("ada_2026", "idf_dar", "aku_diabetes")`). Diabetic and dual-condition patients retain full access to diabetes guidelines.
 
+### Guard 8b: Language Safety Filter
+- **Language Eligibility:** Only check-in languages configured in `EXPLAIN_LLM_LANGUAGES` (code default `en,ur,roman_ur`) are permitted to invoke generative LLMs.
+- **Release 2 English-Only:** For Release 2 (`EXPLAIN_LLM_LANGUAGES=en`), Urdu and Roman Urdu check-ins route immediately to human-reviewed deterministic templates (`reason='language_template_only'`), bypassing LLM generation, translation, OTPM pacer waiting, and cache lookups/writes.
+
 ### Guard 9: Deterministic Template Consistency Guard (H2)
 - **Reading-Template Alignment:** Whenever a deterministic template is selected, `is_template_consistent` validates that the template language does not contradict actual numerical vitals (e.g., normal BP or normal glucose paired with an urgent/high template).
 - **Automatic Correction:** If an inconsistency is detected (e.g. a routine check-in paired with a high-blood-pressure template due to trigger misalignment), the system automatically substitutes a neutral routine template for that language with `reason='template_corrected'`.
@@ -163,6 +167,7 @@ sequenceDiagram
 | `GEMINI_MODEL` | str | `""` | string | Google Gemini model ID (e.g. `gemini-2.5-flash`). Required if using Gemini. |
 | `GEMINI_THINKING_BUDGET` | str | `""` | int string (e.g. `0`) or `none` | Optional Gemini thinking budget. Defaults to `0` (disables thinking for speed) when unset; set to `none` to omit `thinkingConfig`. |
 | `EXPLAIN_LLM_CONDITIONS` | str | `hypertension` | comma-separated list | Clinical conditions eligible for LLM explanations (diabetes is template-only). |
+| `EXPLAIN_LLM_LANGUAGES` | str | `en,ur,roman_ur` | comma-separated list | Languages eligible for LLM explanations (`en`, `ur`, `roman_ur`). Non-eligible languages fall back to reviewed deterministic templates (`language_template_only`). |
 | `EXPLAIN_MODE` | str | `background` | `background`, `inline` | Job execution mode: `background` worker or synchronous `inline`. |
 | `EXPLAIN_QUEUE_MAX` | int | `50` | `1` - `500` | Bounded capacity for background explanation job queue. |
 | `EXPLAIN_JOB_DEADLINE_SECONDS` | float | `45.0` | `10.0` - `120.0` | Total wall-clock deadline for background explanation job. |
@@ -231,6 +236,7 @@ Whenever `mode == "template"`, the `reason` field indicates why deterministic fa
 | `busy` | All worker semaphore slots (`EXPLAIN_POOL_MAX_WORKERS`) are in use. | High concurrent traffic spike. Increase `EXPLAIN_POOL_MAX_WORKERS` (default 8). |
 | `licence_restricted` | Retrieved guideline chunk is restricted by licence terms (G3/X3), lacks required attribution (X4), or provider is prohibited (e.g. Gemini prohibited for ADA 2026; AHA/ACC blocked). | Normal safety behavior. The system safely falls back to verified deterministic templates or alternative permitted providers. |
 | `condition_template_only` | Check-in condition is not in `EXPLAIN_LLM_CONDITIONS` (e.g. diabetes). | Normal clinical safety behavior. Diabetes explanations are deterministic template-only. |
+| `language_template_only` | Check-in language is not in `EXPLAIN_LLM_LANGUAGES` (e.g. `ur` or `roman_ur`). | Normal clinical safety behavior. Urdu and Roman Urdu explanations use reviewed deterministic templates for Release 2. |
 | `template_corrected` | Deterministic template contradicted actual vitals and was replaced with neutral routine template. | Normal safety invariant enforcement. Check trigger mapping logic. |
 | `error` | Upstream JSON deserialization or network socket exception. | Inspect backend application error logs. |
 

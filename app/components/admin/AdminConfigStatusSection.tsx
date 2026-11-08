@@ -35,6 +35,8 @@ export const AdminConfigStatusSection: React.FC = () => {
           RISK_CAN_RAISE: false,
           EXPLAIN_ENABLED: false,
           EXPLAIN_MODE: "background",
+          EXPLAIN_LLM_CONDITIONS: "hypertension",
+          EXPLAIN_LLM_LANGUAGES: "en,ur,roman_ur",
           OCR_ENABLED: false,
           DANGER_WORDGROUPS_ENABLED: false,
           ORCHESTRATOR: "direct",

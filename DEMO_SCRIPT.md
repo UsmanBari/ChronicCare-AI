@@ -23,6 +23,7 @@ The system runs under strictly verified Release 2 flags. If any live cloud depen
 | `ORCHESTRATOR` | `"direct"` | Check-in orchestrator (`direct` default; LangGraph `graph` mode proven 100% equivalent across 78/78 cases). | direct execution has zero external dependencies. |
 | `EXPLAIN_ENABLED` | `"true"` (or `"false"`) | Asynchronous background explainer. Turned on only if Day 7 smoke passes. | **Instant Fallback**: turning `EXPLAIN_ENABLED=false` routes all check-ins to deterministic templates (`rag/templates.json`). |
 | `EXPLAIN_MODE` | `"background"` | Non-blocking /complete API response; LLM explanation processed asynchronously by worker. | If worker is delayed, UI polls up to 90s then cleanly displays templates. |
+| `EXPLAIN_LLM_LANGUAGES` | `"en"` | Release 2 setting: LLM explanations generated in English only. Urdu and Roman Urdu check-ins route safely to verified deterministic templates. | Instant automated fallback to templates via `language_template_only` guard. |
 | `RISK_ENABLED` | `"true"` | Provider-only cardiometabolic risk panel (#90). | Strictly hidden from patient view (response risk is `null`). |
 | `RISK_CAN_RAISE` | `"false"` | Risk model is advisory only; cannot raise patient triage level. | Invariant enforced by `triage_protocol.py`. |
 | `DANGER_WORDGROUPS_ENABLED`| `"true"` | Vernacular Urdu composable danger word groups detector. | Raises uncaptured Urdu danger cues to `review`. |

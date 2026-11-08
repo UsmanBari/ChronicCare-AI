@@ -73,6 +73,8 @@ DEFAULT_MAX_WORKERS: int = 8
 DEFAULT_LLM_PROVIDER: str = "auto"
 DEFAULT_LLM_PROVIDER_ORDER: str = "groq,gemini"
 DEFAULT_LLM_CONDITIONS: str = "hypertension"
+DEFAULT_LLM_LANGUAGES: str = "en,ur,roman_ur"
+ALLOWED_LLM_LANGUAGES: tuple[str, ...] = ("en", "ur", "roman_ur")
 DEFAULT_EXPLAIN_MODE: str = "background"
 DEFAULT_QUEUE_MAX: int = 50
 DEFAULT_JOB_DEADLINE_SECONDS: float = 45.0
@@ -152,6 +154,18 @@ def get_llm_provider_order() -> List[str]:
 def get_explain_llm_conditions() -> Set[str]:
     cond_str = os.environ.get("EXPLAIN_LLM_CONDITIONS", DEFAULT_LLM_CONDITIONS).strip().lower()
     return {c.strip() for c in cond_str.split(",") if c.strip()}
+
+
+def get_explain_llm_languages() -> Set[str]:
+    raw = os.environ.get("EXPLAIN_LLM_LANGUAGES", DEFAULT_LLM_LANGUAGES).strip().lower()
+    parsed = {lang.strip() for lang in raw.split(",") if lang.strip() in ALLOWED_LLM_LANGUAGES}
+    return parsed if parsed else {"en"}
+
+
+def is_language_allowed_for_llm(language: str) -> bool:
+    allowed = get_explain_llm_languages()
+    lang = (language or "en").strip().lower()
+    return lang in allowed
 
 
 def is_condition_allowed_for_llm(condition: str, trigger_category: str) -> bool:
@@ -689,6 +703,7 @@ _FALLBACK_COUNTS: Dict[str, int] = {
     "no_chunks": 0,
     "busy": 0,
     "condition_template_only": 0,
+    "language_template_only": 0,
     "template_corrected": 0,
     "error": 0,
 }
@@ -852,12 +867,17 @@ def check_llm_eligibility(
     breaker: Optional[CircuitBreaker] = None,
     daily_token_guard: Optional[TokenCapGuard] = None,
     llm: Any = None,
+    language: str = "en",
 ) -> Tuple[bool, Optional[str]]:
     """
     Evaluates whether an LLM call can be attempted for this check-in.
     Returns (True, None) if eligible, or (False, reason) if ineligible.
     Shares identical evaluation helpers and order with guarded_explain.
     """
+    # 0. Language check: if check-in language is not allowed for LLM, return template reason
+    if not is_language_allowed_for_llm(language):
+        return False, "language_template_only"
+
     cond_str = (condition or "hypertension").strip().lower()
 
     # 1. Condition check (H1)
@@ -1029,22 +1049,6 @@ def guarded_explain(
                     exclude_source_prefixes=exclude_prefixes,
                 )
 
-    # 2. Check Cache with Safety Re-Validation
-    cached_hit = exp_cache.get(
-        key=cache_key,
-        readings=readings_copy,
-        triage_result=triage_copy,
-        decided_level=decided_level,
-        store=store,
-        candidate_chunks=candidate_chunks,
-    )
-    if cached_hit is not None:
-        cached_hit.setdefault("provider", None)
-        cached_hit.setdefault("providers_tried", [])
-        cached_hit["provider_timings"] = {}
-        cached_hit["tokens_used"] = 0
-        return cached_hit
-
     providers_tried: List[str] = []
     provider_timings: Dict[str, float] = {}
 
@@ -1078,6 +1082,26 @@ def guarded_explain(
         ]
         record_fallback(final_reason)
         return tmpl
+
+    # 1.5 Check Language Gate: if check-in language is not allowed for LLM, return template immediately (never read/write cache)
+    if not is_language_allowed_for_llm(target_lang):
+        return _make_template_fallback("language_template_only", ["Language not permitted for LLM explainer"])
+
+    # 2. Check Cache with Safety Re-Validation
+    cached_hit = exp_cache.get(
+        key=cache_key,
+        readings=readings_copy,
+        triage_result=triage_copy,
+        decided_level=decided_level,
+        store=store,
+        candidate_chunks=candidate_chunks,
+    )
+    if cached_hit is not None:
+        cached_hit.setdefault("provider", None)
+        cached_hit.setdefault("providers_tried", [])
+        cached_hit["provider_timings"] = {}
+        cached_hit["tokens_used"] = 0
+        return cached_hit
 
     # 3. Check Condition Gate (H1)
     if not is_condition_allowed_for_llm(cond_str, trigger_category):
