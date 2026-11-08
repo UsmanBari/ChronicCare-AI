@@ -206,7 +206,11 @@ def extract_card_mask(df: pd.DataFrame, card_pop_name: str, base_pop_mask: pd.Se
         return base_pop_mask & (df["told_high_bp"] == 1)
     elif card_pop_name == "told_diabetes_1":
         return base_pop_mask & (df["told_diabetes"] == 1)
-    elif card_pop_name in ("hypertension_or_diabetes", "all_eligible"):
+    elif card_pop_name == "hypertension_or_diabetes":
+        hyp = (df["prevalent_hyp"] == 1) if "prevalent_hyp" in df.columns else (df.get("prevalentHyp", 0) == 1)
+        diab = (df["diabetes"] == 1) if "diabetes" in df.columns else 0
+        return base_pop_mask & (hyp | diab)
+    elif card_pop_name == "all_eligible":
         return base_pop_mask
     else:
         raise ValueError(f"Unknown card population: {card_pop_name}")
@@ -641,12 +645,17 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     card_prev = (n_card_pos / n_card * 100.0) if n_card > 0 else 0.0
 
     if n_card_pos >= 10:
-        card_auroc = auroc(card_test_df["_target"].to_numpy(), card_test_df["_prob"].to_numpy())
-        card_metrics = metrics_at_threshold(card_test_df["_target"].to_numpy(), card_test_df["_prob"].to_numpy(), locked_threshold)
-        card_sens = card_metrics["sensitivity"]
-        card_spec = card_metrics["specificity"]
+        card_ci_auroc = bootstrap_ci(card_test_df["_target"].to_numpy(), card_test_df["_prob"].to_numpy(), metric_fn=auroc, n_boot=1000, seed=seed)
+        card_auroc = card_ci_auroc.point
+        card_metrics_10 = metrics_at_threshold(card_test_df["_target"].to_numpy(), card_test_df["_prob"].to_numpy(), locked_threshold)
+        card_metrics_20 = metrics_at_threshold(card_test_df["_target"].to_numpy(), card_test_df["_prob"].to_numpy(), 0.20)
+        card_sens = card_metrics_10["sensitivity"]
+        card_spec = card_metrics_10["specificity"]
     else:
+        card_ci_auroc = None
         card_auroc = None
+        card_metrics_10 = None
+        card_metrics_20 = None
         card_sens = None
         card_spec = None
 
@@ -663,6 +672,26 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     auroc_disp = f"{card_auroc:.4f}" if card_auroc is not None else "N/A"
     sens_disp = f"{card_sens:.2%}" if card_sens is not None else "N/A"
     print(f"  Card Population ({card_pop_name}): n={n_card:,}, pos={n_card_pos:,} ({card_prev:.1f}%), AUROC={auroc_disp}, Sens={sens_disp}")
+
+    if name == "chd10_framingham" and card_ci_auroc is not None and card_metrics_10 is not None and card_metrics_20 is not None:
+        print("\n=======================================================")
+        print("App population (post-hoc, not a gate): prevalent_hyp == 1 OR diabetes == 1")
+        print(f"  n = {n_card:,}, positives = {n_card_pos:,}, prevalence = {card_prev:.2f}%")
+        print(f"  AUROC: {card_ci_auroc.point:.4f} [95% CI: {card_ci_auroc.low:.4f} - {card_ci_auroc.high:.4f}]")
+        print(f"  Cut 10%: Sensitivity = {card_metrics_10['sensitivity']:.2%}, Specificity = {card_metrics_10['specificity']:.2%}, PPV = {card_metrics_10['ppv']:.2%}")
+        print(f"  Cut 20%: Sensitivity = {card_metrics_20['sensitivity']:.2%}, Specificity = {card_metrics_20['specificity']:.2%}, PPV = {card_metrics_20['ppv']:.2%}")
+        print("=======================================================")
+
+        print("\n--- AGE SUBGROUPS AT 20% CUT ---")
+        for ab in ["<50", "50-59", "60+"]:
+            sub_df = test_clean_df[test_clean_df["age_band"] == ab]
+            y_ab = sub_df["_target"].to_numpy(dtype=int)
+            p_ab = sub_df["_prob"].to_numpy(dtype=float)
+            m_ab_10 = metrics_at_threshold(y_ab, p_ab, 0.10)
+            m_ab_20 = metrics_at_threshold(y_ab, p_ab, 0.20)
+            print(f"  Age {ab} (n={len(sub_df):,}, pos={int(y_ab.sum()):,}):")
+            print(f"    @ 10% Cut: Sens={m_ab_10['sensitivity']:.2%}, Spec={m_ab_10['specificity']:.2%}, PPV={m_ab_10['ppv']:.2%}")
+            print(f"    @ 20% Cut: Sens={m_ab_20['sensitivity']:.2%}, Spec={m_ab_20['specificity']:.2%}, PPV={m_ab_20['ppv']:.2%}")
 
     # Find worst subgroup sensitivity among evaluated groups with >= 50 positives
     worst_group = None
@@ -1039,10 +1068,11 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     metrics_path.write_text(json.dumps(metrics_payload, indent=2), encoding="utf-8")
 
     # Generate Markdown Report
+    pop_header = "App applicability (who sees the result; NOT a training filter)" if name == "chd10_framingham" else "Population Filter"
     sec_config = (
         f"- **Name:** `{name}`\n"
         f"- **Target Label:** `{label_name}`\n"
-        f"- **Population Filter:** `{population_name}`\n"
+        f"- **{pop_header}:** `{population_name}`\n"
         f"- **Tier:** `{tier}`\n"
         f"- **Features ({len(features)}):** `{', '.join(features)}`\n"
         f"- **Candidate Models:** `{', '.join(model_types_to_try)}`\n"
@@ -1094,6 +1124,15 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
         sec_val += f"\n> **Clinical Warning:** {ranking_warning}.\n"
 
     if name == "chd10_framingham":
+        card_app_md = ""
+        if card_ci_auroc is not None and card_metrics_10 is not None and card_metrics_20 is not None:
+            card_app_md = (
+                f"### App Population (Post-Hoc, Not a Gate: prevalent_hyp == 1 OR diabetes == 1)\n\n"
+                f"- **Cohort Size (n):** {n_card:,} (Positives: {n_card_pos:,}, Prevalence: {card_prev:.2f}%)\n"
+                f"- **AUROC (95% Bootstrap CI):** **{card_ci_auroc.point:.4f}** [{card_ci_auroc.low:.4f} - {card_ci_auroc.high:.4f}]\n"
+                f"- **At 10% Cut:** Sensitivity = **{card_metrics_10['sensitivity']:.2%}**, Specificity = **{card_metrics_10['specificity']:.2%}**, PPV = **{card_metrics_10['ppv']:.2%}**\n"
+                f"- **At 20% Cut:** Sensitivity = **{card_metrics_20['sensitivity']:.2%}**, Specificity = **{card_metrics_20['specificity']:.2%}**, PPV = **{card_metrics_20['ppv']:.2%}**\n\n"
+            )
         sec_test = (
             f"### Held-Out Test Discrimination & Diagnostic Performance\n\n"
             f"- **Test AUROC (95% Bootstrap CI):** **{ci_auroc.point:.4f}** [{ci_auroc.low:.4f} - {ci_auroc.high:.4f}]\n"
@@ -1114,6 +1153,7 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
             f"- **NPV:** **{m_test_20['npv']:.2%}**\n"
             f"- **F1-Score:** **{m_test_20['f1']:.4f}**\n"
             f"- **Confusion Matrix:** TP={m_test_20['tp']}, FP={m_test_20['fp']}, TN={m_test_20['tn']}, FN={m_test_20['fn']}\n\n"
+            f"{card_app_md}"
             f"### Pre-Registered Acceptance Gates Audit (G1 - G5)\n\n"
             f"- Gate 1 (Test AUROC >= 0.68): **{gate_results['gate_1_test_auroc_ge_0_68']}** ({ci_auroc.point:.4f})\n"
             f"- Gate 2 (Test Calibration Slope in [0.80, 1.20]): **{gate_results['gate_2_calibration_slope_in_0_80_1_20']}** ({slope_str})\n"
@@ -1189,6 +1229,9 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
         sec_lim = (
             f"- **Dataset Context:** Framingham Heart Study 10-year risk reflects an American cohort initialized in 1948 with predominantly White participants; baseline risk may vary for contemporary South Asian populations.\n"
             f"- **Clinical Setting:** BP readings in Framingham were standardized clinical measurements, whereas ChronicCare AI receives home self-measurements.\n"
+            f"- **No Cholesterol in Model:** Total serum cholesterol was deliberately omitted from this non-lab model tier; lipid-driven risk is unmodeled.\n"
+            f"- **External Validation:** Model has never been validated on Pakistani patients or contemporary South Asian diaspora cohorts.\n"
+            f"- **Elderly Specificity Drop:** At the 10% cut, specificity is 0.0% for Age 60+ (every patient aged 60+ is flagged as at least Moderate) and 13.5% for Age 50-59. Age heavily drives predictions; at the 20% cut, specificity recovers to 28.18% for 60+ and 69.23% for 50-59.\n"
             f"- **Intended Use:** Provider decision support with patient-facing risk tier; raw risk percentages are not shown to patients to avoid unnecessary anxiety.\n"
         )
     else:
@@ -1206,6 +1249,7 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
         "Calibration": sec_cal,
         "Subgroups": sec_sub,
         "Limitations": sec_lim,
+        "custom_limitations_only": (name == "chd10_framingham"),
     }
 
     doc_report_path = out_docs_dir / f"{name}.md"

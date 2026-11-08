@@ -170,7 +170,7 @@ From `docs/ml/DECISION_CURVE.md`:
 ### 1b.4 Data, Cohort & Stratified Split
 - **Dataset:** Framingham Heart Study 10-year cardiovascular risk dataset.
 - **Target Label:** `TenYearCHD` (1 = coronary heart disease event within 10 years).
-- **Cohort Selection:** Complete-case analysis across 9 non-lab features; 74 missing records dropped out of 4,240 (4,166 complete cases, 14.98% overall prevalence).
+- **Cohort Selection:** Complete-case analysis across 9 non-lab features; 72 missing records dropped out of 4,238 raw records (4,166 complete cases, 623 positive cases, 14.95% overall prevalence).
 - **Splits (`random_state=42`):**
   - **Train Core (60%):** 2,499 rows (374 positives, prevalence 14.97%). 5-fold CV for hyperparameter tuning.
   - **Validation (20%):** 833 rows (124 positives, prevalence 14.89%). Used for model selection and calibration gating.
@@ -215,15 +215,33 @@ From `docs/ml/DECISION_CURVE.md`:
 Evaluated across sex and age brackets on held-out test data:
 | Subgroup Variable | Subgroup Value | $N$ | Positives | Prevalence | AUROC | Sensitivity @ 10% | Specificity @ 10% |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `sex_male` | Female | 468 | 61 | 13.03% | 0.7226 | 72.13% | 52.33% |
-| `sex_male` | Male | 366 | 64 | 17.49% | 0.6976 | 96.88% | 21.19% |
-| `age_band` | <50 | 441 | 38 | 8.62% | 0.6698 | 60.53% | 61.29% |
-| `age_band` | 50-59 | 247 | 44 | 17.81% | 0.7188 | 93.18% | 22.17% |
-| `age_band` | 60+ | 146 | 43 | 29.45% | 0.6865 | 97.67% | 6.80% |
+| `sex_male` | Female | 458 | 61 | 13.3% | 0.7422 | 72.1% | 58.2% |
+| `sex_male` | Male | 376 | 64 | 17.0% | 0.7036 | 96.9% | 14.7% |
+| `age_band` | <50 | 429 | 38 | 8.9% | 0.7140 | 60.5% | 63.7% |
+| `age_band` | 50-59 | 261 | 53 | 20.3% | 0.6616 | 92.5% | 13.5% |
+| `age_band` | 60+ | 144 | 34 | 23.6% | 0.5955 | 100.0% | 0.0% |
 
 - **Worst Subgroup Sensitivity ($\ge 30$ positives):** `age_band=<50` at **60.53%** (38 positives), meeting the pre-registered Gate 4 threshold ($\ge 60\%$).
 
-### 1b.9 Pre-Registered Acceptance Gates (G1–G5)
+#### Performance across Operating Cutoffs by Age Group
+| Age Group | $n$ | Positives | Sensitivity @ 10% | Specificity @ 10% | PPV @ 10% | Sensitivity @ 20% | Specificity @ 20% | PPV @ 20% |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **<50** | 429 | 38 | 60.53% | 63.68% | 13.94% | 36.84% | 96.68% | 51.85% |
+| **50–59** | 261 | 53 | 92.45% | 13.46% | 21.40% | 58.49% | 69.23% | 32.63% |
+| **60+** | 144 | 34 | 100.00% | 0.00% | 23.61% | 82.35% | 28.18% | 26.17% |
+
+> **Clinical Finding on Age Group 60+:** For patients 60 and over the model almost always says Moderate or High; age drives it. At the 10% cutoff, specificity is 0.0% for 60+ (every participant aged 60+ is categorized as Moderate or High) and 13.5% for 50–59. When moving to the 20% High Risk cutoff, specificity recovers to 28.18% for 60+ and 69.23% for 50–59.
+
+### 1b.9 App Population Performance (post-hoc, not a gate: `prevalent_hyp == 1 OR diabetes == 1`)
+The application presents the CHD risk card only to patients with documented hypertension or diabetes. Per Decision D13, post-hoc monitoring of this specific subpopulation is reported on the held-out test set ($N=834$):
+- **Cohort Size ($n$):** 271 (Positives: 69, Prevalence: 25.46%)
+- **AUROC (95% Bootstrap CI):** **0.6488** [0.5795, 0.7135]
+- **At 10% Cutoff:** Sensitivity = **100.00%**, Specificity = **6.44%**, PPV = **26.74%**
+- **At 20% Cutoff:** Sensitivity = **81.16%**, Specificity = **46.04%**, PPV = **33.94%**
+
+*(Note: As established in D13, this is reported post-hoc to monitor performance on the specific cohort that sees the card in the application; it is not a gate and does not change the model.)*
+
+### 1b.10 Pre-Registered Acceptance Gates (G1–G5)
 | Gate | Metric Criterion | Pre-Registered Target | Actual Test Result | Outcome |
 | :--- | :--- | :--- | :--- | :--- |
 | **G1** | Discrimination | Test AUROC $\ge 0.68$ | **0.7241** [0.6732, 0.7659] | **PASS** |
@@ -234,10 +252,13 @@ Evaluated across sex and age brackets on held-out test data:
 
 **Final Recommendation:** **SHIP CANDIDATE** (all 5 pre-registered gates passed; exported to `backend-poc-technical/models/chd10_framingham.json`).
 
-### 1b.10 Limitations & Transportability
+### 1b.11 Limitations & Transportability
 1. **US Framingham Origin:** The model is trained on historic American Framingham cohort data (1948 cohort) with predominantly White participants. Baseline cardiovascular disease risk, onset age, and metabolic profiles differ substantially in South Asian and Pakistani populations.
 2. **Measurement Setting Differences:** Framingham blood pressures were recorded by trained clinical staff using mercury sphygmomanometers under protocol conditions; ChronicCare AI collects home self-reported BP measurements.
-3. **Withholding Numerical Probabilities from Patients:** To avoid health anxiety and misinterpretation, patients are shown the three standard risk bands (`Low`, `Moderate`, `High`) with an explicit non-diagnostic note rather than continuous risk percentages.
+3. **No Cholesterol in Model:** Total serum cholesterol was deliberately omitted from this non-lab model tier to support seamless app risk stratification without requiring an immediate blood draw.
+4. **Lack of External Validation on Pakistani Patients:** The model has never been clinically validated on Pakistani patients or contemporary South Asian diaspora cohorts.
+5. **Elderly Specificity Drop:** For patients 60 and over the model almost always says Moderate or High; age drives it. Specificity at the 10% cutoff is 0.0% for Age 60+ and 13.5% for Age 50–59; at the 20% cutoff, specificity improves to 28.18% for 60+ and 69.23% for 50–59.
+6. **Withholding Numerical Probabilities from Patients:** To avoid health anxiety and misinterpretation, patients are shown the three standard risk bands (`Low`, `Moderate`, `High`) with an explicit non-diagnostic note rather than continuous risk percentages.
 
 ---
 

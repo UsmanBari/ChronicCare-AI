@@ -595,12 +595,13 @@ def write_eval_report(path: Path | str, sections: dict[str, Any]) -> None:
             lines.append(str(content).strip())
 
         if sec == "Limitations":
-            if content and mandatory_limitations not in str(content):
-                lines.append("")
-                lines.append(mandatory_limitations)
-            elif not content:
-                lines.append("")
-                lines.append(mandatory_limitations)
+            if not sections.get("custom_limitations_only", False):
+                if content and mandatory_limitations not in str(content):
+                    lines.append("")
+                    lines.append(mandatory_limitations)
+                elif not content:
+                    lines.append("")
+                    lines.append(mandatory_limitations)
 
         lines.append("")
 

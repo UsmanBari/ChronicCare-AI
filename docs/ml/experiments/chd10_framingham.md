@@ -3,13 +3,13 @@
 ## Config
 - **Name:** `chd10_framingham`
 - **Target Label:** `TenYearCHD`
-- **Population Filter:** `hypertension_or_diabetes`
+- **App applicability (who sees the result; NOT a training filter):** `hypertension_or_diabetes`
 - **Tier:** `full`
 - **Features (9):** `age, sex_male, current_smoker, bmi, sbp, dbp, bp_meds, diabetes, prevalent_hyp`
 - **Candidate Models:** `lr, lr_balanced, rf, hgb`
 - **Threshold Policy:** `{"type": "fixed", "value": 0.1}`
 - **Seed:** `42`
-- **Wall Time:** 8.24 seconds (0.1 minutes)
+- **Wall Time:** 21.11 seconds (0.4 minutes)
 
 ## Data
 ### Complete Case Cohort Statistics Across Stratified 60/20/20 Splits
@@ -60,6 +60,13 @@
 - **NPV:** **91.40%**
 - **F1-Score:** **0.4124**
 - **Confusion Matrix:** TP=73, FP=156, TN=553, FN=52
+
+### App Population (Post-Hoc, Not a Gate: prevalent_hyp == 1 OR diabetes == 1)
+
+- **Cohort Size (n):** 271 (Positives: 69, Prevalence: 25.46%)
+- **AUROC (95% Bootstrap CI):** **0.6488** [0.5795 - 0.7135]
+- **At 10% Cut:** Sensitivity = **100.00%**, Specificity = **6.44%**, PPV = **26.74%**
+- **At 20% Cut:** Sensitivity = **81.16%**, Specificity = **46.04%**, PPV = **33.94%**
 
 ### Pre-Registered Acceptance Gates Audit (G1 - G5)
 
@@ -176,9 +183,7 @@
 ## Limitations
 - **Dataset Context:** Framingham Heart Study 10-year risk reflects an American cohort initialized in 1948 with predominantly White participants; baseline risk may vary for contemporary South Asian populations.
 - **Clinical Setting:** BP readings in Framingham were standardized clinical measurements, whereas ChronicCare AI receives home self-measurements.
+- **No Cholesterol in Model:** Total serum cholesterol was deliberately omitted from this non-lab model tier; lipid-driven risk is unmodeled.
+- **External Validation:** Model has never been validated on Pakistani patients or contemporary South Asian diaspora cohorts.
+- **Elderly Specificity Drop:** At the 10% cut, specificity is 0.0% for Age 60+ (every patient aged 60+ is flagged as at least Moderate) and 13.5% for Age 50-59. Age heavily drives predictions; at the 20% cut, specificity recovers to 28.18% for 60+ and 69.23% for 50-59.
 - **Intended Use:** Provider decision support with patient-facing risk tier; raw risk percentages are not shown to patients to avoid unnecessary anxiety.
-
-- **US Survey Population:** Trained and evaluated on US NHANES survey participants; not directly representative of South Asian or Pakistani diaspora physiology.
-- **Survey Weights Omitted in Training:** Standard maximum-likelihood estimation was used without complex survey pseudo-weights to reflect empirical prediction performance.
-- **NHANES Age Top-Coding:** Participants aged 80+ (or 85+ in early cycles) have capped ages, which introduces minor attenuation at extreme elderly ages.
-- **Self-Report Target Inclusion:** Self-reported diabetes diagnoses may omit undiagnosed individuals or contain recall noise compared to pure biochemical definitions.

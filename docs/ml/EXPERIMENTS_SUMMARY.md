@@ -17,7 +17,7 @@ All models were evaluated on the held-out NHANES temporal test set (`test` 2017�
 | `htn_full_nhanes` | 20,766 / 6,609 / 6,537 | 30.66% | lr ({'C': 0.01}) | 0.7546 | 0.7105 [0.6983–0.7230] | 80.49% / 52.08% / 42.62% | 1.088 / 0.858 | age_band=18-39: 39.14% (n=511) | 0.5317 / 90.75% | +0.0013 (val) / -0.0045 (test) | NOT SHIPPED (gate_1_test_auroc_ge_0_75, gate_4_subgroup_sens_ge_0_60) |
 | `diabetes_ref_age_sex_bmi` | 32,081 / 9,278 / 9,133 | 4.25% | lr ({'C': 1.0}) | 0.7540 | 0.7421 [0.7203–0.7640] | 84.28% / 50.05% / 6.96% | 0.854 / 0.825 | age_band=18-39: 50.98% (n=51) | 0.6582 / 89.47% | Ref Baseline | NOT SHIPPED (gate_1_test_auroc_ge_0_75, gate_4_subgroup_sens_ge_0_60) |
 | `htn_ref_age_sex_bmi` | 25,033 / 7,246 / 7,206 | 30.81% | lr ({'C': 0.1}) | 0.7533 | 0.7150 [0.7030–0.7269] | 80.14% / 53.11% / 43.21% | 1.026 / 0.840 | age_band=18-39: 37.99% (n=558) | 0.5437 / 92.15% | Ref Baseline | NOT SHIPPED (gate_1_test_auroc_ge_0_75, gate_4_subgroup_sens_ge_0_60) |
-| `chd10_framingham` | 2,499 / 833 / 834 | 14.99% | lr ({'C': 0.01}) | 0.7170 | 0.7241 [0.6732–0.7659] | 84.80% / 39.07% / 19.70% | 1.079 / 1.142 | age_band=<50: 60.53% (n=38) | 0.7241 / 84.80% | N/A (Framingham) | SHIP CANDIDATE (all G1-G5 gates passed) |
+| `chd10_framingham` | 2,499 / 833 / 834 | 14.99% | lr ({'C': 0.01}) | 0.7170 | 0.7241 [0.6732–0.7659] | 84.80% / 39.07% / 19.70% | 1.079 / 1.142 | age_band=<50: 60.53% (n=38) | 0.6488 / 100.00% | N/A (Framingham) | SHIP CANDIDATE (all G1-G5 gates passed) |
 
 ---
 
@@ -152,4 +152,24 @@ Hyperparameters were tuned via 5-fold cross-validation on train ($N=2,499$):
 - **Odds Ratios & Direction Sanity:** All 9 standardized coefficients are positive ($\beta > 0$): `age` (+0.425), `sex_male` (+0.282), `sbp` (+0.199), `current_smoker` (+0.156), `prevalent_hyp` (+0.092), `bmi` (+0.074), `diabetes` (+0.051), `bp_meds` (+0.046), `dbp` (+0.045). All match clinical literature.
 - **Global SHAP Hierarchy:** Mean absolute SHAP values confirm `age` (0.3658) and `sex_male` (0.2753) are the primary determinants, followed by `sbp` (0.1668) and `current_smoker` (0.1562).
 - **Communication & Safety:** Audience set to `provider_and_patient_band`. Patients never see raw probabilities; they see their categorical risk band (`Low`, `Moderate`, `High`) with an explicit disclaimer that this is a research estimate, not a diagnosis.
+
+### 7.5 App Population Performance (Post-Hoc, Not a Gate: `prevalent_hyp == 1 OR diabetes == 1`)
+In production, the application displays the 10-year CHD risk estimate card only to patients with diagnosed hypertension or diabetes. In accordance with Decision D13, post-hoc subpopulation evaluation on the held-out test set ($N=834$) demonstrates:
+- **Evaluated Subpopulation:** $n = 271$, positives = 69, prevalence = 25.46%
+- **AUROC (95% Bootstrap CI):** **0.6488** [0.5795–0.7135]
+- **At 10% Cutoff (Mod/High):** Sensitivity = **100.00%**, Specificity = **6.44%**, PPV = **26.74%**
+- **At 20% Cutoff (High):** Sensitivity = **81.16%**, Specificity = **46.04%**, PPV = **33.94%**
+
+### 7.6 Age Stratification & Senior Specificity Analysis
+- **Age <50** ($n=429$, 38 positives):
+  - 10% Cutoff: Sensitivity = 60.53%, Specificity = 63.68%, PPV = 13.94%
+  - 20% Cutoff: Sensitivity = 36.84%, Specificity = 96.68%, PPV = 51.85%
+- **Age 50–59** ($n=261$, 53 positives):
+  - 10% Cutoff: Sensitivity = 92.45%, Specificity = 13.46%, PPV = 21.40%
+  - 20% Cutoff: Sensitivity = 58.49%, Specificity = 69.23%, PPV = 32.63%
+- **Age 60+** ($n=144$, 34 positives):
+  - 10% Cutoff: Sensitivity = 100.00%, Specificity = 0.00%, PPV = 23.61%
+  - 20% Cutoff: Sensitivity = 82.35%, Specificity = 28.18%, PPV = 26.17%
+
+> **Clinical Finding on Senior Patients (60+):** For patients 60 and over the model almost always says Moderate or High; age drives it. Specificity at the 10% cut is 0.0% for 60+ (every participant aged 60+ is categorized as Moderate or High) and 13.5% for 50–59. When moving to the 20% High Risk cutoff, specificity recovers to 28.18% for 60+ and 69.23% for 50–59.
 

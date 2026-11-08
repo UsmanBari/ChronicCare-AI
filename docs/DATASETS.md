@@ -135,12 +135,12 @@ No dataset files are stored in this repository.
 
 **Source:** National Heart, Lung, and Blood Institute (NHLBI) / Framingham Heart Study via Kaggle repository (https://www.kaggle.com/datasets/amanajmera1/framingham-heart-study-dataset). Originating clinical trial cohort: Framingham Heart Study (FHS, Framingham, Massachusetts).
 
-**Licence / Access:** Public research dataset released for non-commercial educational and research evaluation under Open Data Commons / CC0 public domain terms. Fully anonymized, complete de-identification, no personal identifiers.
+**Licence / Access:** LICENCE NOT STATED ON SOURCE PAGE (listed as "Unknown" on Kaggle uploader page); used for non-commercial academic evaluation only.
 
 **Size & Complete-Case Cohort Counts:**
-- Total raw instances: 4,240 records across 16 raw features.
-- Missing feature dropped: 74 records dropped due to missing values across the 9 non-lab features (`age`, `sex_male`, `current_smoker`, `bmi`, `sbp`, `dbp`, `bp_meds`, `diabetes`, `prevalent_hyp`) or target `TenYearCHD`.
-- Clean complete-case cohort: **4,166** records (624 positive cases of 10-year CHD, 14.98% overall prevalence).
+- Total raw instances: 4,238 records across 16 raw features (as printed by dataset loader).
+- Missing feature dropped: 72 records dropped due to missing values across the 9 non-lab features (`age`, `sex_male`, `current_smoker`, `bmi`, `sbp`, `dbp`, `bp_meds`, `diabetes`, `prevalent_hyp`) or target `TenYearCHD`.
+- Clean complete-case cohort: **4,166** records (623 positive cases of 10-year CHD, 14.95% overall prevalence).
 - Stratified 60/20/20 Split counts (`random_state=42`):
   - `train_core` (60%): 2,499 rows (374 positive, 14.97% prevalence)
   - `validation` (20%): 833 rows (124 positive, 14.89% prevalence)
