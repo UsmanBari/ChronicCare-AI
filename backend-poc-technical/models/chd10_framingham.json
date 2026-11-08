@@ -1,0 +1,84 @@
+{
+  "audience": "provider_and_patient_band",
+  "bands": {
+    "high_min": 0.2,
+    "low_max": 0.1
+  },
+  "coef": [
+    0.4246799860746401,
+    0.281551566249279,
+    0.15633602382674222,
+    0.07404248156136309,
+    0.19902025571333018,
+    0.04455105945906684,
+    0.046120019430228004,
+    0.051344587635712265,
+    0.092383748184591
+  ],
+  "created_at": "2026-11-08T17:23:37.804149+00:00",
+  "feature_order": [
+    "age",
+    "sex_male",
+    "current_smoker",
+    "bmi",
+    "sbp",
+    "dbp",
+    "bp_meds",
+    "diabetes",
+    "prevalent_hyp"
+  ],
+  "feature_units": {
+    "age": "years",
+    "bmi": "kg/m2",
+    "bp_meds": "binary (1=yes, 0=no)",
+    "current_smoker": "binary (1=yes, 0=no)",
+    "dbp": "mmHg",
+    "diabetes": "binary (1=yes, 0=no)",
+    "prevalent_hyp": "binary (1=yes, 0=no)",
+    "sbp": "mmHg",
+    "sex_male": "binary (1=male, 0=female)"
+  },
+  "intercept": -1.9038975456908054,
+  "label": "TenYearCHD",
+  "label_text": {
+    "en": "Experimental: trained on US Framingham data, not validated for Pakistani patients",
+    "needs_native_review": true,
+    "roman_ur": "Tajurbati: US Framingham data par train kiya gaya, Pakistani mareezon ke liye tasdeeq shuda nahi",
+    "ur": "\u062a\u062c\u0631\u0628\u0627\u062a\u06cc: \u0627\u0645\u0631\u06cc\u06a9\u06cc Framingham \u0688\u06cc\u0679\u0627 \u067e\u0631 \u062a\u0631\u0628\u06cc\u062a \u06cc\u0627\u0641\u062a\u06c1\u060c \u067e\u0627\u06a9\u0633\u062a\u0627\u0646\u06cc \u0645\u0631\u06cc\u0636\u0648\u06ba \u06a9\u06d2 \u0644\u06cc\u06d2 \u063a\u06cc\u0631 \u062a\u0635\u062f\u06cc\u0642 \u0634\u062f\u06c1"
+  },
+  "model_name": "chd10_framingham",
+  "model_version": "1.0.0",
+  "patient_note": {
+    "en": "This is an estimate from a research model, not a diagnosis.",
+    "needs_native_review": true,
+    "roman_ur": "Yeh ek tehqeeqi model se lagaya gaya takhmeena hai, koi tashkhees nahi.",
+    "ur": "\u06cc\u06c1 \u0627\u06cc\u06a9 \u062a\u062d\u0642\u06cc\u0642\u06cc \u0645\u0627\u0688\u0644 \u0633\u06d2 \u0644\u06af\u0627\u06cc\u0627 \u06af\u06cc\u0627 \u062a\u062e\u0645\u06cc\u0646\u06c1 \u06c1\u06d2\u060c \u06a9\u0648\u0626\u06cc \u062a\u0634\u062e\u06cc\u0635 \u0646\u06c1\u06cc\u06ba\u06d4"
+  },
+  "population": "hypertension_or_diabetes",
+  "scaler_mean": [
+    49.500200080032016,
+    0.4345738295318127,
+    0.5054021608643458,
+    25.742709083633454,
+    131.88055222088835,
+    82.53801520608243,
+    0.025610244097639057,
+    0.023609443777511004,
+    0.29851940776310526
+  ],
+  "scaler_scale": [
+    8.503483030467208,
+    0.49570093425155826,
+    0.49997081580627856,
+    4.078809612980864,
+    21.4985188434031,
+    11.78215103686042,
+    0.15796948912653483,
+    0.1518289759631789,
+    0.4576085346143254
+  ],
+  "sklearn_version": "1.9.1",
+  "threshold": 0.1,
+  "tier": "full",
+  "training_commit": "16c09cbb18b38c85fa22e3265c8f1afda63c3238"
+}

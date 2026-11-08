@@ -28,3 +28,25 @@
 | **17** | **Limitations:** Dataset and operational limits | YES | [docs/ml/EXPERIMENTS_SUMMARY.md](file:///c:/Users/usmanbari/Desktop/Chronicare/docs/ml/EXPERIMENTS_SUMMARY.md#L60-L85) & [docs/ML_PLAN.md](file:///c:/Users/usmanbari/Desktop/Chronicare/docs/ML_PLAN.md#L300-L325) | BRFSS lack of laboratory data; age bias in logistic regression coefficients |
 | **18** | **Open Science / Reproducibility:** Code, configs, seeds, data download scripts | YES | `backend-poc-technical/ml/experiments/run.py`, `backend-poc-technical/ml/experiments/configs/*.json`, `scripts/get_nhanes.py` | Hermetic test harness (`test_harness.py`), declarative JSON configs, deterministic seeds |
 | **19** | **Prospective Clinical Trial Evaluation:** Real-world randomized impact trial | **NOT DONE** | N/A | Prototype FYP-1 phase; clinical efficacy trial not conducted prior to deployment |
+
+---
+
+## 2. TRIPOD+AI Item Coverage for `chd10_framingham` (Framingham Heart Study)
+
+| TRIPOD+AI Item | Coverage in `chd10_framingham` | Document / Code Reference |
+| :--- | :--- | :--- |
+| **Pre-Registration** | Fully pre-registered protocol before test evaluation | [`docs/ml/CHD10_PREREGISTRATION.md`](file:///c:/Users/Saad/Documents/ChronicCare-AI/docs/ml/CHD10_PREREGISTRATION.md) |
+| **Source of Data** | Framingham Heart Study (FHS, NHLBI) cohort | [`docs/DATASETS.md`](file:///c:/Users/Saad/Documents/ChronicCare-AI/docs/DATASETS.md#L125-L160) |
+| **Participants & Eligibility** | Adults aged 30–74 with hypertension or diabetes | `backend-poc-technical/ml/datasets/framingham.py` |
+| **Outcome** | Ten-year coronary heart disease (`TenYearCHD`) | `backend-poc-technical/ml/labels.py` |
+| **Predictors** | 9 non-lab features (`age`, `sex_male`, `current_smoker`, `bmi`, `sbp`, `dbp`, `bp_meds`, `diabetes`, `prevalent_hyp`) | `backend-poc-technical/ml/experiments/configs/chd10_framingham.json` |
+| **Sample Size & Splits** | Complete-case $N=4,166$ (train 2,499 / val 833 / test 834) | `docs/ml/experiments/chd10_framingham.md` Section 1 |
+| **Missing Data** | Complete cases (74 dropped due to missing feature or label) | `docs/ml/experiments/chd10_framingham.md` Section 1 |
+| **Model Development** | LR, LR balanced, RF, HGB evaluated; 5-fold CV on train | `docs/ml/experiments/chd10_framingham.md` Section 2 |
+| **Thresholds & Bands** | Pre-registered NCEP ATP III bands: <10% (Low), 10–20% (Mod), $\ge 20\%$ (High) | `docs/ml/CHD10_PREREGISTRATION.md` |
+| **Discrimination & Calibration** | Test AUROC: 0.7241 [95% CI: 0.6732–0.7659]; Calibration Slope: 1.142 | `docs/ml/experiments/chd10_framingham.md` Section 3 & 4 |
+| **Clinical Utility / DCA** | Net benefit evaluated across thresholds $p_t \in [0.05, 0.30]$ | `docs/ml/experiments/chd10_framingham.md` Section 5 |
+| **Explainability (SHAP)** | Global mean \|SHAP\| and local explanations for 3 synthetic patients | `docs/ml/experiments/chd10_framingham.md` Section 5 |
+| **Transportability Limitations** | US Framingham 1948 cohort; ethnic gap for South Asian/Pakistani adults | [`docs/LIMITATIONS.md`](file:///c:/Users/Saad/Documents/ChronicCare-AI/docs/LIMITATIONS.md) |
+| **Implementation Guardrails** | Pure-Python scorer parity tested to $10^{-9}$; patient note disclaimer | `backend-poc-technical/ml/tests/test_chd10_model.py` |
+

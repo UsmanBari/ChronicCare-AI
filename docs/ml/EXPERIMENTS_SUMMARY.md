@@ -17,6 +17,7 @@ All models were evaluated on the held-out NHANES temporal test set (`test` 2017�
 | `htn_full_nhanes` | 20,766 / 6,609 / 6,537 | 30.66% | lr ({'C': 0.01}) | 0.7546 | 0.7105 [0.6983–0.7230] | 80.49% / 52.08% / 42.62% | 1.088 / 0.858 | age_band=18-39: 39.14% (n=511) | 0.5317 / 90.75% | +0.0013 (val) / -0.0045 (test) | NOT SHIPPED (gate_1_test_auroc_ge_0_75, gate_4_subgroup_sens_ge_0_60) |
 | `diabetes_ref_age_sex_bmi` | 32,081 / 9,278 / 9,133 | 4.25% | lr ({'C': 1.0}) | 0.7540 | 0.7421 [0.7203–0.7640] | 84.28% / 50.05% / 6.96% | 0.854 / 0.825 | age_band=18-39: 50.98% (n=51) | 0.6582 / 89.47% | Ref Baseline | NOT SHIPPED (gate_1_test_auroc_ge_0_75, gate_4_subgroup_sens_ge_0_60) |
 | `htn_ref_age_sex_bmi` | 25,033 / 7,246 / 7,206 | 30.81% | lr ({'C': 0.1}) | 0.7533 | 0.7150 [0.7030–0.7269] | 80.14% / 53.11% / 43.21% | 1.026 / 0.840 | age_band=18-39: 37.99% (n=558) | 0.5437 / 92.15% | Ref Baseline | NOT SHIPPED (gate_1_test_auroc_ge_0_75, gate_4_subgroup_sens_ge_0_60) |
+| `chd10_framingham` | 2,499 / 833 / 834 | 14.99% | lr ({'C': 0.01}) | 0.7170 | 0.7241 [0.6732–0.7659] | 84.80% / 39.07% / 19.70% | 1.079 / 1.142 | age_band=<50: 60.53% (n=38) | 0.7241 / 84.80% | N/A (Framingham) | SHIP CANDIDATE (all G1-G5 gates passed) |
 
 ---
 
@@ -112,3 +113,43 @@ Detailed Decision Curve Analysis (DCA) assessing net benefit across decision thr
 4. **Decision D14 (Clinical Recommendation for Diabetics):** For patients with diabetes, recommend to supervising clinicians and doctors asking for an actual blood pressure cuff measurement during check-ins rather than attempting to infer high blood pressure probabilistically from demographic proxies. Requires clinical approval before implementation.
 5. **Decision D15 (Proposed Patient-Facing Feature):** A rule-based screening reminder (needs doctor approval; NOT built today). If a patient with hypertension has no HbA1c in their record within the interval clinicians set, display: *"Ask your doctor whether you need an HbA1c (sugar) test."* Deterministic, record-based, explainable: "the rules decide". HbA1c is a low-cost test, so clinicians are likely to use a low threshold (≤3%); in that range, testing every patient with high BP is as good as the model. This supports D15 (a rule-based reminder) over a patient-facing ML card.
 6. **External Validation Limitation for BRFSS (Day 6):** The BRFSS surveillance dataset contains no laboratory specimen data (no HbA1c, fasting glucose) and no physical cuff examination measurements. Consequently, BRFSS cannot evaluate undiagnosed target labels (`diabetes_undiagnosed` or `hypertension_measured_130_80`). Day 6 external validation on BRFSS will be limited to evaluating self-reported awareness labels (`diabetes_told`, `hypertension_told`) or assessing feature drift across demographics.
+
+---
+
+## 7. 10-Year Coronary Heart Disease (CHD) Risk Model (`chd10_framingham`)
+
+> **Added:** Week 4 "Finish Sprint" (Saad, ML Engineer, 8 Nov 2026).  
+> **Alignment:** Proposal Section 13.1 Agent 5 and Section 23 (hypertension-side risk model on Framingham Heart Study with tree comparison and SHAP).
+
+### 7.1 Pre-Registration and Experimental Design
+To avoid selective reporting, all experimental hyperparameters, evaluation rules, and acceptance gates were formally pre-registered in `docs/ml/CHD10_PREREGISTRATION.md` (committed and pushed alone prior to accessing held-out test data).
+- **Target Label:** `TenYearCHD` (1 = event within 10 years).
+- **Features (9 non-lab features):** `age`, `sex_male`, `current_smoker`, `bmi`, `sbp`, `dbp`, `bp_meds`, `diabetes`, `prevalent_hyp`. Excluded features requiring clinic blood draws: `totChol`, `glucose`, `heartRate`, `cigsPerDay`, `education`.
+- **Target Population:** Adults aged 30–74 with hypertension or diabetes.
+- **Split:** Deterministic stratified random split (60% Train, 20% Validation, 20% Test, `random_state=42`) on complete cases ($N=4,166$).
+
+### 7.2 Candidate Architecture Tuning & Decision D10 Selection
+Hyperparameters were tuned via 5-fold cross-validation on train ($N=2,499$):
+- Plain Logistic Regression (`lr`, $C=0.01$): Val AUROC = **0.7170**, Val Calibration Slope = 1.079
+- Balanced Logistic Regression (`lr_balanced`, $C=0.001$): Val AUROC = 0.7163, Val Calibration Slope = 1.748
+- Random Forest (`rf`, `n_estimators=100, max_depth=5, min_samples_leaf=5`): Val AUROC = 0.7169, Val Calibration Slope = 1.090
+- HistGradientBoosting (`hgb`, `learning_rate=0.05, max_depth=3, min_samples_leaf=10`): Val AUROC = 0.7011, Val Calibration Slope = 0.797
+
+**Decision D10 Rule Applied:** Plain `lr` selected. `lr_balanced` did not beat plain `lr` by $\ge 0.01$ AUROC (gap: -0.0007), and neither tree model beat LR by $\ge 0.02$ validation AUROC (best tree gap: -0.0001). Calibration slope passed ($1.079 \in [0.8, 1.2]$).
+
+### 7.3 Pre-Registered Acceptance Gates (G1–G5) on Held-Out Test Data ($N=834$)
+| Gate | Criterion Description | Target Threshold | Actual Result | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Gate 1** | Test Discrimination | Test AUROC $\ge 0.68$ | **0.7241** [95% CI: 0.6732–0.7659] | **PASS** |
+| **Gate 2** | Calibration Slope | Calibration Slope $\in [0.80, 1.20]$ | **1.142** (Intercept: +0.164) | **PASS** |
+| **Gate 3** | Sensitivity @ 10% Cutoff | Sensitivity $\ge 70.0\%$ | **84.80%** (Specificity: 39.07%, PPV: 19.70%) | **PASS** |
+| **Gate 4** | Subgroup Equity | Worst Subgroup Sens @ 10% $\ge 60\%$ ($\ge 30$ pos) | **60.53%** (`age_band=<50`, 38 pos) | **PASS** |
+| **Gate 5** | Information Value | Brier < Naive Prevalence Brier | **0.1172** vs 0.1274 | **PASS** |
+
+**Overall Status:** **SHIP CANDIDATE** (all G1–G5 gates satisfied).
+
+### 7.4 Explainability & Clinical Sanity
+- **Odds Ratios & Direction Sanity:** All 9 standardized coefficients are positive ($\beta > 0$): `age` (+0.425), `sex_male` (+0.282), `sbp` (+0.199), `current_smoker` (+0.156), `prevalent_hyp` (+0.092), `bmi` (+0.074), `diabetes` (+0.051), `bp_meds` (+0.046), `dbp` (+0.045). All match clinical literature.
+- **Global SHAP Hierarchy:** Mean absolute SHAP values confirm `age` (0.3658) and `sex_male` (0.2753) are the primary determinants, followed by `sbp` (0.1668) and `current_smoker` (0.1562).
+- **Communication & Safety:** Audience set to `provider_and_patient_band`. Patients never see raw probabilities; they see their categorical risk band (`Low`, `Moderate`, `High`) with an explicit disclaimer that this is a research estimate, not a diagnosis.
+

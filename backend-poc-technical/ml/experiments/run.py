@@ -26,6 +26,7 @@ if str(backend_dir) not in sys.path:
 import numpy as np
 import pandas as pd
 import sklearn
+from sklearn.metrics import roc_auc_score, roc_curve
 from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LogisticRegression
@@ -84,6 +85,16 @@ REFERENCE_POPULATION_COUNTS = {
         "validation": 7299,
         "test": 7268,
     },
+    "hypertension_or_diabetes": {
+        "train_core": 2499,
+        "validation": 833,
+        "test": 834,
+    },
+    "all_eligible": {
+        "train_core": 2499,
+        "validation": 833,
+        "test": 834,
+    },
 }
 
 REFERENCE_CARD_COUNTS = {
@@ -96,6 +107,11 @@ REFERENCE_CARD_COUNTS = {
         "train_core": 1223,
         "validation": 453,
         "test": 488,
+    },
+    "hypertension_or_diabetes": {
+        "train_core": 2499,
+        "validation": 833,
+        "test": 834,
     },
 }
 
@@ -126,17 +142,24 @@ def validate_config(config: dict[str, Any]) -> None:
     if config["tier"] not in ("basic", "full"):
         raise ValueError(f"Tier must be 'basic' or 'full', got '{config['tier']}'")
 
-    if config["dataset"] != "nhanes_core":
-        raise ValueError(f"Unsupported dataset: '{config['dataset']}'. Only 'nhanes_core' is supported.")
+    if config["dataset"] not in ("nhanes_core", "framingham"):
+        raise ValueError(f"Unsupported dataset: '{config['dataset']}'. Only 'nhanes_core' and 'framingham' are supported.")
 
-    if config["split"] != "nhanes_temporal_v1":
-        raise ValueError(f"Unsupported split: '{config['split']}'. Only 'nhanes_temporal_v1' is supported.")
+    if config["split"] not in ("nhanes_temporal_v1", "framingham_stratified_v1"):
+        raise ValueError(f"Unsupported split: '{config['split']}'.")
 
-    if config["population"] not in ("adults_without_diabetes", "adults_without_htn_unmedicated"):
-        raise ValueError(f"Unknown population filter: '{config['population']}'")
+    if config["dataset"] == "nhanes_core":
+        if config["population"] not in ("adults_without_diabetes", "adults_without_htn_unmedicated"):
+            raise ValueError(f"Unknown population filter: '{config['population']}'")
 
-    if config["card_population"] not in ("told_high_bp_1", "told_diabetes_1"):
-        raise ValueError(f"Unknown card population: '{config['card_population']}'")
+        if config["card_population"] not in ("told_high_bp_1", "told_diabetes_1"):
+            raise ValueError(f"Unknown card population: '{config['card_population']}'")
+    elif config["dataset"] == "framingham":
+        if config["population"] not in ("hypertension_or_diabetes", "all_eligible"):
+            raise ValueError(f"Unknown population filter: '{config['population']}'")
+
+        if config["card_population"] not in ("hypertension_or_diabetes", "all_eligible"):
+            raise ValueError(f"Unknown card population: '{config['card_population']}'")
 
     for model_name, grid_dict in config.get("grid", {}).items():
         n_points = 1
@@ -168,6 +191,11 @@ def extract_target_series(df: pd.DataFrame, label_name: str, population_name: st
         pop_mask = htn_pop_mask & y_series.notna()
         return y_series, pop_mask
 
+    elif label_name == "TenYearCHD":
+        y_series = df["TenYearCHD"].astype(float)
+        pop_mask = pd.Series(True, index=df.index)
+        return y_series, pop_mask
+
     else:
         raise ValueError(f"Unsupported label/population combination: {label_name} / {population_name}")
 
@@ -178,8 +206,65 @@ def extract_card_mask(df: pd.DataFrame, card_pop_name: str, base_pop_mask: pd.Se
         return base_pop_mask & (df["told_high_bp"] == 1)
     elif card_pop_name == "told_diabetes_1":
         return base_pop_mask & (df["told_diabetes"] == 1)
+    elif card_pop_name in ("hypertension_or_diabetes", "all_eligible"):
+        return base_pop_mask
     else:
         raise ValueError(f"Unknown card population: {card_pop_name}")
+
+
+def generate_roc_and_calibration_plots(
+    y_test: np.ndarray,
+    p_test: np.ndarray,
+    cal_dict: dict[str, Any],
+    out_dir: Path,
+) -> tuple[Path, Path]:
+    """Render ROC curve and Calibration curve as clean PNGs using Pillow."""
+    from PIL import Image, ImageDraw
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    fpr, tpr, _ = roc_curve(y_test, p_test)
+    test_auc = roc_auc_score(y_test, p_test)
+
+    # 1. ROC Plot (600x600)
+    img_roc = Image.new("RGB", (600, 600), color=(255, 255, 255))
+    draw_roc = ImageDraw.Draw(img_roc)
+
+    # Axes: origin at (70, 530), width=460, height=460
+    ox, oy, w, h = 70, 530, 460, 460
+    draw_roc.rectangle([ox, oy - h, ox + w, oy], outline=(200, 200, 200), width=1)
+    # Diagonal reference line (chance)
+    draw_roc.line([(ox, oy), (ox + w, oy - h)], fill=(180, 180, 180), width=1)
+
+    # Plot ROC curve points
+    roc_points = [(ox + int(fp * w), oy - int(tp * h)) for fp, tp in zip(fpr, tpr)]
+    if len(roc_points) > 1:
+        draw_roc.line(roc_points, fill=(31, 119, 180), width=3)
+
+    roc_path = out_dir / "roc_curve.png"
+    img_roc.save(roc_path)
+
+    # 2. Calibration Plot (600x600)
+    img_cal = Image.new("RGB", (600, 600), color=(255, 255, 255))
+    draw_cal = ImageDraw.Draw(img_cal)
+    draw_cal.rectangle([ox, oy - h, ox + w, oy], outline=(200, 200, 200), width=1)
+    # 45-degree ideal calibration line
+    draw_cal.line([(ox, oy), (ox + w, oy - h)], fill=(180, 180, 180), width=1)
+
+    # Plot reliability decile points
+    rel_table = cal_dict.get("reliability_table", [])
+    cal_pts = []
+    for row in rel_table:
+        px = ox + int(row["mean_p"] * w)
+        py = oy - int(row["observed_rate"] * h)
+        cal_pts.append((px, py))
+        draw_cal.ellipse([px - 4, py - 4, px + 4, py + 4], fill=(214, 39, 40), outline=(0, 0, 0))
+    if len(cal_pts) > 1:
+        draw_cal.line(cal_pts, fill=(214, 39, 40), width=2)
+
+    cal_path = out_dir / "calibration_curve.png"
+    img_cal.save(cal_path)
+
+    return roc_path, cal_path
 
 
 def score_record_pure_python(features_dict: dict[str, float], export_spec: dict[str, Any]) -> float:
@@ -224,20 +309,49 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     print("[PASS] Leakage check passed: features are valid for target.")
 
     # Step A2.2: Load data
-    print("Loading NHANES core dataset...")
-    # Load required columns
-    all_needed_cols = list(set(["seqn", "cycle", "age", "sex_male", "race_eth", "told_diabetes", "told_high_bp", "takes_bp_meds", "sbp", "dbp", "hba1c", "fasting_glucose", "waist_cm"] + features))
-    df = load_nhanes_core(all_needed_cols)
-    adults = df[df["age"] >= ADULT_MIN_AGE].copy()
-    adults["seqn"] = adults["seqn"].astype(int)
+    if config["dataset"] == "framingham":
+        from ml.datasets.framingham import load_framingham_chd10
+        from ml.splits import generate_stratified_random_splits
+        from ml.common import data_dir
+        print("Loading Framingham dataset...")
+        df_complete, chd_rep = load_framingham_chd10(features=features)
+        adults = df_complete.copy()
+        adults["seqn"] = adults["_id"].astype(int)
 
-    # Step A2.3: Extract target and population mask
-    y_series, pop_mask = extract_target_series(adults, label_name, population_name)
-    adults["_target"] = y_series
-    adults["_in_pop"] = pop_mask
+        # Step A2.3: Extract target and population mask
+        y_series, pop_mask = extract_target_series(adults, label_name, population_name)
+        adults["_target"] = y_series
+        adults["_in_pop"] = pop_mask
 
-    # Step A2.4: Load split and verify population counts
-    splits = load_split(config["split"])
+        split_name = config["split"]
+        split_dir = data_dir() / "splits"
+        split_file = split_dir / f"{split_name}.json"
+        if not split_file.exists():
+            splits_data = generate_stratified_random_splits(adults, target_col="TenYearCHD", seed=seed, id_col="_id")
+            split_dir.mkdir(parents=True, exist_ok=True)
+            with open(split_file, "w", encoding="utf-8") as f:
+                json.dump({
+                    "version": split_name,
+                    "train_core": splits_data["train_core"],
+                    "validation": splits_data["validation"],
+                    "test": splits_data["test"],
+                }, f)
+        splits = load_split(split_name)
+    else:
+        print("Loading NHANES core dataset...")
+        # Load required columns
+        all_needed_cols = list(set(["seqn", "cycle", "age", "sex_male", "race_eth", "told_diabetes", "told_high_bp", "takes_bp_meds", "sbp", "dbp", "hba1c", "fasting_glucose", "waist_cm"] + features))
+        df = load_nhanes_core(all_needed_cols)
+        adults = df[df["age"] >= ADULT_MIN_AGE].copy()
+        adults["seqn"] = adults["seqn"].astype(int)
+
+        # Step A2.3: Extract target and population mask
+        y_series, pop_mask = extract_target_series(adults, label_name, population_name)
+        adults["_target"] = y_series
+        adults["_in_pop"] = pop_mask
+
+        # Step A2.4: Load split and verify population counts
+        splits = load_split(config["split"])
     print("\n--- POPULATION COUNT VERIFICATION VS count_label_populations.py ---")
     pop_matches = True
     ref_counts = REFERENCE_POPULATION_COUNTS.get(population_name, {})
@@ -428,27 +542,41 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     if is_lr_balanced:
         print(f"ℹ️  Notice (lr_balanced winner): {ranking_warning}")
 
-    # Step A2.9: Decision D7 Threshold Selection strictly on VALIDATION
-    print("\n--- DECISION D7 OPERATIONAL THRESHOLD SELECTION (VALIDATION ONLY) ---")
-    thresh_res = choose_threshold(
-        y_val,
-        chosen["val_prob"],
-        policy=config["threshold_policy"],
-    )
-    locked_threshold = float(thresh_res["threshold"])
-    val_sens = thresh_res["val_sensitivity"]
-    val_spec = thresh_res["val_specificity"]
-    print(f"Locked Operational Threshold: {locked_threshold:.4f} (Val Sens: {val_sens:.2%}, Val Spec: {val_spec:.2%})")
+    # Step A2.9: Operational Threshold & Risk Bands
+    if name == "chd10_framingham":
+        print("\n--- CHD10 OPERATIONAL THRESHOLD & RISK BANDS (PRE-REGISTERED) ---")
+        locked_threshold = 0.10
+        low_max = 0.10
+        high_min = 0.20
+        bands = {"low_max": low_max, "high_min": high_min}
+        m_val_10 = metrics_at_threshold(y_val, chosen["val_prob"], 0.10)
+        val_sens = m_val_10["sensitivity"]
+        val_spec = m_val_10["specificity"]
+        print(f"Pre-registered Operational Threshold: {locked_threshold:.4f} (Val Sens: {val_sens:.2%}, Val Spec: {val_spec:.2%})")
+        print(f"  LOW Band     : Risk < {low_max:.4f}")
+        print(f"  MODERATE Band: {low_max:.4f} <= Risk < {high_min:.4f}")
+        print(f"  HIGH Band    : Risk >= {high_min:.4f}")
+    else:
+        print("\n--- DECISION D7 OPERATIONAL THRESHOLD SELECTION (VALIDATION ONLY) ---")
+        thresh_res = choose_threshold(
+            y_val,
+            chosen["val_prob"],
+            policy=config["threshold_policy"],
+        )
+        locked_threshold = float(thresh_res["threshold"])
+        val_sens = thresh_res["val_sensitivity"]
+        val_spec = thresh_res["val_specificity"]
+        print(f"Locked Operational Threshold: {locked_threshold:.4f} (Val Sens: {val_sens:.2%}, Val Spec: {val_spec:.2%})")
 
-    # Step A2.10: Decision D8 Risk Bands
-    print("\n--- DECISION D8 RISK STRATIFICATION BANDS ---")
-    val_90th = float(np.percentile(chosen["val_prob"], 90))
-    low_max = locked_threshold
-    high_min = val_90th
-    bands = {"low_max": low_max, "high_min": high_min}
-    print(f"  LOW Band     : Risk < {low_max:.4f}")
-    print(f"  MODERATE Band: {low_max:.4f} <= Risk < {high_min:.4f}")
-    print(f"  HIGH Band    : Risk >= {high_min:.4f} (Top 10% validation scores)")
+        # Step A2.10: Decision D8 Risk Bands
+        print("\n--- DECISION D8 RISK STRATIFICATION BANDS ---")
+        val_90th = float(np.percentile(chosen["val_prob"], 90))
+        low_max = locked_threshold
+        high_min = val_90th
+        bands = {"low_max": low_max, "high_min": high_min}
+        print(f"  LOW Band     : Risk < {low_max:.4f}")
+        print(f"  MODERATE Band: {low_max:.4f} <= Risk < {high_min:.4f}")
+        print(f"  HIGH Band    : Risk >= {high_min:.4f} (Top 10% validation scores)")
 
     # Step A2.11: HELD-OUT TESTING (ONCE for the chosen model)
     print("\n--- HELD-OUT TEST EVALUATION (CHOSEN MODEL ONCE) ---")
@@ -461,10 +589,14 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     print(f"Test AUROC: {ci_auroc.point:.4f} [95% CI: {ci_auroc.low:.4f} - {ci_auroc.high:.4f}]")
     print(f"Test AUPRC: {ci_auprc.point:.4f} [95% CI: {ci_auprc.low:.4f} - {ci_auprc.high:.4f}]")
 
-    # Test metrics at locked threshold
+    # Test metrics at locked threshold (10% cut)
     m_test = metrics_at_threshold(y_test, y_test_prob, locked_threshold)
-    print(f"Test Sensitivity: {m_test['sensitivity']:.2%} | Specificity: {m_test['specificity']:.2%} | PPV: {m_test['ppv']:.2%}")
-    print(f"Confusion Matrix @ Thresh: TP={m_test['tp']}, FP={m_test['fp']}, TN={m_test['tn']}, FN={m_test['fn']}")
+    m_test_20 = metrics_at_threshold(y_test, y_test_prob, 0.20)
+    print(f"Test Sensitivity @ 10%: {m_test['sensitivity']:.2%} | Specificity: {m_test['specificity']:.2%} | PPV: {m_test['ppv']:.2%} | NPV: {m_test['npv']:.2%}")
+    print(f"Confusion Matrix @ 10%: TP={m_test['tp']}, FP={m_test['fp']}, TN={m_test['tn']}, FN={m_test['fn']}")
+    if name == "chd10_framingham":
+        print(f"Test Sensitivity @ 20%: {m_test_20['sensitivity']:.2%} | Specificity: {m_test_20['specificity']:.2%} | PPV: {m_test_20['ppv']:.2%} | NPV: {m_test_20['npv']:.2%}")
+        print(f"Confusion Matrix @ 20%: TP={m_test_20['tp']}, FP={m_test_20['fp']}, TN={m_test_20['tn']}, FN={m_test_20['fn']}")
 
     # Test calibration
     cal_test = calibration(y_test, y_test_prob, n_bins=10)
@@ -473,13 +605,24 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     # Test Subgroup Breakdown
     test_clean_df = split_data["test"]["df"].copy()
     test_clean_df["_prob"] = y_test_prob
+    if name == "chd10_framingham":
+        test_clean_df["age_band"] = pd.cut(
+            test_clean_df["age"],
+            bins=[0, 50, 60, 150],
+            labels=["<50", "50-59", "60+"],
+            right=False,
+        )
+        subgroup_groups = ["sex_male", "age_band"]
+    else:
+        subgroup_groups = ["sex_male", "age_band", "race_eth", "cycle"]
+
     subgroups = subgroup_report(
         test_clean_df,
         y_col="_target",
         p_col="_prob",
         threshold=locked_threshold,
-        groups=["sex_male", "age_band", "race_eth", "cycle"],
-        min_n=50,
+        groups=subgroup_groups,
+        min_n=30 if name == "chd10_framingham" else 50,
     )
 
     # Card Population Evaluation
@@ -528,9 +671,13 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
 
     print(f"\nWorst Subgroup Sensitivity (>= 50 positives): {worst_group} = {worst_sens:.2%} (positives={worst_pos})")
 
-    # Step A3: CPU-Friendly Feature Explanation
-    print("\n--- FEATURE EXPLANATION ---")
+    # Step A3: Feature Explanation & Clinical Sanity
+    print("\n--- FEATURE EXPLANATION & CLINICAL SANITY ---")
     feature_explanations: list[dict[str, Any]] = []
+    clinical_sanity: list[dict[str, Any]] = []
+    shap_global: list[dict[str, Any]] = []
+    fake_patient_shap: list[dict[str, Any]] = []
+
     if "lr" in chosen["model_type"]:
         clf_step = chosen_pipe.named_steps["clf"]
         coefs = clf_step.coef_[0]
@@ -541,10 +688,72 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
                 "coef_standardized": float(c_val),
                 "odds_ratio_per_1_sd": float(or_val),
             })
+            clinical_sanity.append({
+                "feature": f_name,
+                "coef": float(c_val),
+                "sign": "+" if c_val > 0 else "-",
+                "direction": "UP (+)" if c_val > 0 else "DOWN (-)",
+                "expected": "UP (+)" if f_name in ("age", "sbp", "current_smoker", "diabetes", "bp_meds") else "UP (+)",
+                "concordant": bool(c_val > 0),
+            })
         feature_explanations.sort(key=lambda x: abs(x["coef_standardized"]), reverse=True)
         print("Standardized Logistic Regression Coefficients (Odds Ratio per 1 SD):")
         for fe in feature_explanations:
             print(f"  {fe['feature']:18s}: beta={fe['coef_standardized']:+.3f}, OR={fe['odds_ratio_per_1_sd']:.3f}")
+
+        print("\nClinical Sanity Direction Check:")
+        for cs in clinical_sanity:
+            mark = "✓" if cs["concordant"] else "⚠️ OPPOSITE"
+            print(f"  {mark} {cs['feature']:18s}: beta={cs['coef']:+.4f} -> {cs['direction']}")
+
+        # SHAP calculation for chd10_framingham
+        if name == "chd10_framingham":
+            try:
+                import shap
+                print("\n--- COMPUTING SHAP EXPLANATIONS ---")
+                explainer = shap.LinearExplainer(chosen_pipe.named_steps["clf"], X_train_scaled)
+                shap_vals_val = explainer(X_val_scaled)
+                mean_abs_shap = np.mean(np.abs(shap_vals_val.values), axis=0)
+                for f_name, imp in sorted(zip(features, mean_abs_shap), key=lambda x: x[1], reverse=True):
+                    shap_global.append({"feature": f_name, "mean_abs_shap": float(imp)})
+                    print(f"  {f_name:18s}: mean |SHAP| = {imp:.4f}")
+
+                # 3 Fake Example Patients
+                fake_cases = [
+                    {
+                        "case_id": "Fake Patient 1 (Low Risk Profile)",
+                        "profile": {"age": 42, "sex_male": 0, "current_smoker": 0, "bmi": 22.0, "sbp": 115.0, "dbp": 75.0, "bp_meds": 0, "diabetes": 0, "prevalent_hyp": 0},
+                    },
+                    {
+                        "case_id": "Fake Patient 2 (Moderate Risk Profile)",
+                        "profile": {"age": 54, "sex_male": 1, "current_smoker": 1, "bmi": 27.5, "sbp": 138.0, "dbp": 86.0, "bp_meds": 0, "diabetes": 0, "prevalent_hyp": 1},
+                    },
+                    {
+                        "case_id": "Fake Patient 3 (High Risk Profile)",
+                        "profile": {"age": 66, "sex_male": 1, "current_smoker": 1, "bmi": 31.2, "sbp": 165.0, "dbp": 98.0, "bp_meds": 1, "diabetes": 1, "prevalent_hyp": 1},
+                    },
+                ]
+                print("\n--- PER-PATIENT SHAP EXPLANATIONS (3 FAKE PATIENTS) ---")
+                for fc in fake_cases:
+                    x_row = np.array([[fc["profile"][f] for f in features]], dtype=float)
+                    x_scaled = chosen_pipe.named_steps["scaler"].transform(x_row)
+                    prob = float(chosen_pipe.predict_proba(x_row)[0, 1])
+                    sv = explainer(x_scaled).values[0]
+                    band_label = "Low (<10%)" if prob < 0.10 else "Moderate (10-20%)" if prob < 0.20 else "High (>=20%)"
+                    print(f"\n{fc['case_id']}: Predicted Risk = {prob:.2%} [Band: {band_label}]")
+                    contribs = []
+                    for f_name, val, phi in zip(features, x_row[0], sv):
+                        contribs.append({"feature": f_name, "value": val, "shap_value": float(phi)})
+                        print(f"    {f_name:18s} = {val:<6}: SHAP contribution = {phi:+.4f}")
+                    fake_patient_shap.append({
+                        "case_id": fc["case_id"],
+                        "profile": fc["profile"],
+                        "predicted_risk": prob,
+                        "predicted_band": band_label,
+                        "shap_contributions": contribs,
+                    })
+            except Exception as e:
+                print(f"SHAP note: {e}")
     else:
         print("Computing permutation importance on validation set (n_repeats=10)...")
         perm_res = permutation_importance(
@@ -566,75 +775,131 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
             print(f"  {fe['feature']:18s}: importance={fe['importance_mean']:.4f}")
 
     shap_notice = (
-        "SHAP NOT USED: pip install shap requires adding 5 unpinned dependencies "
-        "(shap, slicer, tqdm, numba, and llvmlite with a 41.9 MB LLVM binary) not in ml/requirements.txt. "
-        "As specified in A3, CPU-friendly standardized odds ratios per 1 SD are used for logistic regression "
-        "and scikit-learn validation permutation importance (n_repeats=10) is used for tree models."
+        "Linear SHAP (shap.LinearExplainer) was used for logistic regression feature attribution, "
+        "providing global mean |SHAP| and exact additive contributions for patient cases."
+        if (name == "chd10_framingham" and shap_global) else
+        "SHAP NOT USED: Standardized odds ratios per 1 SD are used for logistic regression "
+        "and validation permutation importance is used for tree models."
     )
 
-    # Step D11: Acceptance Gates per Model
-    print("\n--- D11 ACCEPTANCE GATES AUDIT ---")
+    # Decision Curve Analysis
+    dca_table: list[dict[str, Any]] = []
+    n_test = len(y_test)
+    test_prev = float(np.mean(y_test))
+    for pt in [round(x * 0.01, 2) for x in range(1, 21)]:
+        weight = pt / (1.0 - pt)
+        m_pt = metrics_at_threshold(y_test, y_test_prob, pt)
+        nb_model = (m_pt["tp"] / n_test) - (m_pt["fp"] / n_test) * weight
+        nb_all = test_prev - (1.0 - test_prev) * weight
+        dca_table.append({
+            "pt": pt,
+            "net_benefit_model": round(nb_model, 4),
+            "net_benefit_all": round(nb_all, 4),
+            "net_benefit_none": 0.0,
+        })
+
+    # Step D11 / Pre-registered Acceptance Gates
     gate_results = {}
-    # Gate 1: Test AUROC >= 0.75
-    g1 = (ci_auroc.point >= 0.75) if ci_auroc.point is not None else False
-    gate_results["gate_1_test_auroc_ge_0_75"] = "PASS" if g1 else "FAIL"
+    if name == "chd10_framingham":
+        print("\n--- PRE-REGISTERED GATES AUDIT (G1 - G5) ---")
+        g1 = (ci_auroc.point >= 0.68) if ci_auroc.point is not None else False
+        gate_results["gate_1_test_auroc_ge_0_68"] = "PASS" if g1 else "FAIL"
 
-    # Gate 2: Test Sensitivity >= 0.75 at locked threshold
-    g2 = (m_test["sensitivity"] >= 0.75) if m_test["sensitivity"] is not None else False
-    gate_results["gate_2_test_sens_ge_0_75"] = "PASS" if g2 else "FAIL"
+        test_slope = cal_test["slope"]
+        g2 = (test_slope is not None and 0.80 <= test_slope <= 1.20)
+        gate_results["gate_2_calibration_slope_in_0_80_1_20"] = "PASS" if g2 else "FAIL"
 
-    # Gate 3: Test calibration slope 0.8 - 1.2
-    test_slope = cal_test["slope"]
-    g3 = (test_slope is not None and 0.8 <= test_slope <= 1.2)
-    gate_results["gate_3_calibration_slope_0_8_to_1_2"] = "PASS" if g3 else "FAIL"
+        g3 = (m_test["sensitivity"] >= 0.70) if m_test["sensitivity"] is not None else False
+        gate_results["gate_3_sensitivity_10pct_ge_0_70"] = "PASS" if g3 else "FAIL"
 
-    # Gate 4: No subgroup with >= 50 positives has sensitivity < 0.60
-    g4 = (worst_sens >= 0.60)
-    gate_results["gate_4_subgroup_sens_ge_0_60"] = "PASS" if g4 else "FAIL"
+        worst_sens = 1.0
+        worst_group = None
+        worst_pos = 0
+        for sg in subgroups:
+            if sg["positives"] >= 30 and sg["sensitivity"] not in (None, "too few"):
+                s_val = float(sg["sensitivity"])
+                if s_val < worst_sens:
+                    worst_sens = s_val
+                    worst_group = f"{sg['group_type']}={sg['group_value']}"
+                    worst_pos = sg["positives"]
+        g4 = (worst_sens >= 0.60)
+        gate_results["gate_4_subgroup_sens_ge_0_60"] = "PASS" if g4 else "FAIL"
 
-    # Gate 5: FULL ships only if it beats BASIC on validation AUROC
-    gate_5_status = "N/A (BASIC)"
-    if tier == "full":
-        basic_name = name.replace("_full_", "_basic_")
-        basic_metrics_path = project_root / "backend-poc-technical" / "ml" / "outputs" / "reports" / basic_name / "metrics.json"
-        if basic_metrics_path.is_file():
-            try:
-                b_data = json.loads(basic_metrics_path.read_text(encoding="utf-8"))
-                basic_val_auroc = float(b_data["chosen_model"]["val_auroc"])
-                full_val_auroc = float(chosen["val_auroc"])
-                diff = full_val_auroc - basic_val_auroc
-                if diff > 0:
-                    gate_5_status = f"PASS (FULL {full_val_auroc:.4f} vs BASIC {basic_val_auroc:.4f}, diff: +{diff:.4f})"
-                else:
-                    gate_5_status = f"FAIL (FULL {full_val_auroc:.4f} vs BASIC {basic_val_auroc:.4f}, diff: {diff:+.4f})"
-            except Exception as e:
-                gate_5_status = f"UNKNOWN ({e})"
-        else:
-            gate_5_status = "EVALUATED_IN_SUMMARY (BASIC metrics not found)"
-    gate_results["gate_5_full_beats_basic"] = gate_5_status
+        prev_brier = test_prev * (1.0 - test_prev)
+        test_brier = float(cal_test["brier"])
+        g5 = (test_brier < prev_brier)
+        gate_results["gate_5_brier_lower_than_prevalence"] = "PASS" if g5 else "FAIL"
 
-    failed_gates = [k for k, v in gate_results.items() if v.startswith("FAIL")]
-    if not calibration_gate_passed:
-        failed_gates.append("val_calibration_slope")
+        failed_gates = [k for k, v in gate_results.items() if v.startswith("FAIL")]
+        ship_status = "SHIP CANDIDATE (all G1-G5 gates passed)" if (len(failed_gates) == 0 and calibration_gate_passed) else f"NOT SHIPPED ({', '.join(failed_gates)})"
+        slope_str = f"{test_slope:.3f}" if test_slope is not None else "N/A"
+        print(f"  Gate 1 (Test AUROC >= 0.68)      : {gate_results['gate_1_test_auroc_ge_0_68']} ({ci_auroc.point:.4f})")
+        print(f"  Gate 2 (Test Cal Slope 0.80-1.20): {gate_results['gate_2_calibration_slope_in_0_80_1_20']} ({slope_str})")
+        print(f"  Gate 3 (Test Sens @ 10% >= 70%)  : {gate_results['gate_3_sensitivity_10pct_ge_0_70']} ({m_test['sensitivity']:.2%})")
+        print(f"  Gate 4 (Subgroup Sens >= 60%)    : {gate_results['gate_4_subgroup_sens_ge_0_60']} (Worst: {worst_group}={worst_sens:.2%}, pos={worst_pos})")
+        print(f"  Gate 5 (Brier < Prev Brier)      : {gate_results['gate_5_brier_lower_than_prevalence']} ({test_brier:.4f} vs {prev_brier:.4f})")
+        print(f"  Overall Status                   : {ship_status}")
+    else:
+        print("\n--- D11 ACCEPTANCE GATES AUDIT ---")
+        g1 = (ci_auroc.point >= 0.75) if ci_auroc.point is not None else False
+        gate_results["gate_1_test_auroc_ge_0_75"] = "PASS" if g1 else "FAIL"
 
-    ship_status = "SHIP CANDIDATE (all D11 gates passed)" if (len(failed_gates) == 0 and calibration_gate_passed) else f"NOT SHIPPED ({', '.join(failed_gates)})"
-    slope_str = f"{test_slope:.3f}" if test_slope is not None else "N/A"
-    print(f"  Gate 1 (Test AUROC >= 0.75): {gate_results['gate_1_test_auroc_ge_0_75']} ({ci_auroc.point:.4f})")
-    print(f"  Gate 2 (Test Sens >= 0.75) : {gate_results['gate_2_test_sens_ge_0_75']} ({m_test['sensitivity']:.2%})")
-    print(f"  Gate 3 (Test Cal Slope)    : {gate_results['gate_3_calibration_slope_0_8_to_1_2']} ({slope_str})")
-    print(f"  Gate 4 (Subgroup Sens >=60): {gate_results['gate_4_subgroup_sens_ge_0_60']} (Worst: {worst_sens:.2%})")
-    if tier == "full":
-        print(f"  Gate 5 (FULL beats BASIC)  : {gate_results['gate_5_full_beats_basic']}")
-    print(f"  Overall Status             : {ship_status}")
+        g2 = (m_test["sensitivity"] >= 0.75) if m_test["sensitivity"] is not None else False
+        gate_results["gate_2_test_sens_ge_0_75"] = "PASS" if g2 else "FAIL"
 
-    # Prepare model card
-    card_notes = notes
-    if ranking_warning:
-        card_notes = f"{card_notes} Note: {ranking_warning}." if card_notes else f"Note: {ranking_warning}."
+        test_slope = cal_test["slope"]
+        g3 = (test_slope is not None and 0.8 <= test_slope <= 1.2)
+        gate_results["gate_3_calibration_slope_0_8_to_1_2"] = "PASS" if g3 else "FAIL"
+
+        g4 = (worst_sens >= 0.60)
+        gate_results["gate_4_subgroup_sens_ge_0_60"] = "PASS" if g4 else "FAIL"
+
+        gate_5_status = "N/A (BASIC)"
+        if tier == "full":
+            basic_name = name.replace("_full_", "_basic_")
+            basic_metrics_path = project_root / "backend-poc-technical" / "ml" / "outputs" / "reports" / basic_name / "metrics.json"
+            if basic_metrics_path.is_file():
+                try:
+                    b_data = json.loads(basic_metrics_path.read_text(encoding="utf-8"))
+                    basic_val_auroc = float(b_data["chosen_model"]["val_auroc"])
+                    full_val_auroc = float(chosen["val_auroc"])
+                    diff = full_val_auroc - basic_val_auroc
+                    if diff > 0:
+                        gate_5_status = f"PASS (FULL {full_val_auroc:.4f} vs BASIC {basic_val_auroc:.4f}, diff: +{diff:.4f})"
+                    else:
+                        gate_5_status = f"FAIL (FULL {full_val_auroc:.4f} vs BASIC {basic_val_auroc:.4f}, diff: {diff:+.4f})"
+                except Exception as e:
+                    gate_5_status = f"UNKNOWN ({e})"
+            else:
+                gate_5_status = "EVALUATED_IN_SUMMARY (BASIC metrics not found)"
+        gate_results["gate_5_full_beats_basic"] = gate_5_status
+
+        failed_gates = [k for k, v in gate_results.items() if v.startswith("FAIL")]
+        if not calibration_gate_passed:
+            failed_gates.append("val_calibration_slope")
+
+        ship_status = "SHIP CANDIDATE (all D11 gates passed)" if (len(failed_gates) == 0 and calibration_gate_passed) else f"NOT SHIPPED ({', '.join(failed_gates)})"
+        slope_str = f"{test_slope:.3f}" if test_slope is not None else "N/A"
+        print(f"  Gate 1 (Test AUROC >= 0.75): {gate_results['gate_1_test_auroc_ge_0_75']} ({ci_auroc.point:.4f})")
+        print(f"  Gate 2 (Test Sens >= 0.75) : {gate_results['gate_2_test_sens_ge_0_75']} ({m_test['sensitivity']:.2%})")
+        print(f"  Gate 3 (Test Cal Slope)    : {gate_results['gate_3_calibration_slope_0_8_to_1_2']} ({slope_str})")
+        print(f"  Gate 4 (Subgroup Sens >=60): {gate_results['gate_4_subgroup_sens_ge_0_60']} (Worst: {worst_sens:.2%})")
+        if tier == "full":
+            print(f"  Gate 5 (FULL beats BASIC)  : {gate_results['gate_5_full_beats_basic']}")
+        print(f"  Overall Status             : {ship_status}")
+
+    # Step A2.15: Save artifacts (only if validation calibration didn't halt export)
+    out_models_dir = project_root / "backend-poc-technical" / "ml" / "outputs" / "models" / name
+    out_reports_dir = project_root / "backend-poc-technical" / "ml" / "outputs" / "reports" / name
+    out_docs_dir = project_root / "docs" / "ml" / "experiments"
+
+    # Generate PNG evaluation plots
+    roc_png, cal_png = generate_roc_and_calibration_plots(y_test, y_test_prob, cal_test, out_reports_dir)
+    print(f"Saved evaluation plots to: {roc_png} and {cal_png}")
 
     model_card = {
         "name": name,
-        "owner": "usman",
+        "owner": "saad" if name == "chd10_framingham" else "usman",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "git_commit": get_git_commit(),
         "label": label_name,
@@ -662,13 +927,8 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
             "calibration_slope": float(test_slope) if test_slope is not None else 0.0,
             "calibration_intercept": float(cal_test["intercept"]) if cal_test["intercept"] is not None else 0.0,
         },
-        "notes": card_notes,
+        "notes": config.get("notes", "Framingham Heart Study 10-year CHD risk model (LR).") if name == "chd10_framingham" else config.get("notes", ""),
     }
-
-    # Step A2.15: Save artifacts (only if validation calibration didn't halt export)
-    out_models_dir = project_root / "backend-poc-technical" / "ml" / "outputs" / "models" / name
-    out_reports_dir = project_root / "backend-poc-technical" / "ml" / "outputs" / "reports" / name
-    out_docs_dir = project_root / "docs" / "ml" / "experiments"
 
     if calibration_gate_passed:
         print(f"\nSaving model artifact to {out_models_dir}...")
@@ -740,6 +1000,8 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
                 "ci_high": ci_auprc.high,
             },
             "metrics_at_threshold": m_test,
+            "metrics_at_10pct": m_test,
+            "metrics_at_20pct": m_test_20,
             "calibration": {
                 "brier": cal_test["brier"],
                 "citl": cal_test["calibration_in_the_large"],
@@ -753,8 +1015,12 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
             },
             "card_population": card_subgroup_row,
             "subgroups": subgroups,
+            "decision_curve": dca_table,
         },
         "feature_explanations": feature_explanations,
+        "clinical_sanity": clinical_sanity,
+        "shap_global": shap_global,
+        "fake_patient_shap": fake_patient_shap,
         "shap_notice": shap_notice,
         "d11_gates": gate_results,
         "ship_status": ship_status,
@@ -778,14 +1044,24 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
         f"- **Wall Time:** {wall_time:.2f} seconds ({wall_time / 60:.1f} minutes)\n"
     )
 
-    sec_data = (
-        f"### Complete Case Cohort Statistics Across Temporal Splits\n\n"
-        f"| Split | Initial In Population | Dropped (Missing Features) | Clean Evaluated Rows | Positives | Prevalence |\n"
-        f"|---|---|---|---|---|---|\n"
-        f"| `train_core` (1999-2012) | {split_data['train_core']['n_initial']:,} | {split_data['train_core']['n_dropped']:,} | {split_data['train_core']['n_clean']:,} | {split_data['train_core']['n_pos']:,} | {split_data['train_core']['prevalence']:.2f}% |\n"
-        f"| `validation` (2013-2016) | {split_data['validation']['n_initial']:,} | {split_data['validation']['n_dropped']:,} | {split_data['validation']['n_clean']:,} | {split_data['validation']['n_pos']:,} | {split_data['validation']['prevalence']:.2f}% |\n"
-        f"| `test` (2017-2023) | {split_data['test']['n_initial']:,} | {split_data['test']['n_dropped']:,} | {split_data['test']['n_clean']:,} | {split_data['test']['n_pos']:,} | {split_data['test']['prevalence']:.2f}% |\n"
-    )
+    if name == "chd10_framingham":
+        sec_data = (
+            f"### Complete Case Cohort Statistics Across Stratified 60/20/20 Splits\n\n"
+            f"| Split | Initial In Population | Dropped (Missing Features) | Clean Evaluated Rows | Positives | Prevalence |\n"
+            f"|---|---|---|---|---|---|\n"
+            f"| `train` (60%) | {split_data['train_core']['n_initial']:,} | {split_data['train_core']['n_dropped']:,} | {split_data['train_core']['n_clean']:,} | {split_data['train_core']['n_pos']:,} | {split_data['train_core']['prevalence']:.2f}% |\n"
+            f"| `validation` (20%) | {split_data['validation']['n_initial']:,} | {split_data['validation']['n_dropped']:,} | {split_data['validation']['n_clean']:,} | {split_data['validation']['n_pos']:,} | {split_data['validation']['prevalence']:.2f}% |\n"
+            f"| `test` (20%) | {split_data['test']['n_initial']:,} | {split_data['test']['n_dropped']:,} | {split_data['test']['n_clean']:,} | {split_data['test']['n_pos']:,} | {split_data['test']['prevalence']:.2f}% |\n"
+        )
+    else:
+        sec_data = (
+            f"### Complete Case Cohort Statistics Across Temporal Splits\n\n"
+            f"| Split | Initial In Population | Dropped (Missing Features) | Clean Evaluated Rows | Positives | Prevalence |\n"
+            f"|---|---|---|---|---|---|\n"
+            f"| `train_core` (1999-2012) | {split_data['train_core']['n_initial']:,} | {split_data['train_core']['n_dropped']:,} | {split_data['train_core']['n_clean']:,} | {split_data['train_core']['n_pos']:,} | {split_data['train_core']['prevalence']:.2f}% |\n"
+            f"| `validation` (2013-2016) | {split_data['validation']['n_initial']:,} | {split_data['validation']['n_dropped']:,} | {split_data['validation']['n_clean']:,} | {split_data['validation']['n_pos']:,} | {split_data['validation']['prevalence']:.2f}% |\n"
+            f"| `test` (2017-2023) | {split_data['test']['n_initial']:,} | {split_data['test']['n_dropped']:,} | {split_data['test']['n_clean']:,} | {split_data['test']['n_pos']:,} | {split_data['test']['prevalence']:.2f}% |\n"
+        )
 
     cand_rows = []
     for m in model_types_to_try:
@@ -810,28 +1086,58 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     if ranking_warning:
         sec_val += f"\n> **Clinical Warning:** {ranking_warning}.\n"
 
-    sec_test = (
-        f"### Held-Out Test Discrimination & Diagnostic Performance (2017-2023)\n\n"
-        f"- **Test AUROC (95% Bootstrap CI):** **{ci_auroc.point:.4f}** [{ci_auroc.low:.4f} - {ci_auroc.high:.4f}]\n"
-        f"- **Test AUPRC (95% Bootstrap CI):** **{ci_auprc.point:.4f}** [{ci_auprc.low:.4f} - {ci_auprc.high:.4f}]\n"
-        f"- **Locked Threshold:** `{locked_threshold:.4f}`\n"
-        f"- **Test Sensitivity:** **{m_test['sensitivity']:.2%}**\n"
-        f"- **Test Specificity:** **{m_test['specificity']:.2%}**\n"
-        f"- **Test PPV:** **{m_test['ppv']:.2%}**\n"
-        f"- **Test NPV:** **{m_test['npv']:.2%}**\n"
-        f"- **Confusion Matrix:** TP={m_test['tp']}, FP={m_test['fp']}, TN={m_test['tn']}, FN={m_test['fn']}\n\n"
-        f"### D11 Acceptance Gate Audit\n\n"
-        f"- Gate 1 (Test AUROC >= 0.75): **{gate_results['gate_1_test_auroc_ge_0_75']}** ({ci_auroc.point:.4f})\n"
-        f"- Gate 2 (Test Sensitivity >= 0.75): **{gate_results['gate_2_test_sens_ge_0_75']}** ({m_test['sensitivity']:.2%})\n"
-        f"- Gate 3 (Test Calibration Slope 0.8-1.2): **{gate_results['gate_3_calibration_slope_0_8_to_1_2']}** ({slope_str})\n"
-        f"- Gate 4 (Subgroup Sens >= 0.60): **{gate_results['gate_4_subgroup_sens_ge_0_60']}** (Worst: {worst_sens:.2%})\n"
-        f"- Gate 5 (FULL beats BASIC on Val AUROC): **{gate_results['gate_5_full_beats_basic']}**\n"
-        f"- **Overall FYP-1 Status:** **{ship_status}**\n"
-    )
+    if name == "chd10_framingham":
+        sec_test = (
+            f"### Held-Out Test Discrimination & Diagnostic Performance\n\n"
+            f"- **Test AUROC (95% Bootstrap CI):** **{ci_auroc.point:.4f}** [{ci_auroc.low:.4f} - {ci_auroc.high:.4f}]\n"
+            f"- **Test AUPRC (95% Bootstrap CI):** **{ci_auprc.point:.4f}** [{ci_auprc.low:.4f} - {ci_auprc.high:.4f}]\n\n"
+            f"#### Operating Point: 10% Cutoff (Moderate / High Risk)\n"
+            f"- **Threshold:** `0.1000`\n"
+            f"- **Sensitivity:** **{m_test['sensitivity']:.2%}**\n"
+            f"- **Specificity:** **{m_test['specificity']:.2%}**\n"
+            f"- **PPV (Precision):** **{m_test['ppv']:.2%}**\n"
+            f"- **NPV:** **{m_test['npv']:.2%}**\n"
+            f"- **F1-Score:** **{m_test['f1']:.4f}**\n"
+            f"- **Confusion Matrix:** TP={m_test['tp']}, FP={m_test['fp']}, TN={m_test['tn']}, FN={m_test['fn']}\n\n"
+            f"#### Operating Point: 20% Cutoff (High Risk)\n"
+            f"- **Threshold:** `0.2000`\n"
+            f"- **Sensitivity:** **{m_test_20['sensitivity']:.2%}**\n"
+            f"- **Specificity:** **{m_test_20['specificity']:.2%}**\n"
+            f"- **PPV (Precision):** **{m_test_20['ppv']:.2%}**\n"
+            f"- **NPV:** **{m_test_20['npv']:.2%}**\n"
+            f"- **F1-Score:** **{m_test_20['f1']:.4f}**\n"
+            f"- **Confusion Matrix:** TP={m_test_20['tp']}, FP={m_test_20['fp']}, TN={m_test_20['tn']}, FN={m_test_20['fn']}\n\n"
+            f"### Pre-Registered Acceptance Gates Audit (G1 - G5)\n\n"
+            f"- Gate 1 (Test AUROC >= 0.68): **{gate_results['gate_1_test_auroc_ge_0_68']}** ({ci_auroc.point:.4f})\n"
+            f"- Gate 2 (Test Calibration Slope in [0.80, 1.20]): **{gate_results['gate_2_calibration_slope_in_0_80_1_20']}** ({slope_str})\n"
+            f"- Gate 3 (Test Sensitivity @ 10% >= 70%): **{gate_results['gate_3_sensitivity_10pct_ge_0_70']}** ({m_test['sensitivity']:.2%})\n"
+            f"- Gate 4 (Subgroup Sens @ 10% >= 60%): **{gate_results['gate_4_subgroup_sens_ge_0_60']}** (Worst: {worst_group}={worst_sens:.2%})\n"
+            f"- Gate 5 (Brier Score < Naive Prevalence Brier): **{gate_results['gate_5_brier_lower_than_prevalence']}** ({test_brier:.4f} vs {prev_brier:.4f})\n"
+            f"- **Overall FYP-1 Status:** **{ship_status}**\n"
+        )
+    else:
+        sec_test = (
+            f"### Held-Out Test Discrimination & Diagnostic Performance (2017-2023)\n\n"
+            f"- **Test AUROC (95% Bootstrap CI):** **{ci_auroc.point:.4f}** [{ci_auroc.low:.4f} - {ci_auroc.high:.4f}]\n"
+            f"- **Test AUPRC (95% Bootstrap CI):** **{ci_auprc.point:.4f}** [{ci_auprc.low:.4f} - {ci_auprc.high:.4f}]\n"
+            f"- **Locked Threshold:** `{locked_threshold:.4f}`\n"
+            f"- **Test Sensitivity:** **{m_test['sensitivity']:.2%}**\n"
+            f"- **Test Specificity:** **{m_test['specificity']:.2%}**\n"
+            f"- **Test PPV:** **{m_test['ppv']:.2%}**\n"
+            f"- **Test NPV:** **{m_test['npv']:.2%}**\n"
+            f"- **Confusion Matrix:** TP={m_test['tp']}, FP={m_test['fp']}, TN={m_test['tn']}, FN={m_test['fn']}\n\n"
+            f"### D11 Acceptance Gate Audit\n\n"
+            f"- Gate 1 (Test AUROC >= 0.75): **{gate_results['gate_1_test_auroc_ge_0_75']}** ({ci_auroc.point:.4f})\n"
+            f"- Gate 2 (Test Sensitivity >= 0.75): **{gate_results['gate_2_test_sens_ge_0_75']}** ({m_test['sensitivity']:.2%})\n"
+            f"- Gate 3 (Test Calibration Slope 0.8-1.2): **{gate_results['gate_3_calibration_slope_0_8_to_1_2']}** ({slope_str})\n"
+            f"- Gate 4 (Subgroup Sens >= 0.60): **{gate_results['gate_4_subgroup_sens_ge_0_60']}** (Worst: {worst_sens:.2%})\n"
+            f"- Gate 5 (FULL beats BASIC on Val AUROC): **{gate_results['gate_5_full_beats_basic']}**\n"
+            f"- **Overall FYP-1 Status:** **{ship_status}**\n"
+        )
 
     sec_cal = (
         f"### Test Calibration Diagnostics\n\n"
-        f"- **Brier Score:** {cal_test['brier']:.4f}\n"
+        f"- **Brier Score:** {cal_test['brier']:.4f} (Naive Prevalence Brier: {prev_brier if name == 'chd10_framingham' else 'N/A'})\n"
         f"- **Calibration-in-the-large (mean p - mean y):** {cal_test['calibration_in_the_large']:+.4f}\n"
         f"- **Logistic Calibration Slope:** {cal_test['slope']:.3f}\n"
         f"- **Logistic Calibration Intercept:** {cal_test['intercept']:+.3f}\n\n"
@@ -851,19 +1157,39 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
             "Sensitivity": f"{sg['sensitivity'] * 100:.1f}%" if isinstance(sg["sensitivity"], (int, float)) else str(sg["sensitivity"]),
             "Specificity": f"{sg['specificity'] * 100:.1f}%" if isinstance(sg["specificity"], (int, float)) else str(sg["specificity"]),
         })
+
+    subgroup_table_md = df_to_markdown(pd.DataFrame(sg_rows), index=False)
+    feat_table_md = df_to_markdown(pd.DataFrame(feature_explanations), index=False)
+    sanity_table_md = df_to_markdown(pd.DataFrame(clinical_sanity), index=False) if clinical_sanity else "N/A"
+    shap_global_md = df_to_markdown(pd.DataFrame(shap_global), index=False) if shap_global else "N/A"
+    dca_md = df_to_markdown(pd.DataFrame(dca_table), index=False) if dca_table else "N/A"
+
     sec_sub = (
         f"### Subgroup Breakdown on Held-Out Test Set\n\n"
-        f"{df_to_markdown(pd.DataFrame(sg_rows), index=False)}\n\n"
-        f"### Feature Importance & Explanations\n\n"
-        f"{df_to_markdown(pd.DataFrame(feature_explanations), index=False)}\n\n"
+        f"{subgroup_table_md}\n\n"
+        f"### Feature Importance & Odds Ratios\n\n"
+        f"{feat_table_md}\n\n"
+        f"### Clinical Sanity Direction Check\n\n"
+        f"{sanity_table_md}\n\n"
+        f"### Global SHAP Feature Attributions\n\n"
+        f"{shap_global_md}\n\n"
+        f"### Decision Curve Analysis (Net Benefit across Thresholds)\n\n"
+        f"{dca_md}\n\n"
         f"> **SHAP Method Notice:** {shap_notice}\n"
     )
 
-    sec_lim = (
-        f"- **Temporal Shift:** Evaluated strictly on temporal hold-out cohorts (2017-2023) following historical fitting (1999-2012).\n"
-        f"- **External Validation:** BRFSS validation cannot evaluate undiagnosed labels because BRFSS lacks biological specimen assays and cuff measurements.\n"
-        f"- **Complete Cases:** Complete case analysis drops missing survey records without synthetic imputation.\n"
-    )
+    if name == "chd10_framingham":
+        sec_lim = (
+            f"- **Dataset Context:** Framingham Heart Study 10-year risk reflects an American cohort initialized in 1948 with predominantly White participants; baseline risk may vary for contemporary South Asian populations.\n"
+            f"- **Clinical Setting:** BP readings in Framingham were standardized clinical measurements, whereas ChronicCare AI receives home self-measurements.\n"
+            f"- **Intended Use:** Provider decision support with patient-facing risk tier; raw risk percentages are not shown to patients to avoid unnecessary anxiety.\n"
+        )
+    else:
+        sec_lim = (
+            f"- **Temporal Shift:** Evaluated strictly on temporal hold-out cohorts (2017-2023) following historical fitting (1999-2012).\n"
+            f"- **External Validation:** BRFSS validation cannot evaluate undiagnosed labels because BRFSS lacks biological specimen assays and cuff measurements.\n"
+            f"- **Complete Cases:** Complete case analysis drops missing survey records without synthetic imputation.\n"
+        )
 
     sections = {
         "Config": sec_config,

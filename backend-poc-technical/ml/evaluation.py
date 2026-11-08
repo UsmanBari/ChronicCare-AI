@@ -529,9 +529,20 @@ def check_leakage(label_name: str, features: Sequence[str]) -> None:
     if label_name not in LABELS:
         raise KeyError(f"Unknown label '{label_name}' not registered in labels.LABELS")
 
-    unknown = [f for f in features if f not in NHANES_CORE_COLUMNS]
-    if unknown:
-        raise ValueError(f"Feature(s) {unknown} are not recognized columns in nhanes_core")
+    if label_name == "TenYearCHD":
+        framingham_valid_cols = {
+            "age", "sex_male", "current_smoker", "bmi", "sbp", "dbp",
+            "bp_meds", "diabetes", "prevalent_hyp", "male", "sysBP", "diaBP",
+            "currentSmoker", "BPMeds", "prevalentHyp", "BMI", "totChol",
+            "total_chol", "glucose", "heartRate", "cigsPerDay", "education",
+        }
+        unknown = [f for f in features if f not in framingham_valid_cols]
+        if unknown:
+            raise ValueError(f"Feature(s) {unknown} are not recognized columns in framingham")
+    else:
+        unknown = [f for f in features if f not in NHANES_CORE_COLUMNS]
+        if unknown:
+            raise ValueError(f"Feature(s) {unknown} are not recognized columns in nhanes_core")
 
     forbidden = set(LABELS[label_name].forbidden_features)
     leaked = [f for f in features if f in forbidden]

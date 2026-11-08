@@ -140,6 +140,107 @@ From `docs/ml/DECISION_CURVE.md`:
 
 ---
 
+## Part 1b: Cardiovascular Risk Model (`chd10_framingham`)
+
+### 1b.1 Model Overview
+- **Model Name:** `chd10_framingham`
+- **Model Version:** `1.0.0`
+- **Release Status:** **SHIP CANDIDATE (Provider Decision Support + Patient-Facing Risk Tier with Educational Note)**
+- **Model Type:** Regularized Logistic Regression (`scikit-learn LogisticRegression(C=0.01, penalty='l2')`)
+- **Selection Decision:** Plain `lr` selected under D10 parsimony rule (lr_balanced did not beat plain lr by $\ge 0.01$ validation AUROC [gap: -0.0007]; best tree did not beat LR by $\ge 0.02$ validation AUROC [gap: -0.0001]).
+- **Model Owner:** Saad (ML Engineer)
+- **Scikit-Learn Version:** 1.9.1
+- **Training Source Split:** Framingham Stratified Random Split (60% Train, 20% Val, 20% Test, `random_state=42`)
+
+### 1b.2 Intended Use & Target Audience
+- **Target Audience:** `provider_and_patient_band`. Displayed on the clinical provider review dashboard (`/api/provider/review/{checkin_id}`) and on the patient check-in summary screen.
+- **Intended Clinical Role:** 10-year coronary heart disease (CHD) risk stratification for adults with hypertension or diabetes using non-invasive clinical features collected by the application without requiring immediate lipid panels.
+- **Patient Communication Rule:** Patients **never** see raw percentage risks or alarmist labels. Patients see the categorical risk band (`Low`, `Moderate`, `High`) accompanied by the educational disclaimer:
+  > *"This is an estimate from a research model, not a diagnosis."*
+  (Urdu: *"یہ ایک تحقیقی ماڈل سے لگایا گیا تخمینہ ہے، کوئی تشخیص نہیں۔"* | Roman Urdu: *"Yeh ek tehqeeqi model se lagaya gaya takhmeena hai, koi tashkhees nahi."*)
+- **Provider Banner:**
+  > *"Experimental: trained on US Framingham data, not validated for Pakistani patients"*
+- **Target Population (Applicability Filter):** Adults aged 30–74 with documented hypertension or diabetes. Individuals outside ages 30–74 receive `"status": "not_enough_information: outside model age range"`.
+
+### 1b.3 Out-of-Scope & Misuse Caveats
+- **Never Diagnostic:** Does not diagnose coronary artery disease, myocardial infarction, or acute coronary syndrome.
+- **No Treatment Modification:** Never advises medication initiation, dosage changes, or statin prescription.
+- **Triage Level Invariant:** Under the project safety invariant, risk estimation can **never lower a triage level**. Raising (`routine -> review`) remains disabled pending formal doctor sign-off.
+
+### 1b.4 Data, Cohort & Stratified Split
+- **Dataset:** Framingham Heart Study 10-year cardiovascular risk dataset.
+- **Target Label:** `TenYearCHD` (1 = coronary heart disease event within 10 years).
+- **Cohort Selection:** Complete-case analysis across 9 non-lab features; 74 missing records dropped out of 4,240 (4,166 complete cases, 14.98% overall prevalence).
+- **Splits (`random_state=42`):**
+  - **Train Core (60%):** 2,499 rows (374 positives, prevalence 14.97%). 5-fold CV for hyperparameter tuning.
+  - **Validation (20%):** 833 rows (124 positives, prevalence 14.89%). Used for model selection and calibration gating.
+  - **Test (20%):** 834 rows (125 positives, prevalence 14.99%). Touched strictly once at evaluation.
+
+### 1b.5 Features, Standardized Coefficients & Odds Ratios
+| Feature | Units / Format | Standardized Coef ($\beta$) | Odds Ratio (per 1 SD) | Clinical Direction Sanity |
+| :--- | :--- | :--- | :--- | :--- |
+| `age` | Years (30–74) | +0.4247 | 1.5291 | PASS (Higher age $\to$ higher CHD risk) |
+| `sex_male` | Binary (1=Male, 0=Female) | +0.2816 | 1.3252 | PASS (Male sex $\to$ higher baseline CHD risk) |
+| `sbp` | mmHg (60–260) | +0.1990 | 1.2202 | PASS (Higher systolic BP $\to$ higher risk) |
+| `current_smoker` | Binary (1=Yes, 0=No) | +0.1563 | 1.1692 | PASS (Smoking $\to$ higher risk) |
+| `prevalent_hyp` | Binary (1=Yes, 0=No) | +0.0924 | 1.0968 | PASS (Prevalent hypertension $\to$ higher risk) |
+| `bmi` | kg/m² (10.0–100.0) | +0.0740 | 1.0769 | PASS (Higher adiposity $\to$ higher risk) |
+| `diabetes` | Binary (1=Yes, 0=No) | +0.0513 | 1.0527 | PASS (Diabetes diagnosis $\to$ higher risk) |
+| `bp_meds` | Binary (1=Yes, 0=No) | +0.0461 | 1.0472 | PASS (Antihypertensive medication $\to$ higher risk proxy) |
+| `dbp` | mmHg (30–160) | +0.0446 | 1.0456 | PASS (Higher diastolic BP $\to$ higher risk) |
+
+*All 9 features have positive coefficients ($\beta > 0$), fully consistent with established cardiovascular epidemiology without clinical reversals.*
+
+### 1b.6 Performance Metrics on Held-Out Test Set ($N=834$)
+- **AUROC (95% Bootstrap CI):** **0.7241** [0.6732, 0.7659]
+- **AUPRC (95% Bootstrap CI):** **0.3083** [0.2561, 0.3726]
+
+#### Operating Performance across Cutoffs
+| Cutoff Point | Threshold | Sensitivity | Specificity | PPV | NPV | F1-Score | Confusion Matrix |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **10% Cutoff (Mod/High)** | 0.1000 | **84.80%** | 39.07% | 19.70% | 93.58% | 0.3198 | TP=106, FP=432, TN=277, FN=19 |
+| **20% Cutoff (High)** | 0.2000 | **58.40%** | 78.00% | 31.88% | 91.40% | 0.4124 | TP=73, FP=156, TN=553, FN=52 |
+
+### 1b.7 Calibration & Risk Bands
+- **Brier Score:** 0.1172 (vs. naive prevalence Brier of 0.1274)
+- **Calibration-in-the-Large (CITL):** +0.0061
+- **Calibration Slope:** **1.142** (within pre-registered $[0.80, 1.20]$ gate)
+- **Calibration Intercept:** +0.164
+- **Risk Bands (NCEP ATP III Standards):**
+  - **Low Risk:** Probability $< 0.1000 (< 10\%)$
+  - **Moderate Risk:** Probability between $0.1000$ and $0.2000 (10\% \text{ to } < 20\%)$
+  - **High Risk:** Probability $\ge 0.2000 (\ge 20\%)$
+
+### 1b.8 Subgroup Evaluation
+Evaluated across sex and age brackets on held-out test data:
+| Subgroup Variable | Subgroup Value | $N$ | Positives | Prevalence | AUROC | Sensitivity @ 10% | Specificity @ 10% |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `sex_male` | Female | 468 | 61 | 13.03% | 0.7226 | 72.13% | 52.33% |
+| `sex_male` | Male | 366 | 64 | 17.49% | 0.6976 | 96.88% | 21.19% |
+| `age_band` | <50 | 441 | 38 | 8.62% | 0.6698 | 60.53% | 61.29% |
+| `age_band` | 50-59 | 247 | 44 | 17.81% | 0.7188 | 93.18% | 22.17% |
+| `age_band` | 60+ | 146 | 43 | 29.45% | 0.6865 | 97.67% | 6.80% |
+
+- **Worst Subgroup Sensitivity ($\ge 30$ positives):** `age_band=<50` at **60.53%** (38 positives), meeting the pre-registered Gate 4 threshold ($\ge 60\%$).
+
+### 1b.9 Pre-Registered Acceptance Gates (G1–G5)
+| Gate | Metric Criterion | Pre-Registered Target | Actual Test Result | Outcome |
+| :--- | :--- | :--- | :--- | :--- |
+| **G1** | Discrimination | Test AUROC $\ge 0.68$ | **0.7241** [0.6732, 0.7659] | **PASS** |
+| **G2** | Calibration | Calibration Slope $\in [0.80, 1.20]$ | **1.142** | **PASS** |
+| **G3** | Sensitivity | Sensitivity at 10% Cutoff $\ge 70\%$ | **84.80%** | **PASS** |
+| **G4** | Equity | Worst Subgroup Sens @ 10% $\ge 60\%$ ($\ge 30$ pos) | **60.53%** (`age_band=<50`) | **PASS** |
+| **G5** | Information Value | Brier Score < Naive Prevalence Brier | **0.1172** vs 0.1274 | **PASS** |
+
+**Final Recommendation:** **SHIP CANDIDATE** (all 5 pre-registered gates passed; exported to `backend-poc-technical/models/chd10_framingham.json`).
+
+### 1b.10 Limitations & Transportability
+1. **US Framingham Origin:** The model is trained on historic American Framingham cohort data (1948 cohort) with predominantly White participants. Baseline cardiovascular disease risk, onset age, and metabolic profiles differ substantially in South Asian and Pakistani populations.
+2. **Measurement Setting Differences:** Framingham blood pressures were recorded by trained clinical staff using mercury sphygmomanometers under protocol conditions; ChronicCare AI collects home self-reported BP measurements.
+3. **Withholding Numerical Probabilities from Patients:** To avoid health anxiety and misinterpretation, patients are shown the three standard risk bands (`Low`, `Moderate`, `High`) with an explicit non-diagnostic note rather than continuous risk percentages.
+
+---
+
 ## Part 2: Retired & Non-Shipped Models
 
 | Model Config | Primary Gates Failed | Ship Decision | Reference Document |

@@ -1,0 +1,152 @@
+[
+  {
+    "inputs": {
+      "age": 36,
+      "sex_male": 0,
+      "current_smoker": 0,
+      "bmi": 21.0,
+      "sbp": 110.0,
+      "dbp": 70.0,
+      "bp_meds": 0,
+      "diabetes": 0,
+      "prevalent_hyp": 0
+    },
+    "expected_prob": 0.03245908986119104,
+    "expected_band": "low"
+  },
+  {
+    "inputs": {
+      "age": 42,
+      "sex_male": 0,
+      "current_smoker": 0,
+      "bmi": 23.5,
+      "sbp": 118.0,
+      "dbp": 76.0,
+      "bp_meds": 0,
+      "diabetes": 0,
+      "prevalent_hyp": 0
+    },
+    "expected_prob": 0.049595060322172,
+    "expected_band": "low"
+  },
+  {
+    "inputs": {
+      "age": 48,
+      "sex_male": 0,
+      "current_smoker": 0,
+      "bmi": 24.0,
+      "sbp": 122.0,
+      "dbp": 78.0,
+      "bp_meds": 0,
+      "diabetes": 0,
+      "prevalent_hyp": 0
+    },
+    "expected_prob": 0.06915920683711048,
+    "expected_band": "low"
+  },
+  {
+    "inputs": {
+      "age": 38,
+      "sex_male": 1,
+      "current_smoker": 0,
+      "bmi": 25.0,
+      "sbp": 120.0,
+      "dbp": 80.0,
+      "bp_meds": 0,
+      "diabetes": 0,
+      "prevalent_hyp": 0
+    },
+    "expected_prob": 0.07419900713217165,
+    "expected_band": "low"
+  },
+  {
+    "inputs": {
+      "age": 52,
+      "sex_male": 1,
+      "current_smoker": 0,
+      "bmi": 26.5,
+      "sbp": 135.0,
+      "dbp": 85.0,
+      "bp_meds": 0,
+      "diabetes": 0,
+      "prevalent_hyp": 1
+    },
+    "expected_prob": 0.19187978011110438,
+    "expected_band": "moderate"
+  },
+  {
+    "inputs": {
+      "age": 56,
+      "sex_male": 0,
+      "current_smoker": 1,
+      "bmi": 28.0,
+      "sbp": 140.0,
+      "dbp": 88.0,
+      "bp_meds": 0,
+      "diabetes": 0,
+      "prevalent_hyp": 1
+    },
+    "expected_prob": 0.19646907983346876,
+    "expected_band": "moderate"
+  },
+  {
+    "inputs": {
+      "age": 50,
+      "sex_male": 1,
+      "current_smoker": 1,
+      "bmi": 27.0,
+      "sbp": 138.0,
+      "dbp": 86.0,
+      "bp_meds": 0,
+      "diabetes": 0,
+      "prevalent_hyp": 0
+    },
+    "expected_prob": 0.20000082925014329,
+    "expected_band": "high"
+  },
+  {
+    "inputs": {
+      "age": 65,
+      "sex_male": 1,
+      "current_smoker": 1,
+      "bmi": 29.5,
+      "sbp": 160.0,
+      "dbp": 95.0,
+      "bp_meds": 1,
+      "diabetes": 0,
+      "prevalent_hyp": 1
+    },
+    "expected_prob": 0.5348818258086808,
+    "expected_band": "high"
+  },
+  {
+    "inputs": {
+      "age": 68,
+      "sex_male": 1,
+      "current_smoker": 1,
+      "bmi": 32.0,
+      "sbp": 170.0,
+      "dbp": 100.0,
+      "bp_meds": 1,
+      "diabetes": 1,
+      "prevalent_hyp": 1
+    },
+    "expected_prob": 0.6866741861776777,
+    "expected_band": "high"
+  },
+  {
+    "inputs": {
+      "age": 70,
+      "sex_male": 0,
+      "current_smoker": 1,
+      "bmi": 34.0,
+      "sbp": 175.0,
+      "dbp": 102.0,
+      "bp_meds": 1,
+      "diabetes": 1,
+      "prevalent_hyp": 1
+    },
+    "expected_prob": 0.6002888306459799,
+    "expected_band": "high"
+  }
+]
