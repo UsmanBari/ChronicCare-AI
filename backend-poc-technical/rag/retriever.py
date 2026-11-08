@@ -6,11 +6,16 @@ metadata filtering, and priority-based tie-breaking.
 """
 from __future__ import annotations
 
+import logging
 import math
 import re
-from typing import Any
+from typing import Any, Optional
 
+from rag.licences import is_source_expired
+from rag.query_map import is_ramadan_text
 from rag.store import ChunkStore
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_medical_units(text: str) -> str:
@@ -90,10 +95,14 @@ class BM25Retriever:
         condition: str | None = None,
         topics: list[str] | None = None,
         min_priority: int | None = None,
+        as_of_date: Any = None,
+        exclude_source_prefixes: tuple[str, ...] = (),
     ) -> list[dict[str, Any]]:
         """
         Retrieve the top_k most relevant chunks matching the query.
-        Applies metadata filters (condition, topics, min_priority) and breaks ties by guideline priority.
+        Applies metadata filters (condition, topics, min_priority, licence expiry, source prefix exclusions)
+        and breaks ties by guideline priority.
+        For diabetes queries, prefers ADA guideline sections over IDF-DAR unless fasting/Ramadan is queried.
         Returns a list of chunk dicts augmented with 'bm25_score' and 'rank'.
         """
         q_tokens = tokenize(query)
@@ -106,7 +115,36 @@ class BM25Retriever:
         norm_topics = [t.lower().strip() for t in topics] if topics else None
         norm_cond = condition.lower().strip() if condition else None
 
+        # Pre-lowercase exclude_source_prefixes once outside retriever loop
+        clean_exclude_prefixes = (
+            tuple(p.lower().strip() for p in exclude_source_prefixes)
+            if exclude_source_prefixes
+            else ()
+        )
+
+        is_diabetes = (norm_cond == "diabetes")
+        is_ramadan = is_ramadan_text(query)
+
         for idx, doc in enumerate(self.corpus):
+            src_id = str(doc.get("source_id", "")).strip().lower()
+            chunk_id = str(doc.get("id") or doc.get("chunk_id") or "").strip().lower()
+
+            # Exclude source prefixes filter (e.g. diabetes guidelines for non-diabetic patients)
+            if clean_exclude_prefixes and any(
+                src_id.startswith(p) or chunk_id.startswith(p)
+                for p in clean_exclude_prefixes
+            ):
+                continue
+
+            # X2: Runtime licence expiry check
+            if src_id and is_source_expired(src_id, as_of=as_of_date):
+                logger.warning("Filtered expired guideline chunk for source: %s", src_id)
+                continue
+
+            # IDF-DAR (idf_dar_2021) chunks may be used only for Ramadan check-ins
+            if is_diabetes and not is_ramadan and src_id.startswith("idf_dar"):
+                continue
+
             # 1. Condition filter
             if norm_cond:
                 doc_cond = str(doc.get("condition", "")).lower().strip()
@@ -136,14 +174,33 @@ class BM25Retriever:
                     denom = freq + self.k1 * (1.0 - self.b + self.b * (dl / self.avgdl))
                     score += idf_val * (freq * (self.k1 + 1.0)) / denom
 
-            # Only include if score > 0 (or if query has matching terms)
-            candidates.append((score, doc_pri, doc))
+            # Z2: Preference weighting (ADA for non-Ramadan diabetes, IDF for Ramadan diabetes)
+            if is_diabetes and not is_ramadan:
+                if src_id.startswith("ada_2026"):
+                    pref = 2
+                else:
+                    pref = 1
+                candidates.append((score, pref, doc_pri, doc))
+            elif is_diabetes and is_ramadan:
+                if src_id.startswith("idf_dar"):
+                    pref = 2
+                elif src_id.startswith("ada_2026"):
+                    pref = 1
+                else:
+                    pref = 0
+                candidates.append((score, pref, doc_pri, doc))
+            else:
+                candidates.append((score, 0, doc_pri, doc))
 
-        # Sort descending by score; ties broken by priority (higher priority first)
-        candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        if is_diabetes:
+            # Sort by match (score > 0), preference, score, priority
+            candidates.sort(key=lambda item: (1 if item[0] > 0.0 else 0, item[1], item[0], item[2]), reverse=True)
+        else:
+            # Standard sorting descending by score, ties broken by priority
+            candidates.sort(key=lambda item: (item[0], item[2]), reverse=True)
 
         results = []
-        for rank, (score, _, doc) in enumerate(candidates[:top_k], start=1):
+        for rank, (score, _, _, doc) in enumerate(candidates[:top_k], start=1):
             out_doc = dict(doc)
             out_doc["bm25_score"] = round(score, 4)
             out_doc["rank"] = rank

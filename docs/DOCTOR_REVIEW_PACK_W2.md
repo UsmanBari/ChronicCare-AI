@@ -206,3 +206,22 @@ Every item below describes an active clinical safety decision, triage behavior, 
 
 **Doctor Signature**: ________________________________________________________  
 **Date Signed**: _____________________________________________________________
+---
+
+## Decisions (3 Nov 2026)
+
+Full transcripts and individual doctor responses are documented in [docs/CLINICIAN_RESPONSES.md](file:///docs/CLINICIAN_RESPONSES.md).
+
+| Decision | Topic | Consensus / Outcome | Status | Rule ID |
+| :--- | :--- | :--- | :--- | :--- |
+| **D1** | Urdu Red-Flag Phrases | Approved by Doctor C (asked not to be named). Stays off in production until Release 2 decision. | Pending Release 2 | — |
+| **D2** | Meter LO / HI Text Readings | Both doctors agree: meter LO and HI require immediate confirmation and escalate to emergency. | Adopted | Rule R1 |
+| **D3** | Fast-Acting Sugar Guidance | Unanimous: replace specific "15 g / 3-4 tablets" dose text with neutral guidance across all languages. | Adopted | Rule R2 |
+| **D4** | Blood Pressure Guidelines | Unanimous: cite the 2025 AHA/ACC guideline edition; physiological thresholds remain unchanged. | Adopted | Rule R3 |
+| **D5** | Non-Stop Vomiting | Elevated: unable to keep fluids down is EMERGENCY; other non-stop vomiting is URGENT with follow-up. | Adopted | Rule R4 |
+| **D6** | HbA1c Screening Reminder | Unanimous: activate 365-day preventive screening interval in patient check-in. | Adopted | Rule R5 |
+| **D7** | Experimental Risk Panel | Doctors approve provider-only view; never patient-facing. Stays behind feature flag. | Documented | Rule R6 |
+| **D8** | Waist Range & Landmark | Dr Anam and Dr Shaiza kept 40-200 cm and top of hip bone (NHANES landmark). Doctor C suggested WHO midpoint. | Not adopted (kept hip bone) | — |
+| **D9** | Longitudinal Trend Arrows | Dr Anam and Dr Shaiza kept 10 / 5 / 20 and 5 readings. Doctor C suggested 10 mg/dL for sugar. | Not adopted (kept 10%) | — |
+| **D10** | Bare Glucose 2-40 Unit Re-Ask | Re-ask unit once before routing to possible low sugar; routes to safe path if still unclear. | Adopted | Rule R7 |
+| **D11** | Check-in With No Readings | Unanimous: routine if symptom-free; review if any symptom is reported. | Adopted | Rule R8 |

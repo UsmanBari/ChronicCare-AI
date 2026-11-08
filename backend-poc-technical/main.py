@@ -160,6 +160,8 @@ from data_sources.app_store import (
     apply_checkin_answer_atomic,
     create_checkin_result,
     get_checkin_result,
+    get_checkin_explanation,
+    update_checkin_explanation,
     get_user_checkins,
     get_user_baseline_history,
     get_user_reading_history,
@@ -829,8 +831,17 @@ class ConfigItem(BaseModel):
     set: bool
 
 
+class CheckinExplanationResponse(BaseModel):
+    status: str
+    sentences: Optional[List[Dict[str, Any]]] = None
+    sources: Optional[List[Dict[str, Any]]] = None
+
+
 class ConfigStatusResponse(BaseModel):
     settings: List[ConfigItem]
+    flags: Optional[Dict[str, Any]] = None
+    keys_and_models: Optional[Dict[str, str]] = None
+    explainer_metrics: Optional[Dict[str, Any]] = None
 
 
 # --- Check-in & Review Schemas ---
@@ -880,9 +891,11 @@ class CheckinAnswerResponse(BaseModel):
     last_odd_class: Optional[str] = None
     is_probe: Optional[bool] = None
     option_items: Optional[List[Dict[str, str]]] = None
+    safety_note: Optional[str] = None
 
 
 from orchestrator.steps import (
+    _build_patient_explain_view,
     CheckinCompleteResponse,
     step_check_idempotency,
     step_parse_and_validate_intake,
@@ -1034,6 +1047,7 @@ class ReviewDetailResponse(BaseModel):
     explanation: Optional[Dict[str, Any]] = None
     trace: Optional[List[Dict[str, Any]]] = None
     recent_record_edits: Optional[List[RecordEditItem]] = None
+    danger_wordgroups: Optional[List[str]] = None
 
 
 class VoiceTranscribeResponse(BaseModel):
@@ -2754,7 +2768,8 @@ async def import_patient_record_endpoint(
 def _is_ocr_enabled() -> bool:
     if os.environ.get("OCR_ENABLED", "false").strip().lower() not in ("true", "1", "yes"):
         return False
-    return check_ocr_provider_available()
+    from data_sources.ocr.provider import check_ocr_provider_available as _check
+    return _check()
 
 
 def _validate_medication_entry(
@@ -2978,8 +2993,8 @@ async def upload_record_image_endpoint(
         # Re-open after verify
         img = Image.open(io.BytesIO(raw_bytes))
         img = ImageOps.exif_transpose(img)
-        if max(img.width, img.height) > 2000:
-            img.thumbnail((2000, 2000), Image.Resampling.LANCZOS)
+        if max(img.width, img.height) > 1280:
+            img.thumbnail((1280, 1280), Image.Resampling.LANCZOS)
         buf = io.BytesIO()
         if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
@@ -2992,7 +3007,6 @@ async def upload_record_image_endpoint(
             content={"code": "image_unreadable", "detail": "image_unreadable"},
         )
 
-    # Run OCR provider with strict error boundary
     try:
         provider = get_ocr_provider()
     except (ImportError, ModuleNotFoundError, RuntimeError) as e:
@@ -3824,7 +3838,8 @@ def delete_ehr_connection_endpoint(current_user: Dict[str, Any] = Depends(requir
 @app.get("/api/admin/config-status", response_model=ConfigStatusResponse, tags=["Admin"])
 def get_config_status_endpoint(current_user: Dict[str, Any] = Depends(require_role("admin"))):
     """
-    Returns configured status (name and set boolean only, never values) for critical server settings.
+    Returns configured status (name and set boolean only, never values) for critical server settings,
+    feature flags, model key presence, and explainer guard metrics.
     Restricted to admin role only.
     """
     db_backend = os.environ.get("DB_BACKEND", "").strip().lower()
@@ -3849,7 +3864,41 @@ def get_config_status_endpoint(current_user: Dict[str, Any] = Depends(require_ro
         ConfigItem(name=k, set=bool(os.environ.get(k, "").strip()))
         for k in keys
     ]
-    return ConfigStatusResponse(settings=settings)
+
+    flags = {
+        "RISK_ENABLED": os.environ.get("RISK_ENABLED", "").strip().lower() == "true",
+        "RISK_CAN_RAISE": os.environ.get("RISK_CAN_RAISE", "").strip().lower() == "true",
+        "EXPLAIN_ENABLED": os.environ.get("EXPLAIN_ENABLED", "").strip().lower() == "true",
+        "EXPLAIN_MODE": os.environ.get("EXPLAIN_MODE", "background").strip().lower(),
+        "EXPLAIN_LLM_CONDITIONS": os.environ.get("EXPLAIN_LLM_CONDITIONS", "hypertension").strip().lower(),
+        "EXPLAIN_LLM_LANGUAGES": os.environ.get("EXPLAIN_LLM_LANGUAGES", "en,ur,roman_ur").strip().lower(),
+        "OCR_ENABLED": os.environ.get("OCR_ENABLED", "").strip().lower() == "true",
+        "DANGER_WORDGROUPS_ENABLED": os.environ.get("DANGER_WORDGROUPS_ENABLED", "").strip().lower() == "true",
+        "ORCHESTRATOR": os.environ.get("ORCHESTRATOR", "direct").strip().lower(),
+        "INTERVIEW_ENGINE": os.environ.get("INTERVIEW_ENGINE", "v2").strip().lower(),
+        "LLM_PROVIDER": os.environ.get("LLM_PROVIDER", "auto").strip().lower(),
+        "SCREENING_REMINDER_INTERVAL_DAYS": os.environ.get("SCREENING_REMINDER_INTERVAL_DAYS", "90").strip(),
+    }
+
+    def _status_val(env_var: str) -> str:
+        return "SET" if os.environ.get(env_var, "").strip() else "NOT SET"
+
+    keys_and_models = {
+        "GROQ_API_KEY": _status_val("GROQ_API_KEY"),
+        "GROQ_MODEL": _status_val("GROQ_MODEL"),
+        "GEMINI_API_KEY": _status_val("GEMINI_API_KEY"),
+        "GEMINI_MODEL": _status_val("GEMINI_MODEL"),
+    }
+
+    from rag.explain_guards import get_explain_guard_metrics
+    explainer_metrics = get_explain_guard_metrics()
+
+    return ConfigStatusResponse(
+        settings=settings,
+        flags=flags,
+        keys_and_models=keys_and_models,
+        explainer_metrics=explainer_metrics,
+    )
 
 
 def _compute_age_years(dob_str: Optional[str]) -> Optional[float]:
@@ -4110,6 +4159,8 @@ def answer_checkin_endpoint(
     protocol_state = TriageProtocolState.from_dict(protocol_state_dict) if protocol_state_dict else None
     med_state_dict = checkin.get("med_state")
     med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
+    user_profile = get_patient_profile(current_user["user_id"]) or {}
+    lang = (raw_state.get("language") if isinstance(raw_state, dict) else None) or getattr(current_state, "language", None) or (current_state.answers.get("language") if hasattr(current_state, "answers") and isinstance(current_state.answers, dict) else None) or user_profile.get("language") or "en"
 
     # Clinical Safety Rule: Typed pregnancy statement stops check-in immediately
     answer_raw = (body.answer or "").strip()
@@ -4339,6 +4390,23 @@ def answer_checkin_endpoint(
 
         # Stage-1 red-flag screen on medication answer
         triggered, reason = run_stage1_red_flag_screen(body.answer)
+        med_safety_note = None
+        from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note
+        if not triggered and is_danger_wordgroups_enabled() and body.answer:
+            wg_hit = detect_wordgroups(body.answer)
+            if wg_hit.is_danger:
+                lang = getattr(current_state, "language", None) or "en"
+                med_safety_note = get_safety_note(lang)
+                if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
+                    current_state.answers = {}
+                current_state.answers.setdefault("_wordgroup_hits", []).append({"group": wg_hit.group, "step": getattr(current_state, "step", "medication")})
+                append_audit(
+                    actor_user_id=current_user["user_id"],
+                    action="danger_wordgroup_hit",
+                    target=checkin_id,
+                    outcome="flagged",
+                    detail={"group": wg_hit.group},
+                )
         if triggered:
             rf_level = get_red_flag_level(reason)
             is_emerg = (rf_level == "emergency")
@@ -4426,6 +4494,7 @@ def answer_checkin_endpoint(
                 version=next_version,
                 phase="medication",
                 triage=protocol_state.result if protocol_state else None,
+                safety_note=med_safety_note,
             )
         else:
             return CheckinAnswerResponse(
@@ -4437,6 +4506,7 @@ def answer_checkin_endpoint(
                 version=next_version,
                 phase="medication",
                 triage=protocol_state.result if protocol_state else None,
+                safety_note=med_safety_note,
             )
 
     # 3. INTERVIEW PHASE
@@ -4546,6 +4616,17 @@ def answer_checkin_endpoint(
 
         next_version = current_version + 1
 
+        if next_state.get("wordgroup_hits"):
+            for h in next_state["wordgroup_hits"]:
+                if isinstance(h, dict) and h.get("group"):
+                    append_audit(
+                        actor_user_id=current_user["user_id"],
+                        action="danger_wordgroup_hit",
+                        target=checkin_id,
+                        outcome="flagged",
+                        detail={"group": h["group"]},
+                    )
+
         return CheckinAnswerResponse(
             engine="v3",
             question=next_question_str,
@@ -4566,6 +4647,7 @@ def answer_checkin_endpoint(
             last_odd_class=next_state.get("last_odd_class"),
             is_probe=next_state.get("is_probe"),
             option_items=next_state.get("option_items"),
+            safety_note=next_state.get("safety_note"),
         )
 
     # v2 Interview node path
@@ -4581,6 +4663,9 @@ def answer_checkin_endpoint(
             )
 
     try:
+        if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
+            current_state.answers = {}
+        current_state.answers["language"] = lang
         next_state = adaptive_interview_node(current_state, patient_response=body.answer)
     except ValueError as e:
         raise HTTPException(
@@ -4588,11 +4673,31 @@ def answer_checkin_endpoint(
             detail=str(e),
         )
 
+    v2_safety_note = None
+    from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note
+    if not next_state.stage1_red_flag and is_danger_wordgroups_enabled() and body.answer:
+        wg_hit = detect_wordgroups(body.answer)
+        if wg_hit.is_danger:
+            lang = getattr(next_state, "language", None) or "en"
+            v2_safety_note = get_safety_note(lang)
+            if not hasattr(next_state, "answers") or not isinstance(next_state.answers, dict):
+                next_state.answers = {}
+            next_state.answers.setdefault("_wordgroup_hits", []).append({"group": wg_hit.group, "step": getattr(current_state, "step", "")})
+            append_audit(
+                actor_user_id=current_user["user_id"],
+                action="danger_wordgroup_hit",
+                target=checkin_id,
+                outcome="flagged",
+                detail={"group": wg_hit.group},
+            )
+
     rf_level = get_red_flag_level(next_state.stage1_reason) if next_state.stage1_red_flag else "routine"
     is_emergency = bool(
         (next_state.stage1_red_flag and rf_level == "emergency")
         or (next_state.intake and next_state.intake.get("emergency"))
     )
+    if is_emergency and not v2_safety_note:
+        v2_safety_note = get_safety_note(lang)
     is_urgent_stage1 = bool(next_state.stage1_red_flag and rf_level == "urgent")
 
     if is_emergency or is_urgent_stage1:
@@ -4699,6 +4804,7 @@ def answer_checkin_endpoint(
         version=next_version,
         escalation_recorded=True if is_emergency else None,
         phase=next_phase,
+        safety_note=v2_safety_note,
     )
 
 
@@ -4773,6 +4879,7 @@ def complete_checkin_endpoint(
         state=state,
         triage_decision=triage_decision,
         get_patient_profile_fn=get_patient_profile,
+        checkin_id=checkin_id,
     )
 
     # 11. Trace Construction (Direct Mode)
@@ -4853,6 +4960,30 @@ def get_user_checkin_detail_endpoint(
         state=checkin["state"],
         result=result,
         record_source_label=record_label,
+    )
+
+
+@app.get("/api/checkins/{checkin_id}/explanation", response_model=CheckinExplanationResponse, tags=["Check-in"])
+def get_checkin_explanation_endpoint(
+    checkin_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Retrieves patient-facing clinical guideline explanation for a check-in."""
+    checkin = get_checkin_by_id(checkin_id)
+    if not checkin or checkin["user_id"] != current_user["user_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Check-in session not found",
+        )
+
+    expl = get_checkin_explanation(checkin_id)
+    patient_view = _build_patient_explain_view(expl)
+    if not patient_view:
+        return CheckinExplanationResponse(status="ready", sentences=[], sources=[])
+    return CheckinExplanationResponse(
+        status=patient_view.get("status", "ready"),
+        sentences=patient_view.get("sentences", []),
+        sources=patient_view.get("sources", []),
     )
 
 
@@ -4958,6 +5089,7 @@ def get_provider_review_detail_endpoint(
             detail="Check-in result not found",
         )
 
+    from agents.danger_wordgroups import is_danger_wordgroups_enabled
     patient_user = get_user_by_id(checkin["user_id"])
     patient_display = (patient_user.get("display_name") if patient_user else None) or (patient_user.get("email") if patient_user else None) or "Patient"
     actions = get_review_actions(checkin_id)
@@ -5009,6 +5141,19 @@ def get_provider_review_detail_endpoint(
             RecordEditItem(**e)
             for e in get_recent_edits_for_patient(checkin["user_id"], limit=20)
         ],
+        danger_wordgroups=(
+            sorted(list({
+                *(result.get("triage", {}).get("wordgroups", []) if isinstance(result.get("triage"), dict) else []),
+                *([h.get("group") for h in checkin.get("state", {}).get("wordgroup_hits", []) if isinstance(h, dict) and h.get("group")] if isinstance(checkin.get("state"), dict) else []),
+                *([h.get("group") for h in checkin.get("state", {}).get("answers", {}).get("_wordgroup_hits", []) if isinstance(h, dict) and h.get("group")] if isinstance(checkin.get("state"), dict) else []),
+            }))
+            if (is_danger_wordgroups_enabled() and (
+                (isinstance(result.get("triage"), dict) and result.get("triage", {}).get("wordgroups"))
+                or (isinstance(checkin.get("state"), dict) and checkin.get("state", {}).get("wordgroup_hits"))
+                or (isinstance(checkin.get("state"), dict) and checkin.get("state", {}).get("answers", {}).get("_wordgroup_hits"))
+            ))
+            else None
+        ),
     )
 
 
@@ -5048,6 +5193,7 @@ def post_provider_review_action_endpoint(
     )
 
     updated_result = get_checkin_result(checkin_id)
+    from agents.danger_wordgroups import is_danger_wordgroups_enabled
     patient_user = get_user_by_id(checkin["user_id"])
     patient_display = (patient_user.get("display_name") if patient_user else None) or (patient_user.get("email") if patient_user else None) or "Patient"
     actions = get_review_actions(checkin_id)

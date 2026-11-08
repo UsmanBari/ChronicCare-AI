@@ -1,5 +1,4 @@
 {
-  "_comment_clinical_safety": "NOTE: v3_possible_low_guidance contains specific therapeutic dosage advice ('15g fast-acting sugar'). It is preserved verbatim per G-06 until a supervising physician formally signs off on neutral emergency referral phrasing.",
   "emergency_red_flag_note": {
     "en": "Emergency red flag detected. Please seek emergency medical care immediately.",
     "ur": "ہنگامی علامت سامنے آئی ہے۔ براہ کرم فوراً قریبی ایمرجنسی یا ہسپتال سے رجوع کریں۔",
@@ -31,9 +30,9 @@
     "needs_native_review": false
   },
   "unit_clarification_question": {
-    "en": "Did you mean {value} mmol/L or {value} mg/dL?",
-    "ur": "کیا آپ کی مراد {value} mmol/L تھی یا {value} mg/dL؟",
-    "roman_ur": "Kya aap ki muraad {value} mmol/L thi ya {value} mg/dL?",
+    "en": "Is that number in mg/dL (most meters) or mmol/L?",
+    "ur": "کیا یہ نمبر mg/dL میں ہے (زیادہ تر میٹر) یا mmol/L میں؟",
+    "roman_ur": "Kya yeh number mg/dL mein hai (zyada tar meter) ya mmol/L mein?",
     "needs_native_review": false
   },
   "unit_clarification_why": {
@@ -43,21 +42,30 @@
     "needs_native_review": false
   },
   "unit_clarification_options": {
-    "en": ["mmol/L", "mg/dL"],
-    "ur": ["mmol/L", "mg/dL"],
-    "roman_ur": ["mmol/L", "mg/dL"],
+    "en": [
+      "mmol/L",
+      "mg/dL"
+    ],
+    "ur": [
+      "mmol/L",
+      "mg/dL"
+    ],
+    "roman_ur": [
+      "mmol/L",
+      "mg/dL"
+    ],
     "needs_native_review": false
   },
   "glucose_unclear_unit_safety_guidance": {
-    "en": "If you feel shaky, sweaty, dizzy, or unwell, please consume fast-acting sugar (fruit juice or sweets) and re-check, or seek medical advice.",
-    "ur": "اگر آپ کپکپاہٹ، پسینہ، چکر، یا طبیعت خراب محسوس کریں، تو براہ کرم جلدی اثر کرنے والی شوگر (پھلوں کا رس یا میٹھا) لیں اور دوبارہ چیک کریں، یا ڈاکٹر سے مشورہ کریں۔",
-    "roman_ur": "Agar aap kapkapahat, paseena, chakkar, ya tabiyat kharab mehsoos karein, to barah-e-karam jaldi asar karne wali sugar (fruit juice ya meetha) lein aur dobara check karein, ya doctor se mashwara karein.",
+    "en": "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist.",
+    "ur": "فوراً جلدی اثر کرنے والی میٹھی چیز لیں، جیسے پھلوں کا جوس یا گلوکوز، اور اگر علامات برقرار رہیں تو فوراً طبی مدد حاصل کریں۔",
+    "roman_ur": "Foran jaldi asar karne wali meethi cheez lein, jaise phalon ka juice ya glucose, aur agar alamaat barqarar rahein to foran doctor se rabta karein.",
     "needs_native_review": false
   },
   "v3_possible_low_guidance": {
-    "en": "Low blood sugar alert: If you feel shaky, sweaty, confused or dizzy, consume 15g fast-acting sugar (half cup juice or 3-4 glucose tablets) immediately.",
-    "ur": "کم شوگر کی اطلاع: اگر آپ کپکپاہٹ، پسینہ، الجھن، یا چکر محسوس کریں تو فوراً 15 گرام جلدی اثر کرنے والی شوگر (آدھا کپ رس یا 3 سے 4 گلوکوز کی گولیاں) لیں۔",
-    "roman_ur": "Kam sugar ki itla: Agar aap kapkapahat, paseena, uljhan ya chakkar mehsoos karein, to foran 15g jaldi asar karne wali sugar (adha cup juice ya 3-4 glucose tablets) lein.",
+    "en": "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist.",
+    "ur": "فوراً جلدی اثر کرنے والی میٹھی چیز لیں، جیسے پھلوں کا جوس یا گلوکوز، اور اگر علامات برقرار رہیں تو فوراً طبی مدد حاصل کریں۔",
+    "roman_ur": "Foran jaldi asar karne wali meethi cheez lein, jaise phalon ka juice ya glucose, aur agar alamaat barqarar rahein to foran doctor se rabta karein.",
     "needs_native_review": false
   },
   "glucose_unit_unclear_prompt": {
@@ -132,10 +140,40 @@
     "roman_ur": "Pehle aap ne tamam khorakein lene ka bataya lekin phir kaha ke dawai khatam ho gayi thi. Kya aap is ki wazahat kar sakte hain?",
     "needs_native_review": false
   },
+  "meter_lo_hi_confirmation": {
+    "en": "Does your meter screen show the letters LO (or HI) instead of a number?",
+    "ur": "کیا آپ کے میٹر کی اسکرین پر کسی نمبر کی جگہ LO (یا HI) لکھا آ رہا ہے؟",
+    "roman_ur": "Kya aap ke meter ki screen par kisi number ki jagah LO (ya HI) likha aa raha hai?",
+    "needs_native_review": false
+  },
   "contradiction_fasting_just_ate": {
     "en": "We noted this reading as fasting, but you mentioned eating recently. Was this reading taken before or after your meal?",
     "ur": "ہم نے یہ ریڈنگ نہار منہ لکھی ہے مگر آپ نے کھانا کھانے کا ذکر کیا۔ کیا یہ ٹیسٹ کھانے سے پہلے کا تھا یا بعد کا؟",
     "roman_ur": "Hum ne yeh reading nihar munh likhi hai magar aap ne khana khanay ka zikr kiya. Kya yeh test khanay se pehle ka tha ya baad ka?",
+    "needs_native_review": false
+  },
+  "vomiting_followup_question": {
+    "en": "Are you vomiting blood or dark material, feeling confused or very dizzy, or have you been unable to keep fluids down for more than 24 hours?",
+    "ur": "کیا آپ کو الٹی میں خون یا گہرے رنگ کا مواد آ رہا ہے، چکر یا الجھن ہے، یا 24 گھنٹے سے پانی بھی نہیں رک رہا؟",
+    "roman_ur": "Kya aap ko ulti mein khoon ya gehre rang ka mawad aa raha hai, chakkar ya uljhan hai, ya 24 ghante se paani bhi nahi ruk raha?",
+    "needs_native_review": false
+  },
+  "adherence_clarification_question": {
+    "en": "To be sure, did you take your medication today as prescribed?",
+    "ur": "براہ کرم واضح کریں، کیا آپ نے آج اپنی دوائی ہدایت کے مطابق لی ہے؟",
+    "roman_ur": "Barah-e-karam wazeh karein, kya aap ne aaj apni dawai hidayat ke mutabiq li hai?",
+    "needs_native_review": false
+  },
+  "adherence_clarification_why": {
+    "en": "Clarifying medication adherence helps your healthcare team understand how well your treatment plan is working.",
+    "ur": "دوائی کے باقاعدہ استعمال کی تصدیق سے آپ کے ڈاکٹر کو علاج کی تاثیر سمجھنے میں مدد ملتی ہے۔",
+    "roman_ur": "Dawai ke baqaida istemal ki tasdeeq se aap ke doctor ko ilaj ki taseer samajhne mein madad milti hai.",
+    "needs_native_review": false
+  },
+  "adherence_clarification_unclear_note": {
+    "en": "Medication adherence answer was unclear after clarification. Recorded for clinician review.",
+    "ur": "دوائی کے استعمال کا جواب واضح نہیں تھا۔ ڈاکٹر کے جائزے کے لیے درج کر لیا گیا ہے۔",
+    "roman_ur": "Dawai ke istemal ka jawab wazeh nahi tha. Doctor ke jaizay ke liye darj kar liya gaya hai.",
     "needs_native_review": false
   }
 }

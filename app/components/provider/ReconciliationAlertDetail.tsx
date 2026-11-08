@@ -23,8 +23,10 @@ import {
   TrendingDown,
   Minus,
   Clock,
+  FileCheck,
 } from "lucide-react";
 import { api, ApiError, ReviewDetailResponse } from "../../lib/api";
+import { DecisionTimeline } from "./DecisionTimeline";
 import { describeSide, describeReviewReason, describeMedicationItem } from "../../lib/presentation";
 
 export const ReconciliationAlertDetail = () => {
@@ -52,7 +54,8 @@ export const ReconciliationAlertDetail = () => {
     if (!isLiveMode || selectedPatient === "Ali Khan") {
       const isRiskEnabled =
         process.env.NEXT_PUBLIC_RISK_ENABLED === "true" ||
-        (typeof window !== "undefined" &&
+        (process.env.NEXT_PUBLIC_E2E_HOOKS === "1" &&
+          typeof window !== "undefined" &&
           (new URLSearchParams(window.location.search).get("risk") === "true" ||
             new URLSearchParams(window.location.search).get("risk") === "1"));
 
@@ -155,6 +158,55 @@ export const ReconciliationAlertDetail = () => {
               caveats: ["home_bp_not_exam_bp", "not_validated_pakistan"],
             }
           : null,
+        checkin_risk: isRiskEnabled
+          ? {
+              disease: "diabetes",
+              model_name: "diabetes_full_nhanes",
+              model_version: "1.0.0",
+              status: "ok",
+              band: "moderate",
+              probability: 0.145,
+              raised: false,
+              label_text: {
+                en: "Cardiometabolic risk assessment computed from check-in vitals.",
+                ur: "چیک ان وائٹلز سے کارڈیک خطرے کا تخمینہ۔",
+              },
+              reasons: [
+                {
+                  feature: "systolic",
+                  contribution: 0.38,
+                  label: { en: "Systolic blood pressure", ur: "سسٹولک بلڈ پریشر" },
+                },
+              ],
+              caveats: ["home_bp_not_exam_bp"],
+            }
+          : null,
+        explanation: isRiskEnabled
+          ? {
+              status: "ready",
+              mode: "background",
+              sentences: [
+                {
+                  text: isUrdu
+                    ? "ڈیمو مثال (حقیقی رہنمائی نہیں ہے)۔"
+                    : "Demo example (not real guidance).",
+                  cites: [],
+                },
+              ],
+              sources: [],
+              reason: "Demo example (not real guidance)",
+            }
+          : null,
+        trace: isRiskEnabled
+          ? [
+              { node: "intake", started_at: "2026-11-06T10:00:00Z", summary: "Parsed BP 142/90", duration_ms: 120 },
+              { node: "reconcile", started_at: "2026-11-06T10:00:01Z", summary: "Compared with baseline", duration_ms: 85 },
+              { node: "verify", started_at: "2026-11-06T10:00:02Z", summary: "Verified adherence", duration_ms: 95 },
+              { node: "decide_triage", started_at: "2026-11-06T10:00:03Z", summary: "Assigned moderate review", duration_ms: 110 },
+              { node: "risk", started_at: "2026-11-06T10:00:04Z", summary: "Calculated risk band: moderate", duration_ms: 340 },
+              { node: "explain", started_at: "2026-11-06T10:00:05Z", summary: "Generated patient guidance", duration_ms: 450 },
+            ]
+          : null,
       });
       setIsLoading(false);
       return;
@@ -178,7 +230,7 @@ export const ReconciliationAlertDetail = () => {
     return () => {
       isMounted = false;
     };
-  }, [isLiveMode, selectedPatient, demoScenario]);
+  }, [isLiveMode, selectedPatient, demoScenario, isUrdu]);
 
   const isResolved =
     resolvedCases.includes(selectedPatient || "Ali Khan") ||
@@ -312,6 +364,7 @@ export const ReconciliationAlertDetail = () => {
             type="button"
             onClick={() => setProviderScreen("review_queue")}
             id="reconciliation-back-btn"
+            aria-label={isUrdu ? "واپس جائیں" : "Back to review queue"}
             className="w-11 h-11 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 flex items-center justify-center transition-colors shadow-xs"
           >
             <ArrowLeft className={`w-5 h-5 ${isUrdu ? "rotate-180" : ""}`} />
@@ -503,6 +556,160 @@ export const ReconciliationAlertDetail = () => {
         </div>
       )}
 
+      {/* Provider: Risk at Check-in (Frozen record from check-in time) */}
+      {liveDetail?.checkin_risk && (
+        <div
+          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4"
+          data-testid="provider-checkin-risk-block"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-teal-700" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-navy-800">
+                    {t.checkinRiskTitle}
+                  </span>
+                  <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium border border-slate-200">
+                    {t.checkinRiskLabelAtCheckin}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {t.checkinRiskSubtitle}
+                </p>
+              </div>
+            </div>
+            {/* Model & Version */}
+            {(liveDetail.checkin_risk.model_name || liveDetail.checkin_risk.model) && (
+              <span
+                className="text-[11px] font-mono text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 self-start sm:self-auto"
+                data-testid="checkin-risk-model"
+              >
+                {t.checkinRiskModelLabel}: {liveDetail.checkin_risk.model_name || liveDetail.checkin_risk.model}
+                {(liveDetail.checkin_risk.model_version || liveDetail.checkin_risk.version)
+                  ? ` v${liveDetail.checkin_risk.model_version || liveDetail.checkin_risk.version}`
+                  : ""}
+              </span>
+            )}
+          </div>
+
+          {liveDetail.checkin_risk.status === "ok" ? (
+            <div className="space-y-4">
+              {/* Band badge + Raised flag */}
+              <div className="flex flex-wrap items-center gap-3">
+                {(() => {
+                  const b = (liveDetail.checkin_risk.band || "").toLowerCase();
+                  if (b === "high") {
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-rose-50 text-rose-900 border-rose-300"
+                        data-testid="checkin-risk-band-badge"
+                      >
+                        <AlertOctagon className="w-4 h-4 text-rose-700" />
+                        <span>{t.riskBandHigh}</span>
+                      </span>
+                    );
+                  }
+                  if (b === "moderate" || b === "medium") {
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-amber-50 text-amber-900 border-amber-300"
+                        data-testid="checkin-risk-band-badge"
+                      >
+                        <AlertTriangle className="w-4 h-4 text-amber-700" />
+                        <span>{t.riskBandMedium}</span>
+                      </span>
+                    );
+                  }
+                  return (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-emerald-50 text-emerald-900 border-emerald-300"
+                      data-testid="checkin-risk-band-badge"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                      <span>{t.riskBandLow}</span>
+                    </span>
+                  );
+                })()}
+
+                {/* Raised to review indicator */}
+                <span
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border ${
+                    liveDetail.checkin_risk.raised
+                      ? "bg-amber-50 text-amber-900 border-amber-300"
+                      : "bg-slate-50 text-slate-700 border-slate-200"
+                  }`}
+                  data-testid="checkin-risk-raised"
+                >
+                  {liveDetail.checkin_risk.raised ? t.checkinRiskRaisedYes : t.checkinRiskRaisedNo}
+                </span>
+
+                {liveDetail.checkin_risk.label_text && (
+                  <span className="text-xs text-slate-600 font-medium">
+                    {liveDetail.checkin_risk.label_text[isUrdu ? "ur" : "en"] || liveDetail.checkin_risk.label_text["en"]}
+                  </span>
+                )}
+              </div>
+
+              {/* Reasons if present */}
+              {(liveDetail.checkin_risk.reasons || liveDetail.checkin_risk.top_reasons) &&
+                (liveDetail.checkin_risk.reasons || liveDetail.checkin_risk.top_reasons)!.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                      {t.riskReasonsTitle}
+                    </span>
+                    <ul className="list-disc list-inside space-y-1 text-xs text-slate-700">
+                      {(liveDetail.checkin_risk.reasons || liveDetail.checkin_risk.top_reasons)!.map((r, idx) => {
+                        let labelStr = r.feature;
+                        if (typeof r.label === "object" && r.label !== null) {
+                          labelStr = r.label[isUrdu ? "ur" : "en"] || r.label["en"] || r.feature;
+                        } else if (typeof r.label === "string") {
+                          labelStr = r.label;
+                        }
+                        return (
+                          <li key={idx} data-testid="checkin-risk-reason-item">
+                            <span className="font-semibold text-navy-800">{labelStr}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+
+              {/* Clinical Caveat chips */}
+              {liveDetail.checkin_risk.caveats && liveDetail.checkin_risk.caveats.length > 0 && (
+                <div className="space-y-1.5 p-3 rounded-xl bg-amber-50/60 border border-amber-200">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1">
+                    <Info className="w-3.5 h-3.5 text-amber-700" />
+                    <span>{t.riskCaveatsTitle}</span>
+                  </span>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
+                    {liveDetail.checkin_risk.caveats.map((c, idx) => {
+                      let text = c;
+                      if (c === "home_bp_not_exam_bp") text = t.riskCaveatHomeBp;
+                      else if (c === "not_validated_pakistan") text = t.riskCaveatNotValidatedPakistan;
+                      return (
+                        <li key={idx} data-testid="checkin-risk-caveat-item">
+                          {text}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : liveDetail.checkin_risk.status === "not_enough_information" ? (
+            <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200" data-testid="checkin-risk-missing">
+              {t.checkinRiskMissingData}
+            </p>
+          ) : (
+            <p className="text-xs text-rose-700 bg-rose-50 p-3 rounded-xl border border-rose-200" data-testid="checkin-risk-error">
+              {t.checkinRiskError}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Provider Risk Assessment (Experimental) — Hidden if liveDetail?.risk is null */}
       {liveDetail?.risk && (
         <div
@@ -514,6 +721,9 @@ export const ReconciliationAlertDetail = () => {
               <Activity className="w-4 h-4 text-teal-700" />
               <span className="text-xs font-bold uppercase tracking-wider text-navy-800">
                 {t.providerRiskTitle}
+              </span>
+              <span className="text-[10px] bg-teal-50 text-teal-800 px-2 py-0.5 rounded-full font-medium border border-teal-200">
+                {t.liveRiskLabelToday}
               </span>
             </div>
             <span className="text-[10px] text-slate-500 font-medium italic">
@@ -639,6 +849,97 @@ export const ReconciliationAlertDetail = () => {
             </div>
           ) : null}
         </div>
+      )}
+
+      {/* What the patient was told (Guideline Explanation + Generation Mode) */}
+      {liveDetail?.explanation && (
+        <div
+          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4"
+          data-testid="provider-patient-explanation-block"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-2">
+              <FileCheck className="w-4 h-4 text-teal-700" />
+              <span className="text-xs font-bold uppercase tracking-wider text-navy-800">
+                {t.providerExplanationTitle}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {liveDetail.explanation.mode && (
+                <span
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-teal-50 text-teal-900 border border-teal-200"
+                  data-testid="provider-explanation-mode"
+                >
+                  {t.providerExplanationMode}: {liveDetail.explanation.mode.toUpperCase()}
+                </span>
+              )}
+              {liveDetail.explanation.mode === "template" && liveDetail.explanation.reason && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200">
+                  {t.providerExplanationReason}: {liveDetail.explanation.reason}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Explanation Sentences */}
+          {liveDetail.explanation.sentences && liveDetail.explanation.sentences.length > 0 && (
+            <div className="space-y-2">
+              {liveDetail.explanation.sentences.map((s, idx) => (
+                <p
+                  key={idx}
+                  className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200/80"
+                  data-testid="provider-explanation-sentence"
+                >
+                  {s.text}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {/* Clinical Sources Line */}
+          {liveDetail.explanation.sources && liveDetail.explanation.sources.length > 0 && (
+            <div className="pt-1 text-xs text-slate-500 flex flex-wrap items-center gap-1.5" data-testid="provider-explanation-source">
+              <span className="font-semibold text-slate-600">{t.explanationSourcesTitle}:</span>
+              {liveDetail.explanation.sources.map((src, idx) => {
+                const parts: string[] = [];
+                if (src.edition) parts.push(src.edition);
+                if (src.section_path) parts.push(src.section_path);
+                if (src.title) parts.push(src.title);
+                const sourceStr = parts.length > 0 ? parts.join(", ") : src.chunk_id;
+                return (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 text-[11px]"
+                  >
+                    {sourceStr}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Rejected Candidates (Provider only) */}
+          {liveDetail.explanation.rejected_reasons && liveDetail.explanation.rejected_reasons.length > 0 && (
+            <div
+              className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5 text-xs text-slate-600"
+              data-testid="provider-explanation-rejected-reasons"
+            >
+              <span className="font-semibold text-slate-700 block">
+                {t.providerExplanationRejectedReasons}:
+              </span>
+              <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-600 font-mono">
+                {liveDetail.explanation.rejected_reasons.map((r, idx) => (
+                  <li key={idx}>{r}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Decision Timeline (Trace) */}
+      {liveDetail?.trace && liveDetail.trace.length > 0 && (
+        <DecisionTimeline trace={liveDetail.trace} />
       )}
 
       {/* Provider: Recent Patient Record Changes (Edit History) */}

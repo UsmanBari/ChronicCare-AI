@@ -106,24 +106,24 @@
   "glucose_low": {
     "en": {
       "sentences": [
-        "Your blood glucose reading of {glucose} mg/dL is below 70 mg/dL, indicating hypoglycemia.",
-        "Guidelines recommend consuming 15 grams of fast-acting carbohydrates and re-testing in 15 minutes.",
+        "Your blood glucose reading of {glucose} mg/dL is below 70 mg/dL.",
+        "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist.",
         "Please follow standard hypoglycemia recovery steps and alert your caregiver or doctor if it remains low."
       ],
       "needs_doctor_review": true
     },
     "ur": {
       "sentences": [
-        "آپ کی شوگر کی ریڈنگ {glucose} mg/dL ہے جو 70 mg/dL سے کم ہے، جو شوگر میں کمی (ہائپوگلیسیمیا) کو ظاہر کرتی ہے۔",
-        "طبی رہنمائی کے مطابق 15 گرام فوری اثر کرنے والی میٹھی چیز کھائیں اور 15 منٹ بعد دوبارہ چیک کریں۔",
+        "آپ کی شوگر کی ریڈنگ {glucose} mg/dL ہے جو 70 mg/dL سے کم ہے۔",
+        "فوراً جلدی اثر کرنے والی میٹھی چیز لیں، جیسے پھلوں کا جوس یا گلوکوز، اور اگر علامات برقرار رہیں تو فوراً طبی مدد حاصل کریں۔",
         "براہ کرم شوگر بحالی کے طریقہ کار پر عمل کریں اور اگر شوگر کم رہے تو اپنے معالج کو مطلع کریں۔"
       ],
       "needs_doctor_review": true
     },
     "roman_ur": {
       "sentences": [
-        "Aap ki sugar reading {glucose} mg/dL hai jo 70 mg/dL se kam hai (hypoglycemia).",
-        "Guidelines ke mutabiq 15 gram fori meethi cheez lein aur 15 minute baad dobara check karein.",
+        "Aap ki sugar reading {glucose} mg/dL hai jo 70 mg/dL se kam hai.",
+        "Foran jaldi asar karne wali meethi cheez lein, jaise phalon ka juice ya glucose, aur agar alamaat barqarar rahein to foran doctor se rabta karein.",
         "Bara-e-meherbani ahtiyat karein aur agar sugar kam rahay to doctor ko aagah karein."
       ],
       "needs_doctor_review": true

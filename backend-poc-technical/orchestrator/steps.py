@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 from typing import Dict, Any, Optional, Tuple, List
 from fastapi import HTTPException, status
@@ -65,38 +66,37 @@ class CheckinCompleteResponse(BaseModel):
     answered_by: Optional[str] = None
     risk: Optional[Dict[str, Any]] = None
     explanation: Optional[Dict[str, Any]] = None
+    safety_note: Optional[str] = None
 
 
 def _build_patient_risk_view(risk: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Patient-facing risk view: band + reasons, NO probability."""
-    if not risk or not isinstance(risk, dict):
-        return None
-    if risk.get("status") != "ok":
-        return {
-            "status": risk.get("status", "unknown"),
-            "band": None,
-            "reasons": [],
-            "advisory": "Advisory risk assessment, not a clinical diagnosis. Consult your healthcare provider.",
-        }
-    return {
-        "status": "ok",
-        "band": risk.get("band"),
-        "reasons": risk.get("reasons", []),
-        "advisory": "Advisory risk assessment, not a clinical diagnosis. Consult your healthcare provider.",
-    }
+    """
+    Patient-facing risk view (H3):
+    Doctors approved the diabetes risk panel as doctors-only (docs/RISK_PANEL.md:
+    'Patients never see a risk score, risk band, percentage, or advisory hint').
+    The /complete response never contains risk (always null), in both orchestrator modes,
+    whatever the flags.
+    """
+    return None
 
 
 def _build_patient_explain_view(explanation: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Patient-facing explanation view: sentences + sources."""
+    """Patient-facing explanation view: status, sentences + sources. Strictly excludes mode, reason, and error traces."""
     if not explanation or not isinstance(explanation, dict):
         return None
-    if explanation.get("status") == "error":
+    st = explanation.get("status")
+    if st == "pending":
+        return {
+            "status": "pending",
+        }
+    if st == "error":
         return {
             "status": "error",
             "sentences": [],
             "sources": [],
         }
     return {
+        "status": "ready",
         "sentences": explanation.get("sentences", []),
         "sources": explanation.get("sources", []),
     }
@@ -196,6 +196,7 @@ def step_parse_and_validate_intake(
                     answered_by_val = it["answered_by"]
                     break
             # Emergency early return for v3 (reproducing main.py:3373-3383)
+            from agents.danger_wordgroups import get_safety_note
             return {}, CheckinCompleteResponse(
                 emergency=True,
                 intakes=intakes,
@@ -206,6 +207,7 @@ def step_parse_and_validate_intake(
                 triage=None,
                 record_source_label=record_label,
                 answered_by=answered_by_val,
+                safety_note=get_safety_note(raw_state.get("language") or "en"),
             )
 
         v3_summary = finish_v3_session(raw_state)
@@ -216,6 +218,8 @@ def step_parse_and_validate_intake(
             step=INTERVIEW_COMPLETE,
             intakes=intakes,
         )
+        if raw_state.get("wordgroup_hits"):
+            state.answers["_wordgroup_hits"] = list(raw_state["wordgroup_hits"])
         readings_map = {}
         for intake_item in intakes:
             for r_item in intake_item.get("readings", []):
@@ -312,6 +316,7 @@ def step_parse_and_validate_intake(
                     answered_by_val = it["answered_by"]
                     break
             # Emergency early return for v2 (reproducing main.py:3491-3501)
+            from agents.danger_wordgroups import get_safety_note
             return {}, CheckinCompleteResponse(
                 emergency=True,
                 intakes=intakes,
@@ -322,6 +327,7 @@ def step_parse_and_validate_intake(
                 triage=triage_dict,
                 record_source_label=record_label,
                 answered_by=answered_by_val,
+                safety_note=get_safety_note(state.answers.get("language") or "en"),
             )
 
     return {
@@ -542,6 +548,26 @@ def step_decide_triage(
 
         review_status = "open" if final_requires_review else "resolved"
 
+        from agents.danger_wordgroups import is_danger_wordgroups_enabled
+        if is_danger_wordgroups_enabled():
+            wordgroup_hits = []
+            if hasattr(state, "answers") and isinstance(state.answers, dict) and state.answers.get("_wordgroup_hits"):
+                wordgroup_hits.extend(state.answers["_wordgroup_hits"])
+            if hasattr(state, "wordgroup_hits") and state.wordgroup_hits:
+                wordgroup_hits.extend(state.wordgroup_hits)
+            for it in (getattr(state, "intakes", None) or []):
+                if isinstance(it, dict) and it.get("wordgroup_hits"):
+                    wordgroup_hits.extend(it["wordgroup_hits"])
+
+            if wordgroup_hits:
+                final_triage_level = _raise_level(final_triage_level, "review")
+                final_requires_review = True
+                review_status = "open"
+                if final_max_sev == "none":
+                    final_max_sev = "moderate"
+                groups_seen = sorted(list({h.get("group") for h in wordgroup_hits if isinstance(h, dict) and h.get("group")}))
+                triage_res["wordgroups"] = groups_seen
+
         return {
             "final_triage_level": final_triage_level,
             "final_requires_review": final_requires_review,
@@ -564,7 +590,30 @@ def step_decide_triage(
 
         review_status = "open" if final_requires_review else "resolved"
         final_max_sev = "high" if final_triage_level == "urgent" else ("moderate" if (final_requires_review and verif_max_severity == "none") else verif_max_severity)
-        if stroke_eval:
+        all_no_readings = all(not it.get("readings") for it in (state.intakes or []))
+        if all_no_readings:
+            # Rule R8: check-in with no readings
+            if intake_requires_review:
+                final_requires_review = True
+                final_triage_level = "review"
+                review_status = "open"
+                final_max_sev = "moderate"
+                triage_dict = {
+                    "level": "review",
+                    "guidance": "Check-in flagged for clinician review.",
+                    "summary": "Check-in flagged for clinician review.",
+                }
+            else:
+                final_requires_review = False
+                final_triage_level = "routine"
+                review_status = "resolved"
+                final_max_sev = "none"
+                triage_dict = {
+                    "level": "routine",
+                    "guidance": "Continue routine self-monitoring and care plan.",
+                    "summary": "Routine check-in completed.",
+                }
+        elif stroke_eval:
             triage_dict = {
                 "level": stroke_eval["level"],
                 "guidance": stroke_eval.get("advice", "Check-in flagged for clinician review."),
@@ -572,13 +621,50 @@ def step_decide_triage(
                 "summary": stroke_eval.get("advice", "Stroke extras evaluation: clinician review required."),
             }
         elif intake_requires_review:
+            is_severe_low = any(
+                (isinstance(it.get("symptoms"), dict) and it.get("symptoms", {}).get("possible_severe_low"))
+                for it in (state.intakes or [])
+            )
+            guidance = (
+                "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
+                if is_severe_low
+                else "Check-in flagged for clinician review."
+            )
             triage_dict = {
                 "level": "review",
-                "guidance": "Low blood sugar safety review required. If you feel shaky, sweaty, or confused, consume fast-acting sugar immediately.",
+                "guidance": guidance,
                 "summary": "Check-in flagged for clinician review.",
             }
         else:
             triage_dict = None
+
+        from agents.danger_wordgroups import is_danger_wordgroups_enabled
+        if is_danger_wordgroups_enabled():
+            wordgroup_hits = []
+            if hasattr(state, "answers") and isinstance(state.answers, dict) and state.answers.get("_wordgroup_hits"):
+                wordgroup_hits.extend(state.answers["_wordgroup_hits"])
+            if hasattr(state, "wordgroup_hits") and state.wordgroup_hits:
+                wordgroup_hits.extend(state.wordgroup_hits)
+            for it in (getattr(state, "intakes", None) or []):
+                if isinstance(it, dict) and it.get("wordgroup_hits"):
+                    wordgroup_hits.extend(it["wordgroup_hits"])
+
+            if wordgroup_hits:
+                final_triage_level = _raise_level(final_triage_level, "review")
+                final_requires_review = True
+                review_status = "open"
+                if final_max_sev == "none":
+                    final_max_sev = "moderate"
+                groups_seen = sorted(list({h.get("group") for h in wordgroup_hits if isinstance(h, dict) and h.get("group")}))
+                if triage_dict is None:
+                    triage_dict = {
+                        "level": final_triage_level,
+                        "guidance": "Check-in flagged for clinician review.",
+                        "summary": "Danger word-group detected: clinician review required.",
+                        "wordgroups": groups_seen,
+                    }
+                else:
+                    triage_dict["wordgroups"] = groups_seen
 
         return {
             "final_triage_level": final_triage_level,
@@ -683,6 +769,7 @@ def step_explain(
     get_patient_profile_fn: Optional[Any] = None,
     store: Optional[Any] = None,
     llm: Optional[Any] = None,
+    checkin_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
     Step 10: Grounded clinical guideline explanation (behind EXPLAIN_ENABLED flag).
@@ -741,30 +828,159 @@ def step_explain(
             except Exception:
                 store = None
 
-        if llm is None:
-            try:
-                from llm.groq_client import chat as groq_chat, is_configured
-                if is_configured():
-                    llm = groq_chat
-            except Exception:
-                llm = None
+        # If llm is None, guarded_explain will route dynamically across configured providers (groq/gemini)
+
+        active_cond = "diabetes"
+        if state and getattr(state, "conditions_on_file", None):
+            active_cond = state.conditions_on_file[0]
+        elif state and getattr(state, "active_condition", None):
+            active_cond = state.active_condition
+
+        patient_conditions = getattr(state, "conditions_on_file", None) or ([active_cond] if active_cond else [])
 
         import copy
-        from rag.explainer import explain
-        triage_copy = copy.deepcopy(triage_decision.get("triage_dict") or {"level": triage_decision.get("final_triage_level", "routine")})
+        from rag.explain_guards import (
+            guarded_explain,
+            get_explain_mode,
+            check_llm_eligibility,
+            is_patient_diabetic,
+            record_fallback,
+            get_or_build_retriever,
+            DIABETES_ONLY_SOURCE_PREFIXES,
+        )
+        from rag.explainer import get_template_explanation
+        from rag.query_map import build_query_from_triage
 
-        explain_res = explain(
+        triage_copy = copy.deepcopy(triage_decision.get("triage_dict") or {"level": triage_decision.get("final_triage_level", "routine")})
+        active_explain_mode = get_explain_mode()
+
+        query_mapping = build_query_from_triage(triage_copy, readings)
+        trigger_category = query_mapping.trigger_category
+
+        # Retrieve candidate chunks if store available
+        candidate_chunks: List[Dict[str, Any]] = []
+        if store is not None:
+            retriever = get_or_build_retriever(store)
+            if retriever is not None:
+                exclude_prefixes = (
+                    ()
+                    if is_patient_diabetic(patient_conditions=patient_conditions, condition=active_cond)
+                    else DIABETES_ONLY_SOURCE_PREFIXES
+                )
+                candidate_chunks = retriever.retrieve(
+                    query=query_mapping.query_text,
+                    top_k=3,
+                    condition=query_mapping.condition,
+                    min_priority=query_mapping.min_priority,
+                    exclude_source_prefixes=exclude_prefixes,
+                )
+                if len(candidate_chunks) < 2:
+                    candidate_chunks = retriever.retrieve(
+                        query=query_mapping.query_text,
+                        top_k=3,
+                        min_priority=query_mapping.min_priority,
+                        exclude_source_prefixes=exclude_prefixes,
+                    )
+
+        # F6: For a patient without diabetes, drop any diabetes-only guideline chunks before LLM call and from sources
+        if not is_patient_diabetic(patient_conditions=patient_conditions, condition=active_cond):
+            candidate_chunks = [
+                c for c in candidate_chunks
+                if not any(
+                    str(c.get("source_id") or c.get("id") or c.get("chunk_id") or "").startswith(p)
+                    for p in DIABETES_ONLY_SOURCE_PREFIXES
+                )
+            ]
+
+        if active_explain_mode == "background":
+            # Check eligibility before enqueuing using identical guards logic
+            is_eligible, skip_reason = check_llm_eligibility(
+                condition=active_cond,
+                trigger_category=trigger_category,
+                store=store,
+                candidate_chunks=candidate_chunks,
+                llm=llm,
+                language=language,
+            )
+            if not is_eligible:
+                # Ineligible check-in: generate template explanation immediately with status ready
+                tmpl = get_template_explanation(
+                    trigger_category=trigger_category,
+                    readings=readings,
+                    triage_result=triage_copy,
+                    language=language,
+                    candidate_chunks=candidate_chunks,
+                    rejected_reasons=[f"Guard fallback: {skip_reason}"],
+                )
+                final_reason = tmpl.get("reason") or skip_reason
+                tmpl["status"] = "ready"
+                tmpl["mode"] = "template"
+                tmpl["reason"] = final_reason
+                tmpl["provider"] = None
+                tmpl["providers_tried"] = []
+                tmpl["provider_timings"] = {}
+                tmpl["tokens_used"] = 0
+                record_fallback(final_reason)
+                return tmpl
+
+            # Eligible: prepare fallback template in case worker fails or goes stale
+            fallback_tmpl = get_template_explanation(
+                trigger_category=trigger_category,
+                readings=readings,
+                triage_result=triage_copy,
+                language=language,
+                candidate_chunks=candidate_chunks,
+                rejected_reasons=["Guard fallback: job_fallback"],
+            )
+            fallback_tmpl["status"] = "ready"
+            fallback_tmpl["mode"] = "template"
+            fallback_tmpl["reason"] = fallback_tmpl.get("reason") or "job_fallback"
+            fallback_tmpl["provider"] = None
+            fallback_tmpl["providers_tried"] = []
+            fallback_tmpl["provider_timings"] = {}
+            fallback_tmpl["tokens_used"] = 0
+
+            from rag.explain_jobs import get_explain_queue
+            from rag.explain_guards import get_queue_max
+            if get_explain_queue().qsize() >= get_queue_max():
+                fallback_tmpl["reason"] = "queue_full"
+                record_fallback("queue_full")
+                return fallback_tmpl
+
+            return {
+                "status": "pending",
+                "mode": "pending",
+                "queued_at": _utc_now_iso(),
+                "template": fallback_tmpl,
+                "_job_params": {
+                    "user_id": user_id,
+                    "condition": active_cond,
+                    "patient_conditions": patient_conditions,
+                    "readings": readings,
+                    "language": language,
+                    "fallback_template": fallback_tmpl,
+                    "store": store,
+                },
+            }
+
+        # Inline execution mode
+        explain_res = guarded_explain(
             triage_result=triage_copy,
             readings=readings,
             language=language,
             store=store,
             llm=llm,
+            condition=active_cond,
+            patient_conditions=patient_conditions,
+            mode="inline",
         )
+        if "status" not in explain_res:
+            explain_res["status"] = "ready"
         return explain_res
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning("Explain step error: %s", type(e).__name__)
-        return {"status": "error", "error_type": type(e).__name__}
+        return {"status": "error", "error_type": type(e).__name__, "mode": "template", "reason": "error"}
 
 
 def build_direct_trace(
@@ -846,6 +1062,12 @@ def step_persist_and_respond(
 
     sanitized_trace = _sanitize_trace_for_persistence(trace)
 
+    job_params = None
+    stored_explanation = explanation
+    if explanation and isinstance(explanation, dict) and "_job_params" in explanation:
+        stored_explanation = copy.deepcopy(explanation)
+        job_params = stored_explanation.pop("_job_params")
+
     create_checkin_result(
         checkin_id=checkin_id,
         emergency=False,
@@ -858,9 +1080,28 @@ def step_persist_and_respond(
         triage_level=final_triage_level,
         triage=triage_dict,
         risk=risk,
-        explanation=explanation,
+        explanation=stored_explanation,
         trace=sanitized_trace,
     )
+    if job_params:
+        from rag.explain_jobs import enqueue_job
+        enqueued = enqueue_job(
+            checkin_id=checkin_id,
+            user_id=job_params["user_id"],
+            condition=job_params["condition"],
+            readings=job_params["readings"],
+            language=job_params["language"],
+            fallback_template=job_params["fallback_template"],
+            store=job_params.get("store"),
+            patient_conditions=job_params.get("patient_conditions"),
+        )
+        if not enqueued:
+            from data_sources.app_store import update_checkin_explanation
+            from rag.explain_guards import record_fallback
+            fallback_tmpl = copy.deepcopy(job_params["fallback_template"])
+            fallback_tmpl["reason"] = "queue_full"
+            record_fallback("queue_full")
+            update_checkin_explanation(checkin_id, fallback_tmpl)
     update_checkin_state(
         checkin_id=checkin_id,
         state_dict=state.to_dict(),
@@ -876,6 +1117,12 @@ def step_persist_and_respond(
             answered_by_val = it["answered_by"]
             break
 
+    safety_note_val = None
+    from agents.danger_wordgroups import is_danger_wordgroups_enabled, get_safety_note
+    if is_danger_wordgroups_enabled() and triage_dict and triage_dict.get("wordgroups"):
+        lang = getattr(state, "language", None) or "en"
+        safety_note_val = get_safety_note(lang)
+
     return CheckinCompleteResponse(
         emergency=False,
         intakes=state.intakes,
@@ -888,4 +1135,5 @@ def step_persist_and_respond(
         answered_by=answered_by_val,
         risk=_build_patient_risk_view(risk),
         explanation=_build_patient_explain_view(explanation),
+        safety_note=safety_note_val,
     )

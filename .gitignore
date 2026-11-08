@@ -73,3 +73,9 @@ backend-poc-technical/ocr_spike/tesseractjs_bench/node_modules/
 backend-poc-technical/ocr_spike/tesseractjs_bench/.cache/
 *.traineddata
 *.traineddata.gz
+
+# Local scratch directory
+scratch/
+
+# Generated evaluation outputs
+docs/explain_eval/results.json

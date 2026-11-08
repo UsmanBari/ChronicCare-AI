@@ -1,16 +1,17 @@
 """
 Evaluation Harness for Multilingual Clinical Danger Phrase Detection.
-Compares v2, v3, and PROTOTYPE across gold, independent, and blind sets.
+Compares v2, v3, WG_V1 (Danger Word Groups v1), and hybrid engines across
+gold, independent, and blind sets.
 Includes PROTOTYPE function labeled PROTOTYPE (never imported by the app).
 """
 from __future__ import annotations
 
+import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent / "backend-poc-technical"
 REPO_ROOT = BACKEND_DIR.parent
@@ -20,8 +21,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from agents.adaptive_interview_agent import run_stage1_red_flag_screen
+from agents.danger_wordgroups import detect as detect_danger_wordgroups
 from agents.input_triage import classify_input
-
 
 # ===========================================================================
 # PROTOTYPE: Experimental Symptom Word-Group Danger Phrase Screen
@@ -91,7 +92,7 @@ _PROTO_VOMITING_BLOOD = [
 ]
 
 
-def PROTOTYPE_screen_danger_phrase(text: str) -> Tuple[bool, Optional[str]]:
+def PROTOTYPE_screen_danger_phrase(text: str) -> tuple[bool, str | None]:
     """
     PROTOTYPE danger phrase classifier based on composable symptom word-groups,
     negation windows, and clinical red flag rules.
@@ -101,7 +102,6 @@ def PROTOTYPE_screen_danger_phrase(text: str) -> Tuple[bool, Optional[str]]:
 
     clean = text.strip()
     lowered = clean.lower()
-    tokens = re.findall(r"[\w']+|[^\s\w]", lowered)
 
     # 1. Negation window check helper
     def is_negated_window(start_pos: int, window: int = 4) -> bool:
@@ -136,7 +136,6 @@ def PROTOTYPE_screen_danger_phrase(text: str) -> Tuple[bool, Optional[str]]:
     has_chest_body = any(b in lowered for b in _PROTO_CHEST_BODY)
     has_chest_sev = any(s in lowered for s in _PROTO_CHEST_SEVERITY)
     if has_chest_body and has_chest_sev:
-        # Check if chest or severity word is negated
         m_body = re.search(r"\b(?:" + "|".join(_PROTO_CHEST_BODY) + r")\b", lowered)
         m_sev = re.search(r"\b(?:" + "|".join(_PROTO_CHEST_SEVERITY) + r")\b", lowered)
         pos = min(m_body.start() if m_body else 999, m_sev.start() if m_sev else 999)
@@ -147,57 +146,78 @@ def PROTOTYPE_screen_danger_phrase(text: str) -> Tuple[bool, Optional[str]]:
 
 
 # ===========================================================================
-# Evaluation Harness
+# Dataset Configuration & Data Discipline
 # ===========================================================================
 
 PHRASE_FILES = [
+    # Dev Sets (can be run during development)
     {
         "name": "Gold Standard Danger",
         "path": REPO_ROOT / "tests" / "sim" / "danger_phrases_gold.json",
         "format": "gold_list",
-    },
-    {
-        "name": "Saad Independent",
-        "path": REPO_ROOT / "tests" / "sim" / "danger_phrases_independent_saad.json",
-        "format": "gold_list",
-    },
-    {
-        "name": "Hassaan Urdu Independent",
-        "path": REPO_ROOT / "tests" / "sim" / "danger_phrases_independent_hassaan_ur.json",
-        "format": "gold_list",
-    },
-    {
-        "name": "Hassaan Benign Urdu",
-        "path": REPO_ROOT / "tests" / "sim" / "benign_urdu_sentences_hassaan.json",
-        "format": "benign_list",
-    },
-    {
-        "name": "Saad Blind Urdu",
-        "path": REPO_ROOT / "tests" / "sim" / "blind_urdu_saad.json",
-        "format": "blind_list",
+        "heldout": False,
     },
     {
         "name": "Tuning Set Urdu",
         "path": REPO_ROOT / "tests" / "sim" / "tuning_set_urdu.json",
         "format": "blind_list",
+        "heldout": False,
+    },
+    {
+        "name": "Hassaan Urdu Independent",
+        "path": REPO_ROOT / "tests" / "sim" / "danger_phrases_independent_hassaan_ur.json",
+        "format": "gold_list",
+        "heldout": False,
+    },
+    {
+        "name": "Wordgroups Dev (144 balanced)",
+        "path": REPO_ROOT / "tests" / "sim" / "wordgroups_dev.json",
+        "format": "gold_list",
+        "heldout": False,
+    },
+    # Held-Out Sets (MUST NOT BE ACCESSED without --heldout-counts-only)
+    {
+        "name": "Saad Independent",
+        "path": REPO_ROOT / "tests" / "sim" / "danger_phrases_independent_saad.json",
+        "format": "gold_list",
+        "heldout": True,
+    },
+    {
+        "name": "Hassaan Benign Urdu",
+        "path": REPO_ROOT / "tests" / "sim" / "benign_urdu_sentences_hassaan.json",
+        "format": "benign_list",
+        "heldout": True,
+    },
+    {
+        "name": "Saad Blind Urdu",
+        "path": REPO_ROOT / "tests" / "sim" / "blind_urdu_saad.json",
+        "format": "blind_list",
+        "heldout": True,
     },
     {
         "name": "Saad Independent R2",
         "path": REPO_ROOT / "tests" / "sim" / "danger_phrases_independent_saad_r2.json",
         "format": "gold_list",
+        "heldout": True,
+    },
+    {
+        "name": "Saad Blind Set 3",
+        "path": REPO_ROOT / "tests" / "sim" / "blind_set_3_saad.json",
+        "format": "gold_list",
+        "heldout": True,
     },
 ]
 
 
-def load_dataset(file_info: Dict[str, Any]) -> Optional[List[Tuple[str, bool]]]:
+def load_dataset(file_info: dict[str, Any]) -> list[tuple[str, bool]] | None:
     path: Path = file_info["path"]
     if not path.is_file():
         return None
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8-sig") as f:
         raw = json.load(f)
 
-    samples: List[Tuple[str, bool]] = []
+    samples: list[tuple[str, bool]] = []
     fmt = file_info["format"]
 
     if fmt in ("gold_list", "blind_list"):
@@ -213,15 +233,17 @@ def load_dataset(file_info: Dict[str, Any]) -> Optional[List[Tuple[str, bool]]]:
     return samples
 
 
-def eval_engine(engine_name: str, samples: List[Tuple[str, bool]]) -> Tuple[int, int, int, int]:
+def eval_engine(engine_name: str, samples: list[tuple[str, bool]]) -> tuple[int, int, int, int, list[str], list[str]]:
     """
     Evaluates engine across samples.
-    Returns: (danger_caught, danger_total, false_alarms, safe_total)
+    Returns: (danger_caught, danger_total, false_alarms, safe_total, missed_list, false_alarm_list)
     """
     danger_caught = 0
     danger_total = 0
     false_alarms = 0
     safe_total = 0
+    missed_list: list[str] = []
+    fa_list: list[str] = []
 
     for text, expected in samples:
         if expected:
@@ -235,6 +257,18 @@ def eval_engine(engine_name: str, samples: List[Tuple[str, bool]]) -> Tuple[int,
         elif engine_name == "v3":
             res = classify_input(text)
             caught = bool(res.category == "danger_phrase" or res.is_emergency or res.is_urgent_safety)
+        elif engine_name == "WG_V1":
+            wg = detect_danger_wordgroups(text)
+            caught = bool(wg.is_danger)
+        elif engine_name == "V2_PLUS_WG":
+            is_d, _ = run_stage1_red_flag_screen(text)
+            wg = detect_danger_wordgroups(text)
+            caught = bool(is_d or wg.is_danger)
+        elif engine_name == "V3_PLUS_WG":
+            res = classify_input(text)
+            is_v3 = bool(res.category == "danger_phrase" or res.is_emergency or res.is_urgent_safety)
+            wg = detect_danger_wordgroups(text)
+            caught = bool(is_v3 or wg.is_danger)
         elif engine_name == "PROTOTYPE":
             is_d, _ = PROTOTYPE_screen_danger_phrase(text)
             caught = bool(is_d)
@@ -243,35 +277,87 @@ def eval_engine(engine_name: str, samples: List[Tuple[str, bool]]) -> Tuple[int,
 
         if expected and caught:
             danger_caught += 1
+        elif expected and not caught:
+            missed_list.append(text)
         elif not expected and caught:
             false_alarms += 1
+            fa_list.append(text)
 
-    return danger_caught, danger_total, false_alarms, safe_total
+    return danger_caught, danger_total, false_alarms, safe_total, missed_list, fa_list
 
 
 def main():
-    print("=" * 95)
-    print("MULTILINGUAL DANGER PHRASE BENCHMARK & PROTOTYPE EVALUATION")
-    print("=" * 95)
-    print(f"{'Dataset':<30} | {'Engine':<10} | {'Danger Caught / Total':<23} | {'False Alarms / Safe':<20}")
-    print("-" * 95)
+    parser = argparse.ArgumentParser(description="Multilingual Clinical Danger Phrase Benchmark")
+    parser.add_argument(
+        "--heldout-counts-only",
+        action="store_true",
+        help="Run evaluation on held-out test sets in counts-only mode (no individual samples printed).",
+    )
+    parser.add_argument(
+        "--verbose-misses",
+        action="store_true",
+        help="Print missed danger phrases and false alarms for evaluation.",
+    )
+    parser.add_argument(
+        "--markdown",
+        type=str,
+        default=None,
+        help="Path to write the markdown results table.",
+    )
+    args = parser.parse_args()
+
+    engines = ["v2", "v3", "WG_V1", "V2_PLUS_WG", "V3_PLUS_WG", "PROTOTYPE"]
+
+    print("=" * 105)
+    print("MULTILINGUAL DANGER PHRASE BENCHMARK & WORD GROUPS V1 EVALUATION")
+    print(f"Mode: {'HELD-OUT COUNTS ONLY + DEV SETS' if args.heldout_counts_only else 'DEV SETS ONLY (Held-out Protected)'}")
+    print("=" * 105)
+    print(f"{'Dataset':<32} | {'Engine':<12} | {'Danger Caught / Total':<24} | {'False Alarms / Safe':<22}")
+    print("-" * 105)
 
     results_for_report = []
 
     for file_info in PHRASE_FILES:
         name = file_info["name"]
-        samples = load_dataset(file_info)
+        is_heldout = file_info.get("heldout", False)
 
-        if samples is None:
-            print(f"{name:<30} | {'ALL':<10} | {'NOT PRESENT':<23} | {'NOT PRESENT':<20}")
-            results_for_report.append({"name": name, "status": "NOT PRESENT"})
+        if is_heldout and not args.heldout_counts_only:
+            print(f"{name:<32} | {'ALL':<12} | {'HELD-OUT (PROTECTED)':<24} | {'HELD-OUT (PROTECTED)':<22}")
+            results_for_report.append({
+                "name": name,
+                "engine": "ALL",
+                "status": "HELD-OUT (PROTECTED)",
+                "heldout": True,
+            })
+            print("-" * 105)
             continue
 
-        for eng in ("v2", "v3", "PROTOTYPE"):
-            caught, d_tot, fa, s_tot = eval_engine(eng, samples)
+        samples = load_dataset(file_info)
+        if samples is None:
+            print(f"{name:<32} | {'ALL':<12} | {'NOT PRESENT':<24} | {'NOT PRESENT':<22}")
+            results_for_report.append({
+                "name": name,
+                "engine": "ALL",
+                "status": "NOT PRESENT",
+                "heldout": is_heldout,
+            })
+            print("-" * 105)
+            continue
+
+        for eng in engines:
+            caught, d_tot, fa, s_tot, missed, fa_items = eval_engine(eng, samples)
             d_str = f"{caught} / {d_tot} ({caught/d_tot*100:.1f}%)" if d_tot > 0 else "0 / 0 (N/A)"
             fa_str = f"{fa} / {s_tot} ({fa/s_tot*100:.1f}%)" if s_tot > 0 else f"{fa} / 0 (N/A)"
-            print(f"{name:<30} | {eng:<10} | {d_str:<23} | {fa_str:<20}")
+            print(f"{name:<32} | {eng:<12} | {d_str:<24} | {fa_str:<22}")
+            if args.verbose_misses and (missed or fa_items):
+                if missed:
+                    print(f"    [{eng} Missed Positives ({len(missed)})]:")
+                    for m in missed:
+                        print(f"      - {m}")
+                if fa_items:
+                    print(f"    [{eng} False Alarms ({len(fa_items)})]:")
+                    for f_item in fa_items:
+                        print(f"      - {f_item}")
             results_for_report.append({
                 "name": name,
                 "engine": eng,
@@ -279,13 +365,37 @@ def main():
                 "d_tot": d_tot,
                 "fa": fa,
                 "s_tot": s_tot,
+                "missed": missed,
+                "fa_items": fa_items,
+                "heldout": is_heldout,
             })
-        print("-" * 95)
+        print("-" * 105)
 
-    print("=" * 95)
+    print("=" * 105)
+
+    if args.markdown:
+        out_path = Path(args.markdown)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        md_lines = [
+            "# Multilingual Danger Phrase Benchmark & Word Groups v1 Results",
+            "",
+            f"**Mode**: `{'Held-out Counts Only + Dev Sets' if args.heldout_counts_only else 'Dev Sets Only'}`",
+            "",
+            "| Dataset | Engine | Sensitivity (Danger Caught) | Specificity / False Alarms |",
+            "| :--- | :--- | :--- | :--- |",
+        ]
+        for r in results_for_report:
+            if "status" in r:
+                md_lines.append(f"| {r['name']} | {r['engine']} | {r['status']} | {r['status']} |")
+            else:
+                d_str = f"{r['caught']} / {r['d_tot']} ({r['caught']/r['d_tot']*100:.1f}%)" if r['d_tot'] > 0 else "N/A"
+                fa_str = f"{r['fa']} / {r['s_tot']} ({r['fa']/r['s_tot']*100:.1f}%)" if r['s_tot'] > 0 else f"{r['fa']} / 0 (N/A)"
+                md_lines.append(f"| {r['name']} | {r['engine']} | {d_str} | {fa_str} |")
+        out_path.write_text("\n".join(md_lines) + "\n", encoding="utf-8")
+        print(f"Markdown results written to: {out_path}")
+
     return results_for_report
 
 
 if __name__ == "__main__":
     main()
-

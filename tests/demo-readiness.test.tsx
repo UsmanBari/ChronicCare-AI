@@ -262,9 +262,9 @@ describe("STAGE 10E: Demo Readiness Tests", () => {
         excluded_count: 0,
         trends: {
           glucose: {
-            metric: "glucose",
             direction: "not_enough_history",
             n: 1,
+            few_readings: true,
             values: [{ at: new Date().toISOString(), value: 120 }],
             change: 0,
             slope_per_week: 0,

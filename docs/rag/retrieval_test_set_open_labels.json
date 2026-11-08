@@ -1,0 +1,302 @@
+[
+  {
+    "id": "R001",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R002",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R003",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R004",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R005",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R006",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R007",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R008",
+    "label": "idf_dar_2021",
+    "rule_name": "rule_diabetes_ramadan_idf_dar"
+  },
+  {
+    "id": "R009",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R010",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R011",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R012",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R013",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R014",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R015",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R016",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R017",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R018",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R019",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R020",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R021",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R022",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R023",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R024",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R025",
+    "label": "NONE",
+    "rule_name": "rule_diabetes_general_ada_blocked_no_open_source"
+  },
+  {
+    "id": "R026",
+    "label": "who_2021_htn, ish_2020_htn",
+    "rule_name": "rule_htn_bp_targets_categories"
+  },
+  {
+    "id": "R027",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_crises_emergencies"
+  },
+  {
+    "id": "R028",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_measurement_monitoring"
+  },
+  {
+    "id": "R029",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_crises_emergencies"
+  },
+  {
+    "id": "R030",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_lifestyle_diet"
+  },
+  {
+    "id": "R031",
+    "label": "who_2021_htn, ish_2020_htn",
+    "rule_name": "rule_htn_pharmacological_treatment"
+  },
+  {
+    "id": "R032",
+    "label": "who_2021_htn, ish_2020_htn",
+    "rule_name": "rule_htn_pharmacological_treatment"
+  },
+  {
+    "id": "R033",
+    "label": "who_2021_htn, ish_2020_htn",
+    "rule_name": "rule_htn_pharmacological_treatment"
+  },
+  {
+    "id": "R034",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_measurement_monitoring"
+  },
+  {
+    "id": "R035",
+    "label": "pk_htn_women_2023, ish_2020_htn",
+    "rule_name": "rule_htn_pregnancy_women"
+  },
+  {
+    "id": "R036",
+    "label": "ish_2020_htn, who_2021_htn",
+    "rule_name": "rule_htn_secondary_and_comorbidities"
+  },
+  {
+    "id": "R037",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_measurement_monitoring"
+  },
+  {
+    "id": "R038",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_measurement_monitoring"
+  },
+  {
+    "id": "R039",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_crises_emergencies"
+  },
+  {
+    "id": "R040",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_lifestyle_diet"
+  },
+  {
+    "id": "R041",
+    "label": "ish_2020_htn, who_2021_htn",
+    "rule_name": "rule_htn_secondary_and_comorbidities"
+  },
+  {
+    "id": "R042",
+    "label": "who_2021_htn, ish_2020_htn",
+    "rule_name": "rule_htn_bp_targets_categories"
+  },
+  {
+    "id": "R043",
+    "label": "who_2021_htn, ish_2020_htn",
+    "rule_name": "rule_htn_pharmacological_treatment"
+  },
+  {
+    "id": "R044",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_lifestyle_diet"
+  },
+  {
+    "id": "R045",
+    "label": "who_2021_htn, ish_2020_htn",
+    "rule_name": "rule_htn_pharmacological_treatment"
+  },
+  {
+    "id": "R046",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_crises_emergencies"
+  },
+  {
+    "id": "R047",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_lifestyle_diet"
+  },
+  {
+    "id": "R048",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_lifestyle_diet"
+  },
+  {
+    "id": "R049",
+    "label": "who_2021_htn, ish_2020_htn",
+    "rule_name": "rule_htn_pharmacological_treatment"
+  },
+  {
+    "id": "R050",
+    "label": "ish_2020_htn, who_2021_htn",
+    "rule_name": "rule_htn_secondary_and_comorbidities"
+  },
+  {
+    "id": "R051",
+    "label": "who_2021_htn, ish_2020_htn",
+    "rule_name": "rule_htn_bp_targets_categories"
+  },
+  {
+    "id": "R052",
+    "label": "who_2021_htn, ish_2020_htn",
+    "rule_name": "rule_htn_pharmacological_treatment"
+  },
+  {
+    "id": "R053",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_crises_emergencies"
+  },
+  {
+    "id": "R054",
+    "label": "ish_2020_htn, who_2021_htn",
+    "rule_name": "rule_htn_secondary_and_comorbidities"
+  },
+  {
+    "id": "R055",
+    "label": "ish_2020_htn, who_2021_htn",
+    "rule_name": "rule_htn_secondary_and_comorbidities"
+  },
+  {
+    "id": "R056",
+    "label": "who_2021_htn, ish_2020_htn",
+    "rule_name": "rule_htn_pharmacological_treatment"
+  },
+  {
+    "id": "R057",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_crises_emergencies"
+  },
+  {
+    "id": "R058",
+    "label": "ish_2020_htn, pk_htn_women_2023",
+    "rule_name": "rule_htn_lifestyle_diet"
+  },
+  {
+    "id": "R059",
+    "label": "ish_2020_htn, who_2021_htn",
+    "rule_name": "rule_htn_secondary_and_comorbidities"
+  },
+  {
+    "id": "R060",
+    "label": "pk_htn_women_2023, ish_2020_htn",
+    "rule_name": "rule_htn_pregnancy_women"
+  }
+]

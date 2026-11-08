@@ -106,7 +106,7 @@ Model: openai/gpt-oss-20b
 | :--- | :---: | :---: | :---: | :---: |
 | **License** | Apache 2.0 | Apache 2.0 | Apache 2.0 | Llama Community |
 | **Evaluations Attempted** | 36 / 36 | 36 / 36 | 36 / 36 | 0 (API 404) |
-| **Single-Call Latency (p50)** | **0.52s – 7.81s** | 11.81s | 2.42s – 2.69s | N/A |
+| **Single-Call Latency (p50)** | **7.81s** | 11.81s | 2.42s – 2.69s | N/A |
 | **Single-Call Latency (p95)** | 29.66s | 22.83s | 2.69s | N/A |
 | **Calls Per Case (Mean)** | 1.63 calls | 1.41 calls | 1.00 calls | N/A |
 | **Whole Case Latency (p50)** | 14.78s | 18.29s | 2.69s | N/A |
@@ -159,9 +159,9 @@ Error code: 429 - {'error': {'message': 'Rate limit reached for model `qwen/qwen
 
 ### Latency Gate Evaluation:
 - **Single-Call vs Whole-Case Latency:**
-  - Single-call latency measures the isolated generation time of a single prompt (e.g. English explanation: $0.52\text{s}$ to $7.81\text{s}$).
+  - Single-call latency measures the isolated generation time of a single prompt (e.g. English explanation: measured p50 $7.81\text{s}$ on whole-case test set).
   - Whole-case latency for Urdu and Roman Urdu requires **two sequential calls** (English generation + translated output validation), doubling the network duration.
-  - While single calls on `qwen/qwen3.8-27b` easily beat the 8.0s threshold ($p50 = 0.52\text{s}–7.81\text{s}$), whole-case end-to-end evaluation under cloud queueing fails the strict $p95 \le 8.0\text{s}$ gate.
+  - While single calls on `qwen/qwen3.8-27b` can meet the 8.0s threshold (measured p50 $7.81\text{s}$), whole-case end-to-end evaluation under cloud queueing fails the strict $p95 \le 8.0\text{s}$ gate.
 
 ### Production Guardrail:
 In production deployment on Render, **`EXPLAIN_ENABLED=off`** remains the default setting.
@@ -181,21 +181,56 @@ In production deployment on Render, **`EXPLAIN_ENABLED=off`** remains the defaul
 
 ---
 
-## 7. RECOMMENDATION — Usman decides
+## 7. RECOMMENDATION & DECISION (Day 5 Update — Usman)
 
-Based on empirical data across all candidate open-weight models:
+### 7.1 Factual Rate Limits & Token Ceilings
 
-1. **If LLM Explanations Are Enabled (`EXPLAIN_ENABLED=on`):**
-   - **Recommended Model:** `qwen/qwen3.8-27b`.
-   - **Justification:** It is the only evaluated model achieving **zero clinical validator violations (0 errors across V1–V5)**, fast single-call generation ($p50 = 0.52\text{s}$), and complete fluency in Urdu and Roman Urdu under a fully open Apache 2.0 license.
-   - **Secondary Candidates:**
-     - `openai/gpt-oss-120b`: Poor validator adherence (19 violations on V1 length and V5 level contradiction); heavy single-call latency ($p50 = 11.81\text{s}$).
-     - `openai/gpt-oss-20b`: Reasoning tokens consume excessive quota, triggering daily TPD limits and intermittent JSON truncation.
-   - **Unavailable:** `llama-3.3-70b-versatile` (HTTP 404 on this Groq account key).
-   - **Skipped:** `allam-2-7b` (demonstrated unable to adhere to JSON format).
+The table below summarizes verified token and rate limits across candidate LLM endpoints on free tiers:
 
-2. **Production Baseline:**
-   - Keep `EXPLAIN_ENABLED=off` in production container deployment.
-   - Serve verified deterministic templates (`templates.json`) to guarantee zero-latency clinical explanations and 100% deterministic safety.
+| Provider | Model ID | RPM | RPD | TPM (Total) | TPD (Daily) | OTPM (Output Tokens/Min) |
+|---|---|---|---|---|---|---|
+| **Groq** | `qwen/qwen3.8-27b` | 30 | 14,400 | 10,000 | 500,000 | **1,000** |
+| **Groq** | `llama-3.3-70b-versatile` | 30 | 14,400 | 6,000 | 100,000 | 6,000 |
+| **Groq** | `llama-3.1-8b-instant` | 30 | 14,400 | 20,000 | 500,000 | 6,000 |
+| **Gemini** | `gemini-2.5-flash` | 15 | 1,500 | 1,000,000 | 1,500,000 | N/A (1M TPM pool) |
 
-**Decision Authority:** **Usman decides** whether to configure `GROQ_MODEL=qwen/qwen3.8-27b` on Render in Week 2 Day 7 or maintain template-only mode in production.
+> [!NOTE]
+> `qwen/qwen3.8-27b` on Groq's free tier has an output token limit of **1,000 OTPM**, which encounters HTTP 429 rate limits unless explicitly paced (especially for multilingual Urdu and Roman Urdu check-ins requiring two sequential calls).
+
+### 7.2 Usman's Day 5 Decision: "Best Answer, Not Fastest Answer"
+
+On Day 5, Usman decided that **correctness, clinical grounding, and linguistic nuance matter far more than sub-3-second synchronous speed**.
+
+1. **Background Explainer Execution (`EXPLAIN_MODE=background`):**
+   - The check-in result (triage level) returns immediately to the patient with zero delay ($pprox 0.10\text{s}$ p50 `/complete` latency).
+   - The LLM explanation moves to an asynchronous background worker (`ExplanationJobQueue`), polling until ready.
+   - The worker executes within a generous 45.0-second deadline (`EXPLAIN_JOB_DEADLINE_SECONDS=45.0`), allowing complex validation and failover.
+
+2. **Groq Rolling 60-Second Token Pacer (`TokenPacer`):**
+   - Groq output tokens are tracked in a 60-second sliding window (`EXPLAIN_GROQ_OTPM=1000`). If cumulative output tokens approach 1,000, the pacer pauses the worker thread before dispatching to prevent 429 errors.
+
+3. **Rate-Limit Resilience (429 Retries):**
+   - When running in background mode, an HTTP 429 rate limit does **not** trip the circuit breaker. The worker parses the `retry-after` header and pauses safely, retrying once before falling back to Gemini.
+
+4. **Dual Provider Pool (`LLM_PROVIDER=auto`):**
+   - Groq (`qwen/qwen3.8-27b`) and Google Gemini (`gemini-2.5-flash`) operate in tandem, pooling independent daily token allowances (150,000 tokens/day each) with automatic failover.
+
+---
+
+## 8. Second Provider: Google Gemini (`gemini_client.py`)
+
+### 1. What and Why
+To expand daily token capacity and prevent single-provider service disruption, ChronicCare AI integrates Google Generative Language (Gemini) as a secondary explainer provider alongside Groq:
+- **Extra Daily Capacity:** Provides an independent daily token allowance (`EXPLAIN_DAILY_TOKEN_CAP_GEMINI`, default 150,000 tokens) completely separate from Groq.
+- **Failover Routing:** When `LLM_PROVIDER=auto` (default), the explainer routes requests to the primary provider (Groq) and automatically fails over to Gemini within the same request time budget if Groq encounters an HTTP 429 rate limit, network timeout, or connection failure.
+- **Model Configuration:** The model is not hardcoded; it is chosen by the `GEMINI_MODEL` environment variable (e.g. `gemini-2.5-flash`). If `GEMINI_MODEL` is unset, Gemini fails cleanly without crashing.
+- **Optional Reasoning Configuration:** Supports `GEMINI_THINKING_BUDGET`. Defaults to `0` when unset (`thinkingConfig.thinkingBudget = 0`) to eliminate thinking latency; set explicitly to `none` to omit `thinkingConfig`.
+
+### 2. Privacy, Free-Tier Data Advisory, and Licence Restrictions
+> [!IMPORTANT]
+> Gemini free tier: Google may use prompts and responses to improve its products and human reviewers may read them. Fake/test data only. Real patient data requires the paid tier.
+
+- **Licence-Restricted Sources (G3):** In compliance with data-use licences, any prompt citing guideline sources marked `allowed_for_rag == FALSE` in `docs/GUIDELINE_CORPUS.md` (e.g. ADA Standards of Care, AHA/ACC guidelines) is strictly barred from being transmitted to Google Gemini. In `auto` mode, Gemini is quietly pruned from the candidate sequence; if Gemini was explicitly requested (`LLM_PROVIDER=gemini`), the system falls back to verified deterministic templates with `reason='licence_restricted'`.
+- **Condition Filter (H1):** Diabetes explanations are restricted to pre-verified deterministic templates (`reason='condition_template_only'`). Only conditions in `EXPLAIN_LLM_CONDITIONS` (default `hypertension`) may invoke Gemini or Groq.
+- **Credential Leak Defense:** `GEMINI_API_KEY` is sent exclusively in the `x-goog-api-key` HTTP header and is never passed in request URLs, query parameters, logs, or stored records.
+

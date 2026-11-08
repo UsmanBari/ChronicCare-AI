@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { AlertCircle, UserCheck, Home, ArrowLeft, Clock, ShieldCheck, Calendar, CheckCircle2, Pill, AlertTriangle, ShieldAlert } from "lucide-react";
 import { describeMedicationItem } from "../lib/presentation";
+import { ExplanationBox } from "./ExplanationBox";
 
 export const RoutedToReviewScreen = () => {
   const { returnToHomeAndClearRun, appointment, setAppointment, isLiveMode, liveCheckinResult, checkIn, t, isUrdu } = useApp();
@@ -71,6 +72,25 @@ export const RoutedToReviewScreen = () => {
 
       {/* Details Box */}
       <div className="p-6 sm:p-7 space-y-5">
+        {/* Danger Wordgroup Emergency Advisory Banner */}
+        {liveCheckinResult?.safety_note && (
+          <div data-testid="danger-wordgroup-review-banner" className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-600 text-amber-950 text-sm font-bold flex items-center gap-3 animate-fadeIn shadow-xs text-left">
+            <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0" />
+            <span dir="auto">
+              {liveCheckinResult.safety_note.includes("1122") ? (
+                <>
+                  {liveCheckinResult.safety_note.split("1122")[0]}
+                  <a href="tel:1122" className="underline font-extrabold hover:text-amber-900">
+                    1122
+                  </a>
+                  {liveCheckinResult.safety_note.split("1122")[1]}
+                </>
+              ) : (
+                liveCheckinResult.safety_note
+              )}
+            </span>
+          </div>
+        )}
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-700 leading-relaxed text-left flex items-start gap-3.5">
           <UserCheck className="w-5 h-5 text-teal-700 shrink-0 mt-0.5" />
           <p>{description}</p>
@@ -167,6 +187,9 @@ export const RoutedToReviewScreen = () => {
           </span>
           <span className="font-bold">Pending Provider Review</span>
         </div>
+
+        {/* Guideline Explanation Box (flags on) */}
+        <ExplanationBox />
 
         {/* Request Follow-Up Appointment CTA - Mock Mode Only */}
         {!isLiveMode && (

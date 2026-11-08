@@ -115,48 +115,49 @@ def test_chest_pain_negations_and_past_events():
 # 2. Decision 2: Vomiting / Fluids Inability = URGENT (Not Emergency)
 # =============================================================================
 def test_vomiting_fluids_down_maps_to_urgent_not_emergency():
-    """Vomiting nonstop and unable to keep fluids down must map to urgent, never emergency."""
-    vomiting_phrases = [
-        # English
-        "vomiting nonstop",
-        "vomiting non-stop",
+    """Per 3 Nov clinician review (Rule R4): unable to keep fluids/medicines down is EMERGENCY, while other non-stop vomiting is URGENT."""
+    unable_fluids_phrases = [
         "cannot keep fluids down",
         "can't keep fluids down",
         "unable to keep fluids down",
         "cannot keep anything down",
         "can't keep anything down",
         "throwing up everything",
-        # Roman Urdu
-        "musalsal ultiyan",
-        "ulti ruk nahi rahi",
         "paani bhi nahi rukta",
-        # Urdu Script
-        "مسلسل الٹیاں",
-        "الٹی رک نہیں رہی",
         "پانی بھی نہیں رک رہا",
     ]
-    for phrase in vomiting_phrases:
+    for phrase in unable_fluids_phrases:
         triggered, reason = screen_rf(phrase)
         assert triggered is True, f"Expected red flag screen to catch vomiting: '{phrase}'"
-        assert reason in ("unable_to_keep_fluids", "dka_vomiting_high_glucose")
-
+        assert reason == "unable_to_keep_fluids"
         level = get_red_flag_level(reason)
-        assert level == "urgent", f"Expected level 'urgent' for vomiting '{phrase}', got '{level}'"
+        assert level == "emergency", f"Expected level 'emergency' for '{phrase}', got '{level}'"
 
-        res = classify_input(phrase)
-        assert res.is_emergency is False, f"Vomiting phrase should not be emergency: '{phrase}'"
-        assert res.is_urgent_safety is True, f"Vomiting phrase should be urgent safety: '{phrase}'"
+    non_stop_phrases = [
+        "vomiting nonstop",
+        "vomiting non-stop",
+        "musalsal ultiyan",
+        "ulti ruk nahi rahi",
+        "مسلسل الٹیاں",
+        "الٹی رک نہیں رہی",
+    ]
+    for phrase in non_stop_phrases:
+        triggered, reason = screen_rf(phrase)
+        assert triggered is True, f"Expected red flag screen to catch vomiting: '{phrase}'"
+        assert reason == "non_stop_vomiting"
+        level = get_red_flag_level(reason)
+        assert level == "urgent", f"Expected level 'urgent' for '{phrase}', got '{level}'"
 
 
 def test_vomiting_in_triage_protocol_produces_urgent_result():
-    """In advance_protocol, reporting cannot keep fluids down produces urgent triage level."""
+    """In advance_protocol, reporting cannot keep fluids down produces emergency triage level (Rule R4)."""
     trigger = Trigger("bp_severe", "crisis_bp", 1)
     state = start_protocol(trigger, readings={"blood_pressure_systolic": 190.0, "blood_pressure_diastolic": 110.0}, age_years=50)
     next_state = advance_protocol(state, "I have been vomiting nonstop and cannot keep fluids down")
 
     assert next_state.complete is True
     assert next_state.result is not None
-    assert next_state.result["level"] == "urgent"
+    assert next_state.result["level"] == "emergency"
     assert "unable to keep fluids" in next_state.result["reasons"][0]
 
 

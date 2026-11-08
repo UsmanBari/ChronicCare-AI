@@ -61,3 +61,38 @@ Every string below has been verified for literal and conversational alignment wi
 | `interviewRetryBtn` | Try again | دوبارہ کوشش کریں | Network failure retry |
 | `interviewEmergencyCall` | Emergency Call: 1122 | ایمرجنسی کال: 1122 | Direct emergency call button |
 | `interviewNetworkError` | Connection error. Please check your internet. | انٹرنیٹ کا مسئلہ ہے۔ براہ کرم کنکشن چیک کریں۔ | Error banner |
+
+---
+
+## 4. Week 3 Review (7 Nov 2026)
+
+**Date:** 7 Nov 2026  
+**Urdu reviewed by: Hassaan (native speaker)**  
+**Status:** **APPROVED & VERIFIED**  
+**Audit Scope:** All 28 backend message additions/modifications (`backend-poc-technical/agents/interview_bank/messages.json`) and 158 frontend interface additions (`app/translations/index.ts`) introduced during Week 3 iterations (Waist measurement, Record Edit History, Export/Import, OCR lab extraction, Decision Timeline, Provider Risk Panel, and Explanation Box).
+
+All strings audited via `scripts/list_new_strings.py`. No translation keys altered or deleted. Every string checked against everyday colloquial Pakistani terminology (`sugar`, `BP`, `dawai`, `chakkar`, `kapkapahat`, `nihar munh`, `1122`).
+
+### 4.1 Native Speaker Wording Refinements
+
+| Key | Old Urdu / Roman Urdu | New Urdu / Roman Urdu | Rationale |
+|---|---|---|---|
+| `historyField` | `شعبہ` | `اندراج` | `شعبہ` translates literally to "department/division". For clinical record entries (e.g. glucose, weight, waist), `اندراج` ("entry / field") is accurate and medically intuitive. |
+| `ocrFixBtn` | `تبدیل کریں` | `درست کریں` | Aligns button label directly with user instruction in `ocrFixOrRemoveHint` ("Click Fix to correct..." -> `'درست کریں' کا بٹن دبائیں`). |
+| `ocrRemoveBtn` | `حذف کریں` | `ہٹائیں` | Aligns button label directly with instructional text in `ocrFixOrRemoveHint` ("Click Remove to discard..." -> `'ہٹائیں' کا بٹن دبائیں`). |
+| `providerExplanationRejectedReasons` | `مسترد شدہ امیدوار وجوہات` | `مسترد ہونے کی وجوہات` | Replaces unnatural word-for-word translation ("rejected candidate reasons") with fluent clinical Urdu ("reasons for rejection"). |
+| `checkinRiskRaisedYes` | `اس چیک ان کو جائزے کے لیے اٹھایا گیا: ہاں` | `طبی جائزے کے لیے بھیجا گیا: ہاں` | Replaces awkward literal translation of "raised" with standard Pakistani clinical triage terminology ("forwarded/escalated for clinical review: Yes"). |
+| `checkinRiskRaisedNo` | `اس چیک ان کو جائزے کے لیے اٹھایا گیا: نہیں` | `طبی جائزے کے لیے بھیجا گیا: نہیں` | Replaces awkward literal translation of "raised" with standard clinical review terminology ("forwarded/escalated for clinical review: No"). |
+| `decisionTimelineTitle` | `فیصلہ سازی کا ٹائم لائن` | `فیصلہ سازی کے مراحل (ٹائم لائن)` | Corrects grammatical phrasing and clarifies that the timeline displays sequential execution steps of the orchestration pipeline. |
+| `waistErrorCm` | `کمر کی پیمائش ۴۰ سے ۲۰۰ سینٹی میٹر کے درمیان ہونی چاہیے (ڈاکٹر کے جائزے کی ضرورت ہے)۔` | `کمر کی پیمائش 40 سے 200 سینٹی میٹر کے درمیان ہونی چاہیے (ڈاکٹر کے جائزے کی ضرورت ہے)۔` | Replaces Eastern Arabic numerals with standard Arabic/Western numerals for consistent cross-device legibility and alignment with glucose/BP displays. |
+| `waistErrorIn` | `کمر کی پیمائش ۱۵.۷ سے ۷۸.۷ انچ کے درمیان ہونی چاہیے (ڈاکٹر کے جائزے کی ضرورت ہے)۔` | `کمر کی پیمائش 15.7 سے 78.7 انچ کے درمیان ہونی چاہیے (ڈاکٹر کے جائزے کی ضرورت ہے)۔` | Replaces Eastern Arabic numerals with standard numerals for mobile UI clarity. |
+
+### 4.2 Backend Messages Catalog Review (`messages.json`)
+
+All 28 entries in `backend-poc-technical/agents/interview_bank/messages.json` verified:
+- Emergency guidance verified to refer strictly to 1122 and immediate emergency medical care (`emergency_red_flag_note`).
+- Neutral low sugar guidance (`v3_possible_low_guidance`, `glucose_unclear_unit_safety_guidance`) verified aligned with Doctor review R2 (no hardcoded gram/tablet amounts).
+- Meter LO/HI confirmation (`meter_lo_hi_confirmation`) verified clear and non-judgmental.
+- Adherence clarification queries (`adherence_clarification_question`, `adherence_clarification_why`, `adherence_clarification_unclear_note`) verified for respectful, collaborative tone.
+- Flag `"needs_native_review"` confirmed `false` across all 28 entries.
+

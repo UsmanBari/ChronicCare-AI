@@ -76,15 +76,21 @@ def cert_pem(rsa_key):
 
 @pytest.fixture(autouse=True)
 def setup_test_env(tmp_path, monkeypatch, cert_pem):
+    from rag.explain_guards import reset_explain_guards
+    reset_explain_guards()
     db_file = str(tmp_path / "test_wire.db")
     monkeypatch.setenv("LOCAL_DB_PATH", db_file)
     monkeypatch.setenv("DB_BACKEND", "sqlite")
     monkeypatch.setenv("FIREBASE_PROJECT_ID", TEST_PROJECT_ID)
     monkeypatch.setenv("DEMO_ROLE_MAP", "provider@demo.com:provider")
     monkeypatch.setenv("REQUIRE_INCLUSION", "0")
+    monkeypatch.setenv("EXPLAIN_MODE", "inline")
 
-    # Guard: ensure no accidental real Groq calls
+    # Guard: ensure no accidental real Groq / Gemini calls
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    import llm.gemini_client as gemini_client
+    monkeypatch.setattr(gemini_client, "is_configured", lambda: False)
 
     app_store.migrate(db_path=db_file, backend="sqlite")
     local_store.init_db(db_path=db_file)
@@ -217,7 +223,7 @@ class LLMSpy:
         sbp_match = re.search(r'"blood_pressure_systolic":\s*(\d+)', user_msg)
         sbp = sbp_match.group(1) if sbp_match else "135"
 
-        return json.dumps({
+        text = json.dumps({
             "sentences": [
                 {
                     "text": f"Your systolic blood pressure reading of {sbp} mmHg is slightly elevated according to clinical guidelines.",
@@ -229,6 +235,7 @@ class LLMSpy:
                 }
             ]
         })
+        return (text, 60)
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +280,7 @@ def test_flags_on_safety_fields_identical_when_can_raise_false(rsa_key, monkeypa
     monkeypatch.setenv("RISK_CAN_RAISE", "false")
 
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -286,11 +293,8 @@ def test_flags_on_safety_fields_identical_when_can_raise_false(rsa_key, monkeypa
     assert resp.status_code == 200
     data = resp.json()
 
-    # Patient view has qualitative risk card
-    assert data["risk"] is not None
-    assert data["risk"]["status"] == "ok"
-    assert "band" in data["risk"]
-    assert "probability" not in data["risk"]  # Strict leak defense
+    # Patient view: Doctors approved risk panel as doctors-only (H3); /complete never contains risk
+    assert data["risk"] is None
 
     # Patient view has explanation sentences
     assert data["explanation"] is not None
@@ -316,7 +320,7 @@ def test_risk_can_raise_true_escalates_routine_to_review(rsa_key, monkeypatch):
     monkeypatch.setenv("RISK_CAN_RAISE", "true")
 
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     # Force risk agent to return band 'high'
@@ -398,7 +402,7 @@ def test_explainer_failure_safe_fallback(rsa_key, monkeypatch):
     # LLM throws an unhandled runtime error
     def broken_llm(*args, **kwargs):
         raise RuntimeError("Groq upstream connection failed")
-    monkeypatch.setattr(groq_client, "chat", broken_llm)
+    monkeypatch.setattr(groq_client, "chat_with_usage", broken_llm)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -430,7 +434,7 @@ def test_emergency_intake_bypasses_risk_and_explain(rsa_key, monkeypatch):
     monkeypatch.setenv("EXPLAIN_ENABLED", "true")
 
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -459,7 +463,7 @@ def test_idempotency_calls_llm_only_once(rsa_key, monkeypatch):
     monkeypatch.setenv("EXPLAIN_ENABLED", "true")
 
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -491,7 +495,7 @@ def test_privacy_views_and_trace_sanitization(rsa_key, monkeypatch):
     monkeypatch.setenv("EXPLAIN_ENABLED", "true")
 
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -503,11 +507,11 @@ def test_privacy_views_and_trace_sanitization(rsa_key, monkeypatch):
     resp = client.post(f"/api/checkins/{cid}/complete", headers=headers)
     patient_data = resp.json()
 
-    # Patient view: NO probability, NO model metadata
-    assert "probability" not in patient_data["risk"]
-    assert "model_name" not in patient_data["risk"]
-    assert "model_version" not in patient_data["risk"]
+    # Patient view: strictly null risk (H3) and NO explanation mode/reason
+    assert patient_data["risk"] is None
     assert "trace" not in patient_data
+    assert "mode" not in patient_data["explanation"]
+    assert "reason" not in patient_data["explanation"]
 
     # Provider view
     prov_tok = _create_token(rsa_key, "prov_priv_01", role="provider")
@@ -544,7 +548,7 @@ def test_orchestrator_modes_completion(rsa_key, monkeypatch, orch_mode):
     monkeypatch.setenv("EXPLAIN_ENABLED", "true")
 
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -556,7 +560,7 @@ def test_orchestrator_modes_completion(rsa_key, monkeypatch, orch_mode):
     resp = client.post(f"/api/checkins/{cid}/complete", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["risk"]["status"] == "ok"
+    assert data["risk"] is None
     assert len(data["explanation"]["sentences"]) == 2
 
 
@@ -567,9 +571,9 @@ def test_network_guard_zero_real_external_calls(rsa_key, monkeypatch):
     monkeypatch.setenv("RISK_ENABLED", "true")
     monkeypatch.setenv("EXPLAIN_ENABLED", "true")
 
-    # In strict sandbox, groq_client.chat is replaced by spy
+    # In strict sandbox, groq_client.chat_with_usage is replaced by spy
     spy = LLMSpy()
-    monkeypatch.setattr(groq_client, "chat", spy)
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
     monkeypatch.setattr(groq_client, "is_configured", lambda: True)
 
     client = TestClient(app)
@@ -630,3 +634,69 @@ def test_mutation_proof_m_u7_2_explain_never_modifies_triage(monkeypatch):
     assert triage_decision["final_requires_review"] == triage_before["final_requires_review"]
     assert triage_decision["review_status"] == triage_before["review_status"]
     assert triage_decision == triage_before, "M-U7-2 KILLED: triage_decision dictionary was modified by step_explain"
+
+
+# ---------------------------------------------------------------------------
+# Test 11: Patient View Explanation Has No Mode or Reason Keys
+# ---------------------------------------------------------------------------
+def test_patient_complete_explanation_has_no_mode_or_reason(rsa_key, monkeypatch):
+    """
+    Asserts that the patient-facing /complete response's explanation object
+    strictly contains only 'sentences' and 'sources', and NEVER contains
+    'mode' or 'reason' keys, across both normal generation and fallback states.
+    Provider review endpoint and stored result retain 'mode' and 'reason'.
+    """
+    monkeypatch.setenv("RISK_ENABLED", "true")
+    monkeypatch.setenv("EXPLAIN_ENABLED", "true")
+
+    spy = LLMSpy()
+    monkeypatch.setattr(groq_client, "chat_with_usage", spy)
+    monkeypatch.setattr(groq_client, "is_configured", lambda: True)
+
+    client = TestClient(app)
+    uid = "pat_nomodereason_01"
+    cid = "chk_nomodereason_01"
+    headers = _setup_patient(client, rsa_key, uid, ["hypertension"], waist_cm=90.0)
+    _create_checkin_session(uid, cid, systolic=135.0, diastolic=85.0)
+
+    # 1. Normal LLM generation
+    resp = client.post(f"/api/checkins/{cid}/complete", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["explanation"] is not None
+    assert "sentences" in data["explanation"]
+    assert "sources" in data["explanation"]
+    assert "mode" not in data["explanation"], f"Patient explanation must not contain 'mode': {data['explanation']}"
+    assert "reason" not in data["explanation"], f"Patient explanation must not contain 'reason': {data['explanation']}"
+
+    # Verify provider view and stored result retain mode
+    stored = app_store.get_checkin_result(cid)
+    assert stored["explanation"] is not None
+    assert "mode" in stored["explanation"]
+    assert stored["explanation"]["mode"] in ("llm", "cache")
+
+    # 2. Template fallback path (LLM error)
+    from rag.explain_guards import reset_explain_guards
+    reset_explain_guards()
+    def broken_llm(*args, **kwargs):
+        raise RuntimeError("Simulated failure")
+    monkeypatch.setattr(groq_client, "chat_with_usage", broken_llm)
+
+    uid_fb = "pat_nomodereason_fb"
+    cid_fb = "chk_nomodereason_fb"
+    headers_fb = _setup_patient(client, rsa_key, uid_fb, ["hypertension"], waist_cm=90.0)
+    _create_checkin_session(uid_fb, cid_fb, systolic=135.0, diastolic=85.0)
+
+    resp_fb = client.post(f"/api/checkins/{cid_fb}/complete", headers=headers_fb)
+    assert resp_fb.status_code == 200
+    data_fb = resp_fb.json()
+    assert data_fb["explanation"] is not None
+    assert "sentences" in data_fb["explanation"]
+    assert "sources" in data_fb["explanation"]
+    assert "mode" not in data_fb["explanation"], f"Fallback explanation must not contain 'mode': {data_fb['explanation']}"
+    assert "reason" not in data_fb["explanation"], f"Fallback explanation must not contain 'reason': {data_fb['explanation']}"
+
+    stored_fb = app_store.get_checkin_result(cid_fb)
+    assert stored_fb["explanation"] is not None
+    assert stored_fb["explanation"]["mode"] == "template"
+    assert "reason" in stored_fb["explanation"]

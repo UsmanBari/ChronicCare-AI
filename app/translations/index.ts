@@ -157,6 +157,11 @@ export interface Translations {
   obsPlaceholderSystolic: string;
   obsPlaceholderDiastolic: string;
   obsPlaceholderGlucose: string;
+  obsPlaceholderGlucoseMmol: string;
+  obsGlucoseRangeErrorMmol: string;
+  obsGlucoseRangeErrorMgdl: string;
+  obsOptionGlucoseMgdl: string;
+  obsOptionGlucoseMmol: string;
   landingHtnDemoPatient: string;
   landingHtnDemoCondition: string;
   landingHtnDemoReading: string;
@@ -288,6 +293,7 @@ export interface Translations {
   unifiedSettingsTitle: string;
   unifiedSettingsSubtitle: string;
   languageSettingLabel: string;
+  langRomanUrdu: string;
   connectionModeSettingLabel: string;
   activeProfileLabel: string;
 
@@ -505,6 +511,45 @@ export interface Translations {
   reasonAllergyTooLong: string;
   ocrInvalidItemBanner: string;
   ocrFixOrRemoveHint: string;
+
+  // Patient Explanation (I3 Day 2)
+  whyThisResultBtn: string;
+  hideWhyThisResultBtn: string;
+  explanationSourcesTitle: string;
+  explanationPending: string;
+  explanationDoiLabel: string;
+  adminConfigTitle: string;
+  adminConfigSubtitle: string;
+
+  // Provider Check-in Risk, Explanation & Trace (I3 Day 3)
+  checkinRiskTitle: string;
+  checkinRiskSubtitle: string;
+  liveRiskLabelToday: string;
+  checkinRiskLabelAtCheckin: string;
+  checkinRiskModelLabel: string;
+  checkinRiskRaisedYes: string;
+  checkinRiskRaisedNo: string;
+  checkinRiskMissingData: string;
+  checkinRiskError: string;
+  providerExplanationTitle: string;
+  providerExplanationMode: string;
+  providerExplanationReason: string;
+  providerExplanationRejectedReasons: string;
+  decisionTimelineTitle: string;
+  decisionTimelineSubtitle: string;
+  traceShowAll: string;
+  traceShowFewer: string;
+  traceEmergencyShortcut: string;
+  traceNodeIntake: string;
+  traceNodeFetchPrior: string;
+  traceNodeBuildBundles: string;
+  traceNodeReconcile: string;
+  traceNodeVerify: string;
+  traceNodePersistLocal: string;
+  traceNodeDecideTriage: string;
+  traceNodeRisk: string;
+  traceNodeExplain: string;
+  traceNodePersist: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -655,6 +700,11 @@ export const translations: Record<Language, Translations> = {
     obsPlaceholderSystolic: "e.g. 130",
     obsPlaceholderDiastolic: "e.g. 85",
     obsPlaceholderGlucose: "e.g. 140",
+    obsPlaceholderGlucoseMmol: "e.g. 7.0",
+    obsGlucoseRangeErrorMmol: "Glucose reading must be between 1.1 and 33.3 mmol/L.",
+    obsGlucoseRangeErrorMgdl: "Glucose reading must be between 20 and 600 mg/dL.",
+    obsOptionGlucoseMgdl: "Blood Glucose (mg/dL)",
+    obsOptionGlucoseMmol: "Blood Glucose (mmol/L)",
     landingHtnDemoPatient: "Bilal Ahmed (62y M)",
     landingHtnDemoCondition: "HTN",
     landingHtnDemoReading: "Blood Pressure",
@@ -787,6 +837,7 @@ export const translations: Record<Language, Translations> = {
     unifiedSettingsTitle: "Application Settings",
     unifiedSettingsSubtitle: "Manage language preferences, clinical connection mode, and profile parameters.",
     languageSettingLabel: "Display Language",
+    langRomanUrdu: "Roman Urdu",
     connectionModeSettingLabel: "Clinical Data Synchronizer",
     activeProfileLabel: "Active Profile",
 
@@ -1004,6 +1055,45 @@ export const translations: Record<Language, Translations> = {
     reasonAllergyTooLong: "Reaction text too long",
     ocrInvalidItemBanner: "Please fix or remove the highlighted invalid item before saving.",
     ocrFixOrRemoveHint: "Value is invalid. Click Fix to correct or Remove to discard.",
+
+    // Patient Explanation (I3 Day 2)
+    whyThisResultBtn: "Why this result?",
+    hideWhyThisResultBtn: "Hide explanation",
+    explanationSourcesTitle: "Clinical Sources",
+    explanationPending: "Preparing your explanation...",
+    explanationDoiLabel: "DOI / Source Link",
+    adminConfigTitle: "System Configuration & Guards Status",
+    adminConfigSubtitle: "Live runtime feature flags, LLM keys presence, and explainer performance metrics",
+
+    // Provider Check-in Risk, Explanation & Trace (I3 Day 3)
+    checkinRiskTitle: "Risk at check-in",
+    checkinRiskSubtitle: "Evaluated and recorded at check-in completion time",
+    liveRiskLabelToday: "Today",
+    checkinRiskLabelAtCheckin: "At the time of this check-in",
+    checkinRiskModelLabel: "Model",
+    checkinRiskRaisedYes: "Raised this check-in to review: Yes",
+    checkinRiskRaisedNo: "Raised this check-in to review: No",
+    checkinRiskMissingData: "Risk assessment incomplete at check-in (insufficient baseline data)",
+    checkinRiskError: "Risk assessment unavailable at check-in",
+    providerExplanationTitle: "What the patient was told",
+    providerExplanationMode: "Mode",
+    providerExplanationReason: "Fallback reason",
+    providerExplanationRejectedReasons: "Rejected candidates",
+    decisionTimelineTitle: "Decision Timeline",
+    decisionTimelineSubtitle: "Execution trace across orchestration pipeline",
+    traceShowAll: "Show all steps",
+    traceShowFewer: "Show fewer steps",
+    traceEmergencyShortcut: "Emergency path: reconciliation skipped",
+    traceNodeIntake: "Intake validated",
+    traceNodeFetchPrior: "Prior baseline fetched",
+    traceNodeBuildBundles: "Bundles built",
+    traceNodeReconcile: "Records reconciled",
+    traceNodeVerify: "Provenance verified",
+    traceNodePersistLocal: "Local observations saved",
+    traceNodeDecideTriage: "Rules decided the level",
+    traceNodeRisk: "Risk assessed",
+    traceNodeExplain: "Explanation generated",
+    traceNodePersist: "Results persisted",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1152,6 +1242,11 @@ export const translations: Record<Language, Translations> = {
     obsPlaceholderSystolic: "مثلاً 130",
     obsPlaceholderDiastolic: "مثلاً 85",
     obsPlaceholderGlucose: "مثلاً 140",
+    obsPlaceholderGlucoseMmol: "مثلاً 7.0",
+    obsGlucoseRangeErrorMmol: "بلڈ گلوکوز کی ریڈنگ 1.1 اور 33.3 mmol/L کے درمیان ہونی چاہیے۔",
+    obsGlucoseRangeErrorMgdl: "بلڈ شوگر کی پیمائش 20 اور 600 mg/dL کے درمیان ہونی چاہیے۔",
+    obsOptionGlucoseMgdl: "بلڈ شوگر (mg/dL)",
+    obsOptionGlucoseMmol: "بلڈ شوگر (mmol/L)",
     landingHtnDemoPatient: "بلال احمد (62 سال، مرد)",
     landingHtnDemoCondition: "ہائی بلڈ پریشر",
     landingHtnDemoReading: "بلڈ پریشر",
@@ -1284,6 +1379,7 @@ export const translations: Record<Language, Translations> = {
     unifiedSettingsTitle: "ایپلیکیشن ترتیبات",
     unifiedSettingsSubtitle: "زبان، کلینیکل کنکشن موڈ اور پروفائل کی ترتیبات۔",
     languageSettingLabel: "زبان کا انتخاب",
+    langRomanUrdu: "رومن اردو",
     connectionModeSettingLabel: "کلینیکل ڈیٹا سنکرونائزر",
     activeProfileLabel: "فعال پروفائل",
 
@@ -1411,8 +1507,8 @@ export const translations: Record<Language, Translations> = {
     waistUnitInAria: "کمر کی اکائی: انچ",
     waistUnitCmAria: "کمر کی اکائی: سینٹی میٹر",
     waistHelperText: "سانس باہر نکالنے کے بعد کولہے کی ہڈی کے اوپری حصے پر کمر کی پیمائش کریں۔",
-    waistErrorCm: "کمر کی پیمائش ۴۰ سے ۲۰۰ سینٹی میٹر کے درمیان ہونی چاہیے (ڈاکٹر کے جائزے کی ضرورت ہے)۔",
-    waistErrorIn: "کمر کی پیمائش ۱۵.۷ سے ۷۸.۷ انچ کے درمیان ہونی چاہیے (ڈاکٹر کے جائزے کی ضرورت ہے)۔",
+    waistErrorCm: "کمر کی پیمائش 40 سے 200 سینٹی میٹر کے درمیان ہونی چاہیے (ڈاکٹر کے جائزے کی ضرورت ہے)۔",
+    waistErrorIn: "کمر کی پیمائش 15.7 سے 78.7 انچ کے درمیان ہونی چاہیے (ڈاکٹر کے جائزے کی ضرورت ہے)۔",
     doctorOnRecordLabel: "ریکارڈ پر ڈاکٹر: {name} (آپ کے ہسپتال کے ریکارڈ سے)",
     ehrAllergiesTitle: "آپ کے ہسپتال کے ریکارڈ میں الرجیاں",
     noEhrAllergiesRecorded: "کوئی درج نہیں",
@@ -1437,7 +1533,7 @@ export const translations: Record<Language, Translations> = {
     recordHistoryBtn: "تاریخ",
     viewFullHistory: "پورے ریکارڈ کی تاریخ دیکھیں",
     noHistoryRecorded: "ابھی تک کوئی تبدیلی درج نہیں کی گئی۔",
-    historyField: "شعبہ",
+    historyField: "اندراج",
     historyOldValue: "پہلے",
     historyNewValue: "بعد میں",
     historyChangedAt: "تاریخ اور وقت",
@@ -1473,8 +1569,8 @@ export const translations: Record<Language, Translations> = {
     ocrConfirmSubtitle: "نیچے دی گئی ہر قدر کا جائزہ لیں۔ صرف تصدیق شدہ اندراجات ہی آپ کے ہیلتھ ریکارڈ میں شامل کیے جائیں گے۔",
     ocrNoticeUrdu: "ہم فی الحال صرف انگریزی رپورٹس پڑھ سکتے ہیں۔ براہ کرم یہ اقدار خود شامل کریں۔",
     ocrConfirmSaveBtn: "تصدیق کریں اور محفوظ کریں",
-    ocrFixBtn: "تبدیل کریں",
-    ocrRemoveBtn: "حذف کریں",
+    ocrFixBtn: "درست کریں",
+    ocrRemoveBtn: "ہٹائیں",
     ocrConfirmedBadge: "تصدیق شدہ",
     ocrEvidenceLabel: "دستاویز میں پایا گیا:",
     ocrBadge: "او سی آر",
@@ -1503,5 +1599,44 @@ export const translations: Record<Language, Translations> = {
     reasonAllergyTooLong: "ردعمل کی تفصیل بہت طویل ہے",
     ocrInvalidItemBanner: "براہ کرم محفوظ کرنے سے پہلے نمایاں کیے گئے غلط اندراج کو درست کریں یا ہٹا دیں۔",
     ocrFixOrRemoveHint: "یہ اندراج درست نہیں ہے۔ درست کرنے کے لیے 'درست کریں' یا خارج کرنے کے لیے 'ہٹائیں' کا بٹن دبائیں۔",
+
+    // Patient Explanation (I3 Day 2)
+    whyThisResultBtn: "یہ نتیجہ کیوں؟",
+    hideWhyThisResultBtn: "وضاحت چھپائیں",
+    explanationSourcesTitle: "طبی ذرائع",
+    explanationPending: "آپ کی وضاحت تیار کی جا رہی ہے...",
+    explanationDoiLabel: "طبی حوالہ / ربط",
+    adminConfigTitle: "سسٹم کنفیگریشن اور گارڈز کی حالت",
+    adminConfigSubtitle: "لائیو رن ٹائم فیچر فلیگز، ایل ایل ایم کیز اور وضاحت کار کی کارکردگی کے میٹرکس",
+
+    // Provider Check-in Risk, Explanation & Trace (I3 Day 3)
+    checkinRiskTitle: "چیک ان کے وقت خطرہ",
+    checkinRiskSubtitle: "چیک ان مکمل ہونے کے وقت جانچا گیا ریکارڈ",
+    liveRiskLabelToday: "آج",
+    checkinRiskLabelAtCheckin: "اس چیک ان کے وقت",
+    checkinRiskModelLabel: "ماڈل",
+    checkinRiskRaisedYes: "طبی جائزے کے لیے بھیجا گیا: ہاں",
+    checkinRiskRaisedNo: "طبی جائزے کے لیے بھیجا گیا: نہیں",
+    checkinRiskMissingData: "چیک ان کے وقت خطرے کا تخمینہ نامکمل تھا (ناکافی ڈیٹا)",
+    checkinRiskError: "چیک ان کے وقت خطرے کا تخمینہ دستیاب نہیں تھا",
+    providerExplanationTitle: "مریض کو کیا بتایا گیا",
+    providerExplanationMode: "طریقہ کار",
+    providerExplanationReason: "متبادل کی وجہ",
+    providerExplanationRejectedReasons: "مسترد ہونے کی وجوہات",
+    decisionTimelineTitle: "فیصلہ سازی کے مراحل (ٹائم لائن)",
+    decisionTimelineSubtitle: "پائپ لائن کے مراحل کا مکمل ٹریس",
+    traceShowAll: "تمام مراحل دیکھیں",
+    traceShowFewer: "کم مراحل دیکھیں",
+    traceEmergencyShortcut: "ہنگامی راستہ: ریکارڈز کا موازنہ چھوڑ دیا گیا",
+    traceNodeIntake: "انٹیک کی توثیق ہو گئی",
+    traceNodeFetchPrior: "سابقہ ریکارڈ حاصل کیا گیا",
+    traceNodeBuildBundles: "بنڈلز تیار کیے گئے",
+    traceNodeReconcile: "ریکارڈز کا موازنہ کیا گیا",
+    traceNodeVerify: "ثبوت اور ماخذ کی تصدیق ہو گئی",
+    traceNodePersistLocal: "مقامی پیمائشیں محفوظ کر لی گئیں",
+    traceNodeDecideTriage: "طبی اصولوں نے درجہ طے کیا",
+    traceNodeRisk: "خطرے کا جائزہ لیا گیا",
+    traceNodeExplain: "وضاحت تیار کی گئی",
+    traceNodePersist: "نتائج محفوظ کر لیے گئے",
   }
 };

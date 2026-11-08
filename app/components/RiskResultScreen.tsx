@@ -19,6 +19,7 @@ import {
   Pill,
 } from "lucide-react";
 import { describeMedicationItem } from "../lib/presentation";
+import { ExplanationBox } from "./ExplanationBox";
 
 export const RiskResultScreen = () => {
   const { setScreen, returnToHomeAndClearRun, isLiveMode, liveCheckinResult, t, isUrdu } = useApp();
@@ -133,6 +134,9 @@ export const RiskResultScreen = () => {
             </div>
           )}
 
+          {/* Guideline Explanation Box (flags on) */}
+          <ExplanationBox />
+
           {/* Mandatory Release Scope Note */}
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 flex items-start gap-3 text-xs text-slate-600 leading-relaxed">
             <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
@@ -214,6 +218,11 @@ export const RiskResultScreen = () => {
               : "Your self-reported symptoms, consistent medication routine, and stable baseline vitals show no current indicators of escalation."}
           </p>
         </div>
+
+        {/* Guideline Explanation Box (flags on) */}
+        {liveCheckinResult?.explanation && (
+          <ExplanationBox />
+        )}
 
         {/* Toggle to view Why / Contributing Factors */}
         {!showWhyPanel ? (

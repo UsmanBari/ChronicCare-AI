@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
+from rag.licences import has_complete_attribution, get_source_attribution, is_llm_allowed_for_source
 from rag.query_map import build_query_from_triage
 from rag.retriever import BM25Retriever, tokenize
 from rag.store import ChunkStore, JsonlChunkStore
@@ -21,6 +22,23 @@ from rag.store import ChunkStore, JsonlChunkStore
 logger = logging.getLogger(__name__)
 
 EXPLAINER_VERSION = "1.0.0"
+
+DEFAULT_MAX_TOKENS = 250
+DEFAULT_TRANSLATION_MAX_TOKENS = 700
+
+
+def get_explain_max_tokens() -> int:
+    try:
+        return int(os.environ.get("EXPLAIN_MAX_TOKENS", str(DEFAULT_MAX_TOKENS)))
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_TOKENS
+
+
+def get_explain_translation_max_tokens() -> int:
+    try:
+        return int(os.environ.get("EXPLAIN_TRANSLATION_MAX_TOKENS", str(DEFAULT_TRANSLATION_MAX_TOKENS)))
+    except (TypeError, ValueError):
+        return DEFAULT_TRANSLATION_MAX_TOKENS
 
 # Banned clinical patterns across languages
 BANNED_DIAGNOSIS_PATTERNS = [
@@ -282,6 +300,78 @@ def validate_level_consistency(
     return errors
 
 
+def is_template_consistent(trigger_category: str, readings: dict[str, Any]) -> bool:
+    """
+    Template consistency guard (H2):
+    A template must never call a reading high/severe/elevated/low when in the normal range,
+    and must never mention a reading the patient didn't give.
+    """
+    sbp_raw = readings.get("blood_pressure_systolic")
+    dbp_raw = readings.get("blood_pressure_diastolic")
+    gluc_raw = readings.get("glucose") or readings.get("fasting_glucose") or readings.get("random_glucose")
+
+    try:
+        sbp = float(sbp_raw) if sbp_raw is not None else None
+    except (ValueError, TypeError):
+        sbp = None
+    try:
+        dbp = float(dbp_raw) if dbp_raw is not None else None
+    except (ValueError, TypeError):
+        dbp = None
+    try:
+        gluc = float(gluc_raw) if gluc_raw is not None else None
+    except (ValueError, TypeError):
+        gluc = None
+
+    # Check BP templates
+    if trigger_category in ("bp_severe", "bp_crisis"):
+        if sbp is None and dbp is None:
+            return False
+        # Severe / crisis requires at least sbp >= 180 or dbp >= 120
+        is_severe = (sbp is not None and sbp >= 180.0) or (dbp is not None and dbp >= 120.0)
+        if not is_severe:
+            return False
+
+    elif trigger_category == "bp_urgent":
+        if sbp is None and dbp is None:
+            return False
+        # Stage 2 requires sbp >= 140 or dbp >= 90
+        is_stage2 = (sbp is not None and sbp >= 140.0) or (dbp is not None and dbp >= 90.0)
+        if not is_stage2:
+            return False
+
+    elif trigger_category == "bp_low":
+        if sbp is None and dbp is None:
+            return False
+        # Low BP requires sbp < 90 or dbp < 60
+        is_low = (sbp is not None and sbp < 90.0) or (dbp is not None and dbp < 60.0)
+        if not is_low:
+            return False
+
+    elif trigger_category == "bp_change":
+        if sbp is None and dbp is None:
+            return False
+
+    # Check Glucose templates
+    elif trigger_category == "glucose_urgent_high":
+        if gluc is None or gluc < 250.0:
+            return False
+
+    elif trigger_category == "glucose_high":
+        if gluc is None or gluc < 180.0:
+            return False
+
+    elif trigger_category == "glucose_very_low":
+        if gluc is None or gluc >= 54.0:
+            return False
+
+    elif trigger_category == "glucose_low":
+        if gluc is None or gluc >= 70.0:
+            return False
+
+    return True
+
+
 def get_template_explanation(
     trigger_category: str,
     readings: dict[str, Any],
@@ -293,6 +383,13 @@ def get_template_explanation(
     """Construct safe fallback explanation from pre-verified templates."""
     lang = language if language in ("en", "ur", "roman_ur") else "en"
     cat = trigger_category if trigger_category in TEMPLATES else "routine"
+
+    # Template consistency check (H2)
+    is_corrected = False
+    if cat != "routine" and not is_template_consistent(cat, readings):
+        cat = "routine"
+        is_corrected = True
+        rejected_reasons.append("Template contradicted readings; substituted neutral routine template")
 
     template_entry = TEMPLATES[cat].get(lang, TEMPLATES[cat]["en"])
     raw_sentences = template_entry.get("sentences", [])
@@ -321,15 +418,27 @@ def get_template_explanation(
     # Sources metadata
     sources = []
     for c in candidate_chunks[:3]:
-        sources.append({
+        src_id = c.get("source_id", "")
+        if src_id and not has_complete_attribution(src_id, chunk=c):
+            continue
+        attrib = get_source_attribution(src_id, chunk=c) if src_id else {}
+        entry = {
             "chunk_id": c["chunk_id"],
+            "source_id": src_id,
             "title": c.get("title", ""),
             "edition": c.get("edition", ""),
             "section_path": c.get("section_path", ""),
             "page_start": c.get("page_start", 1),
-        })
+        }
+        citation = c.get("full_citation") or attrib.get("full_citation")
+        doi = c.get("doi") or attrib.get("doi")
+        if citation and str(citation).upper() != "TO FILL BY USMAN":
+            entry["full_citation"] = citation
+        if doi and str(doi).upper() != "TO FILL BY USMAN":
+            entry["doi"] = doi
+        sources.append(entry)
 
-    return {
+    res = {
         "sentences": formatted_sentences,
         "sources": sources,
         "language": lang,
@@ -337,6 +446,9 @@ def get_template_explanation(
         "rejected_reasons": rejected_reasons,
         "version": EXPLAINER_VERSION,
     }
+    if is_corrected:
+        res["reason"] = "template_corrected"
+    return res
 
 
 def explain(
@@ -346,6 +458,9 @@ def explain(
     store: ChunkStore | None = None,
     llm: Any = None,
     model: str | None = None,
+    retriever: Any = None,
+    candidate_chunks: list[dict[str, Any]] | None = None,
+    provider: str | None = None,
 ) -> dict[str, Any]:
     """
     Generate a grounded clinical explanation for an already decided triage level.
@@ -361,23 +476,42 @@ def explain(
     # Determine query mapping
     query_mapping = build_query_from_triage(triage_copy, readings_copy)
 
-    # Chunk retrieval
-    candidate_chunks: list[dict[str, Any]] = []
-    if store is not None:
-        retriever = BM25Retriever(store)
-        candidate_chunks = retriever.retrieve(
-            query=query_mapping.query_text,
-            top_k=3,
-            condition=query_mapping.condition,
-            min_priority=query_mapping.min_priority,
-        )
-        if len(candidate_chunks) < 2:
-            # Fallback without condition filter
-            candidate_chunks = retriever.retrieve(
+    # Chunk retrieval (reuses cached retriever or builds once)
+    if candidate_chunks is not None:
+        chunks: list[dict[str, Any]] = [dict(c) for c in candidate_chunks]
+    else:
+        chunks = []
+        retriever_obj = retriever
+        if retriever_obj is None and store is not None:
+            try:
+                from rag.explain_guards import get_or_build_retriever
+                retriever_obj = get_or_build_retriever(store)
+            except Exception:
+                retriever_obj = BM25Retriever(store)
+            if retriever_obj is None:
+                retriever_obj = BM25Retriever(store)
+
+        if retriever_obj is not None:
+            chunks = retriever_obj.retrieve(
                 query=query_mapping.query_text,
                 top_k=3,
+                condition=query_mapping.condition,
                 min_priority=query_mapping.min_priority,
             )
+            if len(chunks) < 2:
+                # Fallback without condition filter
+                chunks = retriever_obj.retrieve(
+                    query=query_mapping.query_text,
+                    top_k=3,
+                    min_priority=query_mapping.min_priority,
+                )
+
+    # Attribution & licensing checks (X3, X4)
+    chunks = [c for c in chunks if has_complete_attribution(c.get("source_id", ""), chunk=c)]
+    if provider:
+        chunks = [c for c in chunks if is_llm_allowed_for_source(c.get("source_id", ""), provider=provider)]
+
+    candidate_chunks = chunks
 
     rejected_reasons: list[str] = []
 
@@ -412,13 +546,15 @@ def explain(
         "6. DO NOT tell the patient to start, stop, increase, decrease, or change their medicines.\n"
         "7. DO NOT diagnose any disease (e.g., never say 'you have diabetes').\n"
         "8. NEVER say 'nothing to worry', 'you are fine', or 'no need to see a doctor' if the level is review, urgent, or emergency.\n"
-        "9. Output valid JSON only with structure:\n"
+        f"9. CLINICAL LEVEL CONSISTENCY: The decided triage level for this patient is '{decided_level}'. You MUST NEVER use any other clinical level words ('routine', 'review', 'urgent', 'emergency') anywhere in the explanation text except '{decided_level}'. Do not mention routine care or routine follow-up unless the decided level is specifically 'routine'.\n"
+        "10. Output valid JSON only with structure:\n"
         '{"sentences": [{"text": "sentence text with citation [S1].", "cites": ["S1"]}]}'
     )
 
     user_prompt = (
         f"Patient Readings: {json.dumps(readings_copy)}\n"
-        f"Triage Result: Level = '{decided_level}', Trigger = '{query_mapping.trigger_category}'\n\n"
+        f"Decided Triage Level: '{decided_level}' (Trigger: '{query_mapping.trigger_category}')\n"
+        f"CLINICAL INSTRUCTION: The decided level is '{decided_level}'. Never use any other level word ('routine', 'review', 'urgent', 'emergency') except '{decided_level}'.\n\n"
         f"Guideline Passages:\n{passages_text}\n\n"
         "Generate the explanation in English."
     )
@@ -431,7 +567,7 @@ def explain(
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": 0.0,
-            "max_tokens": 400,
+            "max_tokens": get_explain_max_tokens(),
             "timeout": 8.0,
         }
         if model:
@@ -451,7 +587,22 @@ def explain(
             clean_json_str = re.sub(r"^```(?:json)?\s*", "", clean_json_str)
             clean_json_str = re.sub(r"\s*```$", "", clean_json_str)
 
-        parsed_data = json.loads(clean_json_str)
+        try:
+            parsed_data = json.loads(clean_json_str)
+        except (json.JSONDecodeError, ValueError) as parse_exc:
+            parse_err_name = type(parse_exc).__name__
+            logger.warning(f"LLM explanation JSON parse error: {parse_err_name}")
+            rejected_reasons.append(f"parse_error: {parse_err_name}")
+            tmpl_res = get_template_explanation(
+                query_mapping.trigger_category,
+                readings_copy,
+                triage_copy,
+                target_lang,
+                candidate_chunks,
+                rejected_reasons,
+            )
+            tmpl_res["reason"] = "validation_failed"
+            return tmpl_res
 
         # Run Validators V1-V5
         v1_errs = validate_sentence_structure(parsed_data)
@@ -499,6 +650,7 @@ def explain(
                 f"Source English sentences:\n{json.dumps(resolved_sentences, ensure_ascii=False)}"
             )
             trans_call_kwargs = dict(call_kwargs)
+            trans_call_kwargs["max_tokens"] = get_explain_translation_max_tokens()
             trans_call_kwargs["messages"] = [
                 {"role": "system", "content": "You are a professional medical translator for ChronicCare AI."},
                 {"role": "user", "content": trans_prompt},
@@ -513,7 +665,23 @@ def explain(
                 clean_trans_str = re.sub(r"^```(?:json)?\s*", "", clean_trans_str)
                 clean_trans_str = re.sub(r"\s*```$", "", clean_trans_str)
 
-            trans_data = json.loads(clean_trans_str)
+            try:
+                trans_data = json.loads(clean_trans_str)
+            except (json.JSONDecodeError, ValueError) as parse_exc:
+                parse_err_name = type(parse_exc).__name__
+                logger.warning(f"LLM translation JSON parse error: {parse_err_name}")
+                rejected_reasons.append(f"parse_error: {parse_err_name}")
+                tmpl_res = get_template_explanation(
+                    query_mapping.trigger_category,
+                    readings_copy,
+                    triage_copy,
+                    target_lang,
+                    candidate_chunks,
+                    rejected_reasons,
+                )
+                tmpl_res["reason"] = "validation_failed"
+                return tmpl_res
+
             trans_v1 = validate_sentence_structure(trans_data)
             trans_v2, trans_resolved = validate_citations(trans_data.get("sentences", []), candidate_chunks)
             trans_v3 = validate_number_grounding(trans_resolved, allowed_nums)
@@ -534,13 +702,25 @@ def explain(
         # Sources metadata list
         sources = []
         for c in candidate_chunks:
-            sources.append({
+            src_id = c.get("source_id", "")
+            if src_id and not has_complete_attribution(src_id, chunk=c):
+                continue
+            attrib = get_source_attribution(src_id, chunk=c) if src_id else {}
+            entry = {
                 "chunk_id": c["chunk_id"],
+                "source_id": src_id,
                 "title": c.get("title", ""),
                 "edition": c.get("edition", ""),
                 "section_path": c.get("section_path", ""),
                 "page_start": c.get("page_start", 1),
-            })
+            }
+            citation = c.get("full_citation") or attrib.get("full_citation")
+            doi = c.get("doi") or attrib.get("doi")
+            if citation and str(citation).upper() != "TO FILL BY USMAN":
+                entry["full_citation"] = citation
+            if doi and str(doi).upper() != "TO FILL BY USMAN":
+                entry["doi"] = doi
+            sources.append(entry)
 
         return {
             "sentences": final_sentences,

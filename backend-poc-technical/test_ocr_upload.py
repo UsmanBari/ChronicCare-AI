@@ -32,7 +32,7 @@ import sys
 import time
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import pytest
 from fastapi.testclient import TestClient
@@ -854,3 +854,139 @@ def test_production_safety_guard_refuses_fake_ocr_provider(monkeypatch):
     with pytest.raises(RuntimeError) as exc_info:
         get_ocr_provider()
     assert "Fake OCR provider refused in production environment" in str(exc_info.value)
+
+
+# ----------------------------------------------------------------------------
+# 8. Subprocess Worker Isolation & Robustness (Part 0.4)
+# ----------------------------------------------------------------------------
+def test_subprocess_path_same_result_shape(rsa_key_pair, monkeypatch):
+    """Proves subprocess path returns the exact same result shape and fields as in-process fake provider."""
+    monkeypatch.setenv("OCR_ENABLED", "true")
+    monkeypatch.setenv("OCR_PROVIDER", "fake")
+    monkeypatch.setenv("OCR_USE_SUBPROCESS", "true")
+    client = TestClient(app)
+    headers = _setup_patient(client, rsa_key_pair, "p-subproc-shape", "p_subproc@demo.com")
+
+    resp = client.post(
+        "/api/me/record/uploads",
+        headers=headers,
+        files={"file": ("report.jpg", MINIMAL_JPEG, "image/jpeg")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert "upload_id" in data
+    assert "extracted" in data
+    assert "medications" in data["extracted"]
+    assert "observations" in data["extracted"]
+    assert "allergies" in data["extracted"]
+    assert len(data["extracted"]["medications"]) >= 1
+    assert len(data["extracted"]["observations"]) >= 1
+    assert "notice" in data
+    assert "has_urdu" in data
+    assert "warnings" in data
+    assert "created_at" in data
+
+
+# Module-level mock worker targets for subprocess lifecycle testing (pickle-safe for spawn)
+def _mock_crashing_worker(result_queue, image_bytes: bytes, provider_name: Optional[str] = None):
+    import os
+    os._exit(139)
+
+
+def _mock_hanging_worker(result_queue, image_bytes: bytes, provider_name: Optional[str] = None):
+    import time
+    time.sleep(10)
+
+
+def _mock_large_result_worker(result_queue, image_bytes: bytes, provider_name: Optional[str] = None):
+    # Generates a payload larger than 100 KB (150 KB string) to prove queue draining before join prevents deadlocks
+    large_payload = "A" * 150000
+    result_queue.put({
+        "status": "ok",
+        "data": {
+            "raw_text": large_payload,
+            "has_urdu": False,
+            "notice": None,
+            "medications": [],
+            "observations": [
+                {
+                    "id": "ocr-obs-large",
+                    "observation_type": "glucose",
+                    "value": 115.0,
+                    "unit": "mg/dL",
+                    "context": "fasting",
+                    "evidence": large_payload[:200],
+                    "confidence": "High",
+                }
+            ],
+            "allergies": [],
+            "warnings": [],
+            "unmatched_lines": [],
+        },
+    })
+
+
+def test_subprocess_crashing_worker_returns_502(rsa_key_pair, monkeypatch):
+    """If the OCR worker subprocess crashes (e.g. SIGSEGV / hard exit), backend traps it and returns 502 ocr_provider_error."""
+    monkeypatch.setenv("OCR_ENABLED", "true")
+    monkeypatch.setenv("OCR_PROVIDER", "fake")
+    monkeypatch.setenv("OCR_USE_SUBPROCESS", "true")
+    monkeypatch.setattr("data_sources.ocr.rapidocr_provider._ocr_subprocess_worker", _mock_crashing_worker)
+    client = TestClient(app)
+    headers = _setup_patient(client, rsa_key_pair, "p-subproc-crash", "p_subcrash@demo.com")
+
+    resp = client.post(
+        "/api/me/record/uploads",
+        headers=headers,
+        files={"file": ("report.jpg", MINIMAL_JPEG, "image/jpeg")},
+    )
+    assert resp.status_code == 502
+    assert resp.json().get("code") == "ocr_provider_error"
+
+
+def test_subprocess_hanging_worker_timeout_returns_502(rsa_key_pair, monkeypatch):
+    """If the OCR worker hangs indefinitely, timeout fires, terminates worker, and returns 502 ocr_provider_error."""
+    monkeypatch.setenv("OCR_ENABLED", "true")
+    monkeypatch.setenv("OCR_PROVIDER", "fake")
+    monkeypatch.setenv("OCR_USE_SUBPROCESS", "true")
+    monkeypatch.setattr("data_sources.ocr.rapidocr_provider._ocr_subprocess_worker", _mock_hanging_worker)
+    monkeypatch.setenv("OCR_SUBPROCESS_TIMEOUT", "0.2")
+    client = TestClient(app)
+    headers = _setup_patient(client, rsa_key_pair, "p-subproc-hang", "p_subhang@demo.com")
+
+    t_start = time.time()
+    resp = client.post(
+        "/api/me/record/uploads",
+        headers=headers,
+        files={"file": ("report.jpg", MINIMAL_JPEG, "image/jpeg")},
+    )
+    elapsed = time.time() - t_start
+
+    assert resp.status_code == 502
+    assert resp.json().get("code") == "ocr_provider_error"
+    # Proves timeout fired quickly around 0.2s without hanging for 10s
+    assert elapsed < 3.0
+
+
+def test_subprocess_large_result_over_100kb_queue_drain(rsa_key_pair, monkeypatch):
+    """A subprocess worker returning a large payload (>100 KB) drains queue before join without deadlocking."""
+    monkeypatch.setenv("OCR_ENABLED", "true")
+    monkeypatch.setenv("OCR_PROVIDER", "fake")
+    monkeypatch.setenv("OCR_USE_SUBPROCESS", "true")
+    monkeypatch.setattr("data_sources.ocr.rapidocr_provider._ocr_subprocess_worker", _mock_large_result_worker)
+    client = TestClient(app)
+    headers = _setup_patient(client, rsa_key_pair, "p-subproc-large", "p_sublarge@demo.com")
+
+    resp = client.post(
+        "/api/me/record/uploads",
+        headers=headers,
+        files={"file": ("report.jpg", MINIMAL_JPEG, "image/jpeg")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "upload_id" in data
+    assert len(data["extracted"]["observations"]) == 1
+    assert data["extracted"]["observations"][0]["value"] == 115.0
+    assert len(data["extracted"]["observations"][0]["evidence"]) >= 100
+

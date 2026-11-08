@@ -1,0 +1,866 @@
+[
+  {
+    "text": "I have severe crushing chest pain radiating to my left arm",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "en"
+  },
+  {
+    "text": "seenay mein shadeed dard aur dabao hai",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "چھاتی پر شدید بوجھ اور درد محسوس ہو رہا ہے",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "ur"
+  },
+  {
+    "text": "seena phat raha hai bohot sakht dard hai",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "dil mein shadeed jalan aur dabao lag raha hai",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "tightness and severe pressure across my sternum",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "en"
+  },
+  {
+    "text": "heavy squeezing pain in the middle of my chest",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "en"
+  },
+  {
+    "text": "دل میں سخت درد ہو رہا ہے",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "ur"
+  },
+  {
+    "text": "his face is drooping on the left side and he cannot smile",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "munh terha ho gaya hai aik taraf",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "چہرہ ٹیڑھا ہو گیا ہے اور بول نہیں پا رہا",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "ur"
+  },
+  {
+    "text": "sudden weakness in my right arm and leg cannot lift it",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "aik taraf ka bazu bilkul sunn ho gaya hai",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "ایک طرف کا بازو سن اور کمزور ہو گیا ہے",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "ur"
+  },
+  {
+    "text": "slurred speech and patient is unable to speak words",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "awaz ladkhada rahi hai aur zuban sunn lag rahi hai",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "I am struggling to breathe and gasping for air",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "en"
+  },
+  {
+    "text": "cannot breathe properly at all my chest feels suffocated",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "en"
+  },
+  {
+    "text": "saans nahi aa rahi dum ghut raha hai",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "دم گھٹ رہا ہے اور سانس نہیں آ رہی",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "ur"
+  },
+  {
+    "text": "severe shortness of breath while sitting still",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "en"
+  },
+  {
+    "text": "sans ruk rahi hai bohot takleef hai",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "سانس بالکل اکھڑ رہی ہے",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "ur"
+  },
+  {
+    "text": "unable to breathe felt suffocating all of a sudden",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "en"
+  },
+  {
+    "text": "patient collapsed on the floor and was unresponsive",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "en"
+  },
+  {
+    "text": "he suddenly fainted and passed out",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "en"
+  },
+  {
+    "text": "abbu behosh ho gaye hain aur jawab nahi de rahe",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "وہ بے ہوش ہو گئے ہیں اور غش آ گیا ہے",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "ur"
+  },
+  {
+    "text": "chakkar kha kar gir gaya aur behosh ho gaya",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "blackout happened and patient is unconscious right now",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "en"
+  },
+  {
+    "text": "چکر کھا کر گر گئے اور بے ہوش ہیں",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "ur"
+  },
+  {
+    "text": "mother is completely unresponsive after sudden fall",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "en"
+  },
+  {
+    "text": "I am vomiting blood and severe nausea",
+    "expected_danger": true,
+    "group": "vomiting_blood",
+    "lang": "en"
+  },
+  {
+    "text": "threw up dark red blood multiple times today",
+    "expected_danger": true,
+    "group": "vomiting_blood",
+    "lang": "en"
+  },
+  {
+    "text": "khoon ki ulti aayi hai bohot zyada",
+    "expected_danger": true,
+    "group": "vomiting_blood",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "خون کی الٹی آ رہی ہے اور قے میں خون ہے",
+    "expected_danger": true,
+    "group": "vomiting_blood",
+    "lang": "ur"
+  },
+  {
+    "text": "passing black tarry stool since morning",
+    "expected_danger": true,
+    "group": "vomiting_blood",
+    "lang": "en"
+  },
+  {
+    "text": "kala pakhana aa raha hai aur ulti mein khoon tha",
+    "expected_danger": true,
+    "group": "vomiting_blood",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "کالا پاخانہ آ رہا ہے خون کے ساتھ",
+    "expected_danger": true,
+    "group": "vomiting_blood",
+    "lang": "ur"
+  },
+  {
+    "text": "coffee ground emesis noted in the sink",
+    "expected_danger": true,
+    "group": "vomiting_blood",
+    "lang": "en"
+  },
+  {
+    "text": "I have no chest pain at all today",
+    "expected_danger": false,
+    "notes": "negated chest pain",
+    "lang": "en"
+  },
+  {
+    "text": "seenay mein dard nahi hai bilkul theek hoon",
+    "expected_danger": false,
+    "notes": "Urdu trailing negation",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "سینے میں کوئی درد نہیں ہے",
+    "expected_danger": false,
+    "notes": "Urdu script negation",
+    "lang": "ur"
+  },
+  {
+    "text": "no weakness in arms or legs feeling strong",
+    "expected_danger": false,
+    "notes": "negated stroke",
+    "lang": "en"
+  },
+  {
+    "text": "bazu mein koi kamzori nahi hai",
+    "expected_danger": false,
+    "notes": "Roman Urdu negated stroke",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "بازو میں کوئی کمزوری یا سن پن نہیں ہے",
+    "expected_danger": false,
+    "notes": "Urdu negated weakness",
+    "lang": "ur"
+  },
+  {
+    "text": "I can breathe normally without any issue",
+    "expected_danger": false,
+    "notes": "safe breathing",
+    "lang": "en"
+  },
+  {
+    "text": "saans theek aa rahi hai koi masla nahi",
+    "expected_danger": false,
+    "notes": "safe breathing",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "never fainted or passed out in my life",
+    "expected_danger": false,
+    "notes": "negated syncope",
+    "lang": "en"
+  },
+  {
+    "text": "kabhi behosh nahi hua",
+    "expected_danger": false,
+    "notes": "negated syncope",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "بے ہوش نہیں ہوئے کبھی",
+    "expected_danger": false,
+    "notes": "negated syncope",
+    "lang": "ur"
+  },
+  {
+    "text": "no blood in vomit just normal acid reflux",
+    "expected_danger": false,
+    "notes": "negated GI bleed",
+    "lang": "en"
+  },
+  {
+    "text": "khoon ki ulti nahi aayi aam ulti thi",
+    "expected_danger": false,
+    "notes": "negated GI bleed",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "خون کی کوئی الٹی نہیں ہوئی",
+    "expected_danger": false,
+    "notes": "negated GI bleed",
+    "lang": "ur"
+  },
+  {
+    "text": "had severe chest pain last year during surgery",
+    "expected_danger": false,
+    "notes": "past event last year",
+    "lang": "en"
+  },
+  {
+    "text": "pichle saal behosh hua tha ab theek hoon",
+    "expected_danger": false,
+    "notes": "past event pichle saal",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "پچھلے سال سینے میں شدید درد ہوا تھا لیکن اب ٹھیک ہوں",
+    "expected_danger": false,
+    "notes": "past event",
+    "lang": "ur"
+  },
+  {
+    "text": "had a stroke 5 years ago and recovered well",
+    "expected_danger": false,
+    "notes": "past stroke",
+    "lang": "en"
+  },
+  {
+    "text": "do saal pehle falij ka attack hua tha",
+    "expected_danger": false,
+    "notes": "past stroke",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "months ago I passed out once at the gym",
+    "expected_danger": false,
+    "notes": "past syncope",
+    "lang": "en"
+  },
+  {
+    "text": "seene mein dard tha pehle lekin ab theek ho gaya",
+    "expected_danger": false,
+    "notes": "resolved cue",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "اب ٹھیک ہے درد بالکل ختم ہو گیا",
+    "expected_danger": false,
+    "notes": "resolved Urdu cue",
+    "lang": "ur"
+  },
+  {
+    "text": "chest pressure is now gone and feeling okay",
+    "expected_danger": false,
+    "notes": "resolved English cue",
+    "lang": "en"
+  },
+  {
+    "text": "pehle saans phoolti thi ab nahi phoolti",
+    "expected_danger": false,
+    "notes": "resolved breathing",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "kal se thoda kamar mein dard hai",
+    "expected_danger": false,
+    "notes": "kal se alone (not past, but back pain is benign)",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "kal dawai li thi sugar 120 aayi",
+    "expected_danger": false,
+    "notes": "kal without danger words",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "کل میں نے دوائی کھائی تھی",
+    "expected_danger": false,
+    "notes": "benign Urdu statement",
+    "lang": "ur"
+  },
+  {
+    "text": "my knee hurts when climbing stairs",
+    "expected_danger": false,
+    "notes": "benign knee pain",
+    "lang": "en"
+  },
+  {
+    "text": "tangon mein thakan hai sara din kaam kiya",
+    "expected_danger": false,
+    "notes": "benign fatigue",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "ٹانگوں میں تھکن محسوس ہو رہی ہے",
+    "expected_danger": false,
+    "notes": "benign tiredness",
+    "lang": "ur"
+  },
+  {
+    "text": "fasting sugar is 115 mg/dL today",
+    "expected_danger": false,
+    "notes": "routine reading",
+    "lang": "en"
+  },
+  {
+    "text": "bp 130/85 hai normal lag raha hai",
+    "expected_danger": false,
+    "notes": "routine reading",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "بلڈ پریشر 120 بٹا 80 آیا ہے",
+    "expected_danger": false,
+    "notes": "routine reading",
+    "lang": "ur"
+  },
+  {
+    "text": "I ate biryani yesterday so glucose is slightly high",
+    "expected_danger": false,
+    "notes": "routine diet remark",
+    "lang": "en"
+  },
+  {
+    "text": "doctor sahab se aglay hafte milna hai",
+    "expected_danger": false,
+    "notes": "appointment note",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "mild headache after working on computer",
+    "expected_danger": false,
+    "notes": "mild headache",
+    "lang": "en"
+  },
+  {
+    "text": "sar mein halka sa dard hai thakan ki wajah se",
+    "expected_danger": false,
+    "notes": "mild headache",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "سر میں ہلکا درد ہے",
+    "expected_danger": false,
+    "notes": "mild headache",
+    "lang": "ur"
+  },
+  {
+    "text": "feeling slightly sleepy after taking metformin",
+    "expected_danger": false,
+    "notes": "routine medication side effect",
+    "lang": "en"
+  },
+  {
+    "text": "dawai waqt par le raha hoon koi shikayat nahi",
+    "expected_danger": false,
+    "notes": "medication adherence note",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "اچانک غشی طاری ہو گئی اور کچھ ہوش نہیں رہا",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "ur"
+  },
+  {
+    "text": "مریض فرش پر بے سدھ پڑا ہوا ہے اور پکارنے پر نہیں بول رہا",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "ur"
+  },
+  {
+    "text": "آرام کے وقت بھی سانس پھول رہی ہے اور بولا نہیں جا رہا",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "ur"
+  },
+  {
+    "text": "گلے میں شدید گھٹن ہے اور سانس بالکل رک رہا ہے",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "ur"
+  },
+  {
+    "text": "چہرہ ایک طرف کو ڈھلک گیا ہے اور لعاب بہہ رہا ہے",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "ur"
+  },
+  {
+    "text": "اچانک آدھا جسم سن پڑ گیا ہے",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "ur"
+  },
+  {
+    "text": "دائیں ٹانگ اور پاؤں میں بالکل جان نہیں رہی، کھڑا نہیں ہوا جا رہا",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "ur"
+  },
+  {
+    "text": "صبح سے پاخانے کا رنگ کالا کوئلے جیسا آ رہا ہے",
+    "expected_danger": true,
+    "group": "vomiting_blood",
+    "lang": "ur"
+  },
+  {
+    "text": "پہلے کبھی کبھار غشی ہوتی تھی اب دوائی سے بالکل ٹھیک ہوں",
+    "expected_danger": false,
+    "notes": "past syncope + resolved cue",
+    "lang": "ur"
+  },
+  {
+    "text": "وہ بے سدھ نہیں ہوا تھا، صرف سو رہا تھا",
+    "expected_danger": false,
+    "notes": "negated senseless collapse",
+    "lang": "ur"
+  },
+  {
+    "text": "سیڑھیاں چڑھنے پر ہلکی سی سانس پھولتی ہے جو رکنے پر فوراً ٹھیک ہو جاتی ہے",
+    "expected_danger": false,
+    "notes": "mild exertion breathlessness",
+    "lang": "ur"
+  },
+  {
+    "text": "میرا سانس بالکل نہیں رک رہا، صرف معمولی نزلہ ہے",
+    "expected_danger": false,
+    "notes": "negated respiratory symptom",
+    "lang": "ur"
+  },
+  {
+    "text": "چہرہ بالکل نہیں ڈھلکا، صرف آنکھ میں خارش ہے",
+    "expected_danger": false,
+    "notes": "negated facial droop",
+    "lang": "ur"
+  },
+  {
+    "text": "پچھلے سال فالج سے آدھا جسم کمزور تھا اب ماشاءاللہ بالکل ٹھیک ہوں",
+    "expected_danger": false,
+    "notes": "past stroke event + resolved",
+    "lang": "ur"
+  },
+  {
+    "text": "پاؤں میں کوئی کمزوری یا بے جانی نہیں ہے، بالکل ٹھیک چل رہا ہوں",
+    "expected_danger": false,
+    "notes": "negated limb weakness",
+    "lang": "ur"
+  },
+  {
+    "text": "آئرن کی گولیوں کے بعد پاخانے کا رنگ کالا نہیں ہوا",
+    "expected_danger": false,
+    "notes": "negated melena with iron supplements",
+    "lang": "ur"
+  },
+  {
+    "text": "ابھی سانس نہیں آ رہی",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "ur"
+  },
+  {
+    "text": "اب سانس نہیں آ رہی",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "ur"
+  },
+  {
+    "text": "طبیعت خراب ہے سانس نہیں آ رہی",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "ur"
+  },
+  {
+    "text": "ab saans nahi aa rahi",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "since yesterday I cannot breathe",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "en"
+  },
+  {
+    "text": "pichle saal sugar zyada thi, aaj seene mein shadeed dabao hai",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "last year I had a cold. Now my face is drooping",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "bazu kamzor ho gaya hai uthaya nahi ja raha",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "ٹانگ پر چوٹ ہے اس لیے سنبھل کر چلتا ہوں",
+    "expected_danger": false,
+    "group": null,
+    "lang": "ur"
+  },
+  {
+    "text": "دوائی بدل دی ہے تو سر میں درد ہے",
+    "expected_danger": false,
+    "group": null,
+    "lang": "ur"
+  },
+  {
+    "text": "two months ago I had fever, but today my chest feels heavy and crushing",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "en"
+  },
+  {
+    "text": "pichle hafte seene mein dard tha, ab koi takleef nahi",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
+  },
+  {
+    "text": "ابھی دل میں شدید درد ہو رہا ہے",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "ur"
+  },
+  {
+    "text": "pichle do ghante se takleef thi lekin ab theek hai",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
+  },
+  {
+    "text": "kal se seene mein shadeed dabao mehsoos ho raha hai",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "kal seene mein dard tha par dawai le li thi",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "دل کی دھڑکن تیز ہے اور سینے میں شدید دباؤ ہے",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "ur"
+  },
+  {
+    "text": "کل پاؤں پھسل گیا تھا لیکن سنبھل گیا",
+    "expected_danger": false,
+    "group": null,
+    "lang": "ur"
+  },
+  {
+    "text": "haath bilkul kamzor hai hilaya nahi ja raha",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "bazu mein koi dard nahi hai",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
+  },
+  {
+    "text": "I can't breathe",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "en"
+  },
+  {
+    "text": "I can’t breathe",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "en"
+  },
+  {
+    "text": "I can't breathe properly since this morning",
+    "expected_danger": true,
+    "group": "breathing_distress",
+    "lang": "en"
+  },
+  {
+    "text": "she can't speak",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "he couldn't move his arm",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "I don't have chest pain",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "I haven't fainted",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "she doesn't have face drooping",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "I didn't vomit blood",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "pehle chest pain hota tha, ab nahi hota",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
+  },
+  {
+    "text": "پہلے سینے میں درد ہوتا تھا",
+    "expected_danger": false,
+    "group": null,
+    "lang": "ur"
+  },
+  {
+    "text": "kal se seene mein dard ho raha hai",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "seene mein dard ho raha hai",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "dard ho raha hai aur seena bhaari hai",
+    "expected_danger": true,
+    "group": "cardiac_chest_pain",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "seena bhaari nahi hai",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
+  },
+  {
+    "text": "I can't feel my left arm",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "I can feel my arm fine",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "I couldn't speak properly for the last hour",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "I couldn't speak to the doctor yesterday because he was busy",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "I fainted yesterday",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "en"
+  },
+  {
+    "text": "yesterday evening my face started drooping and it is still drooping",
+    "expected_danger": true,
+    "group": "stroke_fast_cue",
+    "lang": "en"
+  },
+  {
+    "text": "kal raat behosh ho gaya tha",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "pichle hafte do dafa behosh hua",
+    "expected_danger": true,
+    "group": "unresponsive_faint",
+    "lang": "roman_ur"
+  },
+  {
+    "text": "this morning I vomited blood",
+    "expected_danger": true,
+    "group": "vomiting_blood",
+    "lang": "en"
+  },
+  {
+    "text": "pichle saal behosh hua tha",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
+  },
+  {
+    "text": "years ago I had chest pressure",
+    "expected_danger": false,
+    "group": null,
+    "lang": "en"
+  },
+  {
+    "text": "pehle seene mein dard hota tha",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
+  },
+  {
+    "text": "seene mein dard tha, ab theek hoon",
+    "expected_danger": false,
+    "group": null,
+    "lang": "roman_ur"
+  }
+]

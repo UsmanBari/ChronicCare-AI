@@ -33,7 +33,7 @@ export const EmergencyScreen = () => {
           <p className="text-sm text-emergencyRed-800/90 leading-relaxed">
             {isUrdu
               ? "اگر آپ کو شدید بے چینی، سانس لینے میں دشواری یا بے ہوشی محسوس ہو رہی ہے تو فوری 1122 یا ایمرجنسی سروسز پر رابطہ کریں۔"
-              : "If you are experiencing severe shortness of breath, acute chest distress, or sudden weakness, contact emergency services (911 / 1122) immediately."}
+              : "If you are experiencing severe shortness of breath, acute chest distress, or sudden weakness, contact emergency services (1122) immediately."}
           </p>
         </div>
 
@@ -55,9 +55,12 @@ export const EmergencyScreen = () => {
         {/* Emergency Services Shortcut Pill */}
         <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs text-slate-600">
           <span className="font-medium">{t.directHotlineDispatch}</span>
-          <span className="font-bold text-emergencyRed-800 flex items-center gap-1">
-            <PhoneCall className="w-3.5 h-3.5" /> 911 / 1122
-          </span>
+             <a
+               href="tel:1122"
+               className="font-bold text-emergencyRed-800 hover:underline flex items-center gap-1"
+             >
+               <PhoneCall className="w-3.5 h-3.5" /> 1122
+             </a>
         </div>
 
         {/* Return to Home button */}

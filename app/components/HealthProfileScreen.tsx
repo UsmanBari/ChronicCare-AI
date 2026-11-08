@@ -895,11 +895,12 @@ export const HealthProfileScreen = () => {
 
         {/* Smoking Status */}
         <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-          <label className="text-xs font-bold uppercase tracking-wider text-navy-800 block">
+          <label htmlFor="smoking-status-select" className="text-xs font-bold uppercase tracking-wider text-navy-800 block">
             {isUrdu ? "تمباکو نوشی کی کیفیت" : "Smoking Status"}
           </label>
           <select
             id="smoking-status-select"
+            aria-label={isUrdu ? "تمباکو نوشی کی کیفیت" : "Smoking Status"}
             value={smokingStatus}
             onChange={(e) => setSmokingStatus(e.target.value)}
             className="w-full text-sm rounded-xl border border-slate-300 bg-white py-2 px-3 text-navy-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
@@ -1033,12 +1034,12 @@ export const HealthProfileScreen = () => {
             <Globe className="w-4 h-4 text-teal-700" />
             <span>{t.languageSettingLabel}</span>
           </label>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
               onClick={() => setSelectedLang("en")}
               id="lang-en-btn"
-              className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+              className={`min-h-[40px] px-2 py-2 rounded-xl text-xs font-semibold border transition-all ${
                 selectedLang === "en"
                   ? "bg-navy-800 text-white border-navy-800 shadow-xs"
                   : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
@@ -1050,13 +1051,25 @@ export const HealthProfileScreen = () => {
               type="button"
               onClick={() => setSelectedLang("ur")}
               id="lang-ur-btn"
-              className={`min-h-[40px] px-3 py-2 rounded-xl text-xs font-semibold border transition-all font-urdu ${
+              className={`min-h-[40px] px-2 py-2 rounded-xl text-xs font-semibold border transition-all font-urdu ${
                 selectedLang === "ur"
                   ? "bg-navy-800 text-white border-navy-800 shadow-xs"
                   : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
               }`}
             >
               اردو (Urdu)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedLang("roman_ur")}
+              id="lang-roman-ur-btn"
+              className={`min-h-[40px] px-2 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                selectedLang === "roman_ur"
+                  ? "bg-navy-800 text-white border-navy-800 shadow-xs"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              Roman Urdu
             </button>
           </div>
         </div>
