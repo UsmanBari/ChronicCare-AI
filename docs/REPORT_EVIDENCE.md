@@ -82,6 +82,19 @@ Per Saad's Day 4 prompt in `docs/tasks/WEEK3_SAAD.md` (Part A, lines 621–633),
 | **Live Smoke (7 Nov 06:45, Real Corpus - Post PR #125): Diabetes Resolution** | 10/10 llm/cache; **PASSED $\ge$ 9/10 rule** | Usman's live run 7 Nov 06:45, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-07 |
 | **Live Smoke (7 Nov 06:45, Real Corpus - Post PR #125): Hypertension Resolution** | 6/10 llm/cache (4 LLM + 2 cache, 4 Urdu/Roman Urdu fallbacks); **FAILED $\ge$ 9/10 rule** | Usman's live run 7 Nov 06:45, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-07 |
 | **Human Read (8 Nov): LLM Explanations** | English 4/4 acceptable (hypertension 2, diabetes 2); Urdu/Roman Urdu: hypertension 2 OK / 1 minor / 1 wrong, diabetes 4 OK with wording notes | Human read, 8 Nov (SUMMARY): reader Usman (English), reader Hassaan (Urdu/Roman Urdu, native speaker). Decision: Release 2 shows LLM explanations in English only (`EXPLAIN_LLM_LANGUAGES=en`); Urdu/Roman Urdu use reviewed templates. | `docs/REPORT_EVIDENCE.md` | 2026-11-08 |
+| **Live Production Smoke (8 Nov): Release 2 Verification** | 8/8 check-ins passed strict invariants across triage levels (HTN/DM, EN/UR/Roman UR, Emergency). 100% patient risk null, 100% HTN source safety, 0 LLM calls on emergency, 1122 safety note verified. | Live production run against Render (`scripts/prod_live_smoke.py`), commit `3ef51f8` | `python scripts/prod_live_smoke.py` | 2026-11-08 |
+
+> [!IMPORTANT]
+> **Production Live Smoke, 8 Nov (Release 2 Verification — D5):**
+> Following deployment of commit `3ef51f8` and guideline chunk loading (1,175 chunks) into production Aiven MySQL, the automated live smoke script (`scripts/prod_live_smoke.py`) evaluated 8 comprehensive check-in cases against the live Render backend:
+> - **Patient Privacy Invariant (H3):** 8/8 check-in completion responses contained strictly `risk: null`. Zero probability, band, or internal model names were exposed to any patient endpoint.
+> - **Explanation Modes & Gate Verification:**
+>   - English hypertension & diabetes check-ins (Cases 1, 4, 6) resolved successfully via LLM (`status: ready`).
+>   - Urdu and Roman Urdu check-ins (Cases 2, 3, 5, 7) routed directly to pre-verified templates with reason `language_template_only` on poll 1, honoring `EXPLAIN_LLM_LANGUAGES=en`.
+>   - Zero Groq tokens consumed for non-English check-ins.
+> - **Emergency Invariant:** Case 8 (Stage 1 red-flag chest pain) bypassed explainer and queue completely (0 LLM calls, null risk, null explanation) and returned emergency contact guidance (`"If this is an emergency, call 1122 now."` in `safety_note`).
+> - **Hypertension Source Safety:** Zero diabetes-only sources (ADA, IDF-DAR, AKU) cited across all hypertension check-ins.
+> - **Operational Finding:** Isolated mode observation ID formatting (`CHECKIN-local-{uid}-{stamp}-{type}`) exceeds MySQL `VARCHAR(64)` constraint on `observations.id`. Connected hospital record onboarding (standard production path for demo patients) bypasses local observation writes and executes cleanly with 200 OK across all steps.
 
 > [!IMPORTANT]
 > **Human Read, 8 Nov (SUMMARY):**

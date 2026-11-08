@@ -409,7 +409,6 @@ DOC_DISCREPANCY_REASON = (
 )
 
 
-@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_1_ok(contract_fixture) -> None:
     """State 1: ok (Complete Hypertension Patient)."""
     client = contract_fixture["client"]
@@ -441,7 +440,6 @@ def test_contract_state_1_ok(contract_fixture) -> None:
     assert_schema_conformity(actual_patient, expected["patient_view"], "patient_view")
 
 
-@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_2_not_enough_information(contract_fixture) -> None:
     """State 2: not_enough_information (Missing Waist Circumference)."""
     client = contract_fixture["client"]
@@ -498,7 +496,6 @@ def test_contract_state_3_not_applicable(contract_fixture) -> None:
     assert_schema_conformity(actual_provider, expected["provider_view"], "provider_view")
 
 
-@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_4_error(contract_fixture) -> None:
     """State 4: error (Safe Handling of Computation Glitches)."""
     client = contract_fixture["client"]
@@ -569,7 +566,6 @@ def test_contract_state_5_emergency(contract_fixture) -> None:
     assert_schema_conformity(actual_provider, expected["provider_view"], "provider_view")
 
 
-@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_6_template_mode(contract_fixture) -> None:
     """State 6: template_mode (Pre-verified Fallback Explanation)."""
     client = contract_fixture["client"]
@@ -603,7 +599,6 @@ def test_contract_state_6_template_mode(contract_fixture) -> None:
     assert_schema_conformity(actual_patient, expected["patient_view"], "patient_view")
 
 
-@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_7_urdu(contract_fixture) -> None:
     """State 7: urdu (Patient Language = 'ur')."""
     client = contract_fixture["client"]

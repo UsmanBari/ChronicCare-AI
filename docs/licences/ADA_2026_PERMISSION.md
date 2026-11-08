@@ -44,7 +44,17 @@ In response to Usman's written clarification request regarding retrieval-augment
 
 ---
 
-## 4. Deletion Procedure (Scheduled: 30 June 2027)
+## 4. Production Database Deployment (8 Nov 2026)
+
+On 8 November 2026, as part of Release 2 deployment verification, 1,175 guideline chunks (including the six authorized sections of ADA Standards of Care in Diabetes—2026) were loaded into the managed production database (`chroniccare_demo` on Aiven MySQL) by Usman Bari using:
+```powershell
+$env:DB_BACKEND="mysql"; python scripts/rag/load_chunks.py --file "$env:CHRONICCARE_DATA_DIR\rag\chunks.jsonl"; Remove-Item Env:DB_BACKEND
+```
+This production copy is subject to the identical storage and retention restrictions. It is utilized exclusively for generating grounded plain-language explanations via Groq, strictly prohibited from transmission to Gemini, and must be permanently expunged on or before 30 June 2027.
+
+---
+
+## 5. Deletion Procedure (Scheduled: 30 June 2027)
 
 On or before 30 June 2027, all stored ADA guideline chunks must be permanently purged from the production and development databases:
 

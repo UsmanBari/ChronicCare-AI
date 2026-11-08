@@ -63,3 +63,9 @@ Furthermore, Google Gemini API free tier (`gemini-2.5-flash`, `gemini-flash-late
 ### 12. Pending Formal Usability Testing
 No formal usability, accessibility, or human-factors studies have been completed with actual elderly or low-literacy patients in Pakistan. Formal patient and clinician usability trials using the bilingual interface are scheduled for 11–14 November 2026.
 
+### 13. Isolated-Mode MySQL Column Width Constraint
+In isolated mode (where patients without an EHR connection store check-in observations locally), `build_checkin_bundle` constructs synthetic observation IDs using the pattern `CHECKIN-local-{user_id}-{timestamp}-{observation_type}` (e.g. `CHECKIN-local-d18386f6d2b34a65b8df483b0f5b-20261108T124419Z-blood_pressure_systolic`), which reaches 83 characters in length. In production Aiven MySQL, the relational schema defines `observations.id` and `record_edits.record_id` as `VARCHAR(64)` columns. Under MySQL strict SQL mode, inserting an 83-character identifier triggers `DataError: 1406, "Data too long for column 'id'"`. 
+
+In connected EHR mode (the standard onboarding workflow utilizing `demo-hospital` sample records), check-in completion bypasses `step_persist_local_observations` because observations are mapped directly from existing EHR patient charts, executing with 100% success (HTTP 200 OK across all steps). Broadening `observations.id` and `record_edits.record_id` from `VARCHAR(64)` to `VARCHAR(128)` is queued for Iteration 4 schema migration v16.
+
+

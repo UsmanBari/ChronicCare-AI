@@ -1075,6 +1075,7 @@ def guarded_explain(
         tmpl["provider"] = None
         tmpl["providers_tried"] = list(providers_tried)
         tmpl["provider_timings"] = dict(provider_timings)
+        tmpl["tokens_used"] = 0
         # Strip any provider bodies or org IDs from stored rejected reasons
         tmpl["rejected_reasons"] = [
             ("rate_limited: HTTP 429" if ("org_" in str(r) or "{" in str(r)) else str(r))
