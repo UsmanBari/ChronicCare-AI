@@ -216,34 +216,35 @@ class LocalAcceptanceRunner:
         id_token, email = self._firebase_signup_fresh_patient(tag)
         headers = self._backend_session_auth(id_token)
 
-        # Accept consent
+        # Accept consent (ConsentRequest: granted=True, provider_notification=True)
         consent_url = f"{self.base_url}/api/me/consent"
-        requests.post(
+        c_resp = requests.post(
             consent_url,
             headers=headers,
-            json={
-                "has_consented_medical": True,
-                "has_consented_privacy": True,
-                "has_consented_ai": True,
-                "preferred_language": lang,
-            },
+            json={"granted": True, "provider_notification": True},
             timeout=10,
         )
+        if c_resp.status_code != 200:
+            raise RuntimeError(f"Consent grant failed ({c_resp.status_code}): {c_resp.text}")
 
-        # Update profile conditions & language
+        # Update profile conditions, inclusion & language (ProfileUpdateRequest)
         profile_url = f"{self.base_url}/api/me/profile"
-        requests.put(
+        p_resp = requests.put(
             profile_url,
             headers=headers,
             json={
                 "conditions": conditions,
-                "preferred_language": lang,
-                "age_years": 54,
-                "gender": "male",
+                "language": lang,
+                "date_of_birth": "1972-05-15",
+                "sex_at_birth": "male",
                 "waist_cm": 92.0,
+                "pregnancy_status": "no",
+                "inclusion_confirmed": True,
             },
             timeout=10,
         )
+        if p_resp.status_code != 200:
+            raise RuntimeError(f"Profile update failed ({p_resp.status_code}): {p_resp.text}")
         return headers, email
 
     # -------------------------------------------------------------------------
@@ -511,7 +512,7 @@ class LocalAcceptanceRunner:
             conn_resp = requests.post(
                 f"{self.base_url}/api/ehr/connect",
                 headers=headers,
-                json={"ehr_system_id": "ehr-sim-001", "patient_id": "sim-newpatient"},
+                json={"ehr_system_id": "ehr-sim-001", "external_patient_id": "sim-newpatient"},
                 timeout=10,
             )
             if conn_resp.status_code != 200:
@@ -697,19 +698,25 @@ class LocalAcceptanceRunner:
             buf.seek(0)
 
             headers, _ = self._init_patient_session("la15", ["hypertension"])
-            files = {"file": ("prescription.png", buf, "image/png")}
-            up_resp = requests.post(f"{self.base_url}/api/me/ocr/upload", headers=headers, files=files, timeout=15)
+            ocr_headers = dict(headers)
+            ocr_headers["Content-Type"] = "image/png"
+            up_resp = requests.post(
+                f"{self.base_url}/api/me/record/uploads",
+                headers=ocr_headers,
+                data=buf.getvalue(),
+                timeout=15,
+            )
 
             if up_resp.status_code != 200:
-                self.results.append({"id": "LA-15", "feature": feat, "status": "FAIL", "evidence": f"Upload HTTP {up_resp.status_code}"})
+                self.results.append({"id": "LA-15", "feature": feat, "status": "FAIL", "evidence": f"Upload HTTP {up_resp.status_code}: {up_resp.text}"})
                 return
 
             upload_id = up_resp.json().get("upload_id")
-            # Confirm staging
+            # Confirm staging via /api/me/record/uploads/{upload_id}/confirm
             conf_resp = requests.post(
-                f"{self.base_url}/api/me/ocr/confirm",
+                f"{self.base_url}/api/me/record/uploads/{upload_id}/confirm",
                 headers=headers,
-                json={"upload_id": upload_id, "medications": [{"name": "Amlodipine", "dosage": "5mg", "action": "add"}]},
+                json={"items": [{"type": "medication", "name": "Amlodipine 5mg", "dosage": "5mg", "status": "active"}]},
                 timeout=10,
             )
             status = "PASS" if conf_resp.status_code == 200 else "FAIL"
