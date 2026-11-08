@@ -5,8 +5,12 @@ Provides clean abstraction for chunk retrieval across development and production
 from __future__ import annotations
 
 import json
+import logging
+import time
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -194,6 +198,9 @@ class DbChunkStore:
 
 
 _GLOBAL_DB_CHUNK_STORE: DbChunkStore | None = None
+_LAST_EMPTY_STORE_RELOAD_TS: float = 0.0
+_LAST_INIT_PARAMS: tuple[str | None, str | None, str | None, str | None] = (None, None, None, None)
+RELOAD_THROTTLE_SECONDS: float = 60.0
 
 
 def get_db_chunk_store(
@@ -203,10 +210,38 @@ def get_db_chunk_store(
     ssl_ca: str | None = None,
     force_reload: bool = False,
 ) -> DbChunkStore:
-    """Retrieve or initialize the global DbChunkStore singleton."""
-    global _GLOBAL_DB_CHUNK_STORE
-    if _GLOBAL_DB_CHUNK_STORE is None or force_reload:
+    """Retrieve or initialize the global DbChunkStore singleton.
+
+    If the cached store reports total_chunks() == 0, attempts a throttled reload
+    (force_reload=True, at most once every 60 seconds on use) to recover if
+    guideline chunks were loaded into the database after process startup.
+    """
+    global _GLOBAL_DB_CHUNK_STORE, _LAST_EMPTY_STORE_RELOAD_TS, _LAST_INIT_PARAMS
+
+    now = time.monotonic()
+
+    if any(p is not None for p in (backend, db_path, mysql_url, ssl_ca)):
+        eff_backend, eff_db_path, eff_mysql_url, eff_ssl_ca = backend, db_path, mysql_url, ssl_ca
+    else:
+        eff_backend, eff_db_path, eff_mysql_url, eff_ssl_ca = _LAST_INIT_PARAMS
+
+    should_reload = force_reload
+
+    if (
+        _GLOBAL_DB_CHUNK_STORE is not None
+        and not force_reload
+        and _GLOBAL_DB_CHUNK_STORE.total_chunks() == 0
+        and (now - _LAST_EMPTY_STORE_RELOAD_TS) >= RELOAD_THROTTLE_SECONDS
+    ):
+        should_reload = True
+
+    if _GLOBAL_DB_CHUNK_STORE is None or should_reload:
         _GLOBAL_DB_CHUNK_STORE = DbChunkStore(
-            backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca
+            backend=eff_backend, db_path=eff_db_path, mysql_url=eff_mysql_url, ssl_ca=eff_ssl_ca
         )
+        _LAST_INIT_PARAMS = (eff_backend, eff_db_path, eff_mysql_url, eff_ssl_ca)
+        _LAST_EMPTY_STORE_RELOAD_TS = now
+        if should_reload and not force_reload:
+            logger.info("DbChunkStore reloaded: %d chunks", _GLOBAL_DB_CHUNK_STORE.total_chunks())
+
     return _GLOBAL_DB_CHUNK_STORE

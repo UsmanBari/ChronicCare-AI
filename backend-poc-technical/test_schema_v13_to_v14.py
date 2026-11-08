@@ -318,7 +318,7 @@ def test_mysql_record_edits_ddl_syntax_and_columns():
         "edit_id varchar(64) primary key",
         "user_id varchar(64) not null",
         "record_type varchar(32) not null",
-        "record_id varchar(64) not null",
+        "record_id varchar(191) not null",
         "field varchar(64) not null",
         "old_value text",
         "new_value text",

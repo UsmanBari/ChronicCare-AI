@@ -79,12 +79,41 @@ def inspect_production(conn: Any) -> dict[str, Any]:
             c_row = cursor.fetchone()
             tallies[t] = c_row["total"] if c_row else 0
 
+        # Read column widths for id columns (strictly read-only)
+        cursor.execute("""
+            SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND (
+                (TABLE_NAME = 'observations' AND COLUMN_NAME = 'id')
+                OR (TABLE_NAME = 'medications' AND COLUMN_NAME = 'id')
+                OR (TABLE_NAME = 'record_edits' AND COLUMN_NAME = 'record_id')
+              )
+            ORDER BY TABLE_NAME, COLUMN_NAME
+        """)
+        col_rows = cursor.fetchall()
+        col_widths: dict[str, str] = {}
+        for row in col_rows:
+            if isinstance(row, dict):
+                tbl = row.get("TABLE_NAME") or row.get("table_name")
+                col = row.get("COLUMN_NAME") or row.get("column_name")
+                dt = row.get("DATA_TYPE") or row.get("data_type")
+                cml = row.get("CHARACTER_MAXIMUM_LENGTH") or row.get("character_maximum_length")
+            elif isinstance(row, (tuple, list)) and len(row) >= 4:
+                tbl, col, dt, cml = row[0], row[1], row[2], row[3]
+            else:
+                continue
+            if not tbl or not col or not dt:
+                continue
+            col_widths[f"{tbl}.{col}"] = f"{dt.upper()}({cml})"
+
         conn.rollback()
 
     return {
         "version": current_v,
         "tables": sorted(table_names),
         "counts": tallies,
+        "column_widths": col_widths,
     }
 
 
@@ -125,6 +154,9 @@ def main() -> None:
         print("Table Row Tallies:")
         for t, cnt in data["counts"].items():
             print(f"  - {t}: {cnt}")
+        print("Column Widths:")
+        for col_name, width_desc in data.get("column_widths", {}).items():
+            print(f"  - {col_name}: {width_desc}")
     finally:
         conn.close()
 
