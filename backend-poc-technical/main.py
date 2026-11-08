@@ -3870,6 +3870,8 @@ def get_config_status_endpoint(current_user: Dict[str, Any] = Depends(require_ro
         "RISK_CAN_RAISE": os.environ.get("RISK_CAN_RAISE", "").strip().lower() == "true",
         "EXPLAIN_ENABLED": os.environ.get("EXPLAIN_ENABLED", "").strip().lower() == "true",
         "EXPLAIN_MODE": os.environ.get("EXPLAIN_MODE", "background").strip().lower(),
+        "EXPLAIN_LLM_CONDITIONS": os.environ.get("EXPLAIN_LLM_CONDITIONS", "hypertension").strip().lower(),
+        "EXPLAIN_LLM_LANGUAGES": os.environ.get("EXPLAIN_LLM_LANGUAGES", "en,ur,roman_ur").strip().lower(),
         "OCR_ENABLED": os.environ.get("OCR_ENABLED", "").strip().lower() == "true",
         "DANGER_WORDGROUPS_ENABLED": os.environ.get("DANGER_WORDGROUPS_ENABLED", "").strip().lower() == "true",
         "ORCHESTRATOR": os.environ.get("ORCHESTRATOR", "direct").strip().lower(),

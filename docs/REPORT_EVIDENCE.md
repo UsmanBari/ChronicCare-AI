@@ -81,6 +81,11 @@ Per Saad's Day 4 prompt in `docs/tasks/WEEK3_SAAD.md` (Part A, lines 621–633),
 | **Live Smoke (6 Nov 22:20, Real Corpus - Post PR #123): Hypertension Resolution** | 3/10 llm/cache (3 LLM, 0 cache, 7 template fallbacks on "routine" check-ins with reason `no_chunks`); **FAILED $\ge$ 9/10 rule** | Usman's live run 6 Nov 22:20, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-06 |
 | **Live Smoke (7 Nov 06:45, Real Corpus - Post PR #125): Diabetes Resolution** | 10/10 llm/cache; **PASSED $\ge$ 9/10 rule** | Usman's live run 7 Nov 06:45, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-07 |
 | **Live Smoke (7 Nov 06:45, Real Corpus - Post PR #125): Hypertension Resolution** | 6/10 llm/cache (4 LLM + 2 cache, 4 Urdu/Roman Urdu fallbacks); **FAILED $\ge$ 9/10 rule** | Usman's live run 7 Nov 06:45, SUMMARY | `python scripts/explain_live_smoke.py --real-chunks` | 2026-11-07 |
+| **Human Read (8 Nov): LLM Explanations** | English 4/4 acceptable (hypertension 2, diabetes 2); Urdu/Roman Urdu: hypertension 2 OK / 1 minor / 1 wrong, diabetes 4 OK with wording notes | Human read, 8 Nov (SUMMARY): reader Usman (English), reader Hassaan (Urdu/Roman Urdu, native speaker). Decision: Release 2 shows LLM explanations in English only (`EXPLAIN_LLM_LANGUAGES=en`); Urdu/Roman Urdu use reviewed templates. | `docs/REPORT_EVIDENCE.md` | 2026-11-08 |
+
+> [!IMPORTANT]
+> **Human Read, 8 Nov (SUMMARY):**
+> English LLM explanations 4/4 acceptable (hypertension 2, diabetes 2; reader: Usman). Urdu / Roman Urdu 8 rated (reader: Hassaan, native speaker): hypertension 2 OK / 1 minor / 1 wrong; diabetes 4 OK with wording notes. Wrong = a translation that changed the meaning. Decision: Release 2 shows LLM explanations in English only (`EXPLAIN_LLM_LANGUAGES=en`); Urdu and Roman Urdu use the reviewed templates. Urdu LLM translation needs a glossary and a new native-speaker read before it can be enabled. (No guideline explanation text is quoted per ADA academic licence terms).
 
 > [!WARNING]
 > **7 Nov (06:45) Real-Corpus Live Smoke Evaluation & Pacer Deadline Fix (Day 6g):**
