@@ -59,6 +59,7 @@ Other local demo settings:
 - `GROQ_MODEL=<copy from Render>` (copy the exact model configured on Render).
 - `DEMO_ROLE_MAP=<copy from Render>` (format: `provider.demo@demo.care:provider,admin.demo@demo.care:admin`).
 - Feature flags: `RISK_ENABLED=true`, `RISK_CAN_RAISE=true`, `RISK_PATIENT_VISIBLE=true`, `TREND_CAN_RAISE=true`, `EXPLAIN_ENABLED=true`, `EXPLAIN_MODE=background`, `OCR_ENABLED=true`, `DANGER_WORDGROUPS_ENABLED=true`, `ORCHESTRATOR=graph`, `INTERVIEW_ENGINE=v2`.
+- Optional acceptance keys (for unattended runs): `FIREBASE_WEB_API_KEY`, `LOCAL_PROVIDER_EMAIL`, `LOCAL_PROVIDER_PASSWORD`, `LOCAL_ADMIN_EMAIL`, `LOCAL_ADMIN_PASSWORD`.
 
 *Note: `backend-poc-technical/.env.localdemo` is git-ignored (verified by `git check-ignore -v`). Never commit it.*
 
@@ -79,6 +80,9 @@ In Terminal 1, activate the venv and start uvicorn:
 ```powershell
 Set-Location "c:\Users\usmanbari\Desktop\Chronicare\backend-poc-technical"
 .\.venv\Scripts\Activate.ps1
+$env:DB_BACKEND = "sqlite"
+Remove-Item Env:MYSQL_URL -ErrorAction SilentlyContinue
+Remove-Item Env:MYSQL_SSL_CA -ErrorAction SilentlyContinue
 python -m uvicorn main:app --port 8000 --env-file .env.localdemo --log-level info
 ```
 Verify the server starts and logs:
