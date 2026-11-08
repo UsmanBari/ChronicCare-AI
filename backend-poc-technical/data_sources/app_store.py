@@ -51,7 +51,7 @@ APP_STORE_TABLES = {
     "schema_version",
 }
 
-LATEST_SCHEMA_VERSION = 15
+LATEST_SCHEMA_VERSION = 16
 
 SQLITE_RECORD_EDITS_DDL = """
 CREATE TABLE IF NOT EXISTS record_edits (
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS record_edits (
     edit_id VARCHAR(64) PRIMARY KEY,
     user_id VARCHAR(64) NOT NULL,
     record_type VARCHAR(32) NOT NULL,
-    record_id VARCHAR(64) NOT NULL,
+    record_id VARCHAR(191) NOT NULL,
     field VARCHAR(64) NOT NULL,
     old_value TEXT DEFAULT NULL,
     new_value TEXT DEFAULT NULL,
@@ -517,6 +517,10 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 cursor.execute(SQLITE_GUIDELINE_CHUNKS_CONDITION_INDEX)
                 cursor.execute(SQLITE_GUIDELINE_CHUNKS_SOURCE_INDEX)
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (15, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 16")
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (16, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -894,6 +898,10 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
 
                 cursor.execute(MYSQL_GUIDELINE_CHUNKS_DDL)
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (15, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 16")
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (16, %s)", (now,))
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
