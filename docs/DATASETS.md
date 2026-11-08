@@ -131,6 +131,33 @@ No dataset files are stored in this repository.
 
 ---
 
+## 6. Framingham Heart Study (10-Year Cardiovascular Risk Dataset)
+
+**Source:** National Heart, Lung, and Blood Institute (NHLBI) / Framingham Heart Study via Kaggle repository (https://www.kaggle.com/datasets/amanajmera1/framingham-heart-study-dataset). Originating clinical trial cohort: Framingham Heart Study (FHS, Framingham, Massachusetts).
+
+**Licence / Access:** LICENCE NOT STATED ON SOURCE PAGE (listed as "Unknown" on Kaggle uploader page); used for non-commercial academic evaluation only.
+
+**Size & Complete-Case Cohort Counts:**
+- Total raw instances: 4,238 records across 16 raw features (as printed by dataset loader).
+- Missing feature dropped: 72 records dropped due to missing values across the 9 non-lab features (`age`, `sex_male`, `current_smoker`, `bmi`, `sbp`, `dbp`, `bp_meds`, `diabetes`, `prevalent_hyp`) or target `TenYearCHD`.
+- Clean complete-case cohort: **4,166** records (623 positive cases of 10-year CHD, 14.95% overall prevalence).
+- Stratified 60/20/20 Split counts (`random_state=42`):
+  - `train_core` (60%): 2,499 rows (374 positive, 14.97% prevalence)
+  - `validation` (20%): 833 rows (124 positive, 14.89% prevalence)
+  - `test` (20%): 834 rows (125 positive, 14.99% prevalence)
+
+**Potential ChronicCare AI use:**
+- Train non-lab 10-year coronary heart disease (CHD) risk stratification model for patients with hypertension or diabetes.
+- Decision support for healthcare providers to evaluate cardiovascular risk factors without requiring immediate blood lipid panels.
+- Three pre-registered risk bands: Low (<10%), Moderate (10% to <20%), High (≥20%).
+
+**Must NOT be used for:**
+- Direct clinical diagnosis of coronary heart disease or acute myocardial infarction.
+- Presenting raw percentage probabilities to patients (patients see risk tier and educational note only).
+- Disregarding geographical and ethnic limitations: Framingham Heart Study reflects an American cohort initialized in 1948 with predominantly White participants; baseline cardiovascular risk in contemporary Pakistani and South Asian populations may differ and has not been recalibrated.
+
+---
+
 ## Dataset Usage Principles
 
 These datasets are candidates for development, testing, research, and plausibility checking only. Their inclusion in this review does not mean they have been clinically approved for ChronicCare AI.

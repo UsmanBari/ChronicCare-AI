@@ -74,6 +74,10 @@ def clean_framingham_df(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]
         out_df["high_bp"] = out_df["prevalent_hyp"]
         out_df["told_high_bp"] = out_df["prevalent_hyp"]
 
+    # Preserve TenYearCHD target if present in raw dataframe
+    if "TenYearCHD" in df.columns:
+        out_df["TenYearCHD"] = df["TenYearCHD"]
+
     # Compute NA count per column for standard columns
     na_counts: dict[str, int] = {}
     for dest_col in COLUMN_MAPPING.values():
@@ -98,4 +102,63 @@ def load_framingham(path: str | Path | None = None) -> tuple[pd.DataFrame, dict[
 
     raw_df = pd.read_csv(target_path)
     return clean_framingham_df(raw_df)
+
+
+def load_framingham_chd10(
+    path: str | Path | None = None,
+    features: list[str] | None = None,
+    min_age: int = 30,
+    max_age: int = 74,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """
+    Load, filter, and clean Framingham dataset for 10-year CHD risk modeling.
+    Filters:
+    - Age between min_age and max_age (30-74)
+    - Drops rows with missing values in any of the features or TenYearCHD target.
+    Returns:
+    - cleaned complete-case DataFrame with integer index and '_id' column.
+    - dictionary report of raw rows, dropped rows, and prevalence.
+    """
+    if features is None:
+        features = [
+            "age",
+            "sex_male",
+            "current_smoker",
+            "bmi",
+            "sbp",
+            "dbp",
+            "bp_meds",
+            "diabetes",
+            "prevalent_hyp",
+        ]
+    df_clean, rep = load_framingham(path)
+    if "TenYearCHD" not in df_clean.columns:
+        raise ValueError("TenYearCHD column missing from Framingham dataset")
+
+    n_raw = len(df_clean)
+    # Age filter
+    age_mask = (df_clean["age"] >= min_age) & (df_clean["age"] <= max_age)
+    df_aged = df_clean[age_mask].copy()
+    n_after_age = len(df_aged)
+
+    # Complete cases on features + TenYearCHD
+    needed = features + ["TenYearCHD"]
+    df_complete = df_aged.dropna(subset=needed).copy()
+    df_complete["TenYearCHD"] = df_complete["TenYearCHD"].astype(int)
+    df_complete = df_complete.reset_index(drop=True)
+    df_complete["_id"] = df_complete.index.astype(int)
+
+    n_clean = len(df_complete)
+    n_pos = int((df_complete["TenYearCHD"] == 1).sum())
+
+    chd_report = {
+        "raw_rows": n_raw,
+        "age_eligible_rows": n_after_age,
+        "complete_rows": n_clean,
+        "dropped_rows": n_raw - n_clean,
+        "positives": n_pos,
+        "prevalence": n_pos / n_clean if n_clean > 0 else 0.0,
+    }
+    return df_complete, chd_report
+
 

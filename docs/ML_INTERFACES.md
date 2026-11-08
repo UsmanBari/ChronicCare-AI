@@ -245,3 +245,29 @@ The plotting module `ml.plots` (`roc_plot`, `calibration_plot`) provides visuali
 
 - **Non-CI Tool:** `ml.plots` is an optional developer utility and is **NOT run in automated CI test suites**.
 - **Dependency Scope:** `matplotlib` is an optional developer visualizer and is not pinned as a hard dependency in continuous integration environments.
+
+---
+
+## 7. Cardiovascular Risk Model Contract (`chd10_framingham`)
+
+The 10-year coronary heart disease (CHD) risk model (`backend-poc-technical/models/chd10_framingham.json`) follows the production export contract with multi-audience communication and patient-facing educational disclaimer:
+
+- **Target Label:** `TenYearCHD`
+- **Population:** `hypertension_or_diabetes`
+- **Applicability Range:** Adults aged 30–74 with hypertension or diabetes
+- **Feature Order Contract (9 features):**
+  1. `age` (years, 30–74)
+  2. `sex_male` (binary, 1=male, 0=female)
+  3. `current_smoker` (binary, 1=yes, 0=no)
+  4. `bmi` (kg/m², 10.0–100.0)
+  5. `sbp` (mmHg, 60–260)
+  6. `dbp` (mmHg, 30–160)
+  7. `bp_meds` (binary, 1=yes, 0=no)
+  8. `diabetes` (binary, 1=yes, 0=no)
+  9. `prevalent_hyp` (binary, 1=yes, 0=no)
+- **Audience:** `"audience": "provider_and_patient_band"`
+- **Risk Bands:** Low `< 0.10`, Moderate `0.10` to `< 0.20`, High `\ge 0.20` (NCEP ATP III clinical guidelines)
+- **Patient Note:** Educational disclaimer in English, Urdu, and Roman Urdu (`needs_native_review: true`). Raw numerical probabilities are never presented to patients.
+- **Provider Banner:** Experimental research model disclaimer in English, Urdu, and Roman Urdu (`needs_native_review: true`).
+- **Pure-Python Parity:** Golden test set (`backend-poc-technical/models/chd10_framingham.golden.json`) verified to within $10^{-9}$ tolerance against pure-Python sigmoid inference.
+
