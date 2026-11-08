@@ -878,6 +878,10 @@ def check_llm_eligibility(
     if not is_language_allowed_for_llm(language):
         return False, "language_template_only"
 
+    # 0.5. No-readings check: if check-in has no readings, return template reason
+    if trigger_category == "routine_no_readings":
+        return False, "no_readings_template"
+
     cond_str = (condition or "hypertension").strip().lower()
 
     # 1. Condition check (H1)
@@ -1075,6 +1079,7 @@ def guarded_explain(
         tmpl["provider"] = None
         tmpl["providers_tried"] = list(providers_tried)
         tmpl["provider_timings"] = dict(provider_timings)
+        tmpl["tokens_used"] = 0
         # Strip any provider bodies or org IDs from stored rejected reasons
         tmpl["rejected_reasons"] = [
             ("rate_limited: HTTP 429" if ("org_" in str(r) or "{" in str(r)) else str(r))
@@ -1082,6 +1087,10 @@ def guarded_explain(
         ]
         record_fallback(final_reason)
         return tmpl
+
+    # 1.4 Check No-Readings Gate: if check-in has no readings, return template immediately (never read/write cache)
+    if trigger_category == "routine_no_readings":
+        return _make_template_fallback("no_readings_template", ["No readings recorded for check-in"])
 
     # 1.5 Check Language Gate: if check-in language is not allowed for LLM, return template immediately (never read/write cache)
     if not is_language_allowed_for_llm(target_lang):

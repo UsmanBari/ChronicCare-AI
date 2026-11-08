@@ -342,6 +342,7 @@ export interface Translations {
   agreementsCountLabel: string;
   missingCountLabel: string;
   confidenceLabel: string;
+  noReadingsEntered: string;
   riskScoringOmittedNote: string;
   notEnoughHistory: string;
   serverTyping: string;
@@ -886,6 +887,7 @@ export const translations: Record<Language, Translations> = {
     agreementsCountLabel: "Verified In-Range Parameters",
     missingCountLabel: "Omitted / Incomplete Data Points",
     confidenceLabel: "Assessment Confidence",
+    noReadingsEntered: "No readings entered today",
     riskScoringOmittedNote: "Note: Automated risk scoring is not part of this release. Clinical review is prioritized based on source reconciliation and safety rules.",
     notEnoughHistory: "Not enough history yet (minimum 3 check-ins required to display trend trajectory).",
     serverTyping: "Processing response...",
@@ -1429,6 +1431,7 @@ export const translations: Record<Language, Translations> = {
     agreementsCountLabel: "تصدیق شدہ درست اشارے",
     missingCountLabel: "نامکمل یا چھوٹی ہوئی معلومات",
     confidenceLabel: "تجزیاتی اعتماد",
+    noReadingsEntered: "آج کوئی ریڈنگ درج نہیں کی گئی",
     riskScoringOmittedNote: "نوٹ: خودکار رسک اسکورنگ اس ورژن کا حصہ نہیں ہے۔ دیکھ بھال کی ترجیح ڈیٹا کے تضاد اور حفاظتی اصولوں پر مبنی ہے۔",
     notEnoughHistory: "ابھی کافی تاریخ موجود نہیں ہے (رجحانات دیکھنے کے لیے کم از کم 3 چیک ان ضروری ہیں)۔",
     serverTyping: "جواب کا تجزیہ ہو رہا ہے...",

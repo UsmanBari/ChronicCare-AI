@@ -892,6 +892,26 @@ def step_explain(
                 )
             ]
 
+        # B: When check-in has no readings: use routine_no_readings template and make NO LLM call
+        if trigger_category == "routine_no_readings":
+            tmpl = get_template_explanation(
+                trigger_category="routine_no_readings",
+                readings=readings,
+                triage_result=triage_copy,
+                language=language,
+                candidate_chunks=candidate_chunks,
+                rejected_reasons=["Guard fallback: no_readings_template"],
+            )
+            tmpl["status"] = "ready"
+            tmpl["mode"] = "template"
+            tmpl["reason"] = "no_readings_template"
+            tmpl["provider"] = None
+            tmpl["providers_tried"] = []
+            tmpl["provider_timings"] = {}
+            tmpl["tokens_used"] = 0
+            record_fallback("no_readings_template")
+            return tmpl
+
         if active_explain_mode == "background":
             # Check eligibility before enqueuing using identical guards logic
             is_eligible, skip_reason = check_llm_eligibility(

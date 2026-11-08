@@ -284,5 +284,33 @@
       ],
       "needs_doctor_review": false
     }
+  },
+  "routine_no_readings": {
+    "en": {
+      "sentences": [
+        "You did not enter a blood sugar or blood pressure reading today.",
+        "No warning symptoms were reported, so no doctor review is needed today.",
+        "Adding a reading next time helps track your health over time."
+      ],
+      "needs_doctor_review": false
+    },
+    "ur": {
+      "sentences": [
+        "آپ نے آج بلڈ شوگر یا بلڈ پریشر کی کوئی ریڈنگ درج نہیں کی۔",
+        "کسی خطرے کی علامت کی اطلاع نہیں دی گئی، اس لیے آج ڈاکٹر کے جائزے کی ضرورت نہیں ہے۔",
+        "اگلی بار ریڈنگ شامل کرنا وقت کے ساتھ آپ کی صحت کی نگرانی میں مدد کرتا ہے۔"
+      ],
+      "needs_doctor_review": false,
+      "needs_native_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ne aaj blood sugar ya blood pressure ki koi reading darj nahi ki.",
+        "Kisi khatray ki alamat ki ittila nahi di gayi, is liye aaj doctor ke jaizay ki zaroorat nahi hai.",
+        "Agli baar reading shamil karna waqt ke sath aap ki sehat ki nigrani mein madad karta hai."
+      ],
+      "needs_doctor_review": false,
+      "needs_native_review": true
+    }
   }
 }
