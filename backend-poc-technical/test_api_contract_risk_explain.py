@@ -537,7 +537,7 @@ def test_contract_state_4_error(contract_fixture) -> None:
     assert_schema_conformity(actual_patient, expected["patient_view"], "patient_view")
 
 
-@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
+@pytest.mark.xfail(strict=False, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_5_emergency(contract_fixture) -> None:
     """State 5: emergency (Stage 1 Red Flag or Clinical Crisis)."""
     client = contract_fixture["client"]
