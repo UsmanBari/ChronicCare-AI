@@ -1,4 +1,4 @@
-﻿"""
+"""
 NHANES Temporal Data Split Generator (v1).
 Partitions NHANES adult participants (age >= 18) strictly across time:
 - train_core: 1999-2000 through 2011-2012 (7 cycles)
@@ -17,12 +17,20 @@ from typing import Any
 
 import pandas as pd
 
-from common import (
-    ADULT_MIN_AGE,
-    data_dir,
-    df_to_markdown,
-    load_nhanes_core,
-)
+try:
+    from ml.common import (
+        ADULT_MIN_AGE,
+        data_dir,
+        df_to_markdown,
+        load_nhanes_core,
+    )
+except ImportError:
+    from common import (
+        ADULT_MIN_AGE,
+        data_dir,
+        df_to_markdown,
+        load_nhanes_core,
+    )
 
 TRAIN_CORE_CYCLES = [
     "1999-2000",
@@ -93,6 +101,58 @@ def generate_nhanes_temporal_splits(df: pd.DataFrame) -> dict[str, list[int]]:
         "validation": val_seqns,
         "test": test_seqns,
     }
+
+
+def generate_stratified_random_splits(
+    df: pd.DataFrame,
+    target_col: str = "TenYearCHD",
+    train_frac: float = 0.60,
+    val_frac: float = 0.20,
+    test_frac: float = 0.20,
+    seed: int = 42,
+    id_col: str | None = None,
+) -> dict[str, list[Any]]:
+    """
+    Partition records into stratified train, validation, and test sets (default 60/20/20).
+    Preserves class balance across all three splits using train_test_split.
+    Ensures pairwise disjointness and exact union coverage.
+    """
+    from sklearn.model_selection import train_test_split
+
+    if target_col not in df.columns:
+        raise ValueError(f"Target column '{target_col}' not in DataFrame columns")
+
+    ids = df[id_col].tolist() if (id_col and id_col in df.columns) else df.index.tolist()
+    y = df[target_col].to_numpy()
+
+    temp_frac = val_frac + test_frac
+    train_idx, temp_idx, _, y_temp = train_test_split(
+        ids, y, test_size=temp_frac, random_state=seed, stratify=y
+    )
+    val_rel_frac = val_frac / temp_frac
+    val_idx, test_idx, _, _ = train_test_split(
+        temp_idx, y_temp, test_size=(1.0 - val_rel_frac), random_state=seed, stratify=y_temp
+    )
+
+    train_set = set(train_idx)
+    val_set = set(val_idx)
+    test_set = set(test_idx)
+
+    # 1. Assert pairwise disjoint
+    assert train_set.isdisjoint(val_set), "train and validation overlap!"
+    assert train_set.isdisjoint(test_set), "train and test overlap!"
+    assert val_set.isdisjoint(test_set), "validation and test overlap!"
+
+    # 2. Assert union equals all IDs
+    assert (train_set | val_set | test_set) == set(ids), "Split union does not match all IDs!"
+
+    return {
+        "train": train_idx,
+        "train_core": train_idx,
+        "validation": val_idx,
+        "test": test_idx,
+    }
+
 
 
 def compute_split_summary(df: pd.DataFrame, splits: dict[str, list[int]]) -> pd.DataFrame:

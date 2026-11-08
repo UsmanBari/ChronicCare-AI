@@ -1,4 +1,4 @@
-﻿"""
+"""
 ML Label Registry and Definitions for ChronicCare AI.
 Provides pure functional label extractors and explicit forbidden feature lists
 to prevent target leakage during model training.
@@ -229,5 +229,14 @@ LABELS: dict[str, LabelInfo] = {
         forbidden_features=["told_high_bp", "takes_bp_meds", "sbp", "dbp", "blood_pressure_systolic", "blood_pressure_diastolic", "medications", "diagnosis_year_hypertension"],
         brfss_equivalent=None,
         trade_off="Most comprehensive real-world label combining clinical history, pharmacotherapy, and actual cuff measurements.",
+    ),
+    "TenYearCHD": LabelInfo(
+        name="TenYearCHD",
+        disease="hypertension",
+        description="10-year risk of developing coronary heart disease (Framingham Heart Study)",
+        extractor=lambda df: df["TenYearCHD"] if "TenYearCHD" in df.columns else pd.Series(np.nan, index=df.index),
+        forbidden_features=["TenYearCHD", "totChol", "total_chol", "glucose", "heartRate", "cigsPerDay", "education", "prevalentStroke"],
+        brfss_equivalent=None,
+        trade_off="Non-lab 10-year CHD risk model without lipid panel.",
     ),
 }
