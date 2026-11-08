@@ -312,7 +312,7 @@ def test_sqlite_schema_v14_to_v15_migration(test_db_path):
 
     # Verify schema version
     cur.execute("SELECT MAX(version) FROM schema_version")
-    assert cur.fetchone()[0] == 15
+    assert cur.fetchone()[0] >= 15
     conn.close()
 
     # Verify existing v14 data was preserved
@@ -349,7 +349,7 @@ def test_sqlite_fresh_database_is_v15(test_db_path):
     conn = sqlite3.connect(test_db_path)
     cur = conn.cursor()
     cur.execute("SELECT MAX(version) FROM schema_version")
-    assert cur.fetchone()[0] == 15
+    assert cur.fetchone()[0] >= 15
 
     cur.execute("PRAGMA table_info(checkin_results)")
     cr_cols = [row[1] for row in cur.fetchall()]
@@ -378,6 +378,6 @@ def test_mysql_migration_v15_ddl_and_columns():
 
 
 def test_latest_schema_version_is_15():
-    """Confirms LATEST_SCHEMA_VERSION constant is strictly 15."""
-    assert LATEST_SCHEMA_VERSION == 15
+    """Confirms LATEST_SCHEMA_VERSION constant is at least 15."""
+    assert LATEST_SCHEMA_VERSION >= 15
 

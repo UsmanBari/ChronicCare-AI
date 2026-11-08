@@ -346,7 +346,7 @@ Stores clinical observations associated with patients.
 
 ### Constraints and notes
 
-- `id` is the primary key.
+- `id` is the primary key (in MySQL: `VARCHAR(191)` primary key, widened in Hotfix 1 from `VARCHAR(64)` to safely store generated check-in IDs like `CHECKIN-local-<uid>-<timestamp>-<type>` up to 90 chars).
 - `patient_id` references `patients.id`.
 - `patient_id`, `type`, `value`, `unit`, `timestamp`, and `source` cannot be null.
 - `origin` is optional and is also ensured by a schema migration.
@@ -372,7 +372,7 @@ Stores medication information associated with patients.
 
 ### Constraints and notes
 
-- `id` is the primary key.
+- `id` is the primary key (in MySQL: `VARCHAR(191)` primary key, widened in Hotfix 1 from `VARCHAR(64)` to safely store generated check-in and import medication IDs).
 - `patient_id` references `patients.id`.
 - `patient_id`, `medication_name`, `status`, `dosage`, `timestamp`, and `source` cannot be null.
 - `origin` is optional and is also ensured by a schema migration.
@@ -428,6 +428,7 @@ Stores the granular timeline and audit trail of user-driven and import modificat
 
 - `edit_id` is the primary key.
 - `user_id`, `record_type`, `record_id`, `field`, `origin`, `changed_by_user_id`, and `changed_at` cannot be null.
+- In MySQL DDL, `record_id` is `VARCHAR(191)` (widened in schema v16 from `VARCHAR(64)` to accommodate observation and medication IDs up to 90 chars).
 - `origin` must be one of `patient`, `clinician`, `import`, `ocr`, or `ehr`.
 - Composite indexes: `idx_record_edits_lookup` on `(user_id, record_type, record_id)` and `idx_record_edits_timeline` on `(user_id, changed_at DESC)`.
 - Enforces atomic writes on the same transaction cursor as the record change.

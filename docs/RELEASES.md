@@ -1,5 +1,153 @@
 # ChronicCare AI — Release Log
 
+## Hotfix 1 — 8/9 Nov 2026
+
+- **Branch:** `fix/i3-mysql-id-width`
+- **Target Base:** `dev`
+- **PR Title:** `"HOTFIX: widen MySQL id columns that receive generated check-in ids (isolated-mode /complete 500)"`
+- **Severity:** P0 Production Hotfix
+
+---
+
+### 1. Problem Description & Root Cause
+
+During live smoke testing of Release 2 (PR #133), isolated-mode patients attempting to finalize a check-in with a reading (e.g., blood pressure, glucose) or medication confirmation experienced HTTP 500 on `POST /api/checkins/{id}/complete`.
+
+**Root Cause:**
+In isolated mode (standard mode for patients without an active hospital EHR linkage), the check-in completion pipeline generates observation IDs with the pattern:
+```text
+CHECKIN-local-<28-char Firebase uid>-<timestamp>-<observation_type>
+```
+For example:
+`CHECKIN-local-usr_firebase_28_chars_long12-20261108T155002Z-blood_pressure_systolic` (~83 to 90 characters).
+
+In MySQL (`data_sources/local_store.py`), `observations.id` and `medications.id` were declared as `VARCHAR(64) PRIMARY KEY`. Similarly, `record_edits.record_id` in `data_sources/app_store.py` was declared as `VARCHAR(64)`. When inserting an 83+ character string into a `VARCHAR(64)` column, MySQL rejected the write with error 1406 (`Data truncation: Data too long for column 'id' at row 1`), crashing check-in completion.
+
+SQLite (used in local development and standard test runners) enforces dynamic typing without strict VARCHAR length constraints, which allowed every test to pass unnoticed prior to deployment on production Aiven MySQL.
+
+**Historical Origin:**
+Introduced in commit `6c1e12a` on Sun Oct 4 20:08:37 2026:
+```text
+commit 6c1e12a488c919a32c253fc3fa98e1694f420e6a
+Author: Usman Bari <usmanbari@users.noreply.github.com>
+Date:   Sun Oct 4 20:08:37 2026 +0500
+
+    feat(backend): reconcile MySQL support for Local Store and App Store
+```
+`git log -S "VARCHAR(64) PRIMARY KEY"` reveals `observations.id` and `medications.id` were declared `VARCHAR(64)` in `local_store.py` at that initial MySQL backend commit.
+
+**Affected Users:**
+Isolated-mode patients completing a check-in with any physiological reading or medication confirmation. Connected-mode patients remained unaffected because external EHR observation identifiers are shorter.
+
+---
+
+### 2. Resolution
+
+1. **Schema DDL Widening:**
+   - Widened `observations.id` from `VARCHAR(64)` to `VARCHAR(191)` in `local_store.py`.
+   - Widened `medications.id` from `VARCHAR(64)` to `VARCHAR(191)` in `local_store.py`.
+   - Widened `record_edits.record_id` from `VARCHAR(64)` to `VARCHAR(191)` in `app_store.py` (`MYSQL_RECORD_EDITS_DDL`).
+   - `191` characters is the maximum safe column width for utf8mb4 indexing on MySQL InnoDB engines (767 bytes / 4 bytes per character = 191).
+   - Preserves `CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL` and retains PRIMARY KEY constraints.
+
+2. **Idempotent Database Migration:**
+   - In `data_sources/local_store.py`, `_init_mysql_db` calls `apply_id_width_migration(cursor)`.
+   - Inspects `INFORMATION_SCHEMA.COLUMNS` for each target column and modifies the column only if `CHARACTER_MAXIMUM_LENGTH < 191`.
+   - Added failsafe per-column error handling that logs errors at ERROR level (`id-width migration FAILED: <column>: <error class>`) without crashing server startup.
+   - Outputs startup log lines:
+     - On first application: `"id-width migration: applied 3 columns (observations.id, medications.id, record_edits.record_id)"`
+     - On subsequent restarts: `"id-width migration: already wide"`
+   - Provides dry-run function `get_id_width_alter_statements() -> List[str]`.
+   - In `data_sources/app_store.py`, bumped `LATEST_SCHEMA_VERSION = 16` (SQLite advances `schema_version` to 16 cleanly; MySQL records version 16).
+
+3. **Production Read-Only Inspection Tooling:**
+   - Extended `scripts/prod_schema_readonly.py` to inspect and output column widths within a strictly read-only session (`SET SESSION TRANSACTION READ ONLY` + `ROLLBACK`).
+
+4. **Correct Guideline Chunks Loading Command:**
+   Documented the verified command used by Usman to populate `guideline_chunks` in production MySQL:
+   ```powershell
+   $env:DB_BACKEND="mysql"; python scripts/rag/load_chunks.py --file "$env:CHRONICCARE_DATA_DIR\rag\chunks.jsonl"; Remove-Item Env:DB_BACKEND
+   ```
+
+---
+
+### 3. Verification & Test Evidence
+
+- **C1 Contract Test (`test_mysql_id_width_contract.py`):**
+  Parses MySQL DDL strings from code; generates maximum possible IDs for all code generators (28-char Firebase UID, longest observation types, 99 meds); asserts `len(id) <= declared_width`.
+  - Failed on unedited dev code (assert 84 <= 64).
+  - Passes on hotfix branch (5 passed).
+- **C2 Guard Test (`test_isolated_mode_checkin_length_guard.py`):**
+  Executes isolated-mode check-in with BP reading and medication confirmation through `POST /complete` with a 28-char user ID in both direct and graph modes, intercepting store writes with MySQL column width checks.
+  - Failed on unedited dev code with `ValueError: Data truncation: observations.id ... (length 83) exceeds MySQL column width 64`.
+  - Passes on hotfix branch in both direct and graph modes (2 passed).
+- **C3 Schema Migration Test (`test_schema_v15_to_v16.py`):**
+  Verifies SQLite upgrade v15 $\to$ v16, fresh DB upgrade, idempotence, data preservation, and tests `apply_id_width_migration` with fake MySQL cursors across narrow, already wide, and error-handling conditions (7 passed).
+
+---
+
+### 4. Rollback Plan
+
+- **Backend Rollback:** In Render Dashboard, revert to previous deploy or redeploy prior commit (`3ef51f8`).
+- **Database Schema Compatibility:** Widening column limits is backward-compatible. Older application code reading and writing to `VARCHAR(191)` columns functions without error.
+- **Manual Column Reversion (Emergency only):**
+  If reverting column widths to 64 is ever strictly necessary (note: records longer than 64 characters would be truncated):
+  ```sql
+  ALTER TABLE observations MODIFY id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL;
+  ALTER TABLE medications MODIFY id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL;
+  ALTER TABLE record_edits MODIFY record_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL;
+  ```
+
+---
+
+### 5. Deployment Runbook for Usman
+
+Follow these steps in order:
+
+1. **Aiven Console Backup Check:**
+   - Log into Aiven console -> select MySQL service -> Overview.
+   - Confirm an automatic backup exists from today (no sensitive data or connection strings printed).
+
+2. **Merge & Deploy:**
+   - Merge PR #134 into `dev`.
+   - Fast-forward / merge `dev` to `main`.
+   - Monitor Render deployment build logs until complete.
+
+3. **Render Startup Verification:**
+   - In Render backend logs, verify the migration logs:
+     ```text
+     id-width migration: applied 3 columns (observations.id, medications.id, record_edits.record_id)
+     local store ready
+     ```
+   - On any subsequent restart, verify it logs:
+     ```text
+     id-width migration: already wide
+     local store ready
+     ```
+
+4. **Run Read-Only Production Schema Inspector:**
+   In local PowerShell:
+   ```powershell
+   $env:MYSQL_URL = Read-Host "Paste MYSQL_URL"
+   $env:MYSQL_SSL_CA = Read-Host "Full path to your Aiven ca.pem"
+   python scripts/prod_schema_readonly.py
+   Remove-Item Env:MYSQL_URL
+   Remove-Item Env:MYSQL_SSL_CA
+   ```
+   Confirm output displays:
+   ```text
+   Schema Version: 16
+   Column Widths:
+     - medications.id: VARCHAR(191)
+     - observations.id: VARCHAR(191)
+     - record_edits.record_id: VARCHAR(191)
+   ```
+
+5. **Run Isolated-Mode Smoke Verification:**
+   - Execute the live smoke script verifying that isolated-mode check-ins with readings finalize cleanly with HTTP 200 on `POST /complete`.
+
+---
+
 ## Release 1 — 2 Nov 2026
 
 - **Production Commit (main):** `bf799cf` (Merge pull request #100 from UsmanBari/dev)

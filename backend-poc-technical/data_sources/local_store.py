@@ -9,7 +9,10 @@ Supports SQLite (default) and MySQL backends seamlessly.
 
 import os
 import sqlite3
-from typing import Dict, List, Any, Optional
+import logging
+from typing import Dict, List, Any, Optional, Tuple
+
+logger = logging.getLogger("main")
 
 from data_sources.db_config import (
     get_db_backend,
@@ -219,7 +222,7 @@ def _init_mysql_db(mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None
             """)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS observations (
-                    id VARCHAR(64) PRIMARY KEY,
+                    id VARCHAR(191) PRIMARY KEY,
                     patient_id VARCHAR(64) NOT NULL,
                     type VARCHAR(128) NOT NULL,
                     value DOUBLE NOT NULL,
@@ -242,7 +245,7 @@ def _init_mysql_db(mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS medications (
-                    id VARCHAR(64) PRIMARY KEY,
+                    id VARCHAR(191) PRIMARY KEY,
                     patient_id VARCHAR(64) NOT NULL,
                     medication_name VARCHAR(255) NOT NULL,
                     status VARCHAR(64) NOT NULL,
@@ -262,9 +265,68 @@ def _init_mysql_db(mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None
             """)
             if not cursor.fetchone():
                 cursor.execute("ALTER TABLE medications ADD COLUMN origin VARCHAR(64) DEFAULT NULL;")
+
+            # Idempotent migration: widen ID columns to VARCHAR(191)
+            apply_id_width_migration(cursor)
         conn.commit()
     finally:
         conn.close()
+
+
+def get_id_width_alter_statements() -> List[str]:
+    """Returns the idempotent ALTER TABLE statements used to widen ID columns to VARCHAR(191)."""
+    return [
+        "ALTER TABLE observations MODIFY id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL",
+        "ALTER TABLE medications MODIFY id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL",
+        "ALTER TABLE record_edits MODIFY record_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL",
+    ]
+
+
+def apply_id_width_migration(cursor: Any) -> Dict[str, Any]:
+    """
+    Idempotently widens MySQL ID columns to VARCHAR(191) to accommodate 80+ char generated check-in IDs:
+      - observations.id (PK, NOT NULL)
+      - medications.id (PK, NOT NULL)
+      - record_edits.record_id (NOT NULL)
+    Preserves charset utf8mb4, collation utf8mb4_unicode_ci, and NOT NULL.
+    Logs success or per-column failure at ERROR level without leaking SQL or database credentials.
+    Failsafe: exceptions during ALTER are logged and do not crash startup.
+    """
+    target_columns = [
+        ("observations", "id", "ALTER TABLE observations MODIFY id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL"),
+        ("medications", "id", "ALTER TABLE medications MODIFY id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL"),
+        ("record_edits", "record_id", "ALTER TABLE record_edits MODIFY record_id VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL"),
+    ]
+    applied: List[str] = []
+    failed: List[Tuple[str, str]] = []
+
+    for table, col, alter_sql in target_columns:
+        try:
+            cursor.execute(
+                """
+                SELECT CHARACTER_MAXIMUM_LENGTH
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s
+                """,
+                (table, col),
+            )
+            row = cursor.fetchone()
+            if not row:
+                continue
+            char_len = row["CHARACTER_MAXIMUM_LENGTH"] if isinstance(row, dict) else row[0]
+            if char_len is not None and int(char_len) < 191:
+                cursor.execute(alter_sql)
+                applied.append(f"{table}.{col}")
+        except Exception as err:
+            logger.error("id-width migration FAILED: %s.%s: %s", table, col, type(err).__name__)
+            failed.append((f"{table}.{col}", type(err).__name__))
+
+    if applied:
+        logger.info("id-width migration: applied %d columns (%s)", len(applied), ", ".join(applied))
+    elif not failed:
+        logger.info("id-width migration: already wide")
+
+    return {"applied": applied, "failed": failed}
 
 
 def _seed_mysql_db(mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None, reset: bool = False) -> None:
