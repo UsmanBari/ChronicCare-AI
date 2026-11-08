@@ -318,6 +318,7 @@ def test_mysql_record_edits_ddl_syntax_and_columns():
         "edit_id varchar(64) primary key",
         "user_id varchar(64) not null",
         "record_type varchar(32) not null",
+        "record_id varchar(191) not null",
         "field varchar(64) not null",
         "old_value text",
         "new_value text",
@@ -329,11 +330,6 @@ def test_mysql_record_edits_ddl_syntax_and_columns():
         "index idx_record_edits_timeline (user_id, changed_at desc)",
     ]:
         assert col in ddl_lower, f"MySQL DDL missing definition: {col}"
-    # record_id was widened to VARCHAR(191) in schema v16 (Hotfix 1)
-    assert (
-        "record_id varchar(191) not null" in ddl_lower
-        or "record_id varchar(64) not null" in ddl_lower
-    ), "MySQL DDL missing record_id column definition"
 
 
 def test_latest_schema_version_is_14():

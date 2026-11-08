@@ -13,8 +13,8 @@ Tested against:
 """
 
 import re
-import pytest
-from data_sources import local_store, app_store
+
+from data_sources import app_store, local_store
 
 
 def parse_mysql_column_width(ddl: str, table_name: str, column_name: str) -> int:

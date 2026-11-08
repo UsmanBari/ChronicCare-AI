@@ -102,30 +102,27 @@ Isolated-mode patients completing a check-in with any physiological reading or m
 
 ### 5. Deployment Runbook for Usman
 
-Follow these steps in order:
+Follow these steps in this exact order:
 
-1. **Aiven Console Backup Check:**
+0. **Aiven Console Backup Check:**
    - Log into Aiven console -> select MySQL service -> Overview.
    - Confirm an automatic backup exists from today (no sensitive data or connection strings printed).
 
-2. **Merge & Deploy:**
-   - Merge PR #134 into `dev`.
-   - Fast-forward / merge `dev` to `main`.
-   - Monitor Render deployment build logs until complete.
+1. **Merge & Deploy:**
+   - Merge PR #135 into `dev`.
+   - Open a PR `dev` -> `main` and merge it (following the same procedure as Release 2).
+   - Wait for Render to build and deploy.
 
-3. **Render Startup Verification:**
-   - In Render backend logs, verify the migration logs:
+2. **Render Startup Logs Verification:**
+   - In Render backend deployment logs, verify the exact startup sequence:
      ```text
      id-width migration: applied 3 columns (observations.id, medications.id, record_edits.record_id)
      local store ready
+     DbChunkStore loaded at startup: 1175 chunks
      ```
-   - On any subsequent restart, verify it logs:
-     ```text
-     id-width migration: already wide
-     local store ready
-     ```
+   - (On any subsequent restart where columns are already widened, it logs `id-width migration: already wide`).
 
-4. **Run Read-Only Production Schema Inspector:**
+3. **Run Read-Only Production Schema Inspector:**
    In local PowerShell:
    ```powershell
    $env:MYSQL_URL = Read-Host "Paste MYSQL_URL"
@@ -135,18 +132,53 @@ Follow these steps in order:
    Remove-Item Env:MYSQL_SSL_CA
    ```
    Confirm output displays:
-   ```text
-   Schema Version: 16
-   Column Widths:
-     - medications.id: VARCHAR(191)
-     - observations.id: VARCHAR(191)
-     - record_edits.record_id: VARCHAR(191)
-   ```
+   - Schema Version: `16`
+   - Total Tables: `15`
+   - `guideline_chunks`: `1175`
+   - Column Widths:
+     - `medications.id`: `VARCHAR(191)`
+     - `observations.id`: `VARCHAR(191)`
+     - `record_edits.record_id`: `VARCHAR(191)`
 
-5. **Run Isolated-Mode Smoke Verification:**
-   - Execute the live smoke script verifying that isolated-mode check-ins with readings finalize cleanly with HTTP 200 on `POST /complete`.
+4. **Run Isolated-Mode Smoke Verification:**
+   - Execute the updated live smoke script with isolated-mode cases (PR #133 corrections R3: hypertension BP 118/76 routine, BP 145/92 review, diabetes glucose 190 review, medication confirmation, and no-readings all-'no' check-in).
+   - Confirm every case completes with HTTP 200.
 
 ---
+
+### 6. Part E: Analysis of Empty Sources (`sources: []`) in D5 Live Smoke
+
+1. **Confirmed Event Sequence on 8 Nov:**
+   - Deploy & Restart: Release 2 was merged and deployed to Render, restarting the FastAPI container.
+   - At process startup, `main.py` executed:
+     ```python
+     if os.environ.get("EXPLAIN_ENABLED", "").strip().lower() == "true":
+         from rag.store import get_db_chunk_store
+         store = get_db_chunk_store()
+         logger.info("DbChunkStore loaded at startup: %d chunks", store.total_chunks())
+     ```
+   - Chunks Not Yet Loaded: At that moment, `load_chunks.py` had NOT yet been run against production MySQL. The store initialized with `0` chunks.
+   - Loading Chunks Post-Startup: Usman subsequently loaded 1,175 chunks into MySQL (~16:58 PKT). However, because `_GLOBAL_DB_CHUNK_STORE` in `rag/store.py` was a static in-memory singleton loaded once, it remained populated with 0 chunks in memory on the running container.
+   - Result: During the D5 smoke run, `step_explain()` queried the chunk store, received `candidate_chunks == []`, and both the LLM pipeline and the template fallback yielded `sources = []`.
+
+2. **The H3 Resolution:**
+   - In `backend-poc-technical/rag/store.py`, `get_db_chunk_store()` now checks `_GLOBAL_DB_CHUNK_STORE.total_chunks() == 0`.
+   - If empty, it automatically triggers a reload (`force_reload=True`) on use, throttled to at most once every 60 seconds to prevent reload storms.
+   - Logs: `"DbChunkStore reloaded: %d chunks"`.
+   - Non-empty stores (`total_chunks() > 0`) are never reloaded.
+
+3. **D5 "ready (LLM)" Status Disambiguation:**
+   - The D5 smoke table in PR #133 labeled several cases as `"ready (LLM)"`.
+   - This label was **not** evidence of LLM execution; it was copied directly from `case['expected_mode']` in `scripts/prod_live_smoke.py`:
+     ```python
+     "expected_mode": "llm",
+     ```
+   - The patient-facing check-in API response returns only:
+     ```json
+     {"explanation": {"status": "ready", ...}}
+     ```
+   - The patient endpoint strips internal audit fields and never reveals `mode`. Explanation `mode` (`llm` vs `template`) is only visible in the provider review view.
+   - Because the live chunk store held 0 chunks during the D5 run, no LLM explanation could have utilized guideline passages that day. D5 did **not** prove that any LLM explanation ran.
 
 ## Release 1 — 2 Nov 2026
 

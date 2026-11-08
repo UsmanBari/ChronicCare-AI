@@ -6,22 +6,20 @@ overflow MySQL VARCHAR(64) column limits during /complete.
 Runs under both ORCHESTRATOR=direct and ORCHESTRATOR=graph.
 """
 
-import time
 import datetime
-import pytest
-from datetime import timezone
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography import x509
-from cryptography.x509.oid import NameOID
-from fastapi.testclient import TestClient
+import time
 
-from main import app
-from auth import firebase_verify
 import orchestrator.steps
-from data_sources import local_store, app_store
-from test_mysql_id_width_contract import parse_mysql_column_width, get_local_store_ddl
-
+import pytest
+from auth import firebase_verify
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
+from data_sources import app_store, local_store
+from fastapi.testclient import TestClient
+from main import app
+from test_mysql_id_width_contract import get_local_store_ddl, parse_mysql_column_width
 
 TEST_PROJECT_ID = "test-chroniccare-ai"
 TEST_KID = "test-key-id-iso-1"
@@ -46,8 +44,8 @@ def x509_cert_pem(rsa_key_pair) -> str:
         .issuer_name(issuer)
         .public_key(rsa_key_pair.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.now(timezone.utc) - datetime.timedelta(days=1))
-        .not_valid_after(datetime.datetime.now(timezone.utc) + datetime.timedelta(days=10))
+        .not_valid_before(datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=1))
+        .not_valid_after(datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=10))
         .sign(rsa_key_pair, hashes.SHA256())
     )
     return cert.public_bytes(serialization.Encoding.PEM).decode("utf-8")
@@ -116,7 +114,7 @@ def test_isolated_mode_checkin_enforces_mysql_widths(rsa_key_pair, monkeypatch, 
     Fails on dev (where MySQL width is 64) and passes when widened to 191.
     """
     monkeypatch.setenv("ORCHESTRATOR", orch_mode)
-    obs_w, med_w, rec_w = _get_declared_widths()
+    obs_w, _med_w, rec_w = _get_declared_widths()
     
     # Install length guard that mimics MySQL strict mode truncation errors
     orig_add_obs = local_store.add_local_observation
@@ -170,7 +168,7 @@ def test_isolated_mode_checkin_enforces_mysql_widths(rsa_key_pair, monkeypatch, 
     })
     
     # Seed baseline medication in isolated local store
-    now_ts = datetime.datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_ts = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     local_store.add_local_medication(
         id="med-amlodipine-init",
         patient_id=f"local-{user_id_28}",

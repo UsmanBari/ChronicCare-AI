@@ -15,21 +15,21 @@ Verifies:
    - Logs 'id-width migration FAILED: <column>: <error class>' at ERROR level without crashing startup if ALTER fails.
 """
 
-import sqlite3
 import logging
-from datetime import datetime, timezone
-from typing import Any, List
-import pytest
+import sqlite3
+from datetime import UTC, datetime
+from typing import Any
 
+import pytest
 from data_sources.app_store import (
-    migrate,
-    get_patient_profile,
     LATEST_SCHEMA_VERSION,
     MYSQL_RECORD_EDITS_DDL,
+    get_patient_profile,
+    migrate,
 )
 from data_sources.local_store import (
-    get_id_width_alter_statements,
     apply_id_width_migration,
+    get_id_width_alter_statements,
 )
 
 
@@ -44,7 +44,7 @@ def create_v15_database(db_path: str):
     Constructs a database strictly at schema version 15,
     inserting pre-existing patient and checkin result data.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
@@ -252,7 +252,7 @@ class FakeMySQLCursor:
     def __init__(self, col_widths: dict[tuple[str, str], int], fail_column: str | None = None):
         self.col_widths = dict(col_widths)
         self.fail_column = fail_column
-        self.executed_queries: List[str] = []
+        self.executed_queries: list[str] = []
         self._last_query = ""
         self._last_params: Any = None
 
@@ -267,9 +267,8 @@ class FakeMySQLCursor:
         self._last_params = params
         self.executed_queries.append(query)
 
-        if "ALTER TABLE" in query and self.fail_column:
-            if self.fail_column in query:
-                raise RuntimeError(f"Simulated ALTER failure on {self.fail_column}")
+        if "ALTER TABLE" in query and self.fail_column and self.fail_column in query:
+            raise RuntimeError(f"Simulated ALTER failure on {self.fail_column}")
 
     def fetchone(self):
         if "INFORMATION_SCHEMA.COLUMNS" in self._last_query and self._last_params:
