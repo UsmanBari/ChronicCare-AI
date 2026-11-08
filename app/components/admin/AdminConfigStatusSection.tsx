@@ -43,6 +43,10 @@ export const AdminConfigStatusSection: React.FC = () => {
           INTERVIEW_ENGINE: "v2",
           LLM_PROVIDER: "auto",
           SCREENING_REMINDER_INTERVAL_DAYS: "90",
+          TREND_CAN_RAISE: false,
+          RISK_PATIENT_VISIBLE: false,
+          NO_READING_SYMPTOM_RAISE: false,
+          RISK_RAISE_COOLDOWN_DAYS: "0",
         },
         keys_and_models: {
           GROQ_API_KEY: "SET",
@@ -142,7 +146,14 @@ export const AdminConfigStatusSection: React.FC = () => {
               const isPositive = isBool ? v : v === "background" || v === "direct" || v === "auto";
               return (
                 <div key={k} className="pt-2 first:pt-0 flex items-center justify-between">
-                  <span className="font-mono text-[11px] text-slate-700">{k}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[11px] text-slate-700">{k}</span>
+                    {k === "NO_READING_SYMPTOM_RAISE" && (
+                      <span className="text-[9px] bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">
+                        Pending Dr Sign-off
+                      </span>
+                    )}
+                  </div>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                       isPositive

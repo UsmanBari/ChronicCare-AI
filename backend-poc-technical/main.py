@@ -24,7 +24,7 @@ import copy
 import logging
 import sqlite3
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional, Literal, Tuple
+from typing import Dict, Any, List, Optional, Literal, Tuple, Union
 from contextlib import asynccontextmanager
 
 import requests
@@ -925,6 +925,8 @@ class UserCheckinSummaryResponse(BaseModel):
     requires_review: bool
     max_severity: Optional[str] = None
     review_status: Optional[str] = None
+    triage_level: Optional[str] = None
+    triage_colour: Optional[str] = None
 
 
 class UserCheckinDetailResponse(BaseModel):
@@ -938,6 +940,9 @@ class UserCheckinDetailResponse(BaseModel):
     state: Dict[str, Any]
     result: Optional[Dict[str, Any]] = None
     record_source_label: Optional[str] = None
+    triage_level: Optional[str] = None
+    triage_colour: Optional[str] = None
+    risk_patient: Optional[List[Dict[str, Any]]] = None
 
 
 class ReviewQueueItemResponse(BaseModel):
@@ -954,6 +959,7 @@ class ReviewQueueItemResponse(BaseModel):
     trigger_reading: Optional[Dict[str, Any]] = None
     escalated_at: Optional[str] = None
     triage_level: Optional[str] = None
+    triage_colour: Optional[str] = None
 
 
 class ReviewActionResponse(BaseModel):
@@ -1042,12 +1048,15 @@ class ReviewDetailResponse(BaseModel):
     patient_background: Optional[Dict[str, Any]] = None
     answered_by: Optional[str] = None
     trends: Optional[TrendsResponse] = None
-    risk: Optional[Dict[str, Any]] = None
-    checkin_risk: Optional[Dict[str, Any]] = None
+    risk: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None
+    checkin_risk: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None
     explanation: Optional[Dict[str, Any]] = None
     trace: Optional[List[Dict[str, Any]]] = None
     recent_record_edits: Optional[List[RecordEditItem]] = None
     danger_wordgroups: Optional[List[str]] = None
+    triage_level: Optional[str] = None
+    triage_colour: Optional[str] = None
+    raised_by: Optional[List[Dict[str, Any]]] = None
 
 
 class VoiceTranscribeResponse(BaseModel):
@@ -3878,6 +3887,10 @@ def get_config_status_endpoint(current_user: Dict[str, Any] = Depends(require_ro
         "INTERVIEW_ENGINE": os.environ.get("INTERVIEW_ENGINE", "v2").strip().lower(),
         "LLM_PROVIDER": os.environ.get("LLM_PROVIDER", "auto").strip().lower(),
         "SCREENING_REMINDER_INTERVAL_DAYS": os.environ.get("SCREENING_REMINDER_INTERVAL_DAYS", "90").strip(),
+        "TREND_CAN_RAISE": os.environ.get("TREND_CAN_RAISE", "").strip().lower() == "true",
+        "RISK_PATIENT_VISIBLE": os.environ.get("RISK_PATIENT_VISIBLE", "").strip().lower() == "true",
+        "NO_READING_SYMPTOM_RAISE": os.environ.get("NO_READING_SYMPTOM_RAISE", "").strip().lower() == "true",
+        "RISK_RAISE_COOLDOWN_DAYS": int(os.environ.get("RISK_RAISE_COOLDOWN_DAYS", "0") or 0),
     }
 
     def _status_val(env_var: str) -> str:
@@ -4916,22 +4929,30 @@ def complete_checkin_endpoint(
 def get_user_checkins_endpoint(current_user: Dict[str, Any] = Depends(require_role("patient"))):
     """Retrieves list of previous check-in sessions for authenticated patient."""
     checkins = get_user_checkins(current_user["user_id"], limit=20)
-    return [
-        UserCheckinSummaryResponse(
-            checkin_id=c["checkin_id"],
-            mode=c["mode"],
-            record_patient_id=c["record_patient_id"],
-            status=c["status"],
-            version=c.get("version", 0),
-            started_at=c["started_at"],
-            completed_at=c.get("completed_at"),
-            emergency=c["emergency"],
-            requires_review=c["requires_review"],
-            max_severity=c.get("max_severity"),
-            review_status=c.get("review_status"),
+    from agents.final_triage import level_to_colour
+    summaries = []
+    for c in checkins:
+        res = get_checkin_result(c["checkin_id"])
+        level = (res.get("triage_level") if res else None) or ((res.get("triage") or {}).get("level") if res else None) or ("emergency" if c.get("emergency") else ("review" if c.get("requires_review") else "routine"))
+        colour = level_to_colour(level)
+        summaries.append(
+            UserCheckinSummaryResponse(
+                checkin_id=c["checkin_id"],
+                mode=c["mode"],
+                record_patient_id=c["record_patient_id"],
+                status=c["status"],
+                version=c.get("version", 0),
+                started_at=c["started_at"],
+                completed_at=c.get("completed_at"),
+                emergency=c["emergency"],
+                requires_review=c["requires_review"],
+                max_severity=c.get("max_severity"),
+                review_status=c.get("review_status"),
+                triage_level=level,
+                triage_colour=colour,
+            )
         )
-        for c in checkins
-    ]
+    return summaries
 
 
 @app.get("/api/checkins/{checkin_id}", response_model=UserCheckinDetailResponse, tags=["Check-in"])
@@ -4949,6 +4970,22 @@ def get_user_checkin_detail_endpoint(
 
     result = get_checkin_result(checkin_id)
     record_label = _compute_record_source_label(checkin["mode"], checkin.get("ehr_system_id"))
+
+    from agents.final_triage import level_to_colour
+    from orchestrator.steps import _build_patient_risk_list
+    level = (result.get("triage_level") if result else None) or ((result.get("triage") or {}).get("level") if result else None) or ("emergency" if (result and result.get("emergency")) else "routine")
+    colour = level_to_colour(level)
+    risk_p = _build_patient_risk_list(result.get("risk") if result else None, user_id=checkin.get("user_id"))
+
+    sanitized_result = dict(result) if result else None
+    if sanitized_result:
+        sanitized_result["triage_colour"] = colour
+        sanitized_result["triage_level"] = level
+        if risk_p:
+            sanitized_result["risk_patient"] = risk_p
+        # Invariant H3: patients never see raw risk dictionary
+        sanitized_result["risk"] = None
+
     return UserCheckinDetailResponse(
         checkin_id=checkin["checkin_id"],
         user_id=checkin["user_id"],
@@ -4958,8 +4995,11 @@ def get_user_checkin_detail_endpoint(
         started_at=checkin["started_at"],
         completed_at=checkin.get("completed_at"),
         state=checkin["state"],
-        result=result,
+        result=sanitized_result,
         record_source_label=record_label,
+        triage_level=level,
+        triage_colour=colour,
+        risk_patient=risk_p,
     )
 
 
@@ -5040,7 +5080,16 @@ def get_provider_review_queue_endpoint(
 ):
     """Retrieves prioritized clinical review queue (Provider only)."""
     items = get_provider_review_queue(review_status=status)
-    return [ReviewQueueItemResponse(**item) for item in items]
+    from agents.final_triage import level_to_colour
+    queue_items = []
+    for item in items:
+        level = item.get("triage_level") or ("emergency" if item.get("emergency") else ("review" if item.get("requires_review") else "routine"))
+        colour = level_to_colour(level)
+        item_copy = dict(item)
+        item_copy["triage_level"] = level
+        item_copy["triage_colour"] = colour
+        queue_items.append(ReviewQueueItemResponse(**item_copy))
+    return queue_items
 
 
 def _build_patient_background(user_id: str) -> Optional[Dict[str, Any]]:
@@ -5110,6 +5159,12 @@ def get_provider_review_detail_endpoint(
             answered_by_val = it["answered_by"]
             break
 
+    from agents.final_triage import level_to_colour
+    level = result.get("triage_level") or (result.get("triage") or {}).get("level") or ("emergency" if result.get("emergency") else "routine")
+    colour = level_to_colour(level)
+    risk_obj = result.get("risk")
+    raised_by_val = (result.get("triage") or {}).get("raised_by") or (risk_obj.get("raised_by") if isinstance(risk_obj, dict) else None)
+
     return ReviewDetailResponse(
         checkin_id=checkin_id,
         patient_id=checkin["record_patient_id"],
@@ -5154,6 +5209,9 @@ def get_provider_review_detail_endpoint(
             ))
             else None
         ),
+        triage_level=level,
+        triage_colour=colour,
+        raised_by=raised_by_val,
     )
 
 

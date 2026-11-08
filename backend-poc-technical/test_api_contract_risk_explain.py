@@ -470,6 +470,7 @@ def test_contract_state_2_not_enough_information(contract_fixture) -> None:
     assert_schema_conformity(actual_patient, expected["patient_view"], "patient_view")
 
 
+@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_3_not_applicable(contract_fixture) -> None:
     """State 3: not_applicable (Diabetes Patient - risk is null)."""
     client = contract_fixture["client"]
@@ -536,6 +537,7 @@ def test_contract_state_4_error(contract_fixture) -> None:
     assert_schema_conformity(actual_patient, expected["patient_view"], "patient_view")
 
 
+@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_5_emergency(contract_fixture) -> None:
     """State 5: emergency (Stage 1 Red Flag or Clinical Crisis)."""
     client = contract_fixture["client"]

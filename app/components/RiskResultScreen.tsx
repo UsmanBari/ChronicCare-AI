@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { describeMedicationItem } from "../lib/presentation";
 import { ExplanationBox } from "./ExplanationBox";
+import { TriageColourChip } from "./TriageColourChip";
 
 export const RiskResultScreen = () => {
   const { setScreen, returnToHomeAndClearRun, isLiveMode, liveCheckinResult, t, isUrdu } = useApp();
@@ -32,7 +33,9 @@ export const RiskResultScreen = () => {
     const summary = liveCheckinResult?.reconciliation?.summary || {};
     const agreementCount = summary.agreement || 0;
     const missingCount = (summary.source_a_only || 0) + (summary.source_b_only || 0);
-    const confidenceLabel = liveCheckinResult?.intakes?.[0]?.confidence_label || "High";
+    const rawConfidence = liveCheckinResult?.intakes?.[0]?.confidence_label || liveCheckinResult?.intakes?.[0]?.confidence;
+    const hasReadings = Boolean(liveCheckinResult?.intakes?.[0]?.readings && liveCheckinResult.intakes[0].readings.length > 0);
+    const confidenceLabel = rawConfidence || (hasReadings ? null : "Low");
 
     const comparisons = liveCheckinResult?.reconciliation?.observation_comparisons || [];
     const medComparisons = liveCheckinResult?.reconciliation?.medication_comparisons || [];
@@ -48,9 +51,22 @@ export const RiskResultScreen = () => {
           <h1 className="font-heading text-2xl sm:text-[26px] font-bold text-white mb-1.5">
             {t.checkinSummaryTitle}
           </h1>
-          <p className="text-sm text-slate-200 max-w-sm mx-auto leading-relaxed">
+          <p className="text-sm text-slate-200 max-w-sm mx-auto leading-relaxed mb-3">
             {t.checkinSummarySubtitle}
           </p>
+
+          {/* Triage Status Colour Chip (Proposal Section 15 single source of truth) */}
+          <div className="flex flex-col items-center justify-center gap-2 pt-1 pb-1">
+            <TriageColourChip
+              level={liveCheckinResult?.triage_level || liveCheckinResult?.triage?.level}
+              colour={liveCheckinResult?.triage_colour || liveCheckinResult?.triage?.triage_colour}
+            />
+            {liveCheckinResult?.triage?.patient_reason_key === "trend_rising" && (
+              <p className="text-xs text-amber-900 bg-amber-100/90 px-3.5 py-1.5 rounded-xl border border-amber-300/80 text-center max-w-sm shadow-xs font-medium">
+                {t.patientReasonTrendRising}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="p-6 sm:p-7 space-y-5">
@@ -79,10 +95,53 @@ export const RiskResultScreen = () => {
                 {t.confidenceLabel}
               </span>
               <div className="text-2xl font-bold text-mutedGreen-900 capitalize">
-                {confidenceLabel}
+                {confidenceLabel || "—"}
               </div>
             </div>
           </div>
+
+          {/* Patient Risk Estimates (Proposal Section 15, Clinician Approved 8 Nov, behind RISK_PATIENT_VISIBLE) */}
+          {liveCheckinResult?.risk_patient && liveCheckinResult.risk_patient.length > 0 && (
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3" data-testid="patient-risk-estimates-card">
+              <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                <span className="font-heading font-bold text-xs uppercase tracking-wider text-slate-700">
+                  {t.patientRiskEstimatesTitle}
+                </span>
+              </div>
+              <div className="space-y-2.5">
+                {liveCheckinResult.risk_patient.map((r, idx) => {
+                  const b = (r.band || "").toLowerCase();
+                  let bandColor = "bg-teal-50 text-teal-800 border-teal-200";
+                  let bandLabel = t.riskBandLow;
+                  if (b === "high") {
+                    bandColor = "bg-indigo-50 text-indigo-900 border-indigo-200 font-bold";
+                    bandLabel = t.riskBandHigh;
+                  } else if (b === "moderate" || b === "medium") {
+                    bandColor = "bg-amber-50 text-amber-900 border-amber-200 font-semibold";
+                    bandLabel = t.riskBandMedium;
+                  } else if (b === "not_enough_information") {
+                    bandColor = "bg-slate-50 text-slate-700 border-slate-200";
+                    bandLabel = t.riskMissingDataTitle;
+                  }
+
+                  const msg = (t as any)[r.message_key] || (b === "high" ? t.risk_chd_high : (b === "moderate" ? t.risk_chd_moderate : t.risk_chd_low));
+
+                  return (
+                    <div key={idx} className="p-3 rounded-xl bg-slate-50/70 border border-slate-100 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] border ${bandColor}`}>
+                          {bandLabel}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {msg}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Plain words comparison details */}
           {(comparisons.length > 0 || medComparisons.length > 0) && (

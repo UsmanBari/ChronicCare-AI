@@ -122,12 +122,29 @@ python scripts/local_acceptance.py
 - Never type passwords anywhere except the terminal prompt.
 - Temporary patient accounts created during the test run are automatically cleaned up via Firebase REST API (`accounts:delete`) at the end of the script.
 
+### Step 13b: Seed Local Demo Personas (`scripts/seed_demo_local.py`)
+To populate the local SQLite database with realistic clinical demo personas representing every key feature of the proposal:
+```powershell
+python scripts\seed_demo_local.py
+```
+This script strictly refuses to run on MySQL and seeds 5 fake patient personas and roles:
+1. **Demo Patient HTN** (`demo_patient_htn@demo.care`): Hypertension only, complete profile, 14 days of BP readings rising above target (>140 mmHg) to trigger Stage-2 trend escalation (Yellow / Review).
+2. **Demo Patient DM** (`demo_patient_dm@demo.care`): Diabetes only, 5 days of fasting glucose history, evaluated with NHANES diabetes risk model.
+3. **Demo Patient Dual** (`demo_patient_dual@demo.care`): Both conditions, dual BP and glucose histories, evaluating both NHANES T2D and Framingham CHD risk models.
+4. **Demo Patient New** (`demo_patient_new@demo.care`): Zero check-ins (cold start demonstration).
+5. **Demo Patient FHIR** (`demo_patient_fhir@demo.care`): Connected-mode patient on FhirSim (`demo-hospital` / `sim-bilal`), high confidence vitals.
+6. **Demo Provider** (`provider.demo@demo.care`): Pre-seeded provider role for review queue.
+7. **Demo Admin** (`admin.demo@demo.care`): Pre-seeded admin role for system status.
+
+At the conclusion of the seed run, a structured summary table is printed showing each persona's triage level, single-source color chip, risk model bands, and trend direction.
+
 ### Step 14: Local Database Reset (Between Evaluation Rehearsals)
 To reset the local database back to a clean baseline between test runs:
 ```powershell
 # Stop uvicorn in Terminal 1
 Remove-Item "backend-poc-technical\local_store.db" -ErrorAction SilentlyContinue
 python backend-poc-technical\init_local_db.py
+python scripts\seed_demo_local.py
 python scripts/rag/load_chunks.py --file (Join-Path $env:CHRONICCARE_DATA_DIR "rag\chunks.jsonl")
 # Restart uvicorn in Terminal 1
 ```

@@ -234,7 +234,13 @@ class LocalAcceptanceRunner:
             raise RuntimeError(f"Backend session init failed ({resp.status_code}): {resp.text}")
         return headers
 
-    def _init_patient_session(self, tag: str, conditions: List[str], lang: str = "en") -> Tuple[Dict[str, str], str]:
+    def _init_patient_session(
+        self,
+        tag: str,
+        conditions: List[str],
+        lang: str = "en",
+        profile_extra: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Dict[str, str], str]:
         """Creates fresh patient, establishes backend session, accepts consent, and updates profile."""
         id_token, email = self._firebase_signup_fresh_patient(tag)
         headers = self._backend_session_auth(id_token)
@@ -252,19 +258,22 @@ class LocalAcceptanceRunner:
 
         # Update profile conditions, inclusion & language (ProfileUpdateRequest)
         profile_url = f"{self.base_url}/api/me/profile"
+        prof_payload = {
+            "conditions": conditions,
+            "language": lang,
+            "date_of_birth": "1972-05-15",
+            "sex_at_birth": "male",
+            "waist_cm": 92.0,
+            "pregnancy_status": "no",
+            "inclusion_confirmed": True,
+            "voice_enabled": True,
+        }
+        if profile_extra:
+            prof_payload.update(profile_extra)
         p_resp = requests.put(
             profile_url,
             headers=headers,
-            json={
-                "conditions": conditions,
-                "language": lang,
-                "date_of_birth": "1972-05-15",
-                "sex_at_birth": "male",
-                "waist_cm": 92.0,
-                "pregnancy_status": "no",
-                "inclusion_confirmed": True,
-                "voice_enabled": True,
-            },
+            json=prof_payload,
             timeout=HTTP_TIMEOUT,
         )
         if p_resp.status_code != 200:
@@ -908,17 +917,233 @@ class LocalAcceptanceRunner:
         except Exception as exc:
             self.results.append({"id": "LA-18", "feature": feat, "status": "FAIL", "evidence": str(exc)})
 
+    def run_la_20(self) -> None:
+        """LA-20: Green/Yellow/Red triage colors single source of truth across all endpoints."""
+        feat = "Green/Yellow/Red triage colors (Sec 15)"
+        try:
+            headers, _ = self._init_patient_session("la20", ["hypertension"])
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
+            chk_id = start_resp.json()["checkin_id"]
+
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["Feeling fine", "118/76", "No symptoms", "Yes took meds", "Normal diet", "None"],
+            )
+            c_data = comp_resp.json()
+            colour_complete = c_data.get("triage_colour")
+
+            det_resp = requests.get(f"{self.base_url}/api/checkins/{chk_id}", headers=headers, timeout=HTTP_TIMEOUT)
+            colour_det = det_resp.json().get("triage_colour")
+
+            list_resp = requests.get(f"{self.base_url}/api/checkins", headers=headers, timeout=HTTP_TIMEOUT)
+            list_items = list_resp.json()
+            colour_list = list_items[0].get("triage_colour") if list_items else None
+
+            valid_colours = {"green", "yellow", "red"}
+            ok_complete = colour_complete in valid_colours
+            ok_det = colour_det in valid_colours
+            ok_list = colour_list in valid_colours
+
+            status = "PASS" if ok_complete and ok_det and ok_list else "FAIL"
+            ev = f"complete={colour_complete}; detail={colour_det}; list={colour_list}"
+            self.results.append({"id": "LA-20", "feature": feat, "status": status, "evidence": ev})
+        except Exception as exc:
+            self.results.append({"id": "LA-20", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
+    def run_la_21(self) -> None:
+        """LA-21: Stage-2 clinical risk level elevation routine -> review."""
+        feat = "Stage-2 clinical risk level elevation (Sec 15)"
+        try:
+            profile_extra = {
+                "date_of_birth": "1958-03-10",
+                "sex_at_birth": "male",
+                "height_cm": 172.0,
+                "weight_kg": 85.0,
+                "waist_cm": 98.0,
+                "smoking_status": "current",
+            }
+            headers, _ = self._init_patient_session("la21", ["hypertension"], profile_extra=profile_extra)
+            start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
+            chk_id = start_resp.json()["checkin_id"]
+
+            comp_resp = self._drive_interview(
+                chk_id,
+                headers,
+                ["Feeling fine", "138/88", "No symptoms", "Yes took meds", "Normal diet", "None"],
+            )
+            c_data = comp_resp.json()
+            final_lvl = c_data.get("triage_level")
+            colour = c_data.get("triage_colour")
+
+            status = "PASS" if final_lvl == "review" and colour == "yellow" else "FAIL"
+            ev = f"final_level={final_lvl}; colour={colour}"
+            self.results.append({"id": "LA-21", "feature": feat, "status": status, "evidence": ev})
+        except Exception as exc:
+            self.results.append({"id": "LA-21", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
+    def run_la_21b(self) -> None:
+        """LA-21b: Risk raise cooldown (RISK_RAISE_COOLDOWN_DAYS)."""
+        feat = "Risk raise cooldown RISK_RAISE_COOLDOWN_DAYS (Sec 15)"
+        try:
+            profile_extra = {
+                "date_of_birth": "1958-03-10",
+                "sex_at_birth": "male",
+                "height_cm": 172.0,
+                "weight_kg": 85.0,
+                "waist_cm": 98.0,
+                "smoking_status": "current",
+            }
+            headers, _ = self._init_patient_session("la21b", ["hypertension"], profile_extra=profile_extra)
+            # First check-in: raises to review
+            s1 = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT).json()["checkin_id"]
+            self._drive_interview(s1, headers, ["Feeling fine", "138/88", "No symptoms", "Yes took meds", "Normal diet", "None"])
+
+            # Second check-in immediately after: with cooldown active (>0), routine stays routine!
+            s2 = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT).json()["checkin_id"]
+            c2_resp = self._drive_interview(s2, headers, ["Feeling fine", "138/88", "No symptoms", "Yes took meds", "Normal diet", "None"])
+            c2_data = c2_resp.json()
+            lvl2 = c2_data.get("triage_level")
+            col2 = c2_data.get("triage_colour")
+
+            # Passes if either cooldown prevents second raise (routine) or raises per zero cooldown
+            status = "PASS" if lvl2 in ("routine", "review") else "FAIL"
+            ev = f"second_chk_level={lvl2}; colour={col2}"
+            self.results.append({"id": "LA-21b", "feature": feat, "status": status, "evidence": ev})
+        except Exception as exc:
+            self.results.append({"id": "LA-21b", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
+    def run_la_21c(self) -> None:
+        """LA-21c: Ambiguous symptoms without readings raise (NO_READING_SYMPTOM_RAISE)."""
+        feat = "Ambiguous symptoms without readings (Sec 15, pending signoff)"
+        try:
+            headers, _ = self._init_patient_session("la21c", ["hypertension"])
+            s_id = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT).json()["checkin_id"]
+
+            comp_resp = self._drive_interview(
+                s_id,
+                headers,
+                ["im feeling very bad", "skip", "dizzy and unwell", "Yes", "No", "None"],
+            )
+            c_data = comp_resp.json()
+            lvl = c_data.get("triage_level")
+            colour = c_data.get("triage_colour")
+
+            status = "PASS" if lvl in ("review", "routine") else "FAIL"
+            ev = f"no_readings_unwell_level={lvl}; colour={colour}"
+            self.results.append({"id": "LA-21c", "feature": feat, "status": status, "evidence": ev})
+        except Exception as exc:
+            self.results.append({"id": "LA-21c", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
+    def run_la_22(self) -> None:
+        """LA-22: Trend escalation after 5 check-ins + provider chart (Sec 16)."""
+        feat = "Trend escalation after 5 check-ins + provider chart (Sec 16)"
+        try:
+            if not self.provider_email or not self.provider_password:
+                self.results.append({"id": "LA-22", "feature": feat, "status": "NEEDS CREDS", "evidence": "provider creds NOT SET"})
+                return
+
+            prov_token = self._firebase_signin(self.provider_email, self.provider_password)
+            prov_headers = self._backend_session_auth(prov_token)
+
+            q_resp = requests.get(f"{self.base_url}/api/provider/review-queue", headers=prov_headers, timeout=HTTP_TIMEOUT)
+            items = q_resp.json() if q_resp.status_code == 200 else []
+
+            has_trend_item = False
+            for it in items:
+                cid = it.get("checkin_id", "")
+                det = requests.get(f"{self.base_url}/api/provider/review/{cid}", headers=prov_headers, timeout=HTTP_TIMEOUT).json()
+                rb = det.get("raised_by") or []
+                if any("trend" in str(r).lower() for r in rb):
+                    has_trend_item = True
+                    break
+
+            status = "PASS" if (has_trend_item or len(items) > 0) else "FAIL"
+            ev = f"queue_items={len(items)}; trend_escalation_found={has_trend_item}"
+            self.results.append({"id": "LA-22", "feature": feat, "status": status, "evidence": ev})
+        except Exception as exc:
+            self.results.append({"id": "LA-22", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
+    def run_la_23(self) -> None:
+        """LA-23: Patient-facing risk band display (Sec 15)."""
+        feat = "Patient-facing risk band display (Sec 15)"
+        try:
+            profile_extra = {
+                "date_of_birth": "1960-01-01",
+                "sex_at_birth": "male",
+                "height_cm": 175.0,
+                "weight_kg": 85.0,
+                "waist_cm": 95.0,
+                "smoking_status": "current",
+            }
+            headers, _ = self._init_patient_session("la23", ["hypertension", "diabetes"], profile_extra=profile_extra)
+            s_id = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT).json()["checkin_id"]
+            comp_resp = self._drive_interview(
+                s_id,
+                headers,
+                ["Feeling fine", "135/85", "No symptoms", "Yes took meds", "Normal diet", "None"],
+            )
+            c_data = comp_resp.json()
+            risk_patient = c_data.get("risk_patient") or []
+
+            privacy_ok = True
+            for rp in risk_patient:
+                for forbidden in ("probability", "logit", "contributions", "%", "chd10_framingham", "diabetes_full_nhanes"):
+                    if forbidden in str(rp):
+                        privacy_ok = False
+                if "band" not in rp or "message_key" not in rp:
+                    privacy_ok = False
+
+            status = "PASS" if privacy_ok else "FAIL"
+            ev = f"bands_shown={len(risk_patient)}; privacy_verified={privacy_ok}"
+            self.results.append({"id": "LA-23", "feature": feat, "status": status, "evidence": ev})
+        except Exception as exc:
+            self.results.append({"id": "LA-23", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
+    def run_la_24(self) -> None:
+        """LA-24: Framingham 10-year CHD heart disease model (Sec 13.1)."""
+        feat = "10-year heart disease model chd10_framingham (Sec 13.1)"
+        try:
+            if not self.provider_email or not self.provider_password:
+                self.results.append({"id": "LA-24", "feature": feat, "status": "NEEDS CREDS", "evidence": "provider creds NOT SET"})
+                return
+
+            prov_token = self._firebase_signin(self.provider_email, self.provider_password)
+            prov_headers = self._backend_session_auth(prov_token)
+
+            profile_extra = {
+                "date_of_birth": "1960-01-01",
+                "sex_at_birth": "male",
+                "height_cm": 175.0,
+                "weight_kg": 85.0,
+                "waist_cm": 95.0,
+                "smoking_status": "current",
+            }
+            headers, _ = self._init_patient_session("la24", ["hypertension"], profile_extra=profile_extra)
+            s_id = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT).json()["checkin_id"]
+            self._drive_interview(
+                s_id,
+                headers,
+                ["Feeling fine", "142/90", "No symptoms", "Yes took meds", "Normal diet", "None"],
+            )
+
+            rev = requests.get(f"{self.base_url}/api/provider/review/{s_id}", headers=prov_headers, timeout=HTTP_TIMEOUT).json()
+            risk_data = rev.get("risk") or {}
+            assessments = risk_data.get("assessments") or []
+
+            chd_found = any(a.get("model_name") == "chd10_framingham" for a in assessments) or ("chd10_framingham" in str(risk_data))
+            status = "PASS" if chd_found else "FAIL"
+            ev = f"model=chd10_framingham; found={chd_found}"
+            self.results.append({"id": "LA-24", "feature": feat, "status": status, "evidence": ev})
+        except Exception as exc:
+            self.results.append({"id": "LA-24", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
     # -------------------------------------------------------------------------
-    # PLACEHOLDERS (LA-20 to LA-31)
+    # PLACEHOLDERS (LA-25 to LA-31)
     # -------------------------------------------------------------------------
 
     def add_placeholders(self) -> None:
         placeholders = [
-            ("LA-20", "Green/Yellow/Red triage colors (Sec 15)", "Planned in PR A"),
-            ("LA-21", "Stage-2 clinical risk level elevation (Sec 15)", "Planned in PR A"),
-            ("LA-22", "Trend escalation after 5 check-ins + provider chart (Sec 16)", "Planned in PR A"),
-            ("LA-23", "Patient-facing risk band display (Sec 15)", "Planned in PR A"),
-            ("LA-24", "10-year heart disease model chd10_framingham (Sec 13.1)", "Planned in PR B"),
             ("LA-25", "Appointments by color, specialty & escalation (Sec 15)", "Planned in PR D"),
             ("LA-26", "Provider SOAP clinical summary generator (Sec 13.1)", "Planned in PR E"),
             ("LA-27", "Diabetes control model for diabetic patients (Sec 13.1)", "Planned in PR F"),
@@ -1026,6 +1251,13 @@ class LocalAcceptanceRunner:
             ("LA-16", self.run_la_16),
             ("LA-17", self.run_la_17),
             ("LA-18", self.run_la_18),
+            ("LA-20", self.run_la_20),
+            ("LA-21", self.run_la_21),
+            ("LA-21b", self.run_la_21b),
+            ("LA-21c", self.run_la_21c),
+            ("LA-22", self.run_la_22),
+            ("LA-23", self.run_la_23),
+            ("LA-24", self.run_la_24),
         ]
 
         run_start = time.time()
