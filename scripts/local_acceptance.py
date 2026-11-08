@@ -30,6 +30,7 @@ import requests
 TARGET_BASE_URL = "http://localhost:8000"
 FIREBASE_SIGNUP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={api_key}"
 FIREBASE_SIGNIN_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+FIREBASE_DELETE_URL = "https://identitytoolkit.googleapis.com/v1/accounts:delete?key={api_key}"
 
 
 def validate_target_host(url: str) -> None:
@@ -103,13 +104,52 @@ class LocalAcceptanceRunner:
     def __init__(self, base_url: str = TARGET_BASE_URL) -> None:
         validate_target_host(base_url)
         self.base_url = base_url.rstrip("/")
-        self.firebase_web_key = os.environ.get("FIREBASE_WEB_API_KEY", "").strip()
+
+        # Automatically load environment variables from local env files if available
+        try:
+            from dotenv import load_dotenv
+            repo_root = Path(__file__).resolve().parent.parent
+            localdemo_env = repo_root / "backend-poc-technical" / ".env.localdemo"
+            if localdemo_env.exists():
+                load_dotenv(localdemo_env)
+            local_env = repo_root / ".env.local"
+            if local_env.exists():
+                load_dotenv(local_env)
+        except ImportError:
+            pass
+
+        self.firebase_web_key = (
+            os.environ.get("FIREBASE_WEB_API_KEY", "").strip()
+            or os.environ.get("NEXT_PUBLIC_FIREBASE_API_KEY", "").strip()
+        )
         self.provider_email = os.environ.get("LOCAL_PROVIDER_EMAIL", "").strip()
         self.provider_password = os.environ.get("LOCAL_PROVIDER_PASSWORD", "").strip()
         self.admin_email = os.environ.get("LOCAL_ADMIN_EMAIL", "").strip()
         self.admin_password = os.environ.get("LOCAL_ADMIN_PASSWORD", "").strip()
 
+        # If provider/admin emails not explicitly set, auto-discover from DEMO_ROLE_MAP
+        demo_role_map_raw = os.environ.get("DEMO_ROLE_MAP", "").strip()
+        if demo_role_map_raw:
+            for entry in demo_role_map_raw.split(","):
+                if ":" in entry:
+                    em, r = entry.split(":", 1)
+                    em = em.strip()
+                    r = r.strip().lower()
+                    if r == "provider" and not self.provider_email:
+                        self.provider_email = em
+                    elif r == "admin" and not self.admin_email:
+                        self.admin_email = em
+
+        # If passwords not explicitly set, check generic DEMO_PASSWORD
+        generic_pw = os.environ.get("DEMO_PASSWORD", "").strip()
+        if generic_pw:
+            if not self.provider_password:
+                self.provider_password = generic_pw
+            if not self.admin_password:
+                self.admin_password = generic_pw
+
         self.created_patient_emails: List[str] = []
+        self.created_patient_accounts: List[Tuple[str, str]] = []
         self.results: List[Dict[str, Any]] = []
         self.log_lines: List[str] = []
 
@@ -148,6 +188,7 @@ class LocalAcceptanceRunner:
         data = resp.json()
         id_token = data["idToken"]
         self.created_patient_emails.append(email)
+        self.created_patient_accounts.append((email, id_token))
         return id_token, email
 
     def _firebase_signin(self, email: str, password: str) -> str:
@@ -162,12 +203,13 @@ class LocalAcceptanceRunner:
         return resp.json()["idToken"]
 
     def _backend_session_auth(self, id_token: str) -> Dict[str, str]:
-        """Calls POST /api/auth/session and returns Authorization headers."""
+        """Calls POST /api/auth/session with Bearer token and returns Authorization headers."""
         url = f"{self.base_url}/api/auth/session"
-        resp = requests.post(url, json={"id_token": id_token}, timeout=10)
+        headers = {"Authorization": f"Bearer {id_token}"}
+        resp = requests.post(url, headers=headers, json={"id_token": id_token}, timeout=10)
         if resp.status_code != 200:
             raise RuntimeError(f"Backend session init failed ({resp.status_code}): {resp.text}")
-        return {"Authorization": f"Bearer {id_token}"}
+        return headers
 
     def _init_patient_session(self, tag: str, conditions: List[str], lang: str = "en") -> Tuple[Dict[str, str], str]:
         """Creates fresh patient, establishes backend session, accepts consent, and updates profile."""
@@ -205,8 +247,30 @@ class LocalAcceptanceRunner:
         return headers, email
 
     # -------------------------------------------------------------------------
-    # REAL HTTP ACCEPTANCE CHECKS (LA-01 to LA-18)
+    # REAL HTTP ACCEPTANCE CHECKS (LA-00 to LA-18)
     # -------------------------------------------------------------------------
+
+    def run_la_00(self) -> bool:
+        """LA-00: Auth smoke check. Signs up one fresh patient and initializes backend session."""
+        feat = "Authentication smoke check (Firebase + backend session)"
+        self.log("Running LA-00 Auth Smoke Check...")
+        try:
+            id_token, email = self._firebase_signup_fresh_patient("la00")
+            url = f"{self.base_url}/api/auth/session"
+            headers = {"Authorization": f"Bearer {id_token}"}
+            resp = requests.post(url, headers=headers, json={"id_token": id_token}, timeout=10)
+            if resp.status_code != 200:
+                err_msg = f"HTTP {resp.status_code}: {resp.text}"
+                self.log(f"[AUTH SMOKE FAILED] {err_msg}")
+                self.results.append({"id": "LA-00", "feature": feat, "status": "FAIL", "evidence": err_msg})
+                return False
+            self.results.append({"id": "LA-00", "feature": feat, "status": "PASS", "evidence": f"HTTP 200; session initialized for {email}"})
+            self.log(f"[AUTH SMOKE PASSED] Patient signed up and backend session established for {email}")
+            return True
+        except Exception as exc:
+            self.log(f"[AUTH SMOKE FAILED] {exc}")
+            self.results.append({"id": "LA-00", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+            return False
 
     def run_la_01(self) -> None:
         """LA-01: Health + Admin config status (verifies pure SQLite and demo flags)."""
@@ -758,8 +822,51 @@ class LocalAcceptanceRunner:
         for cid, feat, ev in placeholders:
             self.results.append({"id": cid, "feature": feat, "status": "NOT BUILT YET", "evidence": ev})
 
+    def _cleanup_created_accounts(self) -> None:
+        """Deletes temporary accounts created during this run via Firebase REST accounts:delete."""
+        if not self.created_patient_accounts:
+            return
+        if not self.firebase_web_key:
+            return
+
+        self.log("\nCleaning up temporary Firebase accounts created during this run...")
+        failed_deletions: List[Tuple[str, str]] = []
+        del_url = FIREBASE_DELETE_URL.format(api_key=self.firebase_web_key)
+        deleted_count = 0
+
+        for email, token in self.created_patient_accounts:
+            try:
+                resp = requests.post(del_url, json={"idToken": token}, timeout=10)
+                if resp.status_code == 200:
+                    deleted_count += 1
+                else:
+                    failed_deletions.append((email, f"HTTP {resp.status_code}: {resp.text}"))
+            except Exception as e:
+                failed_deletions.append((email, str(e)))
+
+        if failed_deletions:
+            self.log("Accounts that failed to delete (delete manually in Firebase Console):")
+            for em, reason in failed_deletions:
+                self.log(f"  - {em}: {reason}")
+        else:
+            self.log(f"[CLEANUP COMPLETE] Successfully deleted all {deleted_count} temporary accounts.")
+
     def run_all(self) -> None:
         self.print_env_status()
+
+        # LA-00: Auth smoke check
+        if not self.run_la_00():
+            self.log("\n[ABORT] LA-00 Auth Smoke check failed. Stopping run before executing checkin suite.")
+            self.add_placeholders()
+            table_md = format_acceptance_table(self.results)
+            self.log("\n================================================================================")
+            self.log("LOCAL ACCEPTANCE RESULTS TABLE")
+            self.log("================================================================================")
+            self.log(table_md)
+            self.log("================================================================================\n")
+            self._cleanup_created_accounts()
+            self._save_log_file()
+            return
 
         self.log("Running Real HTTP Acceptance Checks (LA-01 to LA-18)...")
         self.run_la_01()
@@ -792,12 +899,8 @@ class LocalAcceptanceRunner:
         self.log(table_md)
         self.log("================================================================================\n")
 
-        # List created accounts for cleanup
-        if self.created_patient_emails:
-            self.log("Created Temporary Patient Accounts (Usman can delete these in Firebase Console):")
-            for em in self.created_patient_emails:
-                self.log(f"  - {em}")
-            self.log()
+        # Cleanup temporary accounts created during this run
+        self._cleanup_created_accounts()
 
         # Write output to log file
         self._save_log_file()

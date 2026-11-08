@@ -19,6 +19,7 @@ if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
 from scripts.local_acceptance import (
+    LocalAcceptanceRunner,
     check_mysql_safety,
     format_acceptance_table,
     mask_secret,
@@ -120,4 +121,23 @@ def test_format_acceptance_table():
     assert "| ID | Feature (Proposal Section) | Status | Evidence |" in table
     assert "| LA-01 | Health and admin config status (Sec 13.2) | PASS | HTTP 200, DB_BACKEND=sqlite |" in table
     assert "| LA-20 | Green/Yellow/Red triage colors (Sec 15) | NOT BUILT YET | Planned in PR A |" in table
+
+
+def test_backend_session_auth_sends_bearer_header():
+    """Hermetic unit test: asserts _backend_session_auth sends Authorization Bearer header."""
+    from unittest.mock import MagicMock, patch
+
+    runner = LocalAcceptanceRunner()
+    fake_token = "mock-firebase-id-token-xyz"
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"status": "ok"}
+
+    with patch("requests.post", return_value=mock_resp) as mock_post:
+        headers = runner._backend_session_auth(fake_token)
+        assert mock_post.called
+        call_kwargs = mock_post.call_args[1]
+        assert "headers" in call_kwargs
+        assert call_kwargs["headers"].get("Authorization") == f"Bearer {fake_token}"
+        assert headers.get("Authorization") == f"Bearer {fake_token}"
 
