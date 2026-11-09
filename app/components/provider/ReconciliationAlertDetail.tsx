@@ -579,156 +579,170 @@ export const ReconciliationAlertDetail = () => {
       )}
 
       {/* Provider: Risk at Check-in (Frozen record from check-in time) */}
-      {liveDetail?.checkin_risk && (
+      {((liveDetail?.checkin_risk_results && liveDetail.checkin_risk_results.length > 0) || liveDetail?.checkin_risk) && (
         <div
           className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4"
           data-testid="provider-checkin-risk-block"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
-            <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-teal-700" />
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-navy-800">
-                    {t.checkinRiskTitle}
-                  </span>
-                  <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium border border-slate-200">
-                    {t.checkinRiskLabelAtCheckin}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500">
-                  {t.checkinRiskSubtitle}
-                </p>
-              </div>
-            </div>
-            {/* Model & Version */}
-            {(liveDetail.checkin_risk.model_name || liveDetail.checkin_risk.model) && (
-              <span
-                className="text-[11px] font-mono text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 self-start sm:self-auto"
-                data-testid="checkin-risk-model"
-              >
-                {t.checkinRiskModelLabel}: {liveDetail.checkin_risk.model_name || liveDetail.checkin_risk.model}
-                {(liveDetail.checkin_risk.model_version || liveDetail.checkin_risk.version)
-                  ? ` v${liveDetail.checkin_risk.model_version || liveDetail.checkin_risk.version}`
-                  : ""}
-              </span>
-            )}
-          </div>
+          {(() => {
+            const applicableModels = (liveDetail?.checkin_risk_results && liveDetail.checkin_risk_results.length > 0)
+              ? liveDetail.checkin_risk_results
+              : (liveDetail?.checkin_risk ? [liveDetail.checkin_risk] : []);
 
-          {liveDetail.checkin_risk.status === "ok" ? (
-            <div className="space-y-4">
-              {/* Band badge + Raised flag */}
-              <div className="flex flex-wrap items-center gap-3">
-                {(() => {
-                  const b = (liveDetail.checkin_risk.band || "").toLowerCase();
-                  if (b === "high") {
-                    return (
-                      <span
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-rose-50 text-rose-900 border-rose-300"
-                        data-testid="checkin-risk-band-badge"
-                      >
-                        <AlertOctagon className="w-4 h-4 text-rose-700" />
-                        <span>{t.riskBandHigh}</span>
-                      </span>
-                    );
-                  }
-                  if (b === "moderate" || b === "medium") {
-                    return (
-                      <span
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-amber-50 text-amber-900 border-amber-300"
-                        data-testid="checkin-risk-band-badge"
-                      >
-                        <AlertTriangle className="w-4 h-4 text-amber-700" />
-                        <span>{t.riskBandMedium}</span>
-                      </span>
-                    );
-                  }
-                  return (
-                    <span
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-emerald-50 text-emerald-900 border-emerald-300"
-                      data-testid="checkin-risk-band-badge"
-                    >
-                      <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                      <span>{t.riskBandLow}</span>
-                    </span>
-                  );
-                })()}
+            return (
+              <div className="space-y-6">
+                {applicableModels.map((riskModel, mIdx) => (
+                  <div key={riskModel.model_name || riskModel.model || mIdx} className="space-y-4 border-b border-slate-100 pb-4 last:border-b-0 last:pb-0" data-testid="checkin-risk-model-card">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-teal-700" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold uppercase tracking-wider text-navy-800">
+                              {t.checkinRiskTitle}
+                            </span>
+                            <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium border border-slate-200">
+                              {t.checkinRiskLabelAtCheckin}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500">
+                            {t.checkinRiskSubtitle}
+                          </p>
+                        </div>
+                      </div>
+                      {/* Model & Version */}
+                      {(riskModel.model_name || riskModel.model) && (
+                        <span
+                          className="text-[11px] font-mono text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 self-start sm:self-auto"
+                          data-testid="checkin-risk-model"
+                        >
+                          {t.checkinRiskModelLabel}: {riskModel.model_name || riskModel.model}
+                          {(riskModel.model_version || riskModel.version)
+                            ? ` v${riskModel.model_version || riskModel.version}`
+                            : ""}
+                        </span>
+                      )}
+                    </div>
 
-                {/* Raised to review indicator */}
-                <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border ${
-                    liveDetail.checkin_risk.raised
-                      ? "bg-amber-50 text-amber-900 border-amber-300"
-                      : "bg-slate-50 text-slate-700 border-slate-200"
-                  }`}
-                  data-testid="checkin-risk-raised"
-                >
-                  {liveDetail.checkin_risk.raised ? t.checkinRiskRaisedYes : t.checkinRiskRaisedNo}
-                </span>
+                    {riskModel.status === "ok" ? (
+                      <div className="space-y-4">
+                        {/* Band badge + Probability + Raised flag */}
+                        <div className="flex flex-wrap items-center gap-3">
+                          {(() => {
+                            const b = (riskModel.band || "").toLowerCase();
+                            if (b === "high") {
+                              return (
+                                <span
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-rose-50 text-rose-900 border-rose-300"
+                                  data-testid="checkin-risk-band-badge"
+                                >
+                                  <AlertOctagon className="w-4 h-4 text-rose-700" />
+                                  <span>{t.riskBandHigh}</span>
+                                </span>
+                              );
+                            }
+                            if (b === "moderate" || b === "medium") {
+                              return (
+                                <span
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-amber-50 text-amber-900 border-amber-300"
+                                  data-testid="checkin-risk-band-badge"
+                                >
+                                  <AlertTriangle className="w-4 h-4 text-amber-700" />
+                                  <span>{t.riskBandMedium}</span>
+                                </span>
+                              );
+                            }
+                            return (
+                              <span
+                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold bg-emerald-50 text-emerald-900 border-emerald-300"
+                                data-testid="checkin-risk-band-badge"
+                              >
+                                <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                                <span>{t.riskBandLow}</span>
+                              </span>
+                            );
+                          })()}
 
-                {liveDetail.checkin_risk.label_text && (
-                  <span className="text-xs text-slate-600 font-medium">
-                    {liveDetail.checkin_risk.label_text[isUrdu ? "ur" : "en"] || liveDetail.checkin_risk.label_text["en"]}
-                  </span>
-                )}
-              </div>
+                          {/* Raised to review indicator */}
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border ${
+                              riskModel.raised
+                                ? "bg-amber-50 text-amber-900 border-amber-300"
+                                : "bg-slate-50 text-slate-700 border-slate-200"
+                            }`}
+                            data-testid="checkin-risk-raised"
+                          >
+                            {riskModel.raised ? t.checkinRiskRaisedYes : t.checkinRiskRaisedNo}
+                          </span>
 
-              {/* Reasons if present */}
-              {(liveDetail.checkin_risk.reasons || liveDetail.checkin_risk.top_reasons) &&
-                (liveDetail.checkin_risk.reasons || liveDetail.checkin_risk.top_reasons)!.length > 0 && (
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
-                      {t.riskReasonsTitle}
-                    </span>
-                    <ul className="list-disc list-inside space-y-1 text-xs text-slate-700">
-                      {(liveDetail.checkin_risk.reasons || liveDetail.checkin_risk.top_reasons)!.map((r, idx) => {
-                        let labelStr = r.feature;
-                        if (typeof r.label === "object" && r.label !== null) {
-                          labelStr = r.label[isUrdu ? "ur" : "en"] || r.label["en"] || r.feature;
-                        } else if (typeof r.label === "string") {
-                          labelStr = r.label;
-                        }
-                        return (
-                          <li key={idx} data-testid="checkin-risk-reason-item">
-                            <span className="font-semibold text-navy-800">{labelStr}</span>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                          {riskModel.label_text && (
+                            <span className="text-xs text-slate-600 font-medium">
+                              {riskModel.label_text[isUrdu ? "ur" : "en"] || riskModel.label_text["en"]}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Reasons / drivers if present */}
+                        {(riskModel.reasons || riskModel.top_reasons) &&
+                          (riskModel.reasons || riskModel.top_reasons)!.length > 0 && (
+                            <div className="space-y-1.5">
+                              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                                {t.riskReasonsTitle}
+                              </span>
+                              <ul className="list-disc list-inside space-y-1 text-xs text-slate-700">
+                                {(riskModel.reasons || riskModel.top_reasons)!.map((r, idx) => {
+                                  let labelStr = r.feature;
+                                  if (typeof r.label === "object" && r.label !== null) {
+                                    labelStr = r.label[isUrdu ? "ur" : "en"] || r.label["en"] || r.feature;
+                                  } else if (typeof r.label === "string") {
+                                    labelStr = r.label;
+                                  }
+                                  return (
+                                    <li key={idx} data-testid="checkin-risk-reason-item">
+                                      <span className="font-semibold text-navy-800">{labelStr}</span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          )}
+
+                        {/* Clinical Caveat chips */}
+                        {riskModel.caveats && riskModel.caveats.length > 0 && (
+                          <div className="space-y-1.5 p-3 rounded-xl bg-amber-50/60 border border-amber-200">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1">
+                              <Info className="w-3.5 h-3.5 text-amber-700" />
+                              <span>{t.riskCaveatsTitle}</span>
+                            </span>
+                            <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
+                              {riskModel.caveats.map((c, idx) => {
+                                let text = c;
+                                if (c === "home_bp_not_exam_bp") text = t.riskCaveatHomeBp;
+                                else if (c === "not_validated_pakistan") text = t.riskCaveatNotValidatedPakistan;
+                                return (
+                                  <li key={idx} data-testid="checkin-risk-caveat-item">
+                                    {text}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ) : riskModel.status === "not_enough_information" ? (
+                      <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200" data-testid="checkin-risk-missing">
+                        {t.checkinRiskMissingData}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-rose-700 bg-rose-50 p-3 rounded-xl border border-rose-200" data-testid="checkin-risk-error">
+                        {t.checkinRiskError}
+                      </p>
+                    )}
                   </div>
-                )}
-
-              {/* Clinical Caveat chips */}
-              {liveDetail.checkin_risk.caveats && liveDetail.checkin_risk.caveats.length > 0 && (
-                <div className="space-y-1.5 p-3 rounded-xl bg-amber-50/60 border border-amber-200">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1">
-                    <Info className="w-3.5 h-3.5 text-amber-700" />
-                    <span>{t.riskCaveatsTitle}</span>
-                  </span>
-                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
-                    {liveDetail.checkin_risk.caveats.map((c, idx) => {
-                      let text = c;
-                      if (c === "home_bp_not_exam_bp") text = t.riskCaveatHomeBp;
-                      else if (c === "not_validated_pakistan") text = t.riskCaveatNotValidatedPakistan;
-                      return (
-                        <li key={idx} data-testid="checkin-risk-caveat-item">
-                          {text}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-            </div>
-          ) : liveDetail.checkin_risk.status === "not_enough_information" ? (
-            <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200" data-testid="checkin-risk-missing">
-              {t.checkinRiskMissingData}
-            </p>
-          ) : (
-            <p className="text-xs text-rose-700 bg-rose-50 p-3 rounded-xl border border-rose-200" data-testid="checkin-risk-error">
-              {t.checkinRiskError}
-            </p>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 

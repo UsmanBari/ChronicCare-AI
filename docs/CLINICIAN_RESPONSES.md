@@ -163,9 +163,9 @@ Sources: Dr Shaiza Jabbar: voice note (relayed by Usman). Dr Anam Zafar: marked 
 - Item 5: Dr Shaiza gave no exact age cut-off ("very old" vs "below 50").
 
 ---
-## Update 8 Nov 2026: Clinician guidance (Relayed by Usman, awaiting formal attribution)
+## Update 8 Nov 2026: Clinician guidance
 
-Source: Replies relayed by Usman on 8 Nov 2026 (voice note / messaging). Formal clinician attribution pending user sign-off.
+Source: Answers sent by one doctor in a written message to Usman on 8 Nov 2026; doctor's name: PENDING (Usman to add).
 
 ### The 5 Answers (Verbatim / As Relayed):
 1. **Risk model HIGH raising level**: Risk model HIGH may raise a Green (routine) check-in to Yellow (review): **YES**.
