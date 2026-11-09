@@ -564,6 +564,7 @@ export interface ReviewDetailResponse {
   trends?: TrendsResponse | null;
   risk?: RiskAssessmentResponse | null;
   checkin_risk?: CheckinRiskResponse | null;
+  checkin_risk_results?: CheckinRiskResponse[] | null;
   explanation?: ProviderExplanationResponse | null;
   trace?: TraceStepItem[] | null;
   recent_record_edits?: RecordEditItem[] | null;

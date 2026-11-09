@@ -773,19 +773,24 @@ class LocalAcceptanceRunner:
         feat = "Longitudinal trend monitoring (Sec 16)"
         try:
             headers, _ = self._init_patient_session("la14", ["hypertension"])
-            # Record a reading
-            requests.post(
-                f"{self.base_url}/api/me/record/observations",
-                headers=headers,
-                json={"observation_type": "blood_pressure_systolic", "value": 130.0},
-                timeout=HTTP_TIMEOUT,
-            )
+            # Seed at least 5 readings for fresh patient
+            for val in [128.0, 130.0, 132.0, 135.0, 134.0]:
+                resp = requests.post(
+                    f"{self.base_url}/api/me/record/observations",
+                    headers=headers,
+                    json={"observation_type": "blood_pressure_systolic", "value": val},
+                    timeout=HTTP_TIMEOUT,
+                )
+                if resp.status_code not in (200, 201):
+                    raise RuntimeError(f"Failed to record observation: HTTP {resp.status_code} {resp.text}")
+
             trends_resp = requests.get(f"{self.base_url}/api/me/trends", headers=headers, timeout=HTTP_TIMEOUT)
             code = trends_resp.status_code
             data = trends_resp.json()
             series = data.get("series", {})
-            status = "PASS" if code == 200 and isinstance(series, dict) else "FAIL"
-            ev = f"HTTP {code}; series_keys={list(series.keys())[:3]}"
+            bp_series = series.get("blood_pressure_systolic", [])
+            status = "PASS" if code == 200 and isinstance(series, dict) and len(bp_series) >= 5 else "FAIL"
+            ev = f"HTTP {code}; bp_points={len(bp_series)}; series_keys={list(series.keys())[:3]}"
             self.results.append({"id": "LA-14", "feature": feat, "status": status, "evidence": ev})
         except Exception as exc:
             self.results.append({"id": "LA-14", "feature": feat, "status": "FAIL", "evidence": str(exc)})
@@ -1087,9 +1092,9 @@ class LocalAcceptanceRunner:
             c_data = comp_resp.json()
             risk_patient = c_data.get("risk_patient") or []
 
-            privacy_ok = True
+            privacy_ok = len(risk_patient) > 0
             for rp in risk_patient:
-                for forbidden in ("probability", "logit", "contributions", "%", "chd10_framingham", "diabetes_full_nhanes"):
+                for forbidden in ("probability", "logit", "contributions", "%", "chd10_framingham", "diabetes_full_nhanes", "features", "drivers"):
                     if forbidden in str(rp):
                         privacy_ok = False
                 if "band" not in rp or "message_key" not in rp:
@@ -1100,6 +1105,24 @@ class LocalAcceptanceRunner:
             self.results.append({"id": "LA-23", "feature": feat, "status": status, "evidence": ev})
         except Exception as exc:
             self.results.append({"id": "LA-23", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
+    def run_la_23b(self) -> None:
+        """LA-23b: Risk assessment confidence hierarchy (Sec 17)."""
+        feat = "Section 17 confidence hierarchy (Sec 17)"
+        try:
+            from agents.risk_agent import compute_confidence
+            c1 = compute_confidence({"source": "fhir", "age_days": 0, "conflict": False}, is_first_checkin=False) == "High"
+            c2 = compute_confidence({"source": "fhir", "age_days": 0, "conflict": False}, is_first_checkin=True) == "Medium"
+            c3 = compute_confidence({"source": "patient", "age_days": 0}, is_first_checkin=False) == "Medium"
+            c4 = compute_confidence({"source": "fhir", "age_days": 10, "conflict": False}, is_first_checkin=False) == "Medium"
+            c5 = compute_confidence({"source": "ocr_unconfirmed", "age_days": 0}, is_first_checkin=False) == "Low"
+            rules_ok = all([c1, c2, c3, c4, c5])
+
+            status = "PASS" if rules_ok else "FAIL"
+            ev = f"rules_ok={rules_ok}; all_5_hierarchies_verified"
+            self.results.append({"id": "LA-23b", "feature": feat, "status": status, "evidence": ev})
+        except Exception as exc:
+            self.results.append({"id": "LA-23b", "feature": feat, "status": "FAIL", "evidence": str(exc)})
 
     def run_la_24(self) -> None:
         """LA-24: Framingham 10-year CHD heart disease model (Sec 13.1)."""
@@ -1303,6 +1326,7 @@ class LocalAcceptanceRunner:
             ("LA-21c", self.run_la_21c),
             ("LA-22", self.run_la_22),
             ("LA-23", self.run_la_23),
+            ("LA-23b", self.run_la_23b),
             ("LA-24", self.run_la_24),
             ("LA-26", self.run_la_26),
         ]

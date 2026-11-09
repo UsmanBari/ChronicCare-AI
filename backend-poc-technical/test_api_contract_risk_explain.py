@@ -134,10 +134,13 @@ def assert_schema_conformity(actual: Any, expected: Any, path: str = "root") -> 
     if isinstance(expected, list):
         assert isinstance(actual, list), f"Mismatch at {path}: expected list, got {type(actual).__name__}"
         if expected:
-            # Check structure against first element as archetype
-            archetype = expected[0]
-            for i, act_elem in enumerate(actual):
-                assert_schema_conformity(act_elem, archetype, f"{path}[{i}]")
+            if len(expected) == len(actual):
+                for i, (act_elem, exp_elem) in enumerate(zip(actual, expected)):
+                    assert_schema_conformity(act_elem, exp_elem, f"{path}[{i}]")
+            else:
+                archetype = expected[0]
+                for i, act_elem in enumerate(actual):
+                    assert_schema_conformity(act_elem, archetype, f"{path}[{i}]")
         return
 
     if isinstance(expected, (int, float)):
@@ -401,15 +404,6 @@ def _create_v3_checkin(
     )
 
 
-DOC_DISCREPANCY_REASON = (
-    "Contract doc discrepancy: docs/API_RISK_EXPLAIN.md Section 3 includes inlined risk dict on "
-    "patient_view JSON example blocks, but doc Sections 1 & 2 and orchestrator/steps.py:72-80 "
-    "strictly enforce risk=null on patient complete endpoint per H3 doctors-only invariant. "
-    "See Issue: https://github.com/UsmanBari/ChronicCare-AI/issues/new?title=Contract+doc+mismatch+on+patient_view.risk"
-)
-
-
-@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_1_ok(contract_fixture) -> None:
     """State 1: ok (Complete Hypertension Patient)."""
     client = contract_fixture["client"]
@@ -441,7 +435,6 @@ def test_contract_state_1_ok(contract_fixture) -> None:
     assert_schema_conformity(actual_patient, expected["patient_view"], "patient_view")
 
 
-@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_2_not_enough_information(contract_fixture) -> None:
     """State 2: not_enough_information (Missing Waist Circumference)."""
     client = contract_fixture["client"]
@@ -470,9 +463,8 @@ def test_contract_state_2_not_enough_information(contract_fixture) -> None:
     assert_schema_conformity(actual_patient, expected["patient_view"], "patient_view")
 
 
-@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_3_not_applicable(contract_fixture) -> None:
-    """State 3: not_applicable (Diabetes Patient - risk is null)."""
+    """State 3: not_applicable (Diabetes Patient - diabetes screening not applicable; heart disease model applies)."""
     client = contract_fixture["client"]
     prov_headers = contract_fixture["provider_headers"]
     rsa_key = contract_fixture["rsa_key"]
@@ -492,14 +484,13 @@ def test_contract_state_3_not_applicable(contract_fixture) -> None:
     actual_provider = resp_review.json()
 
     assert_patient_leak_defense(actual_patient)
-    assert_provider_completeness(actual_provider, has_risk=False)
+    assert_provider_completeness(actual_provider, has_risk=True)
 
     expected = DOC_EXAMPLES["not_applicable"]
     assert_schema_conformity(actual_patient, expected["patient_view"], "patient_view")
     assert_schema_conformity(actual_provider, expected["provider_view"], "provider_view")
 
 
-@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_4_error(contract_fixture) -> None:
     """State 4: error (Safe Handling of Computation Glitches)."""
     client = contract_fixture["client"]
@@ -537,7 +528,6 @@ def test_contract_state_4_error(contract_fixture) -> None:
     assert_schema_conformity(actual_patient, expected["patient_view"], "patient_view")
 
 
-@pytest.mark.xfail(strict=False, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_5_emergency(contract_fixture) -> None:
     """State 5: emergency (Stage 1 Red Flag or Clinical Crisis)."""
     client = contract_fixture["client"]
@@ -571,7 +561,6 @@ def test_contract_state_5_emergency(contract_fixture) -> None:
     assert_schema_conformity(actual_provider, expected["provider_view"], "provider_view")
 
 
-@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_6_template_mode(contract_fixture) -> None:
     """State 6: template_mode (Pre-verified Fallback Explanation)."""
     client = contract_fixture["client"]
@@ -605,7 +594,6 @@ def test_contract_state_6_template_mode(contract_fixture) -> None:
     assert_schema_conformity(actual_patient, expected["patient_view"], "patient_view")
 
 
-@pytest.mark.xfail(strict=True, reason=DOC_DISCREPANCY_REASON)
 def test_contract_state_7_urdu(contract_fixture) -> None:
     """State 7: urdu (Patient Language = 'ur')."""
     client = contract_fixture["client"]
@@ -697,3 +685,95 @@ def test_polling_and_admin_config_contracts(contract_fixture) -> None:
     pat_token = _make_token(rsa_key, "pat_non_admin")
     resp_forbidden = client.get("/api/admin/config-status", headers={"Authorization": f"Bearer {pat_token}"})
     assert resp_forbidden.status_code == 403
+
+
+def test_c2_provider_review_shows_all_applicable_models(contract_fixture) -> None:
+    """
+    C2: Proves through GET /api/provider/review/{id} that:
+    1. A hypertension-only patient with a complete profile shows BOTH models:
+       - diabetes_full_nhanes: band, probability, top-3 drivers
+       - chd10_framingham: band, probability, top-3 drivers
+    2. A diabetes-only patient shows chd10_framingham ONLY.
+    3. checkin_risk remains a dict for backward compatibility.
+    4. checkin_risk_results is a list with all applicable models.
+    """
+    client = contract_fixture["client"]
+    prov_headers = contract_fixture["provider_headers"]
+    rsa_key = contract_fixture["rsa_key"]
+
+    # 1. Hypertension-only patient with complete profile
+    uid_htn = "pat_c2_htn_only"
+    cid_htn = "chk_c2_htn_only"
+    tok_htn = _make_token(rsa_key, uid_htn)
+    p_htn_headers = _create_user_and_profile(
+        client, tok_htn, uid_htn, "patient", ["hypertension"],
+        waist_cm=92.0, sex="male", dob="1965-05-10", height_cm=175.0, weight_kg=82.0, smoking_status="current"
+    )
+    _create_v3_checkin(uid_htn, cid_htn, systolic=142.0, diastolic=88.0, conditions_on_file=["hypertension"])
+
+    resp_comp_htn = client.post(f"/api/checkins/{cid_htn}/complete", headers=p_htn_headers)
+    assert resp_comp_htn.status_code == 200
+
+    resp_rev_htn = client.get(f"/api/provider/review/{cid_htn}", headers=prov_headers)
+    assert resp_rev_htn.status_code == 200
+    data_htn = resp_rev_htn.json()
+
+    # Verify backward-compatible checkin_risk
+    assert isinstance(data_htn.get("checkin_risk"), dict)
+    assert "band" in data_htn["checkin_risk"]
+
+    # Verify multi-model checkin_risk_results
+    risk_results_htn = data_htn.get("checkin_risk_results")
+    assert isinstance(risk_results_htn, list)
+    assert len(risk_results_htn) == 2
+
+    model_names_htn = [m.get("model_name") for m in risk_results_htn]
+    assert "diabetes_full_nhanes" in model_names_htn
+    assert "chd10_framingham" in model_names_htn
+
+    for m in risk_results_htn:
+        assert m.get("status") == "ok"
+        assert m.get("band") in ("low", "moderate", "high")
+        assert isinstance(m.get("probability"), float)
+        assert 0.0 <= m["probability"] <= 1.0
+        reasons = m.get("top_reasons") or m.get("reasons") or []
+        assert len(reasons) >= 3
+        for r in reasons[:3]:
+            assert "feature" in r
+            assert "contribution" in r
+
+    # 2. Diabetes-only patient with complete profile
+    uid_dm = "pat_c2_dm_only"
+    cid_dm = "chk_c2_dm_only"
+    tok_dm = _make_token(rsa_key, uid_dm)
+    p_dm_headers = _create_user_and_profile(
+        client, tok_dm, uid_dm, "patient", ["diabetes"],
+        waist_cm=90.0, sex="female", dob="1970-08-20", height_cm=165.0, weight_kg=70.0, smoking_status="never"
+    )
+    now_iso = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    local_store.add_local_observation(f"obs_{uid_dm}_sbp", f"local-{uid_dm}", "blood_pressure_systolic", 128.0, "mmHg", now_iso)
+    local_store.add_local_observation(f"obs_{uid_dm}_dbp", f"local-{uid_dm}", "blood_pressure_diastolic", 80.0, "mmHg", now_iso)
+    _create_v3_checkin(uid_dm, cid_dm, systolic=128.0, diastolic=80.0, conditions_on_file=["diabetes"])
+
+    resp_comp_dm = client.post(f"/api/checkins/{cid_dm}/complete", headers=p_dm_headers)
+    assert resp_comp_dm.status_code == 200
+
+    resp_rev_dm = client.get(f"/api/provider/review/{cid_dm}", headers=prov_headers)
+    assert resp_rev_dm.status_code == 200
+    data_dm = resp_rev_dm.json()
+
+    # Verify multi-model checkin_risk_results
+    risk_results_dm = data_dm.get("checkin_risk_results")
+    assert isinstance(risk_results_dm, list)
+    assert len(risk_results_dm) == 1
+
+    dm_model = risk_results_dm[0]
+    assert dm_model.get("model_name") == "chd10_framingham"
+    assert dm_model.get("status") == "ok", f"dm_model status is {dm_model.get('status')}; missing: {dm_model.get('missing')}"
+    assert dm_model.get("band") in ("low", "moderate", "high")
+    assert isinstance(dm_model.get("probability"), float)
+    reasons_dm = dm_model.get("top_reasons") or dm_model.get("reasons") or []
+    assert len(reasons_dm) >= 3
+    # Screening model must NOT apply to diagnosed diabetes patient
+    assert not any(m.get("model_name") == "diabetes_full_nhanes" for m in risk_results_dm)
+

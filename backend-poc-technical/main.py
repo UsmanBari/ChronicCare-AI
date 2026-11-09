@@ -1050,6 +1050,7 @@ class ReviewDetailResponse(BaseModel):
     trends: Optional[TrendsResponse] = None
     risk: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None
     checkin_risk: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None
+    checkin_risk_results: Optional[List[Dict[str, Any]]] = None
     explanation: Optional[Dict[str, Any]] = None
     trace: Optional[List[Dict[str, Any]]] = None
     recent_record_edits: Optional[List[RecordEditItem]] = None
@@ -5130,6 +5131,23 @@ def _build_patient_background(user_id: str) -> Optional[Dict[str, Any]]:
     }
 
 
+def _extract_checkin_risk_results(
+    risk_obj: Any,
+) -> Tuple[Optional[Union[Dict[str, Any], List[Dict[str, Any]]]], Optional[List[Dict[str, Any]]]]:
+    """Separates backward-compatible primary checkin_risk dict from multi-model checkin_risk_results list."""
+    if not risk_obj:
+        return None, None
+    if isinstance(risk_obj, dict):
+        models = risk_obj.get("models")
+        if isinstance(models, list) and models:
+            return risk_obj, [m for m in models if isinstance(m, dict)]
+        return risk_obj, [risk_obj]
+    if isinstance(risk_obj, list):
+        primary = risk_obj[0] if risk_obj else None
+        return primary, [m for m in risk_obj if isinstance(m, dict)]
+    return None, None
+
+
 @app.get("/api/provider/review/{checkin_id}", response_model=ReviewDetailResponse, tags=["Provider Review"])
 def get_provider_review_detail_endpoint(
     checkin_id: str,
@@ -5176,6 +5194,7 @@ def get_provider_review_detail_endpoint(
     colour = level_to_colour(level)
     risk_obj = result.get("risk")
     raised_by_val = (result.get("triage") or {}).get("raised_by") or (risk_obj.get("raised_by") if isinstance(risk_obj, dict) else None)
+    c_risk, c_risk_results = _extract_checkin_risk_results(risk_obj)
 
     return ReviewDetailResponse(
         checkin_id=checkin_id,
@@ -5201,7 +5220,8 @@ def get_provider_review_detail_endpoint(
         answered_by=answered_by_val,
         trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
         risk=_compute_patient_risk_safe(checkin["user_id"]),
-        checkin_risk=result.get("risk"),
+        checkin_risk=c_risk,
+        checkin_risk_results=c_risk_results,
         explanation=result.get("explanation"),
         trace=result.get("trace"),
         recent_record_edits=[
@@ -5276,6 +5296,7 @@ def post_provider_review_action_endpoint(
 
     record_label = _compute_record_source_label(checkin["mode"], checkin.get("ehr_system_id"))
     patient_bg = _build_patient_background(checkin["user_id"])
+    c_risk, c_risk_results = _extract_checkin_risk_results(updated_result.get("risk") or result.get("risk"))
     return ReviewDetailResponse(
         checkin_id=checkin_id,
         patient_id=checkin["record_patient_id"],
@@ -5299,7 +5320,8 @@ def post_provider_review_action_endpoint(
         patient_background=patient_bg,
         trends=_compute_patient_trends_safe(checkin["user_id"], days=30),
         risk=_compute_patient_risk_safe(checkin["user_id"]),
-        checkin_risk=result.get("risk"),
+        checkin_risk=c_risk,
+        checkin_risk_results=c_risk_results,
         explanation=result.get("explanation"),
         trace=result.get("trace"),
         recent_record_edits=[

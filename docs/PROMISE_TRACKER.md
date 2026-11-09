@@ -79,6 +79,7 @@
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
 | 3-Tier Source Trust Hierarchy (High: EHR/Clinician; Med: OCR/Upload; Low: Self-Report) | Sec 17 | `backend-poc-technical/agents/verification_agent.py` | LA-09, LA-15 | **PASS** | Usman | Done |
 | Assessment Confidence Label (High / Medium / Low based on completeness) | Sec 17 | `backend-poc-technical/agents/verification_agent.py` | LA-02, LA-08 | **PASS** | Usman | Done |
+| Risk Assessment Confidence Hierarchy (High: EHR same-day; Med: Patient/7d+; Low: Unconfirmed OCR) | Sec 17 | `backend-poc-technical/agents/risk_agent.py` | LA-23b | **PASS** | Usman | Done (PR A) |
 
 ---
 
