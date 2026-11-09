@@ -32,7 +32,7 @@
 | Agent 7: Verification Agent (Source trust levels, clinical severity rating) | Sec 13.1 | `backend-poc-technical/agents/verification_agent.py` | LA-09 | **PASS** | Usman | Done |
 | Agent 8: Longitudinal Trend Agent (Direction calculation, escalation trigger) | Sec 13.1, 16 | `backend-poc-technical/agents/trend_agent.py` & `agents/final_triage.py` | LA-14, LA-22 | **PASS** | Saad / Usman | Done (PR A) |
 | Agent 9: Advisory Risk Models (NHANES Diabetes, Framingham CHD10) | Sec 13.1 | `backend-poc-technical/agents/risk_agent.py` | LA-13, LA-24 | **PASS** | Usman / Saad | Done (PR A) |
-| Agent 10: Provider SOAP Summary Agent (Structured clinical synthesis) | Sec 13.1 | `backend-poc-technical/rag/soap_agent.py` | LA-26 | **NOT BUILT YET** | Usman | 13 Nov 2026 (PR E) |
+| Agent 10: Provider SOAP Summary Agent (Structured clinical synthesis) | Sec 13.1 | `backend-poc-technical/agents/soap_agent.py` | LA-26 | **PASS** | Usman | Done (PR E) |
 
 ---
 
