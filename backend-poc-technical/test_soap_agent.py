@@ -287,11 +287,16 @@ def test_t1_hotfix2_repro_skip_all_has_no_glucose(soap_fixture):
     data = resp.json()
 
     plain_text = data["plain_text"].lower()
+    body_lines = [
+        line for line in plain_text.splitlines()
+        if not any(line.startswith(pfx) for pfx in ("check-in id:", "patient id:", "generated:", "===="))
+    ]
+    body_text = "\n".join(body_lines)
     # Must NOT contain any glucose value like 35 or 142 or glucose reading line
-    assert "35" not in plain_text
-    assert "reading - glucose" not in plain_text
-    assert "readings: no reading today" in plain_text
-    assert "not answered" in plain_text
+    assert "35" not in body_text
+    assert "reading - glucose" not in body_text
+    assert "readings: no reading today" in body_text
+    assert "not answered" in body_text
 
 
 # =============================================================================

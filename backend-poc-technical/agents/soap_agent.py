@@ -142,7 +142,7 @@ def build_soap(
     checkin_id = checkin.get("checkin_id", "unknown")
     patient_id = checkin.get("record_patient_id") or checkin.get("user_id") or "Patient"
     mode = checkin.get("mode") or "isolated"
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # Load result from DB if not provided
     if result is None and checkin_id != "unknown":

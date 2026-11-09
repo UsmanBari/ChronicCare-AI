@@ -113,3 +113,4 @@ The provider review detail view (`app/components/provider/ReconciliationAlertDet
 - **Copy Note**: One-click button copies `plain_text` directly to clipboard via `navigator.clipboard.writeText`.
 - **Print Note**: Triggers native browser print dialog (`window.print()`) without adding heavy PDF dependencies.
 - **Data Source Badges**: Displays provenance of all integrated clinical data sources (FHIR simulator, rules engine, predictive models, trend history).
+

@@ -201,3 +201,4 @@ describe("Provider SOAP Note Panel (Agent 7, Proposal Sec 13.1)", () => {
     expect(screen.getByTestId("soap-section-subjective")).toBeTruthy();
   });
 });
+
