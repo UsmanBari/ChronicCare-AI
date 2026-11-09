@@ -567,6 +567,15 @@ export interface Translations {
   traceNodeRisk: string;
   traceNodeExplain: string;
   traceNodePersist: string;
+  soapNoteTitle: string;
+  soapSubjective: string;
+  soapObjective: string;
+  soapAssessment: string;
+  soapPlan: string;
+  soapCopyNote: string;
+  soapCopied: string;
+  soapPrintNote: string;
+  soapLoading: string;
 }
 
 export const translations: Record<Language, Translations> = {
@@ -1128,6 +1137,15 @@ export const translations: Record<Language, Translations> = {
     traceNodeRisk: "Risk assessed",
     traceNodeExplain: "Explanation generated",
     traceNodePersist: "Results persisted",
+    soapNoteTitle: "Clinical Summary (SOAP Note)",
+    soapSubjective: "Subjective (S)",
+    soapObjective: "Objective (O)",
+    soapAssessment: "Assessment (A)",
+    soapPlan: "Plan (P)",
+    soapCopyNote: "Copy Note",
+    soapCopied: "Copied!",
+    soapPrintNote: "Print Note",
+    soapLoading: "Generating SOAP note...",
   },
   ur: {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
@@ -1689,5 +1707,14 @@ export const translations: Record<Language, Translations> = {
     traceNodeRisk: "خطرے کا جائزہ لیا گیا",
     traceNodeExplain: "وضاحت تیار کی گئی",
     traceNodePersist: "نتائج محفوظ کر لیے گئے",
+    soapNoteTitle: "طبی خلاصہ (SOAP نوٹ)",
+    soapSubjective: "مریض کی کیفیات (Subjective)",
+    soapObjective: "طبی مشاہدات اور پیمائشیں (Objective)",
+    soapAssessment: "تشخیصی اندازہ (Assessment)",
+    soapPlan: "طبی لائحہ عمل (Plan)",
+    soapCopyNote: "نوٹ کاپی کریں",
+    soapCopied: "کاپی ہو گیا!",
+    soapPrintNote: "نوٹ پرنٹ کریں",
+    soapLoading: "طبی خلاصہ تیار ہو رہا ہے...",
   }
 };

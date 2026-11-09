@@ -572,6 +572,18 @@ export interface ReviewDetailResponse {
   triage_colour?: string | null;
   raised_by?: Array<{ source: string; detail: string; [key: string]: any }> | null;
 }
+
+export interface SoapNoteResponse {
+  checkin_id: string;
+  patient_id?: string;
+  generated_at: string;
+  subjective: string[];
+  objective: string[];
+  assessment: string[];
+  plan: string[];
+  data_sources: string[];
+  plain_text: string;
+}
 export interface RecordEditItem {
   edit_id: string;
   id?: string;
@@ -1164,6 +1176,14 @@ export const api = {
     checkin_id: string
   ): Promise<ReviewDetailResponse> => {
     return request<ReviewDetailResponse>(`/api/provider/review/${encodeURIComponent(checkin_id)}`, {
+      method: "GET",
+    });
+  },
+
+  getProviderSoapNote: async (
+    checkin_id: string
+  ): Promise<SoapNoteResponse> => {
+    return request<SoapNoteResponse>(`/api/provider/review/${encodeURIComponent(checkin_id)}/soap`, {
       method: "GET",
     });
   },
