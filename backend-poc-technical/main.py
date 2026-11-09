@@ -1077,6 +1077,18 @@ class ReviewActionRequest(BaseModel):
         return clean
 
 
+class SoapNoteResponse(BaseModel):
+    checkin_id: str
+    patient_id: str
+    generated_at: str
+    subjective: List[str]
+    objective: List[str]
+    assessment: List[str]
+    plan: List[str]
+    data_sources: List[str]
+    plain_text: str
+
+
 # =============================================================================
 # HELPER PARSING & AUTH FUNCTIONS
 # =============================================================================
@@ -5295,6 +5307,41 @@ def post_provider_review_action_endpoint(
             for e in get_recent_edits_for_patient(checkin["user_id"], limit=20)
         ],
     )
+
+
+@app.get("/api/provider/review/{checkin_id}/soap", response_model=SoapNoteResponse, tags=["Provider Review"])
+def get_provider_soap_note_endpoint(
+    checkin_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("provider")),
+):
+    """Retrieves synthesized SOAP note for a check-in item (Provider only)."""
+    checkin = get_checkin_by_id(checkin_id)
+    if not checkin:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Check-in not found",
+        )
+
+    result = get_checkin_result(checkin_id)
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Check-in result not found",
+        )
+
+    from agents.soap_agent import build_soap
+
+    soap_dict = build_soap(checkin, result)
+
+    append_audit(
+        actor_user_id=current_user["user_id"],
+        action="soap_generated",
+        target=checkin_id,
+        outcome="ok",
+        detail={},
+    )
+
+    return SoapNoteResponse(**soap_dict)
 
 
 @app.post("/api/admin/users/{user_id}/role", response_model=UserResponse, tags=["Admin"])
