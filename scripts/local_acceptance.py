@@ -15,6 +15,7 @@ import io
 import json
 import math
 import os
+import re
 import secrets
 import struct
 import sys
