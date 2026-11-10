@@ -979,12 +979,20 @@ export const ReconciliationAlertDetail = () => {
                         {edit.record_type} ({edit.field})
                       </span>
                       {isOcr ? (
-                        <span
-                          data-testid="edit-badge-ocr"
-                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 text-[10px] font-bold uppercase tracking-wider"
-                        >
-                          <Sparkles className="w-3 h-3 text-purple-700" /> OCR
-                        </span>
+                        <>
+                          <span
+                            data-testid="edit-badge-ocr"
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 text-[10px] font-bold uppercase tracking-wider"
+                          >
+                            <Sparkles className="w-3 h-3 text-purple-700" /> OCR
+                          </span>
+                          <span
+                            data-testid="edit-badge-unverified"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold uppercase tracking-wider"
+                          >
+                            Unverified (patient upload)
+                          </span>
+                        </>
                       ) : edit.origin === "import" ? (
                         <span
                           data-testid="edit-badge-import"

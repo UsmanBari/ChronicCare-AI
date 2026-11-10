@@ -88,7 +88,8 @@
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
 | RapidOCR Onnxruntime Local Pipeline | Sec 21.1 | `backend-poc-technical/ocr/` | LA-15 | **PASS** | Hassaan | Done (PR #96) |
 | Prescription Intake Staging & Patient Confirmation | Sec 21.1 | `backend-poc-technical/main.py` | LA-15 | **PASS** | Hassaan / Saad | Done (PR #96) |
-| Unverified / Medium Trust Tagging in Local Store | Sec 21.1 | `backend-poc-technical/data_sources/local_store.py` | LA-15 | **PASS** | Usman | Done |
+| Prescription Upload in Isolated Onboarding (Confidence, Headers & Fallback) | Sec 18, 21.1 | `app/components/OnboardingPrescriptionScreen.tsx` | LA-15b | **PASS** | Hassaan | Done (PR #138) |
+| Unverified / Medium Trust Tagging in Local Store | Sec 21.1 | `backend-poc-technical/data_sources/local_store.py` | LA-15, LA-15b | **PASS** | Usman / Hassaan | Done |
 
 ---
 
