@@ -96,3 +96,43 @@ All 28 entries in `backend-poc-technical/agents/interview_bank/messages.json` ve
 - Adherence clarification queries (`adherence_clarification_question`, `adherence_clarification_why`, `adherence_clarification_unclear_note`) verified for respectful, collaborative tone.
 - Flag `"needs_native_review"` confirmed `false` across all 28 entries.
 
+---
+
+## 5. Week 4 Finish Sprint: PR K Isolated Onboarding Prescription Intake Strings
+
+**Date:** 12 Nov 2026  
+**Reviewer:** reviewed by Hassaan, 12 Nov 2026  
+**Status:** **APPROVED & VERIFIED**  
+**PR:** `I4-K: prescription upload step in isolated-mode onboarding (OCR, confidence, unverified, manual fallback)`  
+**Scope:** Frontend interface strings added to `app/translations/index.ts` covering onboarding prescription step, Section 21.1 header checklist, confidence badges, unverified provenance badge, and manual medicine entry fallback.
+
+| Translation Key | English | Urdu Script | Native Review Notes |
+|---|---|---|---|
+| `onboardingPrescriptionTitle` | Prescription Upload (Optional) | نسخہ اپلوڈ کریں (اختیاری) | Clear and simple header for onboarding step |
+| `onboardingPrescriptionQuestion` | Do you have a prescription? Upload a photo (optional) | کیا آپ کے پاس نسخہ ہے؟ تصویر اپلوڈ کریں (اختیاری) | Everyday Pakistani phrasing for doctor's prescription ("نسخہ") |
+| `onboardingPrescriptionHint` | Uploading your prescription helps fill your medicines automatically. You can always skip or type them manually. | نسخے کی تصویر سے دوائیاں خود بخود درج ہو سکتی ہیں۔ آپ اسے چھوڑ بھی سکتے ہیں یا خود لکھ سکتے ہیں۔ | Natural conversational tone explaining optional nature |
+| `onboardingUploadBtn` | Upload Photo | تصویر اپلوڈ کریں | Direct, concise action button |
+| `onboardingSkipBtn` | Skip for now | فی الحال چھوڑ دیں | Soft, friendly skip action |
+| `onboardingManualToggle` | Type your medicines manually instead | دوائیاں خود لکھیں | Clear alternative option |
+| `onboardingPrescriptionCameraTip` | Place the prescription on a flat surface in good lighting for best results. | اچھے نتائج کے لیے نسخے کو ہموار جگہ پر اور اچھی روشنی میں رکھیں۔ | Practical camera tip in simple Urdu |
+| `onboardingManualTitle` | Type your medicines | اپنی دوائیاں درج کریں | Manual fallback heading |
+| `onboardingManualHint` | Enter the medicines you are currently taking (one per line). | جو دوائیاں آپ اس وقت لے رہے ہیں وہ یہاں لکھیں (ہر لائن میں ایک دوا)۔ | Everyday Urdu for current medication routine |
+| `onboardingManualSaveBtn` | Save medicines | دوائیاں محفوظ کریں | Standard save action |
+| `confidenceBadgeHigh` | High confidence | زیادہ وثوق | Accurate translation of extraction confidence |
+| `confidenceBadgeMedium` | Medium confidence | درمیانہ وثوق | Balanced confidence label |
+| `confidenceBadgeLow` | Low confidence - check paper | کم وثوق - نسخے سے چیک کریں | Action-oriented guidance to consult paper prescription |
+| `ocrHeaderChecklistTitle` | Prescription Header Details | نسخے کی بنیادی تفصیلات | Section 21.1 header verification title |
+| `ocrHeaderDoctorName` | Doctor Name | ڈاکٹر کا نام | Essential provider detail |
+| `ocrHeaderRegNumber` | Registration Number | رجسٹریشن نمبر | PMDC/PMC medical registration number |
+| `ocrHeaderHospitalClinic` | Hospital / Clinic | ہسپتال / کلینک | Facility name |
+| `ocrHeaderDate` | Date | تاریخ | Prescription date |
+| `ocrHeaderMedications` | Medications | دوائیاں | Medication lines |
+| `ocrHeaderFound` | Found | مل گیا | Extraction status tag |
+| `ocrHeaderMissing` | Not read: please check the paper | نہیں پڑھا جا سکا: براہ کرم نسخہ خود چیک کریں | Friendly, actionable guidance (no scary error) |
+| `ocrHeaderReadPleaseCheck` | read, please check | پڑھا گیا، براہ کرم چیک کریں | Amber checklist tag when raw OCR header is read and needs paper verification |
+| `unverifiedUploadBadge` | Unverified (patient upload) | غیر تصدیق شدہ (مریض کا اپلوڈ) | Section 18.1 provenance indicator |
+| `ocrLowConfidenceHint` | Please verify the medicine name and dosage carefully against your paper prescription. | براہ کرم دوا کا نام اور مقدار اپنے کاغذی نسخے سے غور سے ملا لیں۔ | Emphasizes patient safety and dosage verification |
+| `ocrDisabledNotice` | Prescription photo reading is currently unavailable. Please type your medicines below. | نسخے کی تصویر پڑھنے کی سہولت فی الحال بند ہے۔ براہ کرم اپنی دوائیاں خود لکھیں۔ | Friendly offline/disabled notice without raw server errors |
+
+
+
