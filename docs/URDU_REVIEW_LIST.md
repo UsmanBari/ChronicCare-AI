@@ -96,3 +96,99 @@ All 28 entries in `backend-poc-technical/agents/interview_bank/messages.json` ve
 - Adherence clarification queries (`adherence_clarification_question`, `adherence_clarification_why`, `adherence_clarification_unclear_note`) verified for respectful, collaborative tone.
 - Flag `"needs_native_review"` confirmed `false` across all 28 entries.
 
+---
+
+## 5. Week 4 Finish Sprint: PR K Isolated Onboarding Prescription Intake Strings
+
+**Date:** 12 Nov 2026  
+**Reviewer:** reviewed by Hassaan, 12 Nov 2026  
+**Status:** **APPROVED & VERIFIED**  
+**PR:** `I4-K: prescription upload step in isolated-mode onboarding (OCR, confidence, unverified, manual fallback)`  
+**Scope:** Frontend interface strings added to `app/translations/index.ts` covering onboarding prescription step, Section 21.1 header checklist, confidence badges, unverified provenance badge, and manual medicine entry fallback.
+
+| Translation Key | English | Urdu Script | Native Review Notes |
+|---|---|---|---|
+| `onboardingPrescriptionTitle` | Prescription Upload (Optional) | نسخہ اپلوڈ کریں (اختیاری) | Clear and simple header for onboarding step |
+| `onboardingPrescriptionQuestion` | Do you have a prescription? Upload a photo (optional) | کیا آپ کے پاس نسخہ ہے؟ تصویر اپلوڈ کریں (اختیاری) | Everyday Pakistani phrasing for doctor's prescription ("نسخہ") |
+| `onboardingPrescriptionHint` | Uploading your prescription helps fill your medicines automatically. You can always skip or type them manually. | نسخے کی تصویر سے دوائیاں خود بخود درج ہو سکتی ہیں۔ آپ اسے چھوڑ بھی سکتے ہیں یا خود لکھ سکتے ہیں۔ | Natural conversational tone explaining optional nature |
+| `onboardingUploadBtn` | Upload Photo | تصویر اپلوڈ کریں | Direct, concise action button |
+| `onboardingSkipBtn` | Skip for now | فی الحال چھوڑ دیں | Soft, friendly skip action |
+| `onboardingManualToggle` | Type your medicines manually instead | دوائیاں خود لکھیں | Clear alternative option |
+| `onboardingPrescriptionCameraTip` | Place the prescription on a flat surface in good lighting for best results. | اچھے نتائج کے لیے نسخے کو ہموار جگہ پر اور اچھی روشنی میں رکھیں۔ | Practical camera tip in simple Urdu |
+| `onboardingManualTitle` | Type your medicines | اپنی دوائیاں درج کریں | Manual fallback heading |
+| `onboardingManualHint` | Enter the medicines you are currently taking (one per line). | جو دوائیاں آپ اس وقت لے رہے ہیں وہ یہاں لکھیں (ہر لائن میں ایک دوا)۔ | Everyday Urdu for current medication routine |
+| `onboardingManualSaveBtn` | Save medicines | دوائیاں محفوظ کریں | Standard save action |
+| `confidenceBadgeHigh` | High confidence | زیادہ وثوق | Accurate translation of extraction confidence |
+| `confidenceBadgeMedium` | Medium confidence | درمیانہ وثوق | Balanced confidence label |
+| `confidenceBadgeLow` | Low confidence - check paper | کم وثوق - نسخے سے چیک کریں | Action-oriented guidance to consult paper prescription |
+| `ocrHeaderChecklistTitle` | Prescription Header Details | نسخے کی بنیادی تفصیلات | Section 21.1 header verification title |
+| `ocrHeaderDoctorName` | Doctor Name | ڈاکٹر کا نام | Essential provider detail |
+| `ocrHeaderRegNumber` | Registration Number | رجسٹریشن نمبر | PMDC/PMC medical registration number |
+| `ocrHeaderHospitalClinic` | Hospital / Clinic | ہسپتال / کلینک | Facility name |
+| `ocrHeaderDate` | Date | تاریخ | Prescription date |
+| `ocrHeaderMedications` | Medications | دوائیاں | Medication lines |
+| `ocrHeaderFound` | Found | مل گیا | Extraction status tag |
+| `ocrHeaderMissing` | Not read: please check the paper | نہیں پڑھا جا سکا: براہ کرم نسخہ خود چیک کریں | Friendly, actionable guidance (no scary error) |
+| `ocrHeaderReadPleaseCheck` | read, please check | پڑھا گیا، براہ کرم چیک کریں | Amber checklist tag when raw OCR header is read and needs paper verification |
+| `unverifiedUploadBadge` | Unverified (patient upload) | غیر تصدیق شدہ (مریض کا اپلوڈ) | Section 18.1 provenance indicator |
+| `ocrLowConfidenceHint` | Please verify the medicine name and dosage carefully against your paper prescription. | براہ کرم دوا کا نام اور مقدار اپنے کاغذی نسخے سے غور سے ملا لیں۔ | Emphasizes patient safety and dosage verification |
+| `ocrDisabledNotice` | Prescription photo reading is currently unavailable. Please type your medicines below. | نسخے کی تصویر پڑھنے کی سہولت فی الحال بند ہے۔ براہ کرم اپنی دوائیاں خود لکھیں۔ | Friendly offline/disabled notice without raw server errors |
+
+---
+
+## 6. Finish Sprint Review: H1 Appointments, H2 Notifications, H3 Urdu Voice
+
+**Date:** 12 Nov 2026  
+**Reviewer:** reviewed by Hassaan, 12 Nov 2026  
+**Status:** **APPROVED & VERIFIED**  
+**PRs:**
+- H1: `feat/i4-appointments` (PR #145)
+- H2: `feat/i4-notifications` (PR #146)
+- H3: `feat/i4-urdu-voice` (PR #147)
+
+### 6.1 Appointments Workflow Strings (H1 / PR #145)
+| Translation Key | English | Urdu Script | Native Review Notes |
+|---|---|---|---|
+| `myAppointmentsTitle` | My Appointments | میری ملاقاتیں | Everyday colloquial term for patient appointments |
+| `noAppointmentsTitle` | No Appointments Scheduled | کوئی ملاقات طے نہیں ہے | Honest empty state phrasing |
+| `appointmentOffered` | Offered | تجویز کردہ | Clear status indicator for offered slot |
+| `appointmentBooked` | Booked | طے شدہ | Confirmed booking label |
+| `appointmentAttended` | Attended | مکمل | Attended appointment status |
+| `appointmentCancelled` | Cancelled | منسوخ | Cancelled appointment status |
+| `specialtyEndocrinology` | Endocrinology | شعبہ ذیابیطس و ہارمونز | Accessible clinical specialty descriptor |
+| `specialtyCardiology` | Cardiology | شعبہ امراض قلب | Accessible cardiology descriptor |
+| `specialtyInternalMedicine` | Internal Medicine | شعبہ انٹرنل میڈیسن | Common medical term in Urdu clinics |
+| `bookAppointmentBtn` | Select Slot & Book | وقت منتخب کریں اور تصدیق کریں | Action-oriented booking button |
+| `cancelAppointmentBtn` | Cancel Appointment | ملاقات منسوخ کریں | Clear cancellation button |
+| `acknowledgeAppointmentBtn` | Acknowledge | موصول ہوا | Provider clinical acknowledgment |
+| `markAttendedBtn` | Mark Attended | مکمل قرار دیں | Provider clinical completion action |
+| `adminProviderDirectoryTitle` | Provider Directory & Availability | ڈاکٹر ڈائرکٹری و دستیابی | Administrative directory title |
+| `adminEscalationAlertsTitle` | Escalation Alerts & Timeouts | تاخیر و ہنگامی الرٹس (ایسکلیشن) | Escalation dashboard header |
+| `escalationAdminFlag` | Admin Escalation (>=24h unacknowledged) | انتظامی الرٹ (۲۴ گھنٹے سے زائد تاخیر) | Administrative safety banner |
+| `escalationReNotify` | Re-notified (>=2h unacknowledged) | دوبارہ یاد دہانی (۲ گھنٹے سے زائد تاخیر) | Automated re-notification tag |
+| `escalationPending` | Pending Acknowledgment | زیر انتظار | Pending acknowledgment state |
+| `careTeamAlertedCard` | Care Team Alerted | نگہداشت ٹیم کو مطلع کر دیا گیا ہے | Reassuring clinical status notice |
+
+### 6.2 Notification Centre Strings (H2 / PR #146)
+| Translation Key | English | Urdu Script | Native Review Notes |
+|---|---|---|---|
+| `notificationsTitle` | Notifications & Alerts | اطلاعات و الرٹس | Standard bilingual header |
+| `notificationsEmpty` | No notifications | کوئی نئی اطلاع نہیں ہے | Clean empty state message |
+| `markAllReadBtn` | Mark all as read | سب پڑھ لیا | Action to clear unread counts |
+| `notificationDailyReminder` | Daily Check-in Reminder: Have you recorded your vitals today? | روزانہ یاد دہانی: کیا آپ نے آج کا چیک ان مکمل کیا ہے؟ | Safe reminder containing zero PHI or clinical values |
+| `notificationUrgentAlert` | Clinical Alert: A prompt review has been requested for your care team. | فوری الرٹ: آپ کی حالت میں تبدیلی پر ڈاکٹر کا جائزہ درکار ہے | Neutral urgent clinical escalation notice |
+| `notificationEscalationAlert` | Care Team Reminder: Check-in awaiting review. | ایسکلیشن الرٹ: نگہداشت ٹیم کو زیر التواء معائنے کی یاد دہانی | Automated provider escalation reminder |
+
+### 6.3 Spoken Explanations & Voice Strings (H3 / PR #147)
+| Translation Key | English | Urdu Script | Native Review Notes |
+|---|---|---|---|
+| `listenToExplanationBtn` | Listen | وضاحت سنیں | Direct, clear speech playback button |
+| `listeningToExplanation` | Playing voice... | آواز چل رہی ہے... | Active audio playback indicator |
+| `listenToEmergencyInstructions` | Listen to Emergency Instructions | ایمرجنسی ہدایات سنیں | Immediate accessible speech instruction for 1122 |
+| `speechLoading` | Generating voice... | آواز تیار ہو رہی ہے... | Loading audio status |
+| `speechUnavailable` | Voice output unavailable | آواز دستیاب نہیں | Soft offline fallback message |
+| `voiceNotAvailableRomanUrdu` | Voice is not available for Roman Urdu text | رومن اردو کے لیے آواز دستیاب نہیں ہے | Informative explanation for Roman Urdu template fallback |
+
+
+
+
