@@ -1,0 +1,52 @@
+{
+  "name": "chd10_framingham",
+  "dataset": "framingham",
+  "split": "framingham_stratified_v1",
+  "label": "TenYearCHD",
+  "population": "hypertension_or_diabetes",
+  "card_population": "hypertension_or_diabetes",
+  "tier": "full",
+  "features": [
+    "age",
+    "sex_male",
+    "current_smoker",
+    "bmi",
+    "sbp",
+    "dbp",
+    "bp_meds",
+    "diabetes",
+    "prevalent_hyp"
+  ],
+  "models": [
+    "lr",
+    "lr_balanced",
+    "rf",
+    "hgb"
+  ],
+  "grid": {
+    "lr": {
+      "C": [0.001, 0.01, 0.1, 1.0, 10.0, 100.0]
+    },
+    "lr_balanced": {
+      "C": [0.001, 0.01, 0.1, 1.0, 10.0, 100.0]
+    },
+    "rf": {
+      "n_estimators": [100],
+      "max_depth": [3, 5],
+      "min_samples_leaf": [5, 10]
+    },
+    "hgb": {
+      "learning_rate": [0.01, 0.05],
+      "max_depth": [3, 5],
+      "min_samples_leaf": [10]
+    }
+  },
+  "threshold_policy": {
+    "type": "fixed",
+    "value": 0.10
+  },
+  "missing": "drop",
+  "seed": 42,
+  "notes": "Framingham Heart Study 10-year CHD risk model on 9 non-lab features for patients with hypertension or diabetes."
+}
+

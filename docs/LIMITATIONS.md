@@ -63,3 +63,14 @@ Furthermore, Google Gemini API free tier (`gemini-2.5-flash`, `gemini-flash-late
 ### 12. Pending Formal Usability Testing
 No formal usability, accessibility, or human-factors studies have been completed with actual elderly or low-literacy patients in Pakistan. Formal patient and clinician usability trials using the bilingual interface are scheduled for 11–14 November 2026.
 
+### 13. Framingham Heart Study 10-Year Cardiovascular Risk Model Limitations
+The 10-year coronary heart disease model (`chd10_framingham`) is an experimental advisory tool trained on the Framingham Heart Study cohort (1948 cohort, NHLBI). It carries specific clinical and operational limitations:
+1. **Historic US Cohort vs Pakistani Demographics:** The Framingham Heart Study cohort was established in 1948 in Framingham, Massachusetts, comprising predominantly white participants of European descent. Cardiovascular epidemiology demonstrates that South Asian and Pakistani populations develop coronary heart disease 5–10 years earlier on average and at lower BMI thresholds. The baseline event rate in Framingham has not been recalibrated to contemporary Pakistani disease prevalence.
+2. **Clinical vs Home Blood Pressure Measurements:** The training dataset utilized standardized clinical blood pressure measurements performed by trained clinicians with mercury sphygmomanometers. In ChronicCare AI, blood pressure inputs are home self-measurements, which are subject to substantial technique variability, white-coat variance, cuff size errors, and device discrepancies.
+3. **Withholding Numerical Probabilities from Patients:** To prevent anxiety and avoid patient panic, exact percentage estimates are withheld from patients. Patients view only their broad risk band (`Low`, `Moderate`, `High`) along with an explicit educational disclaimer: *"This is an estimate from a research model, not a diagnosis."*
+4. **Advisory Invariant:** The model cannot raise triage to urgent or emergency and cannot alter prescriptions, statins, or antihypertensive regimens. Triage raising (`routine -> review`) remains disabled pending formal doctor sign-off.
+5. **No Cholesterol in Model:** Total serum cholesterol was deliberately omitted to enable a practical, non-invasive non-lab model tier that functions without requiring immediate laboratory blood tests. As a result, dyslipidemia and hypercholesterolemia-driven risk is unmodeled.
+6. **Age Dominance and Elderly Specificity Drop:** For patients 60 and over the model almost always says Moderate or High; age drives it. At the 10% cutoff, specificity is 0.0% for Age 60+ (every individual aged 60+ is flagged as at least Moderate) and 13.5% for Age 50–59. At the 20% cutoff (High Risk), specificity recovers to 28.18% for 60+ and 69.23% for 50–59.
+7. **External Validation Absence:** The model has never been externally validated on Pakistani patients or contemporary South Asian diaspora cohorts.
+
+
