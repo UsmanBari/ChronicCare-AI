@@ -424,6 +424,23 @@ export interface ProviderDirectoryEntry {
   created_at: string;
 }
 
+export interface InAppNotification {
+  id: string;
+  user_id: string;
+  role: string;
+  type: 'urgent_checkin' | 'escalation_renotify' | 'escalation_admin_flag' | 'daily_reminder' | string;
+  title: string;
+  body: string;
+  reference_id?: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface NotificationListResponse {
+  notifications: InAppNotification[];
+  unread_count: number;
+}
+
 export interface UserCheckinSummaryResponse {
   checkin_id: string;
   mode: string;
@@ -1349,5 +1366,56 @@ export const api = {
 
   getAdminEscalations: async (): Promise<{ escalations: Appointment[] }> => {
     return request<{ escalations: Appointment[] }>("/api/admin/escalations");
+  },
+
+  // 10. In-App Notifications & FCM Web Push (PR H / Proposal Sec 13.2 & 15)
+  getMyNotifications: async (): Promise<NotificationListResponse> => {
+    return request<NotificationListResponse>("/api/me/notifications");
+  },
+
+  markNotificationRead: async (notificationId: string): Promise<InAppNotification> => {
+    return request<InAppNotification>(`/api/me/notifications/${encodeURIComponent(notificationId)}/read`, {
+      method: "POST",
+    });
+  },
+
+  markAllNotificationsRead: async (): Promise<{ updated: number }> => {
+    return request<{ updated: number }>("/api/me/notifications/read-all", {
+      method: "POST",
+    });
+  },
+
+  registerFcmToken: async (token: string, deviceInfo?: string): Promise<{ token: string; status: string }> => {
+    return request<{ token: string; status: string }>("/api/me/fcm-token", {
+      method: "POST",
+      body: JSON.stringify({ token, device_info: deviceInfo }),
+    });
+  },
+
+  deleteFcmToken: async (token: string): Promise<{ deleted: boolean }> => {
+    return request<{ deleted: boolean }>("/api/me/fcm-token", {
+      method: "DELETE",
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  getProviderNotifications: async (): Promise<NotificationListResponse> => {
+    return request<NotificationListResponse>("/api/provider/notifications");
+  },
+
+  markProviderNotificationRead: async (notificationId: string): Promise<InAppNotification> => {
+    return request<InAppNotification>(`/api/provider/notifications/${encodeURIComponent(notificationId)}/read`, {
+      method: "POST",
+    });
+  },
+
+  getAdminNotifications: async (): Promise<NotificationListResponse> => {
+    return request<NotificationListResponse>("/api/admin/notifications");
+  },
+
+  markAdminNotificationRead: async (notificationId: string): Promise<InAppNotification> => {
+    return request<InAppNotification>(`/api/admin/notifications/${encodeURIComponent(notificationId)}/read`, {
+      method: "POST",
+    });
   },
 };

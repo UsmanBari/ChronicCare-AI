@@ -1271,6 +1271,88 @@ class LocalAcceptanceRunner:
         except Exception as exc:
             self.results.append({"id": "LA-26", "feature": feat, "status": "FAIL", "evidence": str(exc)})
 
+    def run_la_29(self) -> None:
+        """LA-29: Push notifications for screening reminders and urgent alerts (Sec 13.2 & 15)."""
+        feat = "Push notifications for screening reminders (Sec 13.2)"
+        try:
+            import tempfile
+            from data_sources import app_store
+            from services.notification_service import (
+                notify_urgent_checkin,
+                notify_daily_reminder,
+                send_fcm_push,
+                validate_no_health_values,
+            )
+
+            with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+                t_db = f.name
+
+            try:
+                app_store.migrate(backend="sqlite", db_path=t_db)
+
+                # 1. Urgent check-in creates provider notification without health values
+                prov_n = notify_urgent_checkin(
+                    checkin_id="chk-la29",
+                    patient_id="pat-la29",
+                    patient_name="Ali Khan",
+                    triage_level="red",
+                    provider_id="prov-la29",
+                    db_path=t_db,
+                )
+                urgent_ok = (
+                    prov_n is not None
+                    and prov_n["role"] == "provider"
+                    and "Ali Khan" in prov_n["body"]
+                    and "/" not in prov_n["body"]
+                )
+
+                # 2. Daily reminder creates patient notification without health values
+                pat_n = notify_daily_reminder(
+                    patient_id="pat-la29",
+                    reminder_date_iso="2026-11-12",
+                    db_path=t_db,
+                )
+                reminder_ok = (
+                    pat_n is not None
+                    and pat_n["role"] == "patient"
+                    and "/" not in pat_n["body"]
+                )
+
+                # 3. PHI Guard rejects clinical numbers
+                guard_ok = False
+                try:
+                    validate_no_health_values("Patient BP is 150/95")
+                except ValueError:
+                    guard_ok = True
+
+                # 4. FCM sender is dormant when flag disabled
+                fcm_res = send_fcm_push("pat-la29", "Title", "Body", db_path=t_db)
+                fcm_dormant = fcm_res.get("status") in ("skipped", "dormant")
+
+                # 5. Idempotency: repeating reminder for same date returns existing row
+                repeat_n = notify_daily_reminder(
+                    patient_id="pat-la29",
+                    reminder_date_iso="2026-11-12",
+                    db_path=t_db,
+                )
+                idempotent_ok = repeat_n["id"] == pat_n["id"]
+
+                passed = urgent_ok and reminder_ok and guard_ok and fcm_dormant and idempotent_ok
+                status = "PASS" if passed else "FAIL"
+                ev = (
+                    f"urgent_ok={urgent_ok}; reminder_ok={reminder_ok}; "
+                    f"guard_ok={guard_ok}; fcm_dormant={fcm_dormant}; "
+                    f"idempotent_ok={idempotent_ok}"
+                )
+                self.results.append({"id": "LA-29", "feature": feat, "status": status, "evidence": ev})
+            finally:
+                try:
+                    os.unlink(t_db)
+                except OSError:
+                    pass
+        except Exception as exc:
+            self.results.append({"id": "LA-29", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
     # -------------------------------------------------------------------------
     # PLACEHOLDERS (LA-25 to LA-31)
     # -------------------------------------------------------------------------
@@ -1279,7 +1361,6 @@ class LocalAcceptanceRunner:
         placeholders = [
             ("LA-27", "Diabetes control model for diabetic patients (Sec 13.1)", "Planned in PR F"),
             ("LA-28", "Dense + BM25 hybrid retrieval with ChromaDB (Sec 13.2)", "Planned in PR G"),
-            ("LA-29", "Push notifications for screening reminders (Sec 13.2)", "Planned in PR H"),
             ("LA-30", "Urdu speech synthesis voice output MMS-TTS (Sec 23)", "Planned in PR I"),
             ("LA-31", "Single-LLM clinical baseline benchmark comparison (Sec 36)", "Planned in PR J"),
         ]
@@ -1392,6 +1473,7 @@ class LocalAcceptanceRunner:
             ("LA-24", self.run_la_24),
             ("LA-25", self.run_la_25),
             ("LA-26", self.run_la_26),
+            ("LA-29", self.run_la_29),
         ]
 
         run_start = time.time()

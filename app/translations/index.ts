@@ -241,6 +241,7 @@ export interface Translations {
   emergencyDetectedTitle: string;
   emergencyGuidanceText: string;
   emergencyAlertedText: string;
+  emergencyReviewListText: string;
 
   // M4: Provider Dashboard & Review Queue
   providerDashboardTitle: string;
@@ -248,6 +249,12 @@ export interface Translations {
   activeCasesLabel: string;
   urgentCasesLabel: string;
   notificationsTitle: string;
+  noNotifications: string;
+  markAllRead: string;
+  markRead: string;
+  enableWebPush: string;
+  webPushActive: string;
+  webPushBlocked: string;
   patientListTitle: string;
   reviewQueueTitle: string;
   viewReviewQueueBtn: string;
@@ -840,13 +847,20 @@ export const translations: Record<Language, Translations> = {
     emergencyDetectedTitle: "Emergency Pattern Detected",
     emergencyGuidanceText: "Based on your responses, please seek medical attention promptly.",
     emergencyAlertedText: "Your care provider has been alerted.",
+    emergencyReviewListText: "Your check-in has been sent to your care team's review list.",
 
     // M4: Provider Dashboard & Review Queue
     providerDashboardTitle: "Clinical Provider Dashboard",
     providerSubtitle: "Proactive triage, clinical reconciliation alerts, and review queue.",
     activeCasesLabel: "Active Cases",
     urgentCasesLabel: "Urgent Cases",
-    notificationsTitle: "Clinical Notifications",
+    notificationsTitle: "Notifications",
+    noNotifications: "No notifications yet",
+    markAllRead: "Mark all as read",
+    markRead: "Mark read",
+    enableWebPush: "Enable browser alerts",
+    webPushActive: "Browser alerts active",
+    webPushBlocked: "Browser alerts blocked",
     patientListTitle: "Assigned Patient Cohort",
     reviewQueueTitle: "Clinical Review Queue",
     viewReviewQueueBtn: "Open Review Queue",
@@ -1437,13 +1451,20 @@ export const translations: Record<Language, Translations> = {
     emergencyDetectedTitle: "ایمرجنسی صورتحال کی نشاندہی (Emergency Pattern Detected)",
     emergencyGuidanceText: "آپ کے جوابات کے مطابق، براہ کرم فوری طور پر طبی امداد حاصل کریں۔",
     emergencyAlertedText: "آپ کے ڈاکٹر اور نگہداشت فراہم کنندہ کو الرٹ جاری کر دیا گیا ہے۔",
+    emergencyReviewListText: "آپ کا چیک ان آپ کی نگہداشت ٹیم کی جائزہ فہرست میں بھیج دیا گیا ہے۔",
 
     // M4: Provider Dashboard & Review Queue
     providerDashboardTitle: "کلینیکل پرووائیڈر ڈیش بورڈ",
     providerSubtitle: "مریضوں کی نگرانی، طبی تضادات اور ریویو کیو۔",
     activeCasesLabel: "فعال کیسز",
     urgentCasesLabel: "ارجنٹ کیسز",
-    notificationsTitle: "کلینیکل اطلاعات",
+    notificationsTitle: "اطلاعات (Notifications)",
+    noNotifications: "کوئی اطلاع نہیں ہے",
+    markAllRead: "سب پڑھ لیے گئے",
+    markRead: "پڑھ لیا",
+    enableWebPush: "براؤزر الرٹس فعال کریں",
+    webPushActive: "براؤزر الرٹس فعال ہیں",
+    webPushBlocked: "براؤزر میں الرٹس بلاک ہیں",
     patientListTitle: "نگرانی کے تحت مریض",
     reviewQueueTitle: "کلینیکل ریویو کیو",
     viewReviewQueueBtn: "ریویو کیو کھولیں",

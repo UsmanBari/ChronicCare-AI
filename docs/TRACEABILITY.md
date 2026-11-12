@@ -32,4 +32,6 @@
 | Real-patient clinical evaluation pilot in Pakistani cohort (RQ1-4) | `docs/tasks/WEEK3_USMAN.md` | `backend-poc-technical/test_clinical_rules_doc.py::test_all_clinical_constants_documented_in_rules_register` | `docs/LIMITATIONS.md` | PLANNED (FYP-2, WEEK3_USMAN.md:312: "baselines and pilot **FYP-2**") |
 | Appointment booking matching triage colour and clinical specialty (Sec 15, 37) | `backend-poc-technical/services/appointment_service.py` | `backend-poc-technical/test_appointments.py::test_colour_to_action_routine_green` | `docs/APPOINTMENTS.md` | BUILT |
 | Red-flag escalation timeout tracking with 24h admin audit alert (Sec 15, 37) | `backend-poc-technical/services/appointment_service.py` | `backend-poc-technical/test_appointments.py::test_escalation_timeout_milestones` | `docs/APPOINTMENTS.md` | BUILT |
+| In-app notification centre and daily reminder alerts (Sec 13.2, 35, 37) | `backend-poc-technical/services/notification_service.py` | `backend-poc-technical/test_notifications.py::test_urgent_checkin_notification_idempotent` | `docs/NOTIFICATIONS.md` | BUILT |
+| Web push notification service with FCM (Sec 13.2, 35, 37) | `backend-poc-technical/services/notification_service.py` | `backend-poc-technical/test_notifications.py::test_fcm_push_dormant_when_flag_off` | `docs/NOTIFICATIONS.md` | BUILT |
 

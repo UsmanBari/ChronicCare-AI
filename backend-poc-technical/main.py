@@ -220,7 +220,25 @@ async def lifespan(app: FastAPI):
             logger.info("DbChunkStore loaded at startup: %d chunks", store.total_chunks())
         except Exception as e:
             logger.warning("DbChunkStore startup load skipped: %s", type(e).__name__)
+
+    reminder_task = None
+    if os.environ.get("REMINDERS_ENABLED", "").strip().lower() in ("true", "1", "yes"):
+        try:
+            import asyncio
+            from services.reminder_service import reminder_worker_loop
+            reminder_task = asyncio.create_task(reminder_worker_loop(interval_seconds=60))
+            logger.info("Reminder background worker launched.")
+        except Exception as e:
+            logger.warning("Failed to launch reminder background worker: %s", e)
+
     yield
+
+    if reminder_task:
+        reminder_task.cancel()
+        try:
+            await reminder_task
+        except (asyncio.CancelledError, Exception):
+            pass
 
 
 class DynamicCORSMiddleware(CORSMiddleware):
@@ -5801,5 +5819,164 @@ def get_admin_escalations(current_user: Dict[str, Any] = Depends(require_role("d
     enhanced = [compute_escalation_state(a) for a in raw_list]
     escalations = [a for a in enhanced if a.get("escalation_state") == "admin_flag"]
     return {"escalations": escalations}
+
+
+# ---------------------------------------------------------------------------
+# Notifications & FCM Web Push Endpoints (PR I4-H)
+# ---------------------------------------------------------------------------
+
+class FcmTokenRequest(BaseModel):
+    token: str
+    device_info: Optional[str] = None
+
+
+@app.get("/api/me/notifications", tags=["Notifications"])
+def get_my_notifications(
+    unread_only: bool = False,
+    limit: int = 50,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """
+    Retrieves in-app notifications for the authenticated patient.
+    Checks and generates due daily reminder on the fly when the app opens (N3).
+    """
+    from services.reminder_service import is_patient_reminder_due
+    from services.notification_service import notify_daily_reminder
+    from data_sources.app_store import list_notifications, count_unread_notifications
+    from datetime import datetime, timezone
+
+    user_id = current_user["user_id"]
+
+    # Compute due reminders on open (N3)
+    try:
+        now_utc = datetime.now(timezone.utc)
+        if is_patient_reminder_due(user_id=user_id, now_dt=now_utc):
+            notify_daily_reminder(patient_id=user_id, reminder_date_iso=now_utc.strftime("%Y-%m-%d"))
+    except Exception as e:
+        logger.warning("On-open reminder check failed: %s", e)
+
+    notifs = list_notifications(recipient_id=user_id, role="patient", unread_only=unread_only, limit=limit)
+    unread = count_unread_notifications(recipient_id=user_id, role="patient")
+    return {"notifications": notifs, "unread_count": unread}
+
+
+@app.post("/api/me/notifications/{notification_id}/read", tags=["Notifications"])
+def mark_my_notification_read(
+    notification_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Marks a patient notification as read."""
+    from data_sources.app_store import mark_notification_read, get_notification
+
+    notif = get_notification(notification_id)
+    if not notif or notif.get("recipient_id") != current_user["user_id"]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+
+    updated = mark_notification_read(notification_id, recipient_id=current_user["user_id"])
+    return updated
+
+
+@app.post("/api/me/notifications/read-all", tags=["Notifications"])
+def mark_all_my_notifications_read(
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Marks all unread notifications for authenticated patient as read."""
+    from data_sources.app_store import mark_all_notifications_read
+
+    count = mark_all_notifications_read(recipient_id=current_user["user_id"], role="patient")
+    return {"updated": count}
+
+
+@app.post("/api/me/fcm-token", tags=["Notifications"])
+def register_fcm_token(
+    req: FcmTokenRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Registers an FCM web push token for the authenticated user."""
+    from data_sources.app_store import save_fcm_token
+
+    if not req.token or not req.token.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Token cannot be empty")
+
+    res = save_fcm_token(
+        user_id=current_user["user_id"],
+        token=req.token.strip(),
+        device_info=req.device_info,
+    )
+    return res
+
+
+@app.delete("/api/me/fcm-token", tags=["Notifications"])
+def remove_fcm_token(
+    req: FcmTokenRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Unregisters an FCM web push token."""
+    from data_sources.app_store import delete_fcm_token
+
+    delete_fcm_token(user_id=current_user["user_id"], token=req.token.strip())
+    return {"status": "unregistered"}
+
+
+@app.get("/api/provider/notifications", tags=["Notifications"])
+def get_provider_notifications(
+    unread_only: bool = False,
+    limit: int = 50,
+    current_user: Dict[str, Any] = Depends(require_role("doctor", "provider")),
+):
+    """Retrieves notifications for clinical providers (urgent check-ins and 2h re-notifications)."""
+    from data_sources.app_store import list_notifications, count_unread_notifications
+
+    prov_id = current_user.get("user_id") or "prov-demo-gen-1"
+    notifs = list_notifications(role="provider", unread_only=unread_only, limit=limit)
+    matched = [n for n in notifs if n.get("recipient_id") in (prov_id, "prov-demo-gen-1", "prov-demo-cardio", "prov-demo-endo", "prov-demo-im")]
+    unread = count_unread_notifications(role="provider")
+    return {"notifications": matched, "unread_count": unread}
+
+
+@app.post("/api/provider/notifications/{notification_id}/read", tags=["Notifications"])
+def mark_provider_notification_read(
+    notification_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("doctor", "provider")),
+):
+    """Marks a provider notification as read."""
+    from data_sources.app_store import mark_notification_read, get_notification
+
+    notif = get_notification(notification_id)
+    if not notif or notif.get("role") != "provider":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+
+    updated = mark_notification_read(notification_id)
+    return updated
+
+
+@app.get("/api/admin/notifications", tags=["Notifications"])
+def get_admin_notifications(
+    unread_only: bool = False,
+    limit: int = 50,
+    current_user: Dict[str, Any] = Depends(require_role("admin")),
+):
+    """Retrieves administrative escalation notifications (24h admin flags)."""
+    from data_sources.app_store import list_notifications, count_unread_notifications
+
+    notifs = list_notifications(role="admin", unread_only=unread_only, limit=limit)
+    unread = count_unread_notifications(role="admin")
+    return {"notifications": notifs, "unread_count": unread}
+
+
+@app.post("/api/admin/notifications/{notification_id}/read", tags=["Notifications"])
+def mark_admin_notification_read(
+    notification_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("admin")),
+):
+    """Marks an admin notification as read."""
+    from data_sources.app_store import mark_notification_read, get_notification
+
+    notif = get_notification(notification_id)
+    if not notif or notif.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+
+    updated = mark_notification_read(notification_id)
+    return updated
 
 
