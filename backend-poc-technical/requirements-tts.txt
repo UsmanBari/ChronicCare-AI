@@ -1,0 +1,6 @@
+# Meta MMS-TTS Optional Dependencies (PR I4-I)
+# Only imported when TTS_ENABLED=true (default false)
+# Non-commercial academic FYP licence: CC-BY-NC 4.0
+torch>=2.0.0
+transformers>=4.33.0
+scipy>=1.10.0

@@ -1455,6 +1455,137 @@ class LocalAcceptanceRunner:
         except Exception as exc:
             self.results.append({"id": "LA-29", "feature": feat, "status": "FAIL", "evidence": str(exc)})
 
+    def run_la_30(self) -> None:
+        """LA-30: Urdu and English voice output for explanations (Meta MMS-TTS, Sec 23)."""
+        feat = "Urdu and English speech synthesis voice output (Meta MMS-TTS, Sec 23)"
+        try:
+            import tempfile
+            import shutil
+            from voice.tts_service import (
+                generate_fake_wav,
+                get_emergency_speech,
+                get_checkin_speech,
+                resolve_explanation_text_to_speak,
+                RomanUrduVoiceUnavailableError,
+            )
+            from data_sources import app_store
+
+            with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+                t_db = f.name
+            t_cache = tempfile.mkdtemp(prefix="tts_cache_")
+            orig_flag = os.environ.get("TTS_ENABLED")
+            orig_data_dir = os.environ.get("CHRONICCARE_DATA_DIR")
+            os.environ["TTS_ENABLED"] = "true"
+            os.environ["CHRONICCARE_DATA_DIR"] = t_cache
+
+            try:
+                app_store.migrate(backend="sqlite", db_path=t_db)
+                # 1. WAV generation produces valid RIFF WAVE header
+                fake_wav = generate_fake_wav("ٹیسٹ جملہ")
+                wav_ok = (
+                    isinstance(fake_wav, bytes)
+                    and len(fake_wav) > 44
+                    and fake_wav[:4] == b"RIFF"
+                    and fake_wav[8:12] == b"WAVE"
+                )
+
+                # 2. Emergency speech returns valid WAV in Urdu and English
+                ur_em = get_emergency_speech("ur")
+                en_em = get_emergency_speech("en")
+                emergency_ok = (
+                    ur_em.startswith(b"RIFF")
+                    and en_em.startswith(b"RIFF")
+                    and len(ur_em) > 44
+                    and len(en_em) > 44
+                )
+
+                # 3. Check-in explanation speech: creates checkin and verifies synthesis
+                app_store.create_checkin(
+                    checkin_id="chk-v1",
+                    user_id="pat-voice",
+                    mode="isolated",
+                    record_patient_id="pat-voice",
+                    state_dict={"language": "ur"},
+                    status="complete",
+                    db_path=t_db,
+                )
+                expl = {
+                    "status": "ready",
+                    "template_key": "bp_urgent",
+                    "sentences": [{"text": "آپ کا بلڈ پریشر خطرناک حد تک زیادہ ہے"}],
+                    "sources": [],
+                }
+                app_store.create_checkin_result(
+                    "chk-v1",
+                    emergency=False,
+                    intakes=[],
+                    explanation=expl,
+                    db_path=t_db,
+                )
+
+                chk_wav = get_checkin_speech("chk-v1", current_user_id="pat-voice", db_path=t_db)
+                checkin_ok = chk_wav.startswith(b"RIFF") and len(chk_wav) > 44
+
+                # 4. Roman Urdu without template raises RomanUrduVoiceUnavailableError
+                app_store.create_checkin(
+                    checkin_id="chk-v2",
+                    user_id="pat-voice",
+                    mode="isolated",
+                    record_patient_id="pat-voice",
+                    state_dict={"language": "roman_ur"},
+                    status="complete",
+                    db_path=t_db,
+                )
+                expl_roman = {
+                    "status": "ready",
+                    "sentences": [{"text": "Aap ka blood pressure ziada hai"}],
+                    "sources": [],
+                }
+                app_store.create_checkin_result(
+                    "chk-v2",
+                    emergency=False,
+                    intakes=[],
+                    explanation=expl_roman,
+                    db_path=t_db,
+                )
+                roman_conflict_ok = False
+                try:
+                    resolve_explanation_text_to_speak("chk-v2", current_user_id="pat-voice", db_path=t_db)
+                except RomanUrduVoiceUnavailableError:
+                    roman_conflict_ok = True
+
+                # 5. Role isolation: another patient cannot access
+                ownership_ok = False
+                try:
+                    get_checkin_speech("chk-v1", current_user_id="pat-other", db_path=t_db)
+                except PermissionError:
+                    ownership_ok = True
+
+                passed = wav_ok and emergency_ok and checkin_ok and roman_conflict_ok and ownership_ok
+                status = "PASS" if passed else "FAIL"
+                ev = (
+                    f"wav_ok={wav_ok}; emergency_ok={emergency_ok}; "
+                    f"checkin_ok={checkin_ok}; roman_conflict_ok={roman_conflict_ok}; "
+                    f"ownership_ok={ownership_ok}"
+                )
+                self.results.append({"id": "LA-30", "feature": feat, "status": status, "evidence": ev})
+            finally:
+                if orig_flag is None:
+                    os.environ.pop("TTS_ENABLED", None)
+                else:
+                    os.environ["TTS_ENABLED"] = orig_flag
+                if orig_data_dir is None:
+                    os.environ.pop("CHRONICCARE_DATA_DIR", None)
+                else:
+                    os.environ["CHRONICCARE_DATA_DIR"] = orig_data_dir
+                try:
+                    os.unlink(t_db)
+                except OSError:
+                    pass
+                shutil.rmtree(t_cache, ignore_errors=True)
+        except Exception as exc:
+            self.results.append({"id": "LA-30", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
     # -------------------------------------------------------------------------
     # PLACEHOLDERS (LA-25 to LA-31)
     # -------------------------------------------------------------------------
@@ -1463,7 +1594,6 @@ class LocalAcceptanceRunner:
         placeholders = [
             ("LA-27", "Diabetes control model for diabetic patients (Sec 13.1)", "Planned in PR F"),
             ("LA-28", "Dense + BM25 hybrid retrieval with ChromaDB (Sec 13.2)", "Planned in PR G"),
-            ("LA-30", "Urdu speech synthesis voice output MMS-TTS (Sec 23)", "Planned in PR I"),
             ("LA-31", "Single-LLM clinical baseline benchmark comparison (Sec 36)", "Planned in PR J"),
         ]
         for cid, feat, ev in placeholders:
@@ -1567,6 +1697,7 @@ class LocalAcceptanceRunner:
             ("LA-25", self.run_la_25),
             ("LA-26", self.run_la_26),
             ("LA-29", self.run_la_29),
+            ("LA-30", self.run_la_30),
         ]
 
         run_start = time.time()

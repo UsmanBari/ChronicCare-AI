@@ -382,6 +382,10 @@ export interface AdminConfigStatusResponse {
   };
 }
 
+export interface VoiceStatusResponse {
+  tts_enabled: boolean;
+}
+
 export interface CheckinCompleteResponse {
   emergency: boolean;
   intakes: Array<Record<string, any>>;
@@ -945,6 +949,46 @@ async function request<T>(
   }
 }
 
+async function requestBlob(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<Blob> {
+  const baseUrl = getBaseUrl();
+  const url = `${baseUrl}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  const defaultHeaders = await getAuthHeaders();
+  delete defaultHeaders["Content-Type"];
+
+  const finalHeaders: Record<string, string> = {
+    ...defaultHeaders,
+    ...(options.headers as Record<string, string> | undefined),
+  };
+
+  const response = await fetch(url, {
+    ...options,
+    headers: finalHeaders,
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      notifyUnauthorized();
+    }
+    let detail = `HTTP ${response.status}`;
+    let data: any = null;
+    try {
+      const errJson = await response.json();
+      data = errJson;
+      if (errJson && errJson.detail) {
+        detail = typeof errJson.detail === "string" ? errJson.detail : JSON.stringify(errJson.detail);
+      }
+    } catch {
+      // response is not JSON
+    }
+    throw new ApiError(response.status, detail, data);
+  }
+
+  return await response.blob();
+}
+
 const inFlightCompleteRequests = new Map<string, Promise<CheckinCompleteResponse>>();
 
 export const api = {
@@ -1192,6 +1236,35 @@ export const api = {
         method: "GET",
       }
     );
+  },
+
+  getCheckinSpeech: async (
+    checkin_id: string
+  ): Promise<Blob> => {
+    return requestBlob(
+      `/api/checkins/${encodeURIComponent(checkin_id)}/speech`,
+      {
+        method: "POST",
+      }
+    );
+  },
+
+  getEmergencySpeech: async (
+    lang?: string
+  ): Promise<Blob> => {
+    const query = lang ? `?lang=${encodeURIComponent(lang)}` : "";
+    return requestBlob(
+      `/api/emergency/speech${query}`,
+      {
+        method: "POST",
+      }
+    );
+  },
+
+  getVoiceStatus: async (): Promise<VoiceStatusResponse> => {
+    return request<VoiceStatusResponse>("/api/voice/status", {
+      method: "GET",
+    });
   },
 
   getUserCheckins: async (): Promise<UserCheckinSummaryResponse[]> => {

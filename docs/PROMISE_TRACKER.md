@@ -104,7 +104,7 @@
 | Pure SQLite Local Storage for Fully Isolated Operation | Sec 23 | `backend-poc-technical/data_sources/local_store.py` | LA-01, LA-02 | **PASS** | Usman | Done |
 | PyJWT Google Public Key Token Verification (RS256) | Sec 23 | `backend-poc-technical/auth/firebase_verify.py` | LA-01 | **PASS** | Usman | Done |
 | Voice Transcription Input (Whisper STT endpoint) | Sec 23 | `backend-poc-technical/main.py` | LA-16 | **PASS** | Hassaan | Done |
-| Urdu Speech Synthesis Voice Output (Meta MMS-TTS Urdu) | Sec 23 | `backend-poc-technical/voice/` | LA-30 | **NOT BUILT YET** | Hassaan | 14 Nov 2026 (PR I) |
+| Urdu Speech Synthesis Voice Output (Meta MMS-TTS Urdu) | Sec 23 | `backend-poc-technical/voice/` | LA-30 | **PASS** | Hassaan | Done (PR I) |
 | LangGraph State-Graph Orchestrator Execution | Sec 23 | `backend-poc-technical/orchestrator/graph.py` | LA-01 | **PASS** | Usman | Done |
 
 ---
