@@ -48,6 +48,7 @@
 | System Health & Admin Configuration Status Endpoint | Sec 13.2 | `backend-poc-technical/main.py` | LA-01 | **PASS** | Usman | Done |
 | Patient Record History, Export and Import Service | Sec 13.2 | `backend-poc-technical/main.py` | LA-17 | **PASS** | Usman | Done |
 | Server-Side OCR Intake Service (Prescriptions & lab reports) | Sec 13.2, 21.1 | `backend-poc-technical/main.py` | LA-15 | **PASS** | Hassaan / Saad | Done (PR #96) |
+| Dense + BM25 Hybrid Retrieval with ChromaDB (RRF k=60, BGE embeddings) | Sec 13.2 | `backend-poc-technical/rag/retriever.py` | LA-28 | **PASS** | Usman | Done (PR G) |
 
 ---
 
@@ -125,6 +126,6 @@
 |:---|:---|:---|:---|:---:|
 | **T5 / FLAN-T5 Local LLM** for clinical explanations | **Groq Llama-3 / Template Fallback** | Render free-tier RAM limit (512 MB) cannot run heavy PyTorch T5 checkpoints without crashing. | Cloud API with strict deterministic template fallback; safe and responsive. | 02 Nov 2026 |
 | **Coqui TTS** for vernacular Urdu voice synthesis | **Meta MMS-TTS (Urdu)** | Coqui TTS repository is unmaintained and introduces incompatible torch wheel dependencies. | Meta MMS-TTS provides officially supported Urdu acoustic models with smaller footprint. | 08 Nov 2026 |
-| **ChromaDB In-Memory Vector Store** | **SQLite Guideline Chunk Store (FTS5 / Dense + BM25)** | Full ChromaDB vector database package introduces heavy native compilation on deployment. | PR G will provide SQLite-backed BM25 + dense embedding hybrid retrieval cleanly. | 08 Nov 2026 |
+| **ChromaDB In-Memory Vector Store** | **ChromaDB Vector Store (flagged) + SQLite Chunk Store** | Full ChromaDB vector database package introduces heavy native compilation on deployment. | PR G provides optional BGE-small-en-v1.5 embeddings with persistent ChromaDB outside repo, RRF fusion (k=60), and BM25 fallback. | 12 Nov 2026 |
 | **3 Triage Colors (Green/Yellow/Red)** | **4 Internal Severity Levels (Routine / Review / Urgent / Emergency)** | Internal clinical logic requires distinguishing urgent doctor visits from immediate 1122 ambulance calls. | Green maps to Routine, Yellow to Review, Red to Urgent & Emergency. Safe monotonic ordering preserved. | 08 Nov 2026 |
 

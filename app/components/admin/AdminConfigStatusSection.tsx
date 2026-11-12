@@ -47,6 +47,7 @@ export const AdminConfigStatusSection: React.FC = () => {
           RISK_PATIENT_VISIBLE: false,
           NO_READING_SYMPTOM_RAISE: false,
           RISK_RAISE_COOLDOWN_DAYS: "0",
+          RETRIEVER: "bm25",
         },
         keys_and_models: {
           GROQ_API_KEY: "SET",

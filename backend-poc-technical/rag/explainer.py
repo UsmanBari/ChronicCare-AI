@@ -436,8 +436,11 @@ def get_template_explanation(
             entry["full_citation"] = citation
         if doi and str(doi).upper() != "TO FILL BY USMAN":
             entry["doi"] = doi
+        if c.get("retriever"):
+            entry["retriever"] = c["retriever"]
         sources.append(entry)
 
+    retriever_name = "hybrid" if any(c.get("retriever") == "hybrid" for c in candidate_chunks) else os.environ.get("RETRIEVER", "bm25").strip().lower()
     res = {
         "sentences": formatted_sentences,
         "sources": sources,
@@ -445,6 +448,7 @@ def get_template_explanation(
         "mode": "template",
         "rejected_reasons": rejected_reasons,
         "version": EXPLAINER_VERSION,
+        "retriever": retriever_name,
     }
     if is_corrected:
         res["reason"] = "template_corrected"
@@ -483,11 +487,20 @@ def explain(
         chunks = []
         retriever_obj = retriever
         if retriever_obj is None and store is not None:
-            try:
-                from rag.explain_guards import get_or_build_retriever
-                retriever_obj = get_or_build_retriever(store)
-            except Exception:
-                retriever_obj = BM25Retriever(store)
+            retriever_type = os.environ.get("RETRIEVER", "bm25").lower().strip()
+            if retriever_type == "hybrid":
+                try:
+                    from rag.retriever import HybridRetriever
+                    retriever_obj = HybridRetriever(store)
+                except Exception as exc:
+                    logger.warning("HybridRetriever failed to initialize, falling back to BM25: %s", exc)
+                    retriever_obj = BM25Retriever(store)
+            else:
+                try:
+                    from rag.explain_guards import get_or_build_retriever
+                    retriever_obj = get_or_build_retriever(store)
+                except Exception:
+                    retriever_obj = BM25Retriever(store)
             if retriever_obj is None:
                 retriever_obj = BM25Retriever(store)
 
@@ -720,8 +733,11 @@ def explain(
                 entry["full_citation"] = citation
             if doi and str(doi).upper() != "TO FILL BY USMAN":
                 entry["doi"] = doi
+            if c.get("retriever"):
+                entry["retriever"] = c["retriever"]
             sources.append(entry)
 
+        retriever_name = "hybrid" if any(c.get("retriever") == "hybrid" for c in candidate_chunks) else os.environ.get("RETRIEVER", "bm25").strip().lower()
         return {
             "sentences": final_sentences,
             "sources": sources,
@@ -729,6 +745,7 @@ def explain(
             "mode": "llm",
             "rejected_reasons": [],
             "version": EXPLAINER_VERSION,
+            "retriever": retriever_name,
         }
 
     except Exception as exc:

@@ -43,6 +43,11 @@ Load the licensed medical guideline chunks into your local database:
 ```powershell
 $env:DB_BACKEND = "sqlite"
 python scripts/rag/load_chunks.py --file (Join-Path $env:CHRONICCARE_DATA_DIR "rag\chunks.jsonl")
+
+# (Optional: Build Dense ChromaDB Index for Hybrid Retrieval - PR G)
+# If using RETRIEVER=hybrid, install dense requirements and build persistent index:
+pip install -r backend-poc-technical/requirements-rag-dense.txt
+python scripts/rag/build_dense_index.py
 ```
 
 ### Step 7: Configure Local Environment (`backend-poc-technical/.env.localdemo`)
@@ -58,7 +63,7 @@ Other local demo settings:
 - `GROQ_API_KEY=<copy from Render>`
 - `GROQ_MODEL=<copy from Render>` (copy the exact model configured on Render).
 - `DEMO_ROLE_MAP=<copy from Render>` (format: `provider.demo@demo.care:provider,admin.demo@demo.care:admin`).
-- Feature flags: `RISK_ENABLED=true`, `RISK_CAN_RAISE=true`, `RISK_PATIENT_VISIBLE=true`, `TREND_CAN_RAISE=true`, `EXPLAIN_ENABLED=true`, `EXPLAIN_MODE=background`, `OCR_ENABLED=true`, `DANGER_WORDGROUPS_ENABLED=true`, `ORCHESTRATOR=graph`, `INTERVIEW_ENGINE=v2`.
+- Feature flags: `RISK_ENABLED=true`, `RISK_CAN_RAISE=true`, `RISK_PATIENT_VISIBLE=true`, `TREND_CAN_RAISE=true`, `EXPLAIN_ENABLED=true`, `EXPLAIN_MODE=background`, `RETRIEVER=bm25` (or `hybrid`), `OCR_ENABLED=true`, `DANGER_WORDGROUPS_ENABLED=true`, `ORCHESTRATOR=graph`, `INTERVIEW_ENGINE=v2`.
 - Optional acceptance keys (for unattended runs): `FIREBASE_WEB_API_KEY`, `LOCAL_PROVIDER_EMAIL`, `LOCAL_PROVIDER_PASSWORD`, `LOCAL_ADMIN_EMAIL`, `LOCAL_ADMIN_PASSWORD`.
 
 *Note: `backend-poc-technical/.env.localdemo` is git-ignored (verified by `git check-ignore -v`). Never commit it.*
