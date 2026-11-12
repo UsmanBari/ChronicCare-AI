@@ -276,9 +276,7 @@ describe("Appointments Workflow & Provider Directory (I4-D)", () => {
 
       vi.spyOn(api, "getAdminConfigStatus").mockResolvedValue({
         settings: [],
-        flags: {} as any,
-        queue_depth: 0,
-        worker_alive: false,
+        flags: {},
       });
       vi.spyOn(api, "getAdminProviders").mockResolvedValue({ providers: mockProviders });
       vi.spyOn(api, "getAdminEscalations").mockResolvedValue({ escalations: mockEscalations });
