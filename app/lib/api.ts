@@ -140,6 +140,7 @@ export interface OcrExtractedObservation {
   unit: string;
   date?: string | null;
   evidence?: string | null;
+  confidence?: string | null;
 }
 
 export interface OcrExtractedMedication {
@@ -148,6 +149,9 @@ export interface OcrExtractedMedication {
   dosage: string;
   status: string;
   evidence?: string | null;
+  confidence?: string | null;
+  dose?: string | null;
+  frequency?: string | null;
 }
 
 export interface OcrExtractedAllergy {
