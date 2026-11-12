@@ -1208,6 +1208,43 @@ class LocalAcceptanceRunner:
         except Exception as exc:
             self.results.append({"id": "LA-26", "feature": feat, "status": "FAIL", "evidence": str(exc)})
 
+    def run_la_31(self) -> None:
+        """LA-31: Single-LLM clinical baseline benchmark comparison (Sec 36)."""
+        feat = "Single-LLM clinical baseline benchmark comparison (Sec 36)"
+        try:
+            data_dir = os.environ.get("CHRONICCARE_DATA_DIR") or r"C:\Users\usmanbari\Desktop\Chronicare-data"
+            eval_dir = Path(data_dir) / "eval"
+            json_files = sorted(eval_dir.glob("single_llm_baseline_*.json")) if eval_dir.exists() else []
+
+            if not json_files:
+                self.results.append({"id": "LA-31", "feature": feat, "status": "FAIL", "evidence": f"No benchmark results found matching {eval_dir}/single_llm_baseline_*.json"})
+                return
+
+            latest_file = json_files[-1]
+            with open(latest_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            metrics = data.get("metrics", {})
+            pipe = metrics.get("pipeline", {})
+            base = metrics.get("baseline", {})
+
+            required_keys = ("accuracy", "under_triage_count", "emergency_recall", "consistency")
+            pipe_valid = all(k in pipe for k in required_keys)
+            base_valid = all(k in base for k in required_keys)
+            n_sc = data.get("n_scenarios", 0)
+
+            if pipe_valid and base_valid and n_sc > 0:
+                ev = (
+                    f"file={latest_file.name}; N={n_sc}; pipe_acc={pipe['accuracy']*100:.1f}%; "
+                    f"base_acc={base['accuracy']*100:.1f}%; pipe_emerg_rec={pipe['emergency_recall']*100:.1f}%; "
+                    f"base_consistency={base['consistency']*100:.1f}%"
+                )
+                self.results.append({"id": "LA-31", "feature": feat, "status": "PASS", "evidence": ev})
+            else:
+                self.results.append({"id": "LA-31", "feature": feat, "status": "FAIL", "evidence": f"Missing metric keys in {latest_file.name}"})
+        except Exception as exc:
+            self.results.append({"id": "LA-31", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
     # -------------------------------------------------------------------------
     # PLACEHOLDERS (LA-25 to LA-31)
     # -------------------------------------------------------------------------
@@ -1219,7 +1256,6 @@ class LocalAcceptanceRunner:
             ("LA-28", "Dense + BM25 hybrid retrieval with ChromaDB (Sec 13.2)", "Planned in PR G"),
             ("LA-29", "Push notifications for screening reminders (Sec 13.2)", "Planned in PR H"),
             ("LA-30", "Urdu speech synthesis voice output MMS-TTS (Sec 23)", "Planned in PR I"),
-            ("LA-31", "Single-LLM clinical baseline benchmark comparison (Sec 36)", "Planned in PR J"),
         ]
         for cid, feat, ev in placeholders:
             self.results.append({"id": cid, "feature": feat, "status": "NOT BUILT YET", "evidence": ev})
@@ -1329,6 +1365,7 @@ class LocalAcceptanceRunner:
             ("LA-23b", self.run_la_23b),
             ("LA-24", self.run_la_24),
             ("LA-26", self.run_la_26),
+            ("LA-31", self.run_la_31),
         ]
 
         run_start = time.time()
