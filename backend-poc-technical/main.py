@@ -3928,6 +3928,7 @@ def get_config_status_endpoint(current_user: Dict[str, Any] = Depends(require_ro
         "RISK_PATIENT_VISIBLE": os.environ.get("RISK_PATIENT_VISIBLE", "").strip().lower() == "true",
         "NO_READING_SYMPTOM_RAISE": os.environ.get("NO_READING_SYMPTOM_RAISE", "").strip().lower() == "true",
         "RISK_RAISE_COOLDOWN_DAYS": int(os.environ.get("RISK_RAISE_COOLDOWN_DAYS", "0") or 0),
+        "TTS_ENABLED": os.environ.get("TTS_ENABLED", "").strip().lower() == "true",
     }
 
     def _status_val(env_var: str) -> str:
@@ -5062,6 +5063,15 @@ def get_checkin_explanation_endpoint(
         sentences=patient_view.get("sentences", []),
         sources=patient_view.get("sources", []),
     )
+
+
+@app.get("/api/voice/status", tags=["Voice"])
+def get_voice_status_endpoint():
+    """
+    Returns whether TTS speech synthesis is enabled (boolean flag only).
+    """
+    from voice import tts_service
+    return {"tts_enabled": bool(tts_service.is_tts_enabled())}
 
 
 @app.post("/api/checkins/{checkin_id}/speech", tags=["Check-in"])

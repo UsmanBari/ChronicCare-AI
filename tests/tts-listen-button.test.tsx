@@ -34,6 +34,9 @@ describe("TTS Listen Button & Speech Integration (Part I4-I)", () => {
     // Mock URL.createObjectURL and revokeObjectURL
     window.URL.createObjectURL = vi.fn(() => "blob:http://localhost/fake-audio");
     window.URL.revokeObjectURL = vi.fn();
+
+    // Default voice status: enabled
+    vi.spyOn(api, "getVoiceStatus").mockResolvedValue({ tts_enabled: true });
   });
 
   afterEach(() => {
@@ -56,7 +59,7 @@ describe("TTS Listen Button & Speech Integration (Part I4-I)", () => {
     const toggleBtn = screen.getByTestId("explanation-toggle-btn");
     fireEvent.click(toggleBtn);
 
-    const listenBtn = screen.getByTestId("explanation-speech-btn");
+    const listenBtn = await screen.findByTestId("explanation-speech-btn");
     expect(listenBtn).toBeDefined();
     expect(listenBtn.textContent).toContain("Listen");
 
@@ -89,7 +92,7 @@ describe("TTS Listen Button & Speech Integration (Part I4-I)", () => {
     const toggleBtn = screen.getByTestId("explanation-toggle-btn");
     fireEvent.click(toggleBtn);
 
-    const listenBtn = screen.getByTestId("explanation-speech-btn");
+    const listenBtn = await screen.findByTestId("explanation-speech-btn");
     expect(listenBtn.textContent).toContain("وضاحت سنیں");
   });
 
@@ -109,7 +112,7 @@ describe("TTS Listen Button & Speech Integration (Part I4-I)", () => {
     const toggleBtn = screen.getByTestId("explanation-toggle-btn");
     fireEvent.click(toggleBtn);
 
-    const listenBtn = screen.getByTestId("explanation-speech-btn");
+    const listenBtn = await screen.findByTestId("explanation-speech-btn");
     fireEvent.click(listenBtn);
 
     await waitFor(() => {
@@ -126,7 +129,7 @@ describe("TTS Listen Button & Speech Integration (Part I4-I)", () => {
 
     render(<EmergencyScreen />);
 
-    const speechBtn = screen.getByTestId("emergency-speech-btn");
+    const speechBtn = await screen.findByTestId("emergency-speech-btn");
     expect(speechBtn.textContent).toContain("Listen to Instructions");
 
     fireEvent.click(speechBtn);
@@ -146,7 +149,7 @@ describe("TTS Listen Button & Speech Integration (Part I4-I)", () => {
 
     render(<EmergencyScreen />);
 
-    const speechBtn = screen.getByTestId("emergency-speech-btn");
+    const speechBtn = await screen.findByTestId("emergency-speech-btn");
     expect(speechBtn.textContent).toContain("ایمرجنسی ہدایات سنیں");
 
     fireEvent.click(speechBtn);
@@ -159,13 +162,63 @@ describe("TTS Listen Button & Speech Integration (Part I4-I)", () => {
 
     render(<EmergencyScreen />);
 
-    const speechBtn = screen.getByTestId("emergency-speech-btn");
+    const speechBtn = await screen.findByTestId("emergency-speech-btn");
     fireEvent.click(speechBtn);
 
     await waitFor(() => {
       const errorMsg = screen.getByTestId("emergency-speech-error");
       expect(errorMsg.textContent).toBe("Voice output unavailable");
       expect(screen.queryByText(/502 Bad Gateway/i)).toBeNull();
+    });
+  });
+
+  describe("Voice Flag Gating (TTS_ENABLED)", () => {
+    it("hides Listen button in ExplanationBox when voice is off (tts_enabled=false)", async () => {
+      vi.spyOn(api, "getVoiceStatus").mockResolvedValue({ tts_enabled: false });
+
+      const explanation: PatientExplanation = {
+        status: "ready",
+        sentences: [{ text: "Normal findings.", cites: [] }],
+        sources: [],
+      };
+
+      render(<ExplanationBox explanation={explanation} emergency={false} checkinId="chk-off" />);
+
+      const toggleBtn = screen.getByTestId("explanation-toggle-btn");
+      fireEvent.click(toggleBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("explanation-content")).toBeDefined();
+      });
+
+      expect(screen.queryByTestId("explanation-speech-btn")).toBeNull();
+    });
+
+    it("hides Listen to Instructions button on EmergencyScreen when voice is off (tts_enabled=false)", async () => {
+      vi.spyOn(api, "getVoiceStatus").mockResolvedValue({ tts_enabled: false });
+
+      render(<EmergencyScreen />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("emergency-alert-status-text")).toBeDefined();
+      });
+
+      expect(screen.queryByTestId("emergency-speech-btn")).toBeNull();
+
+      // Invariant: 1122 call shortcut remains visible and unchanged
+      const call1122 = screen.getByRole("link", { name: /1122/i });
+      expect(call1122).toBeDefined();
+      expect(call1122.getAttribute("href")).toBe("tel:1122");
+    });
+
+    it("preserves 1122 call button as first and unchanged regardless of voice flag", async () => {
+      vi.spyOn(api, "getVoiceStatus").mockResolvedValue({ tts_enabled: true });
+
+      render(<EmergencyScreen />);
+
+      const call1122 = screen.getByRole("link", { name: /1122/i });
+      expect(call1122).toBeDefined();
+      expect(call1122.getAttribute("href")).toBe("tel:1122");
     });
   });
 });

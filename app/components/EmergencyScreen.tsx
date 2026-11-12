@@ -10,7 +10,22 @@ export const EmergencyScreen = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingSpeech, setIsLoadingSpeech] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
+  const [isTtsEnabled, setIsTtsEnabled] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getVoiceStatus().then((res) => {
+      if (isMounted && res && res.tts_enabled) {
+        setIsTtsEnabled(true);
+      }
+    }).catch(() => {
+      // Offline / unconfigured: keep voice button hidden
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -91,37 +106,39 @@ export const EmergencyScreen = () => {
               ? "اگر آپ کو شدید بے چینی، سانس لینے میں دشواری یا بے ہوشی محسوس ہو رہی ہے تو فوری 1122 یا ایمرجنسی سروسز پر رابطہ کریں۔"
               : "If you are experiencing severe shortness of breath, acute chest distress, or sudden weakness, contact emergency services (1122) immediately."}
           </p>
-          <div className="pt-1">
-            <button
-              type="button"
-              data-testid="emergency-speech-btn"
-              onClick={handlePlayEmergencySpeech}
-              disabled={isLoadingSpeech}
-              className="w-full py-2.5 px-4 bg-white hover:bg-red-50 text-emergencyRed-800 border border-emergencyRed-200 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {isLoadingSpeech ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-emergencyRed-700" />
-                  <span>{t.speechLoading || "Generating voice..."}</span>
-                </>
-              ) : isPlaying ? (
-                <>
-                  <Volume2 className="w-4 h-4 text-emergencyRed-700 animate-pulse" />
-                  <span>{t.listeningToExplanation || "Playing..."}</span>
-                </>
-              ) : (
-                <>
-                  <Volume2 className="w-4 h-4 text-emergencyRed-700" />
-                  <span>{t.listenToEmergencyInstructions || "Listen to Instructions"}</span>
-                </>
+          {isTtsEnabled && (
+            <div className="pt-1">
+              <button
+                type="button"
+                data-testid="emergency-speech-btn"
+                onClick={handlePlayEmergencySpeech}
+                disabled={isLoadingSpeech}
+                className="w-full py-2.5 px-4 bg-white hover:bg-red-50 text-emergencyRed-800 border border-emergencyRed-200 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isLoadingSpeech ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-emergencyRed-700" />
+                    <span>{t.speechLoading || "Generating voice..."}</span>
+                  </>
+                ) : isPlaying ? (
+                  <>
+                    <Volume2 className="w-4 h-4 text-emergencyRed-700 animate-pulse" />
+                    <span>{t.listeningToExplanation || "Playing..."}</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-4 h-4 text-emergencyRed-700" />
+                    <span>{t.listenToEmergencyInstructions || "Listen to Instructions"}</span>
+                  </>
+                )}
+              </button>
+              {speechError && (
+                <p data-testid="emergency-speech-error" className="text-xs text-emergencyRed-700 font-medium text-center mt-2">
+                  {speechError}
+                </p>
               )}
-            </button>
-            {speechError && (
-              <p data-testid="emergency-speech-error" className="text-xs text-emergencyRed-700 font-medium text-center mt-2">
-                {speechError}
-              </p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Care Team Alerted Notification Receipt - ONLY shown when escalationRecorded is true; otherwise review list */}

@@ -42,7 +42,22 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingSpeech, setIsLoadingSpeech] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
+  const [isTtsEnabled, setIsTtsEnabled] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getVoiceStatus().then((res) => {
+      if (isMounted && res && res.tts_enabled) {
+        setIsTtsEnabled(true);
+      }
+    }).catch(() => {
+      // Offline / unconfigured: keep button hidden
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -224,38 +239,40 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
           data-testid="explanation-content"
           className="px-4 pb-4 pt-1 space-y-3 border-t border-slate-200/70 text-xs text-slate-700 leading-relaxed animate-fadeIn"
         >
-          {/* Audio Listen Action */}
-          <div className="flex items-center justify-between pt-1">
-            <button
-              type="button"
-              data-testid="explanation-speech-btn"
-              onClick={handlePlaySpeech}
-              disabled={isLoadingSpeech || !effectiveCheckinId}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-50 text-teal-800 border border-teal-200/80 hover:bg-teal-100 text-xs font-medium transition-colors disabled:opacity-50"
-            >
-              {isLoadingSpeech ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-700" />
-                  <span>{t.speechLoading || "Generating voice..."}</span>
-                </>
-              ) : isPlaying ? (
-                <>
-                  <Volume2 className="w-3.5 h-3.5 text-teal-700 animate-pulse" />
-                  <span>{t.listeningToExplanation || "Playing..."}</span>
-                </>
-              ) : (
-                <>
-                  <Volume2 className="w-3.5 h-3.5 text-teal-700" />
-                  <span>{t.listenToExplanationBtn || "Listen"}</span>
-                </>
+          {/* Audio Listen Action - Only shown when backend TTS_ENABLED is true */}
+          {isTtsEnabled && (
+            <div className="flex items-center justify-between pt-1">
+              <button
+                type="button"
+                data-testid="explanation-speech-btn"
+                onClick={handlePlaySpeech}
+                disabled={isLoadingSpeech || !effectiveCheckinId}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-50 text-teal-800 border border-teal-200/80 hover:bg-teal-100 text-xs font-medium transition-colors disabled:opacity-50"
+              >
+                {isLoadingSpeech ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-700" />
+                    <span>{t.speechLoading || "Generating voice..."}</span>
+                  </>
+                ) : isPlaying ? (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-teal-700 animate-pulse" />
+                    <span>{t.listeningToExplanation || "Playing..."}</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-teal-700" />
+                    <span>{t.listenToExplanationBtn || "Listen"}</span>
+                  </>
+                )}
+              </button>
+              {speechError && (
+                <span data-testid="explanation-speech-error" className="text-[11px] text-amber-700 font-medium">
+                  {speechError}
+                </span>
               )}
-            </button>
-            {speechError && (
-              <span data-testid="explanation-speech-error" className="text-[11px] text-amber-700 font-medium">
-                {speechError}
-              </span>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Sentences */}
           <div className="space-y-2 pt-1">

@@ -382,6 +382,10 @@ export interface AdminConfigStatusResponse {
   };
 }
 
+export interface VoiceStatusResponse {
+  tts_enabled: boolean;
+}
+
 export interface CheckinCompleteResponse {
   emergency: boolean;
   intakes: Array<Record<string, any>>;
@@ -1255,6 +1259,12 @@ export const api = {
         method: "POST",
       }
     );
+  },
+
+  getVoiceStatus: async (): Promise<VoiceStatusResponse> => {
+    return request<VoiceStatusResponse>("/api/voice/status", {
+      method: "GET",
+    });
   },
 
   getUserCheckins: async (): Promise<UserCheckinSummaryResponse[]> => {

@@ -1,6 +1,6 @@
 # Spoken Explanations & Voice Output (Meta MMS-TTS, Sec 23 & 24)
 
-> **Document Status**: Production Documentation & Engineering Specification (Part I4-I)  
+> **Document Status**: Prototype Specification & Engineering Documentation (Part I4-I)  
 > **Traceability Anchor**: Proposal Section 23 ("Coqui TTS: text-to-speech (Urdu voice output)" replaced by Meta MMS-TTS) & Section 24  
 > **Sprint Verification**: Acceptance ID `LA-30`
 
@@ -10,7 +10,7 @@
 
 Proposal Sections 23 and 24 specified Urdu speech synthesis for accessibility. Coqui TTS was initially explored; however, Coqui's open-source release lacks an official pre-trained Urdu acoustic and vocoder checkpoint. 
 
-To fulfill this requirement with high clinical fidelity and state-of-the-art multilingual acoustic representations, ChronicCare AI adopts **Meta MMS-TTS** (Massively Multilingual Speech Text-to-Speech) from Hugging Face:
+To fulfill this prototype feature for spoken explanations, ChronicCare AI adopts **Meta MMS-TTS** (Massively Multilingual Speech Text-to-Speech) from Hugging Face behind the `TTS_ENABLED` feature flag (code default `false`):
 - **Urdu Model**: `facebook/mms-tts-urd-script_arabic` (VITS-based architecture trained on native Urdu Arabic script).
 - **English Model**: `facebook/mms-tts-eng` (VITS-based architecture trained on English phonemes).
 - **Licence**: Creative Commons Attribution-NonCommercial 4.0 International (**CC-BY-NC 4.0**). This licence permits full non-commercial research, academic, and clinical FYP evaluation. Recorded in `docs/licences/META_MMS_TTS.md`.
