@@ -241,6 +241,7 @@ export interface Translations {
   emergencyDetectedTitle: string;
   emergencyGuidanceText: string;
   emergencyAlertedText: string;
+  emergencyReviewNotice: string;
   emergencyReviewListText: string;
 
   // M4: Provider Dashboard & Review Queue
@@ -847,6 +848,7 @@ export const translations: Record<Language, Translations> = {
     emergencyDetectedTitle: "Emergency Pattern Detected",
     emergencyGuidanceText: "Based on your responses, please seek medical attention promptly.",
     emergencyAlertedText: "Your care provider has been alerted.",
+    emergencyReviewNotice: "Your check-in has been sent to your care team's review list.",
     emergencyReviewListText: "Your check-in has been sent to your care team's review list.",
 
     // M4: Provider Dashboard & Review Queue
@@ -1451,6 +1453,7 @@ export const translations: Record<Language, Translations> = {
     emergencyDetectedTitle: "ایمرجنسی صورتحال کی نشاندہی (Emergency Pattern Detected)",
     emergencyGuidanceText: "آپ کے جوابات کے مطابق، براہ کرم فوری طور پر طبی امداد حاصل کریں۔",
     emergencyAlertedText: "آپ کے ڈاکٹر اور نگہداشت فراہم کنندہ کو الرٹ جاری کر دیا گیا ہے۔",
+    emergencyReviewNotice: "آپ کا چیک ان نگہداشت ٹیم کی جائزہ فہرست میں بھیج دیا گیا ہے۔",
     emergencyReviewListText: "آپ کا چیک ان آپ کی نگہداشت ٹیم کی جائزہ فہرست میں بھیج دیا گیا ہے۔",
 
     // M4: Provider Dashboard & Review Queue

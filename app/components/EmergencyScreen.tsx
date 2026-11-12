@@ -44,7 +44,7 @@ export const EmergencyScreen = () => {
           </div>
           <div>
             <p className="font-bold text-navy-800" data-testid="emergency-alert-status-text">
-              {escalationRecorded === true ? t.emergencyAlertedText : t.emergencyReviewListText}
+              {escalationRecorded === true ? t.emergencyAlertedText : (t.emergencyReviewListText || t.emergencyReviewNotice)}
             </p>
             <p className="text-xs text-slate-500 mt-0.5">
               {escalationRecorded === true
