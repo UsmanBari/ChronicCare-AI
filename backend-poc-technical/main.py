@@ -613,6 +613,7 @@ class RecordMedicationItem(BaseModel):
     name: str
     dosage: str
     status: str
+    origin: Optional[str] = None
 
 
 class RecordAllergyItem(BaseModel):
@@ -620,6 +621,7 @@ class RecordAllergyItem(BaseModel):
     substance: str
     reaction: Optional[str] = None
     confirmed: bool
+    origin: Optional[str] = None
 
 
 class RecordObservationItem(BaseModel):
@@ -628,6 +630,7 @@ class RecordObservationItem(BaseModel):
     value: float
     unit: str
     measured_at: str
+    origin: Optional[str] = None
 
 
 class DoctorOnRecord(BaseModel):
@@ -1794,6 +1797,7 @@ def get_patient_record_endpoint(current_user: Dict[str, Any] = Depends(require_r
             name=m["medication_name"],
             dosage=m["dosage"],
             status=m["status"],
+            origin=m.get("origin"),
         )
         for m in local_meds
     ]
@@ -1805,6 +1809,7 @@ def get_patient_record_endpoint(current_user: Dict[str, Any] = Depends(require_r
             substance=a["substance"],
             reaction=a.get("reaction"),
             confirmed=bool(a["confirmed"]),
+            origin=a.get("origin"),
         )
         for a in user_allergies
     ]
@@ -1817,6 +1822,7 @@ def get_patient_record_endpoint(current_user: Dict[str, Any] = Depends(require_r
             value=float(o["value"]),
             unit=o["unit"],
             measured_at=o["timestamp"],
+            origin=o.get("origin"),
         )
         for o in local_obs
     ]

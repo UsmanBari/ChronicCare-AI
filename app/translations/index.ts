@@ -565,6 +565,31 @@ export interface Translations {
   reasonAllergyTooLong: string;
   ocrInvalidItemBanner: string;
   ocrFixOrRemoveHint: string;
+  onboardingPrescriptionTitle: string;
+  onboardingPrescriptionSubtitle: string;
+  onboardingPrescriptionRomanHelper: string;
+  onboardingPrescriptionUploadBtn: string;
+  onboardingPrescriptionSkipBtn: string;
+  onboardingManualTitle: string;
+  onboardingManualSubtitle: string;
+  onboardingManualMedName: string;
+  onboardingManualMedDosage: string;
+  onboardingManualAddBtn: string;
+  onboardingManualSaveBtn: string;
+  ocrConfidenceHigh: string;
+  ocrConfidenceMedium: string;
+  ocrConfidenceLow: string;
+  ocrHeaderVerificationTitle: string;
+  ocrHeaderDoctor: string;
+  ocrHeaderRegNo: string;
+  ocrHeaderClinic: string;
+  ocrHeaderDate: string;
+  ocrHeaderMedication: string;
+  ocrHeaderNotRead: string;
+  ocrHeaderReadPleaseCheck: string;
+  ocrHeaderFound: string;
+  unverifiedPatientUploadBadge: string;
+  ocrVerifyLowConfHint: string;
 
   // Patient Explanation (I3 Day 2)
   whyThisResultBtn: string;
@@ -1177,6 +1202,31 @@ export const translations: Record<Language, Translations> = {
     reasonAllergyTooLong: "Reaction text too long",
     ocrInvalidItemBanner: "Please fix or remove the highlighted invalid item before saving.",
     ocrFixOrRemoveHint: "Value is invalid. Click Fix to correct or Remove to discard.",
+    onboardingPrescriptionTitle: "Do you have a prescription? Upload a photo (optional)",
+    onboardingPrescriptionSubtitle: "Upload a photo of your doctor's prescription so we can add your current medicines automatically, or enter them manually.",
+    onboardingPrescriptionRomanHelper: "Kya aap ke paas doctor ka nuskha hai? Tasweer upload karein ya direct medicines type karein.",
+    onboardingPrescriptionUploadBtn: "Upload Prescription Photo",
+    onboardingPrescriptionSkipBtn: "Skip for now",
+    onboardingManualTitle: "Type your medicines",
+    onboardingManualSubtitle: "Enter each regular medicine you are currently taking.",
+    onboardingManualMedName: "Medicine name (e.g. Metformin)",
+    onboardingManualMedDosage: "Dosage (e.g. 500mg daily)",
+    onboardingManualAddBtn: "+ Add Medicine",
+    onboardingManualSaveBtn: "Save & Continue",
+    ocrConfidenceHigh: "High",
+    ocrConfidenceMedium: "Medium",
+    ocrConfidenceLow: "Low",
+    ocrHeaderVerificationTitle: "Prescription Header Verification (Section 21.1)",
+    ocrHeaderDoctor: "Doctor Name",
+    ocrHeaderRegNo: "PMDC / Reg. No.",
+    ocrHeaderClinic: "Hospital / Clinic",
+    ocrHeaderDate: "Prescription Date",
+    ocrHeaderMedication: "Medication Listed",
+    ocrHeaderNotRead: "not read: please check the paper",
+    ocrHeaderReadPleaseCheck: "read, please check",
+    ocrHeaderFound: "Found",
+    unverifiedPatientUploadBadge: "Unverified (patient upload)",
+    ocrVerifyLowConfHint: "Low confidence or missing dose: please verify from paper prescription.",
 
     // Patient Explanation (I3 Day 2)
     whyThisResultBtn: "Why this result?",
@@ -1789,6 +1839,31 @@ export const translations: Record<Language, Translations> = {
     reasonAllergyTooLong: "ردعمل کی تفصیل بہت طویل ہے",
     ocrInvalidItemBanner: "براہ کرم محفوظ کرنے سے پہلے نمایاں کیے گئے غلط اندراج کو درست کریں یا ہٹا دیں۔",
     ocrFixOrRemoveHint: "یہ اندراج درست نہیں ہے۔ درست کرنے کے لیے 'درست کریں' یا خارج کرنے کے لیے 'ہٹائیں' کا بٹن دبائیں۔",
+    onboardingPrescriptionTitle: "کیا آپ کے پاس نسخہ ہے؟ تصویر اپ لوڈ کریں (اختیاری)",
+    onboardingPrescriptionSubtitle: "اپنے ڈاکٹر کے نسخے کی تصویر اپ لوڈ کریں تاکہ ادویات خودکار طریقے سے شامل کی جا سکیں، یا خود ہاتھ سے درج کریں۔",
+    onboardingPrescriptionRomanHelper: "کیا آپ کے پاس ڈاکٹر کا نسخہ ہے؟ تصویر اپ لوڈ کریں یا ادویات خود لکھیں۔",
+    onboardingPrescriptionUploadBtn: "نسخے کی تصویر اپ لوڈ کریں",
+    onboardingPrescriptionSkipBtn: "ابھی کے لیے چھوڑ دیں",
+    onboardingManualTitle: "اپنی ادویات درج کریں",
+    onboardingManualSubtitle: "جو روزمرہ ادویات آپ استعمال کر رہے ہیں وہ درج کریں۔",
+    onboardingManualMedName: "دوا کا نام (مثلاً میٹفارمین)",
+    onboardingManualMedDosage: "خوراک (مثلاً 500 ملی گرام روزانہ)",
+    onboardingManualAddBtn: "+ دوا شامل کریں",
+    onboardingManualSaveBtn: "محفوظ کریں اور آگے بڑھیں",
+    ocrConfidenceHigh: "زیادہ",
+    ocrConfidenceMedium: "درمیانہ",
+    ocrConfidenceLow: "کم",
+    ocrHeaderVerificationTitle: "نسخے کے عنوان کی تصدیق (سیکشن 21.1)",
+    ocrHeaderDoctor: "ڈاکٹر کا نام",
+    ocrHeaderRegNo: "پی ایم ڈی سی / رجسٹریشن نمبر",
+    ocrHeaderClinic: "ہسپتال یا کلینک",
+    ocrHeaderDate: "نسخے کی تاریخ",
+    ocrHeaderMedication: "درج شدہ ادویات",
+    ocrHeaderNotRead: "پڑھا نہیں جا سکا: براہ کرم نسخہ چیک کریں",
+    ocrHeaderReadPleaseCheck: "پڑھا گیا، براہ کرم چیک کریں",
+    ocrHeaderFound: "مل گیا",
+    unverifiedPatientUploadBadge: "غیر تصدیق شدہ (مریض کا اپ لوڈ)",
+    ocrVerifyLowConfHint: "کم اعتماد یا خوراک درج نہیں: براہ کرم کاغذ سے چیک کریں۔",
 
     // Patient Explanation (I3 Day 2)
     whyThisResultBtn: "یہ نتیجہ کیوں؟",
