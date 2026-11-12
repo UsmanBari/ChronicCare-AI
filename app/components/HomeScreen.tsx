@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { FhirSourceBadge } from "./FhirSourceBadge";
 import { api, ApiError, UserCheckinSummaryResponse, PatientRecordResponse } from "../lib/api";
+import { TriageColourChip } from "./TriageColourChip";
 import { titleCaseName, describeBlockedAction, BlockedActionDescription } from "../lib/presentation";
 import { getConditionFlags } from "../lib/conditions";
 import { isEhrManaged } from "../lib/connection";
@@ -54,6 +55,7 @@ export const HomeScreen = () => {
   const [blockedAction, setBlockedAction] = useState<BlockedActionDescription | null>(null);
   const [showUrgentGuidance, setShowUrgentGuidance] = useState<boolean>(false);
   const [lastCheckinTime, setLastCheckinTime] = useState<string | null>(null);
+  const [latestCheckin, setLatestCheckin] = useState<UserCheckinSummaryResponse | null>(null);
   const [liveRecord, setLiveRecord] = useState<PatientRecordResponse | null>(null);
 
   useEffect(() => {
@@ -63,6 +65,7 @@ export const HomeScreen = () => {
       .then((checkins: UserCheckinSummaryResponse[]) => {
         if (checkins && checkins.length > 0) {
           const latest = checkins[0];
+          setLatestCheckin(latest);
           const timeStr = latest.completed_at || latest.started_at;
           if (timeStr) {
             setLastCheckinTime(new Date(timeStr).toLocaleString());
@@ -530,15 +533,24 @@ export const HomeScreen = () => {
         </div>
 
         {/* Previous Check-in Status */}
-        <div className="p-4 rounded-2xl bg-mutedGreen-50 border border-mutedGreen-800/20 flex items-center justify-between text-sm">
+        <div className="p-4 rounded-2xl bg-mutedGreen-50 border border-mutedGreen-800/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm">
           <span className="font-medium text-mutedGreen-800 flex items-center gap-2">
             <Clock className="w-4 h-4" />
             <span>{t.lastCheckIn}</span>
           </span>
-          <span className="font-semibold text-mutedGreen-800 flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-mutedGreen-800" />
-            <span>{isLiveMode ? (lastCheckinTime || t.noCheckinsYet) : t.lastCheckInValue}</span>
-          </span>
+          <div className="flex items-center gap-2">
+            {latestCheckin && (
+              <TriageColourChip
+                level={latestCheckin.triage_level}
+                colour={latestCheckin.triage_colour}
+                size="sm"
+              />
+            )}
+            <span className="font-semibold text-mutedGreen-800 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-mutedGreen-800" />
+              <span>{isLiveMode ? (lastCheckinTime || t.noCheckinsYet) : t.lastCheckInValue}</span>
+            </span>
+          </div>
         </div>
       </div>
     </div>

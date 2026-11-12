@@ -141,3 +141,74 @@ def test_backend_session_auth_sends_bearer_header():
         assert call_kwargs["headers"].get("Authorization") == f"Bearer {fake_token}"
         assert headers.get("Authorization") == f"Bearer {fake_token}"
 
+
+def test_la_26_soap_logic_hermetic():
+    """Hermetic unit test proving LA-26 logic passes with simulated provider and backend responses."""
+    from unittest.mock import MagicMock, patch
+
+    runner = LocalAcceptanceRunner()
+    runner.provider_email = "provider.demo@demo.care"
+    runner.provider_password = "dummy-password"
+
+    mock_soap_payload = {
+        "checkin_id": "chk_la26_test",
+        "patient_id": "pat_test",
+        "generated_at": "2026-11-09T00:00:00Z",
+        "subjective": "Patient reports feeling tired.",
+        "objective": "Blood glucose: 145 mg/dL.",
+        "assessment": "routine (Green)",
+        "plan": "Follow routine care plan.",
+        "plain_text": (
+            "Check-in ID: chk_la26_test\n"
+            "Patient ID: pat_test\n"
+            "Generated: 2026-11-09T00:00:00Z\n"
+            "==================================================\n"
+            "SUBJECTIVE:\n"
+            "Patient reports feeling tired.\n\n"
+            "OBJECTIVE:\n"
+            "Blood glucose: 145 mg/dL.\n\n"
+            "ASSESSMENT:\n"
+            "routine (Green)\n\n"
+            "PLAN:\n"
+            "Follow routine care plan.\n"
+        ),
+        "fhir_document_reference": {
+            "resourceType": "DocumentReference",
+            "status": "current",
+        },
+    }
+
+    mock_get = MagicMock()
+    mock_get.status_code = 200
+    mock_get.json.return_value = mock_soap_payload
+
+    with patch.object(runner, "_firebase_signin", return_value="fake_token"), \
+         patch.object(runner, "_backend_session_auth", return_value={"Authorization": "Bearer fake_token"}), \
+         patch.object(runner, "_init_patient_session", return_value=({"Authorization": "Bearer pat_token"}, "pat@demo.care")), \
+         patch("requests.post", return_value=MagicMock(json=lambda: {"checkin_id": "chk_la26_test"})), \
+         patch.object(runner, "_drive_interview", return_value=None), \
+         patch("requests.get", return_value=mock_get):
+        runner.run_la_26()
+
+    la_26_result = next((r for r in runner.results if r["id"] == "LA-26"), None)
+    assert la_26_result is not None
+    assert la_26_result["status"] == "PASS"
+    assert "sections_ok=True" in la_26_result["evidence"]
+    assert "glucose_traced=True" in la_26_result["evidence"]
+    assert "untraceable_numbers=0" in la_26_result["evidence"]
+
+
+def test_la_26_soap_needs_creds_when_missing():
+    """Hermetic unit test: asserts LA-26 marks NEEDS CREDS when provider credentials are empty."""
+    runner = LocalAcceptanceRunner()
+    runner.provider_email = ""
+    runner.provider_password = ""
+
+    runner.run_la_26()
+
+    la_26_result = next((r for r in runner.results if r["id"] == "LA-26"), None)
+    assert la_26_result is not None
+    assert la_26_result["status"] == "NEEDS CREDS"
+    assert "provider creds NOT SET" in la_26_result["evidence"]
+
+
