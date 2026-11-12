@@ -241,6 +241,8 @@ export interface Translations {
   emergencyDetectedTitle: string;
   emergencyGuidanceText: string;
   emergencyAlertedText: string;
+  emergencyReviewNotice: string;
+  emergencyReviewListText: string;
 
   // M4: Provider Dashboard & Review Queue
   providerDashboardTitle: string;
@@ -248,6 +250,12 @@ export interface Translations {
   activeCasesLabel: string;
   urgentCasesLabel: string;
   notificationsTitle: string;
+  noNotifications: string;
+  markAllRead: string;
+  markRead: string;
+  enableWebPush: string;
+  webPushActive: string;
+  webPushBlocked: string;
   patientListTitle: string;
   reviewQueueTitle: string;
   viewReviewQueueBtn: string;
@@ -278,6 +286,35 @@ export interface Translations {
   appointmentWith: string;
   appointmentReason: string;
   appointmentStatus: string;
+  bookRoutineAppointmentCard: string;
+  bookRoutineAppointmentDesc: string;
+  bookNowBtn: string;
+  careTeamAlertedCard: string;
+  careTeamAlertedDesc: string;
+  appointmentOffered: string;
+  appointmentBooked: string;
+  appointmentCancelled: string;
+  appointmentAttended: string;
+  urgencyRoutine: string;
+  urgencyUrgent: string;
+  specialtyEndocrinology: string;
+  specialtyCardiology: string;
+  specialtyInternalMedicine: string;
+  specialtyGeneral: string;
+  appointmentSpecialty: string;
+  bookingWindowNotice: string;
+  bookAppointmentBtn: string;
+  cancelAppointmentBtn: string;
+  acknowledgeAppointmentBtn: string;
+  markAttendedBtn: string;
+  escalationPending: string;
+  escalationReNotify: string;
+  escalationAdminFlag: string;
+  escalationAcknowledged: string;
+  adminProviderDirectoryTitle: string;
+  adminEscalationAlertsTitle: string;
+  providerAvailable: string;
+  providerUnavailable: string;
 
   // M4: Admin Portal
   adminDashboardTitle: string;
@@ -529,6 +566,31 @@ export interface Translations {
   reasonAllergyTooLong: string;
   ocrInvalidItemBanner: string;
   ocrFixOrRemoveHint: string;
+  onboardingPrescriptionTitle: string;
+  onboardingPrescriptionSubtitle: string;
+  onboardingPrescriptionRomanHelper: string;
+  onboardingPrescriptionUploadBtn: string;
+  onboardingPrescriptionSkipBtn: string;
+  onboardingManualTitle: string;
+  onboardingManualSubtitle: string;
+  onboardingManualMedName: string;
+  onboardingManualMedDosage: string;
+  onboardingManualAddBtn: string;
+  onboardingManualSaveBtn: string;
+  ocrConfidenceHigh: string;
+  ocrConfidenceMedium: string;
+  ocrConfidenceLow: string;
+  ocrHeaderVerificationTitle: string;
+  ocrHeaderDoctor: string;
+  ocrHeaderRegNo: string;
+  ocrHeaderClinic: string;
+  ocrHeaderDate: string;
+  ocrHeaderMedication: string;
+  ocrHeaderNotRead: string;
+  ocrHeaderReadPleaseCheck: string;
+  ocrHeaderFound: string;
+  unverifiedPatientUploadBadge: string;
+  ocrVerifyLowConfHint: string;
 
   // Patient Explanation (I3 Day 2)
   whyThisResultBtn: string;
@@ -536,6 +598,11 @@ export interface Translations {
   explanationSourcesTitle: string;
   explanationPending: string;
   explanationDoiLabel: string;
+  listenToExplanationBtn: string;
+  listeningToExplanation: string;
+  speechLoading: string;
+  speechError: string;
+  listenToEmergencyInstructions: string;
   adminConfigTitle: string;
   adminConfigSubtitle: string;
 
@@ -812,13 +879,21 @@ export const translations: Record<Language, Translations> = {
     emergencyDetectedTitle: "Emergency Pattern Detected",
     emergencyGuidanceText: "Based on your responses, please seek medical attention promptly.",
     emergencyAlertedText: "Your care provider has been alerted.",
+    emergencyReviewNotice: "Your check-in has been sent to your care team's review list.",
+    emergencyReviewListText: "Your check-in has been sent to your care team's review list.",
 
     // M4: Provider Dashboard & Review Queue
     providerDashboardTitle: "Clinical Provider Dashboard",
     providerSubtitle: "Proactive triage, clinical reconciliation alerts, and review queue.",
     activeCasesLabel: "Active Cases",
     urgentCasesLabel: "Urgent Cases",
-    notificationsTitle: "Clinical Notifications",
+    notificationsTitle: "Notifications",
+    noNotifications: "No notifications yet",
+    markAllRead: "Mark all as read",
+    markRead: "Mark read",
+    enableWebPush: "Enable browser alerts",
+    webPushActive: "Browser alerts active",
+    webPushBlocked: "Browser alerts blocked",
     patientListTitle: "Assigned Patient Cohort",
     reviewQueueTitle: "Clinical Review Queue",
     viewReviewQueueBtn: "Open Review Queue",
@@ -849,6 +924,35 @@ export const translations: Record<Language, Translations> = {
     appointmentWith: "Provider",
     appointmentReason: "Reason for Visit",
     appointmentStatus: "Status",
+    bookRoutineAppointmentCard: "Book a Routine Appointment",
+    bookRoutineAppointmentDesc: "Your check-in indicates non-urgent clinical follow-up is recommended within 3 days.",
+    bookNowBtn: "Book Now",
+    careTeamAlertedCard: "Your Care Team Has Been Alerted",
+    careTeamAlertedDesc: "An urgent clinical follow-up appointment has been scheduled for today:",
+    appointmentOffered: "Offered (Please Book)",
+    appointmentBooked: "Confirmed",
+    appointmentCancelled: "Cancelled",
+    appointmentAttended: "Attended",
+    urgencyRoutine: "Routine",
+    urgencyUrgent: "Urgent",
+    specialtyEndocrinology: "Endocrinology (Diabetes)",
+    specialtyCardiology: "Cardiology (Hypertension)",
+    specialtyInternalMedicine: "Internal Medicine (Dual Care)",
+    specialtyGeneral: "General Practice",
+    appointmentSpecialty: "Specialty",
+    bookingWindowNotice: "Offered within 3 days",
+    bookAppointmentBtn: "Book Appointment",
+    cancelAppointmentBtn: "Cancel Appointment",
+    acknowledgeAppointmentBtn: "Acknowledge",
+    markAttendedBtn: "Mark Attended",
+    escalationPending: "Pending Provider Review",
+    escalationReNotify: "Re-notified (>2h)",
+    escalationAdminFlag: "Admin Flag (>24h)",
+    escalationAcknowledged: "Acknowledged",
+    adminProviderDirectoryTitle: "Provider Directory",
+    adminEscalationAlertsTitle: "Escalation Timeout Alerts",
+    providerAvailable: "Available",
+    providerUnavailable: "Unavailable",
 
     // M4: Admin Portal
     adminDashboardTitle: "System Administration & Telemetry",
@@ -1100,6 +1204,31 @@ export const translations: Record<Language, Translations> = {
     reasonAllergyTooLong: "Reaction text too long",
     ocrInvalidItemBanner: "Please fix or remove the highlighted invalid item before saving.",
     ocrFixOrRemoveHint: "Value is invalid. Click Fix to correct or Remove to discard.",
+    onboardingPrescriptionTitle: "Do you have a prescription? Upload a photo (optional)",
+    onboardingPrescriptionSubtitle: "Upload a photo of your doctor's prescription so we can add your current medicines automatically, or enter them manually.",
+    onboardingPrescriptionRomanHelper: "Kya aap ke paas doctor ka nuskha hai? Tasweer upload karein ya direct medicines type karein.",
+    onboardingPrescriptionUploadBtn: "Upload Prescription Photo",
+    onboardingPrescriptionSkipBtn: "Skip for now",
+    onboardingManualTitle: "Type your medicines",
+    onboardingManualSubtitle: "Enter each regular medicine you are currently taking.",
+    onboardingManualMedName: "Medicine name (e.g. Metformin)",
+    onboardingManualMedDosage: "Dosage (e.g. 500mg daily)",
+    onboardingManualAddBtn: "+ Add Medicine",
+    onboardingManualSaveBtn: "Save & Continue",
+    ocrConfidenceHigh: "High",
+    ocrConfidenceMedium: "Medium",
+    ocrConfidenceLow: "Low",
+    ocrHeaderVerificationTitle: "Prescription Header Verification (Section 21.1)",
+    ocrHeaderDoctor: "Doctor Name",
+    ocrHeaderRegNo: "PMDC / Reg. No.",
+    ocrHeaderClinic: "Hospital / Clinic",
+    ocrHeaderDate: "Prescription Date",
+    ocrHeaderMedication: "Medication Listed",
+    ocrHeaderNotRead: "not read: please check the paper",
+    ocrHeaderReadPleaseCheck: "read, please check",
+    ocrHeaderFound: "Found",
+    unverifiedPatientUploadBadge: "Unverified (patient upload)",
+    ocrVerifyLowConfHint: "Low confidence or missing dose: please verify from paper prescription.",
 
     // Patient Explanation (I3 Day 2)
     whyThisResultBtn: "Why this result?",
@@ -1107,6 +1236,11 @@ export const translations: Record<Language, Translations> = {
     explanationSourcesTitle: "Clinical Sources",
     explanationPending: "Preparing your explanation...",
     explanationDoiLabel: "DOI / Source Link",
+    listenToExplanationBtn: "Listen",
+    listeningToExplanation: "Playing...",
+    speechLoading: "Generating voice...",
+    speechError: "Voice output unavailable",
+    listenToEmergencyInstructions: "Listen to Instructions",
     adminConfigTitle: "System Configuration & Guards Status",
     adminConfigSubtitle: "Live runtime feature flags, LLM keys presence, and explainer performance metrics",
 
@@ -1381,13 +1515,21 @@ export const translations: Record<Language, Translations> = {
     emergencyDetectedTitle: "ایمرجنسی صورتحال کی نشاندہی (Emergency Pattern Detected)",
     emergencyGuidanceText: "آپ کے جوابات کے مطابق، براہ کرم فوری طور پر طبی امداد حاصل کریں۔",
     emergencyAlertedText: "آپ کے ڈاکٹر اور نگہداشت فراہم کنندہ کو الرٹ جاری کر دیا گیا ہے۔",
+    emergencyReviewNotice: "آپ کا چیک ان نگہداشت ٹیم کی جائزہ فہرست میں بھیج دیا گیا ہے۔",
+    emergencyReviewListText: "آپ کا چیک ان آپ کی نگہداشت ٹیم کی جائزہ فہرست میں بھیج دیا گیا ہے۔",
 
     // M4: Provider Dashboard & Review Queue
     providerDashboardTitle: "کلینیکل پرووائیڈر ڈیش بورڈ",
     providerSubtitle: "مریضوں کی نگرانی، طبی تضادات اور ریویو کیو۔",
     activeCasesLabel: "فعال کیسز",
     urgentCasesLabel: "ارجنٹ کیسز",
-    notificationsTitle: "کلینیکل اطلاعات",
+    notificationsTitle: "اطلاعات (Notifications)",
+    noNotifications: "کوئی اطلاع نہیں ہے",
+    markAllRead: "سب پڑھ لیے گئے",
+    markRead: "پڑھ لیا",
+    enableWebPush: "براؤزر الرٹس فعال کریں",
+    webPushActive: "براؤزر الرٹس فعال ہیں",
+    webPushBlocked: "براؤزر میں الرٹس بلاک ہیں",
     patientListTitle: "نگرانی کے تحت مریض",
     reviewQueueTitle: "کلینیکل ریویو کیو",
     viewReviewQueueBtn: "ریویو کیو کھولیں",
@@ -1418,6 +1560,35 @@ export const translations: Record<Language, Translations> = {
     appointmentWith: "ڈاکٹر",
     appointmentReason: "ملاقات کا مقصد",
     appointmentStatus: "حیثیت",
+    bookRoutineAppointmentCard: "معمول کی اپوائنٹمنٹ بک کریں",
+    bookRoutineAppointmentDesc: "آپ کے چیک ان سے ظاہر ہوتا ہے کہ 3 دن کے اندر معمول کے فالو اپ کی سفارش کی جاتی ہے۔",
+    bookNowBtn: "ابھی بک کریں",
+    careTeamAlertedCard: "آپ کی کیئر ٹیم کو مطلع کر دیا گیا ہے",
+    careTeamAlertedDesc: "آج کے لیے ایک فوری کلینیکل اپوائنٹمنٹ شیڈول کی گئی ہے:",
+    appointmentOffered: "پیشکش شدہ (براہ کرم بک کریں)",
+    appointmentBooked: "تصدیق شدہ",
+    appointmentCancelled: "منسوخ شدہ",
+    appointmentAttended: "مکمل شدہ",
+    urgencyRoutine: "معمول",
+    urgencyUrgent: "فوری",
+    specialtyEndocrinology: "اینڈوکرائنولوجی (ذیابیطس)",
+    specialtyCardiology: "کارڈیالوجی (ہائی بلڈ پریشر)",
+    specialtyInternalMedicine: "انٹرنل میڈیسن (مشترکہ دیکھ بھال)",
+    specialtyGeneral: "جنرل پریکٹس",
+    appointmentSpecialty: "طبی شعبہ",
+    bookingWindowNotice: "3 دن کے اندر تجویز کردہ",
+    bookAppointmentBtn: "ملاقات طے کریں",
+    cancelAppointmentBtn: "اپوائنٹمنٹ منسوخ کریں",
+    acknowledgeAppointmentBtn: "تسلیم کریں",
+    markAttendedBtn: "حاضری درج کریں",
+    escalationPending: "ڈاکٹر کے جائزے کا انتظار",
+    escalationReNotify: "دوبارہ مطلع کیا گیا (>2 گھنٹے)",
+    escalationAdminFlag: "ایڈمن الرٹ (>24 گھنٹے)",
+    escalationAcknowledged: "تسلیم شدہ",
+    adminProviderDirectoryTitle: "ڈاکٹروں کی ڈائرکٹری",
+    adminEscalationAlertsTitle: "ایسکلیشن ٹائم آؤٹ الرٹس",
+    providerAvailable: "دستیاب",
+    providerUnavailable: "غیر دستیاب",
 
     // M4: Admin Portal
     adminDashboardTitle: "سسٹم ایڈمنسٹریشن اور ٹیلی میٹری",
@@ -1671,6 +1842,31 @@ export const translations: Record<Language, Translations> = {
     reasonAllergyTooLong: "ردعمل کی تفصیل بہت طویل ہے",
     ocrInvalidItemBanner: "براہ کرم محفوظ کرنے سے پہلے نمایاں کیے گئے غلط اندراج کو درست کریں یا ہٹا دیں۔",
     ocrFixOrRemoveHint: "یہ اندراج درست نہیں ہے۔ درست کرنے کے لیے 'درست کریں' یا خارج کرنے کے لیے 'ہٹائیں' کا بٹن دبائیں۔",
+    onboardingPrescriptionTitle: "کیا آپ کے پاس نسخہ ہے؟ تصویر اپ لوڈ کریں (اختیاری)",
+    onboardingPrescriptionSubtitle: "اپنے ڈاکٹر کے نسخے کی تصویر اپ لوڈ کریں تاکہ ادویات خودکار طریقے سے شامل کی جا سکیں، یا خود ہاتھ سے درج کریں۔",
+    onboardingPrescriptionRomanHelper: "کیا آپ کے پاس ڈاکٹر کا نسخہ ہے؟ تصویر اپ لوڈ کریں یا ادویات خود لکھیں۔",
+    onboardingPrescriptionUploadBtn: "نسخے کی تصویر اپ لوڈ کریں",
+    onboardingPrescriptionSkipBtn: "ابھی کے لیے چھوڑ دیں",
+    onboardingManualTitle: "اپنی ادویات درج کریں",
+    onboardingManualSubtitle: "جو روزمرہ ادویات آپ استعمال کر رہے ہیں وہ درج کریں۔",
+    onboardingManualMedName: "دوا کا نام (مثلاً میٹفارمین)",
+    onboardingManualMedDosage: "خوراک (مثلاً 500 ملی گرام روزانہ)",
+    onboardingManualAddBtn: "+ دوا شامل کریں",
+    onboardingManualSaveBtn: "محفوظ کریں اور آگے بڑھیں",
+    ocrConfidenceHigh: "زیادہ",
+    ocrConfidenceMedium: "درمیانہ",
+    ocrConfidenceLow: "کم",
+    ocrHeaderVerificationTitle: "نسخے کے عنوان کی تصدیق (سیکشن 21.1)",
+    ocrHeaderDoctor: "ڈاکٹر کا نام",
+    ocrHeaderRegNo: "پی ایم ڈی سی / رجسٹریشن نمبر",
+    ocrHeaderClinic: "ہسپتال یا کلینک",
+    ocrHeaderDate: "نسخے کی تاریخ",
+    ocrHeaderMedication: "درج شدہ ادویات",
+    ocrHeaderNotRead: "پڑھا نہیں جا سکا: براہ کرم نسخہ چیک کریں",
+    ocrHeaderReadPleaseCheck: "پڑھا گیا، براہ کرم چیک کریں",
+    ocrHeaderFound: "مل گیا",
+    unverifiedPatientUploadBadge: "غیر تصدیق شدہ (مریض کا اپ لوڈ)",
+    ocrVerifyLowConfHint: "کم اعتماد یا خوراک درج نہیں: براہ کرم کاغذ سے چیک کریں۔",
 
     // Patient Explanation (I3 Day 2)
     whyThisResultBtn: "یہ نتیجہ کیوں؟",
@@ -1678,6 +1874,11 @@ export const translations: Record<Language, Translations> = {
     explanationSourcesTitle: "طبی ذرائع",
     explanationPending: "آپ کی وضاحت تیار کی جا رہی ہے...",
     explanationDoiLabel: "طبی حوالہ / ربط",
+    listenToExplanationBtn: "وضاحت سنیں",
+    listeningToExplanation: "آواز چل رہی ہے...",
+    speechLoading: "آواز تیار ہو رہی ہے...",
+    speechError: "آواز دستیاب نہیں ہے",
+    listenToEmergencyInstructions: "ایمرجنسی ہدایات سنیں",
     adminConfigTitle: "سسٹم کنفیگریشن اور گارڈز کی حالت",
     adminConfigSubtitle: "لائیو رن ٹائم فیچر فلیگز، ایل ایل ایم کیز اور وضاحت کار کی کارکردگی کے میٹرکس",
 

@@ -48,6 +48,7 @@
 | System Health & Admin Configuration Status Endpoint | Sec 13.2 | `backend-poc-technical/main.py` | LA-01 | **PASS** | Usman | Done |
 | Patient Record History, Export and Import Service | Sec 13.2 | `backend-poc-technical/main.py` | LA-17 | **PASS** | Usman | Done |
 | Server-Side OCR Intake Service (Prescriptions & lab reports) | Sec 13.2, 21.1 | `backend-poc-technical/main.py` | LA-15 | **PASS** | Hassaan / Saad | Done (PR #96) |
+| Notification Service (In-App notification centre, daily reminders & FCM Web Push) | Sec 13.2, 15, 35 | `backend-poc-technical/services/notification_service.py` | LA-29 | **PASS** | Hassaan | Done (PR H) |
 
 ---
 
@@ -58,8 +59,8 @@
 | Triage Severity Colors (Green=Routine, Yellow=Review, Red=Urgent/Emergency) | Sec 15 | `backend-poc-technical/agents/final_triage.py` & `app/components/TriageColourChip.tsx` | LA-20 | **PASS** | Usman | Done (PR A) |
 | Stage-2 Clinical Risk Elevation (Routine -> Review on high risk band) | Sec 15 | `backend-poc-technical/agents/final_triage.py` | LA-21, LA-21b, LA-21c | **PASS** | Usman | Done (PR A) |
 | Patient-Facing Risk Band Display (Plain sentence + action only) | Sec 15 | `app/components/RiskResultScreen.tsx` & `backend-poc-technical/orchestrator/steps.py` | LA-23 | **PASS** | Usman | Done (PR A) |
-| Appointment Booking by Triage Level & Clinical Specialty | Sec 15 | `backend-poc-technical/appointments/` | LA-25 | **NOT BUILT YET** | Usman | 12 Nov 2026 (PR D) |
-| Red-Flag Escalation Notification & Timeout Tracking | Sec 15 | `backend-poc-technical/escalation/` | LA-25 | **NOT BUILT YET** | Usman | 12 Nov 2026 (PR D) |
+| Appointment Booking by Triage Level & Clinical Specialty | Sec 15 | `backend-poc-technical/services/appointment_service.py` | LA-25 | **PASS** | Hassaan | Done (PR D) |
+| Red-Flag Escalation Notification & Timeout Tracking | Sec 15 | `backend-poc-technical/services/appointment_service.py` | LA-25 | **PASS** | Hassaan | Done (PR D) |
 
 ---
 
@@ -89,7 +90,8 @@
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
 | RapidOCR Onnxruntime Local Pipeline | Sec 21.1 | `backend-poc-technical/ocr/` | LA-15 | **PASS** | Hassaan | Done (PR #96) |
 | Prescription Intake Staging & Patient Confirmation | Sec 21.1 | `backend-poc-technical/main.py` | LA-15 | **PASS** | Hassaan / Saad | Done (PR #96) |
-| Unverified / Medium Trust Tagging in Local Store | Sec 21.1 | `backend-poc-technical/data_sources/local_store.py` | LA-15 | **PASS** | Usman | Done |
+| Prescription Upload in Isolated Onboarding (Confidence, Headers & Fallback) | Sec 18, 21.1 | `app/components/OnboardingPrescriptionScreen.tsx` | LA-15b | **PASS** | Hassaan | Done (PR #138) |
+| Unverified / Medium Trust Tagging in Local Store | Sec 21.1 | `backend-poc-technical/data_sources/local_store.py` | LA-15, LA-15b | **PASS** | Usman / Hassaan | Done |
 
 ---
 
@@ -102,7 +104,7 @@
 | Pure SQLite Local Storage for Fully Isolated Operation | Sec 23 | `backend-poc-technical/data_sources/local_store.py` | LA-01, LA-02 | **PASS** | Usman | Done |
 | PyJWT Google Public Key Token Verification (RS256) | Sec 23 | `backend-poc-technical/auth/firebase_verify.py` | LA-01 | **PASS** | Usman | Done |
 | Voice Transcription Input (Whisper STT endpoint) | Sec 23 | `backend-poc-technical/main.py` | LA-16 | **PASS** | Hassaan | Done |
-| Urdu Speech Synthesis Voice Output (Meta MMS-TTS Urdu) | Sec 23 | `backend-poc-technical/voice/` | LA-30 | **NOT BUILT YET** | Hassaan | 14 Nov 2026 (PR I) |
+| Urdu Speech Synthesis Voice Output (Meta MMS-TTS Urdu) | Sec 23 | `backend-poc-technical/voice/` | LA-30 | **PASS** | Hassaan | Done (PR I) |
 | LangGraph State-Graph Orchestrator Execution | Sec 23 | `backend-poc-technical/orchestrator/graph.py` | LA-01 | **PASS** | Usman | Done |
 
 ---

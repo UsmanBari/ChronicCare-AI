@@ -36,7 +36,8 @@ export type PatientScreenType =
   | "conflict_review"
   | "emergency"
   | "appointments"
-  | "ocr_confirm";
+  | "ocr_confirm"
+  | "onboarding_prescription";
 
 export type ProviderScreenType =
   | "login"
@@ -172,6 +173,8 @@ interface AppContextType {
   // Staged OCR Upload (Day 7)
   stagedOcrUpload: OcrUploadResponse | null;
   setStagedOcrUpload: React.Dispatch<React.SetStateAction<OcrUploadResponse | null>>;
+  ocrReturnScreen: PatientScreenType;
+  setOcrReturnScreen: (screen: PatientScreenType) => void;
 
   // Clean navigation helpers
   returnToHomeAndClearRun: () => void;
@@ -308,6 +311,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
     return null;
   });
+  const [ocrReturnScreen, setOcrReturnScreen] = useState<PatientScreenType>("health_record");
 
   // Patient Baseline Profile (Mock mode fallback)
   const [profile, setProfile] = useState<HealthProfile>({
@@ -782,6 +786,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setSessionNotice,
         stagedOcrUpload,
         setStagedOcrUpload,
+        ocrReturnScreen,
+        setOcrReturnScreen,
         returnToHomeAndClearRun,
         resetDemo,
         signOutUser,

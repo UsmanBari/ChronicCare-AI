@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { isEhrManaged } from "../lib/connection";
+import { NotificationBell } from "./NotificationBell";
 
 export const Header = () => {
   const {
@@ -277,6 +278,11 @@ export const Header = () => {
             <Globe className="w-4 h-4 text-teal-700" />
             <span>{language === "en" ? "اردو" : "English"}</span>
           </button>
+
+          {/* Notifications Center */}
+          {portal !== "landing" && !isOnLoginScreen && (
+            <NotificationBell />
+          )}
 
           {/* Settings Icon */}
           <button

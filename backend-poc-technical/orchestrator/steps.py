@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import copy
+import logging
 import os
 from typing import Dict, Any, Optional, Tuple, List
 from fastapi import HTTPException, status
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 from data_sources.app_store import (
     get_checkin_result,
@@ -70,6 +73,7 @@ class CheckinCompleteResponse(BaseModel):
     triage_colour: Optional[str] = None
     triage_level: Optional[str] = None
     risk_patient: Optional[List[Dict[str, Any]]] = None
+    appointment: Optional[Dict[str, Any]] = None
 
 
 def _build_patient_risk_view(risk: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -193,6 +197,15 @@ def step_check_idempotency(checkin_id: str, record_label: str) -> Optional[Check
         from agents.final_triage import level_to_colour
         stored_level = stored_result.get("triage_level") or (stored_result.get("triage") or {}).get("level") or ("emergency" if stored_result.get("emergency") else "routine")
         stored_colour = level_to_colour(stored_level)
+        stored_appt = None
+        try:
+            from data_sources.app_store import get_appointment_by_checkin
+            from services.appointment_service import compute_escalation_state
+            raw_appt = get_appointment_by_checkin(checkin_id)
+            if raw_appt:
+                stored_appt = compute_escalation_state(raw_appt)
+        except Exception:
+            stored_appt = None
         return CheckinCompleteResponse(
             emergency=stored_result["emergency"],
             intakes=stored_result["intakes"],
@@ -208,6 +221,7 @@ def step_check_idempotency(checkin_id: str, record_label: str) -> Optional[Check
             triage_colour=stored_colour,
             triage_level=stored_level,
             risk_patient=_build_patient_risk_list(stored_result.get("risk")),
+            appointment=stored_appt,
         )
     return None
 
@@ -254,6 +268,21 @@ def step_parse_and_validate_intake(
                 triage_level="emergency",
                 triage=None,
             )
+            try:
+                from services.appointment_service import evaluate_and_create_appointment
+                evaluate_and_create_appointment(
+                    checkin_id=checkin_id,
+                    patient_id=checkin.get("user_id") or "anonymous",
+                    final_triage_level="emergency",
+                )
+                from services.notification_service import notify_urgent_checkin
+                notify_urgent_checkin(
+                    checkin_id=checkin_id,
+                    patient_id=checkin.get("user_id") or "anonymous",
+                    triage_level="emergency",
+                )
+            except Exception as e_exc:
+                logger.warning(f"Emergency appointment or notification creation failed for {checkin_id}: {e_exc}")
             update_checkin_state(
                 checkin_id=checkin_id,
                 state_dict=raw_state,
@@ -377,6 +406,21 @@ def step_parse_and_validate_intake(
                 triage_level="emergency" if triage_dict else None,
                 triage=triage_dict,
             )
+            try:
+                from services.appointment_service import evaluate_and_create_appointment
+                evaluate_and_create_appointment(
+                    checkin_id=checkin_id,
+                    patient_id=checkin.get("user_id") or "anonymous",
+                    final_triage_level="emergency",
+                )
+                from services.notification_service import notify_urgent_checkin
+                notify_urgent_checkin(
+                    checkin_id=checkin_id,
+                    patient_id=checkin.get("user_id") or "anonymous",
+                    triage_level="emergency",
+                )
+            except Exception as e_exc:
+                logger.warning(f"Emergency appointment or notification creation failed for {checkin_id}: {e_exc}")
             update_checkin_state(
                 checkin_id=checkin_id,
                 state_dict=state.to_dict(),
@@ -1277,6 +1321,34 @@ def step_persist_and_respond(
         explanation=stored_explanation,
         trace=sanitized_trace,
     )
+
+    appt_record = None
+    try:
+        from services.appointment_service import evaluate_and_create_appointment
+        p_conds = None
+        if hasattr(state, "patient_profile") and state.patient_profile:
+            p_conds = state.patient_profile.get("conditions")
+        if not p_conds and hasattr(state, "patient_conditions"):
+            p_conds = state.patient_conditions
+        p_id = getattr(state, "patient_id", None) or getattr(state, "user_id", None) or "anonymous"
+        appt_record = evaluate_and_create_appointment(
+            checkin_id=checkin_id,
+            patient_id=p_id,
+            final_triage_level=final_triage_level,
+            patient_conditions=p_conds,
+        )
+        if final_triage_level in ("urgent", "emergency"):
+            from services.notification_service import notify_urgent_checkin
+            target_prov = appt_record.get("provider_id") if appt_record else None
+            notify_urgent_checkin(
+                checkin_id=checkin_id,
+                patient_id=p_id,
+                triage_level=final_triage_level,
+                provider_id=target_prov,
+            )
+    except Exception as exc:
+        logger.warning(f"Appointment evaluation failed for checkin {checkin_id}: {exc}")
+
     if job_params:
         from rag.explain_jobs import enqueue_job
         enqueued = enqueue_job(
@@ -1338,4 +1410,5 @@ def step_persist_and_respond(
         triage_colour=triage_colour,
         triage_level=final_triage_level,
         risk_patient=_build_patient_risk_list(risk, user_id=getattr(state, "patient_id", None)),
+        appointment=appt_record,
     )

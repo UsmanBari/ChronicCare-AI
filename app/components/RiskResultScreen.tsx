@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Pill,
+  Calendar,
 } from "lucide-react";
 import { describeMedicationItem } from "../lib/presentation";
 import { ExplanationBox } from "./ExplanationBox";
@@ -231,6 +232,82 @@ export const RiskResultScreen = () => {
 
           {/* Guideline Explanation Box (flags on) */}
           <ExplanationBox />
+
+          {/* Appointment Workflow Action Card (Proposal Section 15 & Section 37) */}
+          {(() => {
+            const apt = liveCheckinResult?.appointment;
+            const level = liveCheckinResult?.triage_level || liveCheckinResult?.triage?.level;
+            const isYellow = level === "review";
+            const isRed = level === "urgent" || level === "emergency";
+
+            if (isYellow) {
+              return (
+                <div className="p-4 rounded-2xl bg-amber-50/90 border-2 border-amber-300 text-left space-y-2.5 animate-fadeIn" data-testid="triage-appointment-card">
+                  <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+                    <Calendar className="w-5 h-5 text-amber-700" />
+                    <span>{t.bookRoutineAppointmentCard}</span>
+                  </div>
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    {t.bookRoutineAppointmentDesc}
+                  </p>
+                  {apt?.specialty && (
+                    <div className="text-xs text-slate-700 bg-white/80 p-2.5 rounded-xl border border-amber-200 flex items-center justify-between">
+                      <span className="font-semibold">{t.appointmentSpecialty}:</span>
+                      <span className="font-bold text-navy-800">
+                        {apt.specialty === "endocrinology" ? t.specialtyEndocrinology : apt.specialty === "cardiology_im" ? t.specialtyCardiology : apt.specialty === "internal_medicine" ? t.specialtyInternalMedicine : t.specialtyGeneral}
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setScreen("appointments")}
+                    id="book-routine-appointment-btn"
+                    className="w-full min-h-[42px] py-2.5 px-4 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>{t.bookAppointmentBtn}</span>
+                  </button>
+                </div>
+              );
+            }
+
+            if (isRed) {
+              return (
+                <div className="p-4 rounded-2xl bg-red-50/90 border-2 border-red-300 text-left space-y-2.5 animate-fadeIn" data-testid="triage-appointment-card">
+                  <div className="flex items-center gap-2 text-red-900 font-bold text-sm">
+                    <AlertCircle className="w-5 h-5 text-red-700" />
+                    <span>{t.careTeamAlertedCard}</span>
+                  </div>
+                  <p className="text-xs text-red-800 leading-relaxed">
+                    {t.careTeamAlertedDesc}
+                  </p>
+                  <div className="text-xs text-slate-700 bg-white/80 p-2.5 rounded-xl border border-red-200 space-y-1">
+                    {apt?.provider_id && (
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold">{t.appointmentWith}:</span>
+                        <span className="font-bold text-navy-800 font-mono">{apt.provider_id}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold">{isUrdu ? "وقت اور تاریخ" : "Slot"}:</span>
+                      <span className="font-bold text-navy-800">{apt?.slot_date || apt?.slot || "Today"}</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setScreen("appointments")}
+                    id="view-urgent-appointment-btn"
+                    className="w-full min-h-[42px] py-2.5 px-4 bg-red-700 hover:bg-red-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    <span>{t.myAppointmentsTitle}</span>
+                  </button>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
 
           {/* Mandatory Release Scope Note */}
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 flex items-start gap-3 text-xs text-slate-600 leading-relaxed">

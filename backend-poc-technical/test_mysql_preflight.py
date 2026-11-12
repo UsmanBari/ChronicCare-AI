@@ -65,8 +65,8 @@ def test_mysql_preflight_signatures_and_constants():
     for kw in ("host", "port", "user", "password", "database", "charset", "ssl", "connect_timeout"):
         assert kw in sig_pymysql.parameters
 
-    # 5. Expected schema version and tables (10 app tables + 3 local store tables)
-    assert mysql_preflight.LATEST_EXPECTED_SCHEMA_VERSION == 16
+    # 5. Expected schema version and tables (14 app tables + 3 local store tables)
+    assert mysql_preflight.LATEST_EXPECTED_SCHEMA_VERSION == 18
     expected_tables = {
         "users",
         "audit_log",
@@ -83,6 +83,10 @@ def test_mysql_preflight_signatures_and_constants():
         "medications",
         "record_edits",
         "guideline_chunks",
+        "provider_directory",
+        "appointments",
+        "notifications",
+        "fcm_tokens",
     }
     assert mysql_preflight.EXPECTED_TABLES == expected_tables
 

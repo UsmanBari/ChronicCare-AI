@@ -318,3 +318,47 @@ In step (a) verification in a clean Python 3.11 venv:
 > **Technical Justification**: While `OCR_USE_SUBPROCESS=true` successfully prevents the parent FastAPI process from holding ONNX runtime buffers (allowing parent RSS to drop back to ~131–139 MB after each call), the transient combined peak memory during active inference reaches **493.3 MB** locally and **529 MB** in reviewer's Linux container (6 Nov). Both the in-process peak (426–608 MB) and the subprocess combined peak (493–529 MB) exceed or dangerously collide with Render's 512 MB free tier container ceiling. Under simultaneous traffic or multi-page uploads, this will trigger Linux Out-Of-Memory (OOM) termination (`exit code 137`).
 > 
 > Therefore, **`OCR_ENABLED` must remain `false` by default for FYP-1 production**. The endpoint correctly returns `503 Service Unavailable` with friendly user feedback when disabled. For FYP-2, enabling OCR safely on Render requires either upgrading to a 1 GB instance ($7/mo) or migrating client-side inference to WebAssembly via Tesseract.js.
+
+---
+
+## 7. Isolated-Mode Onboarding Prescription Intake (PR K / Section 18 & 21.1)
+
+### 7.1 Architecture & Patient Journey
+
+In isolated/local mode (where EHR connection is unavailable), onboarding guides the patient through health profile creation, followed immediately by an optional prescription intake step:
+
+```
+[Health Profile Saved (Isolated Mode)]
+                  │
+                  ▼
+   [Onboarding Prescription Screen]
+     ├── "Do you have a prescription? Upload a photo (optional)"
+     ├── [Upload Photo] ──(OCR Enabled)──► [OcrConfirmScreen (Section 21.1)]
+     ├── [Skip] ─────────────────────────► [Home / Check-in Screen]
+     └── (OCR Disabled or Toggle) ───────► [Manual Medicine Entry Form]
+```
+
+### 7.2 Section 21.1 Quality & Confidence Controls
+
+1. **Header Extraction Checklist**:
+   Prescriptions are validated against the Section 21.1 required header checklist using detected raw OCR lines (`stagedOcrUpload.extracted.raw_lines`):
+   - Doctor Name (`doctor_name`): Detected from lines starting with "Dr" / "Dr." (displayed with amber *"read, please check"* badge).
+   - Registration Number (`registration_number`): Detected from PMDC/PMC/Reg patterns (displayed with amber *"read, please check"* badge).
+   - Hospital / Clinic (`hospital_or_clinic`): Detected from lines containing "Hospital", "Clinic", or "Medical Centre" (displayed with amber *"read, please check"* badge).
+   - Prescription Date (`date`): Extracted date entity or parsed date pattern.
+   - Medication Line Items (`medications`): Found count of extracted medication rows.
+
+   *Missing Headers*: Any unextracted header field displays the honest fallback badge: *"not read: please check the paper"*.
+
+2. **Per-Field Confidence Tags**:
+   - `High`: Both dosage and frequency successfully extracted (e.g. from `extract_fields.py` line 437).
+   - `Medium`: Name identified with partial dose or frequency.
+   - `Low`: Ambiguous token match, missing dosage, or missing confidence. Any item without an explicit confidence from the extractor is strictly treated as `Low` (never defaulting to High or Medium) and surfaces the verification notice for the patient.
+
+3. **Trust & Provenance**:
+   - Confirmed items are tagged with `origin: "ocr"` and assigned `trust_level: "medium"` (Unverified patient upload, Section 18.1).
+   - Provider dashboard and reconciliation surfaces display the `"Unverified (patient upload)"` badge.
+
+4. **Graceful Fallback**:
+   - If `OCR_ENABLED=false` or if OCR service is unavailable, the UI automatically offers the manual medicine entry form (*"Type your medicines"*), ensuring zero dead ends for the patient.
+
