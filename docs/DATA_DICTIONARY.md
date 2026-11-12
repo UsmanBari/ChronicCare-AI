@@ -492,3 +492,82 @@ Personal data is stored across several parts of the ChronicCare AI data model. A
   - Unchanged confirmed values create `record_edits` entries with `old_value = NULL`, `origin = "ocr"`, and `reason = "ocr_confirmed"`.
   - Values modified by the patient during review create `record_edits` entries with `old_value = <staged_extracted_value>`, `new_value = <confirmed_value>`, `origin = "ocr"`, and `reason = "patient corrected OCR value"`.
 - **Audit Logging**: Upload and confirmation audit events (`record_ocr_upload_processed`, `record_ocr_upload_confirmed`) record discrete counts only (`med_count`, `obs_count`, `allergy_count`, `confirmed_count`), never filenames or clinical values.
+
+---
+
+## Appointments & Provider Directory Tables (Schema Version 17, Iteration 4)
+
+### `provider_directory` Table
+Holds the synthetic clinical roster for appointment routing and availability management without external EHR lock-in.
+
+| Column | Type (MySQL) | Type (SQLite) | Nullable | Default | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `VARCHAR(191)` | `TEXT` | No | — | Unique provider ID (e.g. `prov-demo-endo`) |
+| `display_name` | `TEXT` | `TEXT` | No | — | Clinical provider name (e.g. `Dr. Ayesha Siddiqa`) |
+| `specialty` | `VARCHAR(191)` | `TEXT` | No | — | Clinical specialty (`endocrinology`, `cardiology_im`, `internal_medicine`, `general`) |
+| `available` | `BOOLEAN` | `INTEGER` | No | `1` | Availability switch for appointment booking |
+| `created_at` | `VARCHAR(191)` | `TEXT` | No | — | ISO 8601 UTC timestamp |
+
+### `appointments` Table
+Records triage-driven clinical appointment allocations, booking selections, and red-flag escalation tracking.
+
+| Column | Type (MySQL) | Type (SQLite) | Nullable | Default | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `VARCHAR(191)` | `TEXT` | No | — | Primary key (`apt-...`) |
+| `patient_id` | `VARCHAR(191)` | `TEXT` | No | — | Foreign key to `users(id)` |
+| `checkin_id` | `VARCHAR(191)` | `TEXT` | No | — | Unique check-in identifier linking appointment to triage event |
+| `provider_id` | `VARCHAR(191)` | `TEXT` | No | — | Assigned provider ID from `provider_directory`, or empty if unassigned |
+| `specialty` | `VARCHAR(191)` | `TEXT` | No | — | Clinical specialty (`endocrinology`, `cardiology_im`, `internal_medicine`, `general`) |
+| `urgency` | `VARCHAR(32)` | `TEXT` | No | — | Clinical urgency level (`routine` for Yellow review, `urgent` for Red alert) |
+| `mode` | `VARCHAR(32)` | `TEXT` | No | — | Consultation modality (`telehealth` or `in_person`) |
+| `status` | `VARCHAR(32)` | `TEXT` | No | — | Lifecycle state (`offered`, `booked`, `cancelled`, `attended`) |
+| `slot_date` | `TEXT` | `TEXT` | Yes | `NULL` | Selected date/time slot (ISO string or plain slot label) |
+| `created_at` | `VARCHAR(191)` | `TEXT` | No | — | ISO 8601 UTC creation timestamp |
+| `acknowledged_at` | `VARCHAR(191)` | `TEXT` | Yes | `NULL` | ISO 8601 UTC timestamp when provider acknowledged the urgent alert |
+| `admin_flagged_at` | `VARCHAR(191)` | `TEXT` | Yes | `NULL` | ISO 8601 UTC timestamp when 24h escalation timeout flagged to admin |
+
+#### Indexes
+- `idx_appointments_patient_id` on `patient_id`
+- `idx_appointments_provider_id` on `provider_id`
+- `idx_appointments_checkin_id` on `checkin_id` (Unique)
+
+---
+
+## In-App Notifications & FCM Web Push Tables (Schema Version 18, Iteration 4)
+
+### `notifications` Table
+Stores in-app notifications for patients, providers, and system administrators.
+Enforces strict PHI-free title and body strings (no BP or blood glucose values).
+
+| Column | Type (MySQL) | Type (SQLite) | Nullable | Default | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `VARCHAR(191)` | `TEXT` | No | — | Primary key (`notif-...`) |
+| `user_id` | `VARCHAR(191)` | `TEXT` | No | — | Recipient identifier (patient ID, provider ID, or admin ID) |
+| `role` | `VARCHAR(32)` | `TEXT` | No | — | Recipient role (`patient`, `provider`, `admin`) |
+| `type` | `VARCHAR(64)` | `TEXT` | No | — | Notification event type (`urgent_checkin`, `escalation_renotify`, `escalation_admin_flag`, `daily_reminder`) |
+| `title` | `VARCHAR(255)` | `TEXT` | No | — | Generic summary title (PHI-safe) |
+| `body` | `TEXT` | `TEXT` | No | — | Detailed notification body (PHI-safe) |
+| `reference_id` | `VARCHAR(191)` | `TEXT` | Yes | `NULL` | Linked entity ID (`checkin_id`, `appointment_id`, or reminder date key) |
+| `is_read` | `BOOLEAN` | `INTEGER` | No | `0` | Read status flag (`0` for unread, `1` for read) |
+| `created_at` | `VARCHAR(64)` | `TEXT` | No | — | ISO 8601 UTC creation timestamp |
+| `read_at` | `VARCHAR(64)` | `TEXT` | Yes | `NULL` | ISO 8601 UTC read timestamp |
+
+#### Indexes
+- `idx_notifications_user_unread` on `(user_id, is_read)`
+- `idx_notifications_reference` on `(user_id, reference_id)`
+
+### `fcm_tokens` Table
+Stores browser push notification device tokens for Web Push via Firebase Cloud Messaging.
+
+| Column | Type (MySQL) | Type (SQLite) | Nullable | Default | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `token` | `VARCHAR(255)` | `TEXT` | No | — | Primary key (unique registration token returned by FCM) |
+| `user_id` | `VARCHAR(191)` | `TEXT` | No | — | Foreign key to `users(id)` |
+| `device_info` | `VARCHAR(255)` | `TEXT` | Yes | `NULL` | Client User-Agent or device descriptor |
+| `created_at` | `VARCHAR(64)` | `TEXT` | No | — | ISO 8601 UTC creation timestamp |
+| `updated_at` | `VARCHAR(64)` | `TEXT` | No | — | ISO 8601 UTC timestamp of last token refresh |
+
+#### Indexes
+- `idx_fcm_tokens_user` on `user_id`
+
+

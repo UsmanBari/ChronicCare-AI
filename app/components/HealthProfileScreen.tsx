@@ -46,6 +46,8 @@ export const HealthProfileScreen = () => {
     liveProfile,
     setLiveProfile,
     isLiveMode,
+    connectionMode,
+    liveEhrConnection,
     language,
     setLanguage,
     t,
@@ -510,7 +512,11 @@ export const HealthProfileScreen = () => {
     }
 
     setIsLoading(false);
-    setScreen("home");
+    if (connectionMode === "offline" || liveEhrConnection?.mode === "isolated") {
+      setScreen("onboarding_prescription");
+    } else {
+      setScreen("home");
+    }
   };
 
   return (

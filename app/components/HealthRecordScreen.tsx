@@ -914,9 +914,17 @@ export const HealthRecordScreen = () => {
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm text-navy-900">{med.name}</span>
                       {med.origin === "ocr" && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
-                          {t.ocrBadge}
-                        </span>
+                        <>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
+                            {t.ocrBadge}
+                          </span>
+                          <span
+                            data-testid="badge-unverified-upload"
+                            className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200"
+                          >
+                            {t.unverifiedPatientUploadBadge}
+                          </span>
+                        </>
                       )}
                       {med.origin === "ehr" && (
                         <span

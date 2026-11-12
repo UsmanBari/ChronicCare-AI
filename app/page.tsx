@@ -30,6 +30,7 @@ import { RoutedToReviewScreen } from "./components/RoutedToReviewScreen";
 import { EmergencyScreen } from "./components/EmergencyScreen";
 import { PatientAppointmentsScreen } from "./components/PatientAppointmentsScreen";
 import OcrConfirmScreen from "./components/OcrConfirmScreen";
+import OnboardingPrescriptionScreen from "./components/OnboardingPrescriptionScreen";
 
 // Provider Portal Components
 import { ProviderLoginScreen } from "./components/provider/ProviderLoginScreen";
@@ -151,6 +152,7 @@ export default function App() {
                   screen === "risk_result" ||
                   screen === "conflict_detail" ||
                   screen === "conflict_review" ||
+                  screen === "onboarding_prescription" ||
                   screen === "emergency") && (
                   <div className="max-w-xl mx-auto px-4 sm:px-6 py-6 md:py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
                     {screen === "login" && <LoginScreen />}
@@ -158,6 +160,7 @@ export default function App() {
                     {screen === "inclusion" && <InclusionScreen />}
                     {screen === "connection" && <ConnectionScreen />}
                     {screen === "profile" && <HealthProfileScreen />}
+                    {screen === "onboarding_prescription" && <OnboardingPrescriptionScreen />}
                     {screen === "checkin_entry" && <CheckInEntryScreen />}
                     {screen === "adaptive_interview" && <AdaptiveInterviewScreen />}
                     {screen === "confirmation" && <ConfirmationScreen />}

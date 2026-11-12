@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
-import { api } from "../../lib/api";
+import { api, ProviderDirectoryEntry, Appointment } from "../../lib/api";
 import { AdminConfigStatusSection } from "./AdminConfigStatusSection";
 import {
   Shield,
@@ -21,6 +21,9 @@ import {
   Hospital,
   Plus,
   X,
+  ToggleLeft,
+  ToggleRight,
+  AlertTriangle,
 } from "lucide-react";
 
 export const AdminDashboardScreen = () => {
@@ -31,6 +34,23 @@ export const AdminDashboardScreen = () => {
   const activeAlertsCount = demoScenario === "emergency" && !isAliResolved ? 1 : 0;
 
   const [liveAuditLogs, setLiveAuditLogs] = useState<any[]>([]);
+  const [liveProviders, setLiveProviders] = useState<ProviderDirectoryEntry[]>([]);
+  const [liveEscalations, setLiveEscalations] = useState<Appointment[]>([]);
+
+  const fetchDirectoryAndEscalations = () => {
+    api
+      .getAdminProviders()
+      .then((res) => {
+        if (res.providers) setLiveProviders(res.providers);
+      })
+      .catch(() => {});
+    api
+      .getAdminEscalations()
+      .then((res) => {
+        if (res.escalations) setLiveEscalations(res.escalations);
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     if (!isLiveMode) return;
@@ -43,10 +63,20 @@ export const AdminDashboardScreen = () => {
         }
       })
       .catch(() => {});
+    fetchDirectoryAndEscalations();
     return () => {
       isMounted = false;
     };
   }, [isLiveMode]);
+
+  const handleToggleAvailability = async (provId: string, currentVal: boolean) => {
+    try {
+      const updated = await api.updateProviderAvailability(provId, !currentVal);
+      setLiveProviders((prev) => prev.map((p) => (p.id === provId ? updated : p)));
+    } catch {
+      // ignore
+    }
+  };
 
   // 1a. State-driven Clinics, Doctors, and Patients
   const [clinics, setClinics] = useState<string[]>([
@@ -365,6 +395,105 @@ export const AdminDashboardScreen = () => {
       </div>
 
       <AdminConfigStatusSection />
+
+      {/* Live Provider Directory & Escalation Alerts (Proposal Section 15 & 35) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
+        {/* Synthetic Provider Directory Card */}
+        <div className="glass-resting rounded-3xl p-6 sm:p-7 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
+            <h2 className="font-heading text-lg font-bold text-navy-800 flex items-center gap-2.5">
+              <Stethoscope className="w-5 h-5 text-teal-700" />
+              <span>{t.adminProviderDirectoryTitle}</span>
+            </h2>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 font-bold">
+              {liveProviders.length} Providers
+            </span>
+          </div>
+
+          <div className="divide-y divide-slate-100 text-sm space-y-3">
+            {liveProviders.map((prov) => (
+              <div key={prov.id} className="pt-3 first:pt-0 flex items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-navy-800 text-sm">{prov.display_name}</span>
+                    <span className="text-[10px] text-teal-700 font-mono font-bold bg-teal-50 px-2 py-0.5 rounded">
+                      {prov.id}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    <span className="font-medium text-slate-700 capitalize">{prov.specialty.replace("_", " ")}</span> • {prov.clinic || "Community Clinic"}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleAvailability(prov.id, prov.available)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                    prov.available
+                      ? "bg-teal-50 text-teal-900 border-teal-200 hover:bg-teal-100"
+                      : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                  }`}
+                  aria-label={`Toggle availability for ${prov.display_name}`}
+                >
+                  {prov.available ? (
+                    <>
+                      <ToggleRight className="w-4 h-4 text-teal-700" />
+                      <span>{t.providerAvailable}</span>
+                    </>
+                  ) : (
+                    <>
+                      <ToggleLeft className="w-4 h-4 text-slate-400" />
+                      <span>{t.providerUnavailable}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Escalation Alerts Card */}
+        <div className="glass-resting rounded-3xl p-6 sm:p-7 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
+            <h2 className="font-heading text-lg font-bold text-navy-800 flex items-center gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+              <span>{t.adminEscalationAlertsTitle}</span>
+            </h2>
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+              liveEscalations.length > 0 ? "bg-red-100 text-red-900 animate-pulse" : "bg-slate-100 text-slate-600"
+            }`}>
+              {liveEscalations.length} Active
+            </span>
+          </div>
+
+          <div className="space-y-3 text-sm">
+            {liveEscalations.length === 0 ? (
+              <div className="p-6 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 text-xs">
+                No unacknowledged appointments exceeding the 2-hour or 24-hour escalation threshold.
+              </div>
+            ) : (
+              liveEscalations.map((apt) => (
+                <div key={apt.id} className="p-3.5 rounded-2xl bg-red-50/80 border border-red-200 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-red-900">
+                      {apt.escalation_state === "admin_flag" ? t.escalationAdminFlag : t.escalationReNotify}
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-500">
+                      Created: {new Date(apt.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-700">
+                    <span className="font-semibold">Patient:</span> {apt.patient_id} • <span className="font-semibold">Doctor:</span> {apt.provider_id || "Unassigned"}
+                  </div>
+                  <div className="text-xs text-slate-600 italic">
+                    Reason: {apt.reason || "Clinical follow-up required"}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Section A: Clinical Staff & Enrolled Patients (Interactive Creation) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
