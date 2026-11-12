@@ -48,10 +48,12 @@ APP_STORE_TABLES = {
     "allergies",
     "record_edits",
     "guideline_chunks",
+    "provider_directory",
+    "appointments",
     "schema_version",
 }
 
-LATEST_SCHEMA_VERSION = 16
+LATEST_SCHEMA_VERSION = 17
 
 SQLITE_RECORD_EDITS_DDL = """
 CREATE TABLE IF NOT EXISTS record_edits (
@@ -138,6 +140,113 @@ CREATE TABLE IF NOT EXISTS guideline_chunks (
     INDEX idx_guideline_chunks_source (source_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
+
+SQLITE_PROVIDER_DIRECTORY_DDL = """
+CREATE TABLE IF NOT EXISTS provider_directory (
+    id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    specialty TEXT NOT NULL,
+    available INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL
+);
+"""
+SQLITE_PROVIDER_DIRECTORY_SPECIALTY_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_provider_directory_specialty
+    ON provider_directory (specialty, available);
+"""
+
+SQLITE_APPOINTMENTS_DDL = """
+CREATE TABLE IF NOT EXISTS appointments (
+    id TEXT PRIMARY KEY,
+    patient_id TEXT NOT NULL,
+    checkin_id TEXT NOT NULL UNIQUE,
+    provider_id TEXT NOT NULL,
+    specialty TEXT NOT NULL,
+    urgency TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    slot_date TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL,
+    acknowledged_at TEXT DEFAULT NULL,
+    admin_flagged_at TEXT DEFAULT NULL
+);
+"""
+SQLITE_APPOINTMENTS_PATIENT_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_appointments_patient
+    ON appointments (patient_id, created_at DESC);
+"""
+SQLITE_APPOINTMENTS_PROVIDER_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_appointments_provider
+    ON appointments (provider_id, created_at DESC);
+"""
+SQLITE_APPOINTMENTS_CHECKIN_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_appointments_checkin
+    ON appointments (checkin_id);
+"""
+
+MYSQL_PROVIDER_DIRECTORY_DDL = """
+CREATE TABLE IF NOT EXISTS provider_directory (
+    id VARCHAR(191) PRIMARY KEY,
+    display_name VARCHAR(191) NOT NULL,
+    specialty VARCHAR(191) NOT NULL,
+    available TINYINT(1) NOT NULL DEFAULT 1,
+    created_at VARCHAR(191) NOT NULL,
+    INDEX idx_provider_directory_specialty (specialty, available)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+MYSQL_APPOINTMENTS_DDL = """
+CREATE TABLE IF NOT EXISTS appointments (
+    id VARCHAR(191) PRIMARY KEY,
+    patient_id VARCHAR(191) NOT NULL,
+    checkin_id VARCHAR(191) NOT NULL UNIQUE,
+    provider_id VARCHAR(191) NOT NULL,
+    specialty VARCHAR(191) NOT NULL,
+    urgency VARCHAR(191) NOT NULL,
+    mode VARCHAR(191) NOT NULL,
+    status VARCHAR(191) NOT NULL,
+    slot_date VARCHAR(191) DEFAULT NULL,
+    created_at VARCHAR(191) NOT NULL,
+    acknowledged_at VARCHAR(191) DEFAULT NULL,
+    admin_flagged_at VARCHAR(191) DEFAULT NULL,
+    INDEX idx_appointments_patient (patient_id, created_at DESC),
+    INDEX idx_appointments_provider (provider_id, created_at DESC),
+    INDEX idx_appointments_checkin (checkin_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+DEFAULT_FICTIONAL_PROVIDERS = [
+    {
+        "id": "prov-demo-endo",
+        "display_name": "Dr. Demo Endocrinology (fictional)",
+        "specialty": "endocrinology",
+        "available": 1,
+    },
+    {
+        "id": "prov-demo-cardio",
+        "display_name": "Dr. Demo Cardiology (fictional)",
+        "specialty": "cardiology_im",
+        "available": 1,
+    },
+    {
+        "id": "prov-demo-im",
+        "display_name": "Dr. Demo Internal Med (fictional)",
+        "specialty": "internal_medicine",
+        "available": 1,
+    },
+    {
+        "id": "prov-demo-gen-1",
+        "display_name": "Dr. Demo General 1 (fictional)",
+        "specialty": "general",
+        "available": 1,
+    },
+    {
+        "id": "prov-demo-gen-2",
+        "display_name": "Dr. Demo General 2 (fictional)",
+        "specialty": "general",
+        "available": 1,
+    },
+]
 
 
 def _utc_now_iso() -> str:
@@ -521,6 +630,26 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
             cursor.execute("SELECT version FROM schema_version WHERE version = 16")
             if not cursor.fetchone():
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (16, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 17")
+            if not cursor.fetchone():
+                cursor.execute(SQLITE_PROVIDER_DIRECTORY_DDL)
+                cursor.execute(SQLITE_PROVIDER_DIRECTORY_SPECIALTY_INDEX)
+                cursor.execute(SQLITE_APPOINTMENTS_DDL)
+                cursor.execute(SQLITE_APPOINTMENTS_PATIENT_INDEX)
+                cursor.execute(SQLITE_APPOINTMENTS_PROVIDER_INDEX)
+                cursor.execute(SQLITE_APPOINTMENTS_CHECKIN_INDEX)
+
+                cursor.execute("SELECT COUNT(*) FROM provider_directory")
+                cnt_row = cursor.fetchone()
+                cnt = cnt_row[0] if cnt_row else 0
+                if cnt == 0:
+                    for p in DEFAULT_FICTIONAL_PROVIDERS:
+                        cursor.execute(
+                            "INSERT INTO provider_directory (id, display_name, specialty, available, created_at) VALUES (?, ?, ?, ?, ?)",
+                            (p["id"], p["display_name"], p["specialty"], p["available"], now),
+                        )
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (17, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -902,6 +1031,22 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
             cursor.execute("SELECT version FROM schema_version WHERE version = 16")
             if not cursor.fetchone():
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (16, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 17")
+            if not cursor.fetchone():
+                cursor.execute(MYSQL_PROVIDER_DIRECTORY_DDL)
+                cursor.execute(MYSQL_APPOINTMENTS_DDL)
+
+                cursor.execute("SELECT COUNT(*) FROM provider_directory")
+                cnt_row = cursor.fetchone()
+                cnt = cnt_row[0] if cnt_row else 0
+                if cnt == 0:
+                    for p in DEFAULT_FICTIONAL_PROVIDERS:
+                        cursor.execute(
+                            "INSERT INTO provider_directory (id, display_name, specialty, available, created_at) VALUES (%s, %s, %s, %s, %s)",
+                            (p["id"], p["display_name"], p["specialty"], p["available"], now),
+                        )
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (17, %s)", (now,))
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -2628,3 +2773,265 @@ def get_recent_edits_for_patient(
         mysql_url=mysql_url,
         ssl_ca=ssl_ca,
     )
+
+
+# -------------------------------------------------------------------------
+# APPOINTMENT & PROVIDER DIRECTORY STORE FUNCTIONS (PR D / Section 15)
+# -------------------------------------------------------------------------
+
+def list_providers(
+    specialty: Optional[str] = None,
+    available_only: bool = False,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Lists providers from the synthetic provider directory."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        query = "SELECT id, display_name, specialty, available, created_at FROM provider_directory WHERE 1=1"
+        params: List[Any] = []
+        if specialty:
+            query += f" AND specialty = {ph}"
+            params.append(specialty)
+        if available_only:
+            query += f" AND available = {ph}"
+            params.append(1)
+        query += " ORDER BY specialty, id"
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall() or []
+        res = []
+        for r in rows:
+            d = dict(r)
+            d["available"] = bool(d["available"])
+            res.append(d)
+        return res
+
+
+def get_provider(
+    provider_id: str,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Retrieves a single provider by ID."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"SELECT id, display_name, specialty, available, created_at FROM provider_directory WHERE id = {ph}",
+            (provider_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["available"] = bool(d["available"])
+        return d
+
+
+def update_provider_availability(
+    provider_id: str,
+    available: bool,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> bool:
+    """Updates provider availability flag."""
+    avail_val = 1 if available else 0
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"UPDATE provider_directory SET available = {ph} WHERE id = {ph}",
+            (avail_val, provider_id),
+        )
+        return (cursor.rowcount or 0) > 0
+
+
+def create_appointment(
+    appointment_id: str,
+    patient_id: str,
+    checkin_id: str,
+    provider_id: str,
+    specialty: str,
+    urgency: str,
+    mode: str,
+    status: str,
+    slot_date: Optional[str] = None,
+    created_at: Optional[str] = None,
+    acknowledged_at: Optional[str] = None,
+    admin_flagged_at: Optional[str] = None,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Creates a new appointment record."""
+    now = created_at or _utc_now_iso()
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"""
+            INSERT INTO appointments (
+                id, patient_id, checkin_id, provider_id, specialty, urgency, mode, status,
+                slot_date, created_at, acknowledged_at, admin_flagged_at
+            ) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+            """,
+            (
+                appointment_id,
+                patient_id,
+                checkin_id,
+                provider_id,
+                specialty,
+                urgency,
+                mode,
+                status,
+                slot_date,
+                now,
+                acknowledged_at,
+                admin_flagged_at,
+            ),
+        )
+    return {
+        "id": appointment_id,
+        "patient_id": patient_id,
+        "checkin_id": checkin_id,
+        "provider_id": provider_id,
+        "specialty": specialty,
+        "urgency": urgency,
+        "mode": mode,
+        "status": status,
+        "slot_date": slot_date,
+        "created_at": now,
+        "acknowledged_at": acknowledged_at,
+        "admin_flagged_at": admin_flagged_at,
+    }
+
+
+def get_appointment(
+    appointment_id: str,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Retrieves an appointment by ID."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"""
+            SELECT id, patient_id, checkin_id, provider_id, specialty, urgency, mode, status,
+                   slot_date, created_at, acknowledged_at, admin_flagged_at
+            FROM appointments WHERE id = {ph}
+            """,
+            (appointment_id,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def get_appointment_by_checkin(
+    checkin_id: str,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Retrieves an appointment associated with a checkin."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"""
+            SELECT id, patient_id, checkin_id, provider_id, specialty, urgency, mode, status,
+                   slot_date, created_at, acknowledged_at, admin_flagged_at
+            FROM appointments WHERE checkin_id = {ph}
+            """,
+            (checkin_id,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def list_patient_appointments(
+    patient_id: str,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Lists appointments for a specific patient, newest first."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        cursor.execute(
+            f"""
+            SELECT id, patient_id, checkin_id, provider_id, specialty, urgency, mode, status,
+                   slot_date, created_at, acknowledged_at, admin_flagged_at
+            FROM appointments WHERE patient_id = {ph}
+            ORDER BY created_at DESC
+            """,
+            (patient_id,),
+        )
+        rows = cursor.fetchall() or []
+        return [dict(r) for r in rows]
+
+
+def list_provider_appointments(
+    provider_id: Optional[str] = None,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Lists appointments for providers. If provider_id provided, filters by provider."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        query = """
+            SELECT id, patient_id, checkin_id, provider_id, specialty, urgency, mode, status,
+                   slot_date, created_at, acknowledged_at, admin_flagged_at
+            FROM appointments
+        """
+        params: List[Any] = []
+        if provider_id:
+            query += f" WHERE provider_id = {ph}"
+            params.append(provider_id)
+        query += " ORDER BY CASE urgency WHEN 'urgent' THEN 0 ELSE 1 END, created_at DESC"
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall() or []
+        return [dict(r) for r in rows]
+
+
+def update_appointment(
+    appointment_id: str,
+    status: Optional[str] = None,
+    slot_date: Optional[str] = None,
+    mode: Optional[str] = None,
+    acknowledged_at: Optional[str] = None,
+    admin_flagged_at: Optional[str] = None,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Updates fields of an existing appointment."""
+    updates: List[str] = []
+    params: List[Any] = []
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        if status is not None:
+            updates.append(f"status = {ph}")
+            params.append(status)
+        if slot_date is not None:
+            updates.append(f"slot_date = {ph}")
+            params.append(slot_date)
+        if mode is not None:
+            updates.append(f"mode = {ph}")
+            params.append(mode)
+        if acknowledged_at is not None:
+            updates.append(f"acknowledged_at = {ph}")
+            params.append(acknowledged_at)
+        if admin_flagged_at is not None:
+            updates.append(f"admin_flagged_at = {ph}")
+            params.append(admin_flagged_at)
+
+        if not updates:
+            return get_appointment(appointment_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+
+        params.append(appointment_id)
+        query = f"UPDATE appointments SET {', '.join(updates)} WHERE id = {ph}"
+        cursor.execute(query, tuple(params))
+
+    return get_appointment(appointment_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+

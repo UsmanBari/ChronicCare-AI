@@ -30,4 +30,6 @@
 | Server-side prescription and lab OCR pipeline | `backend-poc-technical/main.py` | `backend-poc-technical/test_ocr_upload.py::test_ocr_disabled_by_default_returns_503` | `docs/OCR_DESIGN.md` | BUILT (OCR v1, PR #96, behind OCR_ENABLED, off by default) |
 | Single-LLM baseline ablation benchmark (RQ3) | `docs/tasks/WEEK3_USMAN.md` | `backend-poc-technical/test_engine_equivalence.py::test_engine_equivalence_scenarios` | `docs/LIMITATIONS.md` | PLANNED (FYP-2, WEEK3_USMAN.md:312: "baselines and pilot **FYP-2**") |
 | Real-patient clinical evaluation pilot in Pakistani cohort (RQ1-4) | `docs/tasks/WEEK3_USMAN.md` | `backend-poc-technical/test_clinical_rules_doc.py::test_all_clinical_constants_documented_in_rules_register` | `docs/LIMITATIONS.md` | PLANNED (FYP-2, WEEK3_USMAN.md:312: "baselines and pilot **FYP-2**") |
+| Appointment booking matching triage colour and clinical specialty (Sec 15, 37) | `backend-poc-technical/services/appointment_service.py` | `backend-poc-technical/test_appointments.py::test_colour_to_action_routine_green` | `docs/APPOINTMENTS.md` | BUILT |
+| Red-flag escalation timeout tracking with 24h admin audit alert (Sec 15, 37) | `backend-poc-technical/services/appointment_service.py` | `backend-poc-technical/test_appointments.py::test_escalation_timeout_milestones` | `docs/APPOINTMENTS.md` | BUILT |
 

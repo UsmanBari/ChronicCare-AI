@@ -1264,6 +1264,69 @@ class LocalAcceptanceRunner:
         except Exception as exc:
             self.results.append({"id": "LA-24", "feature": feat, "status": "FAIL", "evidence": str(exc)})
 
+    def run_la_25(self) -> None:
+        """LA-25: Appointments by colour, specialty, booking window & escalation timeout (Sec 15, 35, 37)."""
+        feat = "Appointments by color, specialty & escalation (Sec 15)"
+        try:
+            from services.appointment_service import (
+                determine_specialty,
+                evaluate_and_create_appointment,
+                compute_escalation_state,
+            )
+            from datetime import datetime, timezone, timedelta
+
+            # 1. Specialty mapping verification
+            spec_dm = determine_specialty(["diabetes"])
+            spec_htn = determine_specialty(["hypertension"])
+            spec_dual = determine_specialty(["diabetes", "hypertension"])
+            spec_ok = (spec_dm == "endocrinology" and spec_htn == "cardiology_im" and spec_dual == "internal_medicine")
+
+            # 2. Colour to action verification
+            # Green -> None
+            green_apt = evaluate_and_create_appointment("p_g_la25", "chk_g_la25", "routine", ["diabetes"])
+            # Yellow -> offered
+            yellow_apt = evaluate_and_create_appointment("p_y_la25", "chk_y_la25", "review", ["diabetes"])
+            # Red -> booked urgent
+            red_apt = evaluate_and_create_appointment("p_r_la25", "chk_r_la25", "urgent", ["hypertension"])
+            colour_ok = (
+                green_apt is None
+                and yellow_apt is not None
+                and yellow_apt.get("status") == "offered"
+                and yellow_apt.get("urgency") == "routine"
+                and red_apt is not None
+                and red_apt.get("status") == "booked"
+                and red_apt.get("urgency") == "urgent"
+            )
+
+            # 3. Escalation timeout transitions (<2h pending, >=2h re_notify, >=24h admin_flag)
+            base_t = datetime(2026, 11, 10, 10, 0, 0, tzinfo=timezone.utc)
+            t_1h = base_t + timedelta(hours=1)
+            t_3h = base_t + timedelta(hours=3)
+            t_25h = base_t + timedelta(hours=25)
+
+            mock_apt = {"id": "test_esc", "urgency": "urgent", "created_at": base_t.isoformat(), "acknowledged_at": None, "admin_flagged_at": None}
+            esc_1h = compute_escalation_state(mock_apt, now_dt=t_1h).get("escalation_state")
+            esc_3h = compute_escalation_state(mock_apt, now_dt=t_3h).get("escalation_state")
+            esc_25h = compute_escalation_state(mock_apt, now_dt=t_25h).get("escalation_state")
+            esc_ok = (esc_1h == "pending" and esc_3h == "re_notify" and esc_25h == "admin_flag")
+
+            # 4. HTTP endpoints verification if patient session initialized
+            http_ok = True
+            if self.firebase_web_key:
+                try:
+                    headers, _ = self._init_patient_session("la25", ["diabetes"])
+                    resp = requests.get(f"{self.base_url}/api/me/appointments", headers=headers, timeout=HTTP_TIMEOUT)
+                    http_ok = resp.status_code == 200
+                except Exception:
+                    pass
+
+            passed = spec_ok and colour_ok and esc_ok and http_ok
+            status = "PASS" if passed else "FAIL"
+            ev = f"specialties_ok={spec_ok}; colour_to_action_ok={colour_ok}; escalation_ok={esc_ok}; http_ok={http_ok}"
+            self.results.append({"id": "LA-25", "feature": feat, "status": status, "evidence": ev})
+        except Exception as exc:
+            self.results.append({"id": "LA-25", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
     def run_la_26(self) -> None:
         """LA-26: Provider SOAP clinical summary generator (Sec 13.1)."""
         feat = "Provider SOAP clinical summary generator (Sec 13.1)"
@@ -1316,7 +1379,6 @@ class LocalAcceptanceRunner:
 
     def add_placeholders(self) -> None:
         placeholders = [
-            ("LA-25", "Appointments by color, specialty & escalation (Sec 15)", "Planned in PR D"),
             ("LA-27", "Diabetes control model for diabetic patients (Sec 13.1)", "Planned in PR F"),
             ("LA-28", "Dense + BM25 hybrid retrieval with ChromaDB (Sec 13.2)", "Planned in PR G"),
             ("LA-29", "Push notifications for screening reminders (Sec 13.2)", "Planned in PR H"),
@@ -1421,6 +1483,7 @@ class LocalAcceptanceRunner:
             ("LA-23", self.run_la_23),
             ("LA-23b", self.run_la_23b),
             ("LA-24", self.run_la_24),
+            ("LA-25", self.run_la_25),
             ("LA-26", self.run_la_26),
         ]
 

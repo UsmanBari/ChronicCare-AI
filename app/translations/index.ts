@@ -279,6 +279,35 @@ export interface Translations {
   appointmentWith: string;
   appointmentReason: string;
   appointmentStatus: string;
+  bookRoutineAppointmentCard: string;
+  bookRoutineAppointmentDesc: string;
+  bookNowBtn: string;
+  careTeamAlertedCard: string;
+  careTeamAlertedDesc: string;
+  appointmentOffered: string;
+  appointmentBooked: string;
+  appointmentCancelled: string;
+  appointmentAttended: string;
+  urgencyRoutine: string;
+  urgencyUrgent: string;
+  specialtyEndocrinology: string;
+  specialtyCardiology: string;
+  specialtyInternalMedicine: string;
+  specialtyGeneral: string;
+  appointmentSpecialty: string;
+  bookingWindowNotice: string;
+  bookAppointmentBtn: string;
+  cancelAppointmentBtn: string;
+  acknowledgeAppointmentBtn: string;
+  markAttendedBtn: string;
+  escalationPending: string;
+  escalationReNotify: string;
+  escalationAdminFlag: string;
+  escalationAcknowledged: string;
+  adminProviderDirectoryTitle: string;
+  adminEscalationAlertsTitle: string;
+  providerAvailable: string;
+  providerUnavailable: string;
 
   // M4: Admin Portal
   adminDashboardTitle: string;
@@ -875,6 +904,35 @@ export const translations: Record<Language, Translations> = {
     appointmentWith: "Provider",
     appointmentReason: "Reason for Visit",
     appointmentStatus: "Status",
+    bookRoutineAppointmentCard: "Book a Routine Appointment",
+    bookRoutineAppointmentDesc: "Your check-in indicates non-urgent clinical follow-up is recommended within 3 days.",
+    bookNowBtn: "Book Now",
+    careTeamAlertedCard: "Your Care Team Has Been Alerted",
+    careTeamAlertedDesc: "An urgent clinical follow-up appointment has been scheduled for today:",
+    appointmentOffered: "Offered (Please Book)",
+    appointmentBooked: "Confirmed",
+    appointmentCancelled: "Cancelled",
+    appointmentAttended: "Attended",
+    urgencyRoutine: "Routine",
+    urgencyUrgent: "Urgent",
+    specialtyEndocrinology: "Endocrinology (Diabetes)",
+    specialtyCardiology: "Cardiology (Hypertension)",
+    specialtyInternalMedicine: "Internal Medicine (Dual Care)",
+    specialtyGeneral: "General Practice",
+    appointmentSpecialty: "Specialty",
+    bookingWindowNotice: "Offered within 3 days",
+    bookAppointmentBtn: "Book Appointment",
+    cancelAppointmentBtn: "Cancel Appointment",
+    acknowledgeAppointmentBtn: "Acknowledge",
+    markAttendedBtn: "Mark Attended",
+    escalationPending: "Pending Provider Review",
+    escalationReNotify: "Re-notified (>2h)",
+    escalationAdminFlag: "Admin Flag (>24h)",
+    escalationAcknowledged: "Acknowledged",
+    adminProviderDirectoryTitle: "Provider Directory",
+    adminEscalationAlertsTitle: "Escalation Timeout Alerts",
+    providerAvailable: "Available",
+    providerUnavailable: "Unavailable",
 
     // M4: Admin Portal
     adminDashboardTitle: "System Administration & Telemetry",
@@ -1469,6 +1527,35 @@ export const translations: Record<Language, Translations> = {
     appointmentWith: "ڈاکٹر",
     appointmentReason: "ملاقات کا مقصد",
     appointmentStatus: "حیثیت",
+    bookRoutineAppointmentCard: "معمول کی اپوائنٹمنٹ بک کریں",
+    bookRoutineAppointmentDesc: "آپ کے چیک ان سے ظاہر ہوتا ہے کہ 3 دن کے اندر معمول کے فالو اپ کی سفارش کی جاتی ہے۔",
+    bookNowBtn: "ابھی بک کریں",
+    careTeamAlertedCard: "آپ کی کیئر ٹیم کو مطلع کر دیا گیا ہے",
+    careTeamAlertedDesc: "آج کے لیے ایک فوری کلینیکل اپوائنٹمنٹ شیڈول کی گئی ہے:",
+    appointmentOffered: "پیشکش شدہ (براہ کرم بک کریں)",
+    appointmentBooked: "تصدیق شدہ",
+    appointmentCancelled: "منسوخ شدہ",
+    appointmentAttended: "مکمل شدہ",
+    urgencyRoutine: "معمول",
+    urgencyUrgent: "فوری",
+    specialtyEndocrinology: "اینڈوکرائنولوجی (ذیابیطس)",
+    specialtyCardiology: "کارڈیالوجی (ہائی بلڈ پریشر)",
+    specialtyInternalMedicine: "انٹرنل میڈیسن (مشترکہ دیکھ بھال)",
+    specialtyGeneral: "جنرل پریکٹس",
+    appointmentSpecialty: "طبی شعبہ",
+    bookingWindowNotice: "3 دن کے اندر تجویز کردہ",
+    bookAppointmentBtn: "ملاقات طے کریں",
+    cancelAppointmentBtn: "اپوائنٹمنٹ منسوخ کریں",
+    acknowledgeAppointmentBtn: "تسلیم کریں",
+    markAttendedBtn: "حاضری درج کریں",
+    escalationPending: "ڈاکٹر کے جائزے کا انتظار",
+    escalationReNotify: "دوبارہ مطلع کیا گیا (>2 گھنٹے)",
+    escalationAdminFlag: "ایڈمن الرٹ (>24 گھنٹے)",
+    escalationAcknowledged: "تسلیم شدہ",
+    adminProviderDirectoryTitle: "ڈاکٹروں کی ڈائرکٹری",
+    adminEscalationAlertsTitle: "ایسکلیشن ٹائم آؤٹ الرٹس",
+    providerAvailable: "دستیاب",
+    providerUnavailable: "غیر دستیاب",
 
     // M4: Admin Portal
     adminDashboardTitle: "سسٹم ایڈمنسٹریشن اور ٹیلی میٹری",
