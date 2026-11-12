@@ -46,7 +46,7 @@ export const EmergencyScreen = () => {
             <div>
               <p className="font-bold text-navy-800">{t.emergencyAlertedText}</p>
               <p className="text-xs text-slate-500 mt-0.5">
-                {isUrdu ? "طبی نگہداشت ٹیم کو خودکار فوری پیغام بھیج دیا گیا ہے۔" : "Priority clinical notification dispatched to on-call care team."}
+                {t.emergencyReviewNotice || (isUrdu ? "آپ کا چیک ان نگہداشت ٹیم کی جائزہ فہرست میں بھیج دیا گیا ہے۔" : "Your check-in has been sent to your care team's review list.")}
               </p>
             </div>
           </div>
