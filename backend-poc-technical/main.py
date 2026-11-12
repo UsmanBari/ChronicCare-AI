@@ -5647,3 +5647,159 @@ async def voice_transcribe_endpoint(
 
     return VoiceTranscribeResponse(text=text)
 
+
+# -------------------------------------------------------------------------
+# APPOINTMENT & PROVIDER DIRECTORY ENDPOINTS (PR D / Proposal Sec 15, 35)
+# -------------------------------------------------------------------------
+
+class BookAppointmentRequest(BaseModel):
+    slot_date: str
+    mode: Optional[str] = "telehealth"
+
+
+class UpdateProviderAvailabilityRequest(BaseModel):
+    available: bool
+
+
+@app.get("/api/me/appointments", tags=["Appointments"])
+def get_my_appointments(current_user: Dict[str, Any] = Depends(require_role("patient"))):
+    """Retrieves all appointments for the authenticated patient, with computed escalation states."""
+    from data_sources.app_store import list_patient_appointments
+    from services.appointment_service import compute_escalation_state
+
+    patient_id = current_user["user_id"]
+    raw_list = list_patient_appointments(patient_id=patient_id)
+    enhanced = [compute_escalation_state(a) for a in raw_list]
+    return {"appointments": enhanced}
+
+
+@app.post("/api/me/appointments/{appointment_id}/book", tags=["Appointments"])
+def book_my_appointment(
+    appointment_id: str,
+    req: BookAppointmentRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Allows a patient to book an offered appointment within the allowed 3-day window."""
+    from services.appointment_service import book_appointment_slot
+
+    patient_id = current_user["user_id"]
+    try:
+        updated = book_appointment_slot(
+            appointment_id=appointment_id,
+            patient_id=patient_id,
+            slot_date=req.slot_date,
+            mode=req.mode,
+        )
+        return updated
+    except PermissionError as p_err:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(p_err)) from p_err
+    except ValueError as v_err:
+        msg = str(v_err)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from v_err
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=msg) from v_err
+
+
+@app.post("/api/me/appointments/{appointment_id}/cancel", tags=["Appointments"])
+def cancel_my_appointment(
+    appointment_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Allows a patient to cancel an appointment."""
+    from services.appointment_service import cancel_appointment
+
+    patient_id = current_user["user_id"]
+    try:
+        updated = cancel_appointment(appointment_id=appointment_id, patient_id=patient_id)
+        return updated
+    except PermissionError as p_err:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(p_err)) from p_err
+    except ValueError as v_err:
+        msg = str(v_err)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from v_err
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from v_err
+
+
+@app.get("/api/provider/appointments", tags=["Appointments"])
+def get_provider_appointments(current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin"))):
+    """Retrieves prioritized clinical appointments with computed escalation state."""
+    from data_sources.app_store import list_provider_appointments
+    from services.appointment_service import compute_escalation_state
+
+    raw_list = list_provider_appointments()
+    enhanced = [compute_escalation_state(a) for a in raw_list]
+    return {"appointments": enhanced}
+
+
+@app.post("/api/provider/appointments/{appointment_id}/acknowledge", tags=["Appointments"])
+def acknowledge_provider_appointment(
+    appointment_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin")),
+):
+    """Provider acknowledges an urgent appointment, clearing escalation timeout."""
+    from services.appointment_service import acknowledge_appointment
+
+    provider_id = current_user["user_id"]
+    try:
+        updated = acknowledge_appointment(appointment_id=appointment_id, provider_id=provider_id)
+        return updated
+    except ValueError as v_err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(v_err)) from v_err
+
+
+@app.post("/api/provider/appointments/{appointment_id}/attended", tags=["Appointments"])
+def mark_provider_appointment_attended(
+    appointment_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin")),
+):
+    """Provider marks an appointment as attended."""
+    from services.appointment_service import mark_appointment_attended
+
+    provider_id = current_user["user_id"]
+    try:
+        updated = mark_appointment_attended(appointment_id=appointment_id, provider_id=provider_id)
+        return updated
+    except ValueError as v_err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(v_err)) from v_err
+
+
+@app.get("/api/admin/providers", tags=["Appointments"])
+def get_admin_providers(current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin"))):
+    """Retrieves synthetic provider directory."""
+    from data_sources.app_store import list_providers
+
+    providers = list_providers()
+    return {"providers": providers}
+
+
+@app.patch("/api/admin/providers/{provider_id}", tags=["Appointments"])
+def update_admin_provider(
+    provider_id: str,
+    req: UpdateProviderAvailabilityRequest,
+    current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin")),
+):
+    """Toggles provider availability on or off."""
+    from data_sources.app_store import get_provider, update_provider_availability
+
+    prov = get_provider(provider_id)
+    if not prov:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Provider {provider_id} not found")
+
+    update_provider_availability(provider_id=provider_id, available=req.available)
+    updated = get_provider(provider_id)
+    return updated
+
+
+@app.get("/api/admin/escalations", tags=["Appointments"])
+def get_admin_escalations(current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin"))):
+    """Lists appointments with admin_flag escalation state."""
+    from data_sources.app_store import list_provider_appointments
+    from services.appointment_service import compute_escalation_state
+
+    raw_list = list_provider_appointments()
+    enhanced = [compute_escalation_state(a) for a in raw_list]
+    escalations = [a for a in enhanced if a.get("escalation_state") == "admin_flag"]
+    return {"escalations": escalations}
+
+

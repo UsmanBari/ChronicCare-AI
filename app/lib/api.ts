@@ -392,6 +392,36 @@ export interface CheckinCompleteResponse {
   triage_colour?: string | null;
   triage_level?: string | null;
   risk_patient?: Array<{ model_key: string; band: string; message_key: string }> | null;
+  appointment?: Appointment | null;
+}
+
+export interface Appointment {
+  id: string;
+  patient_id: string;
+  checkin_id: string;
+  provider_id: string;
+  specialty: 'endocrinology' | 'cardiology_im' | 'internal_medicine' | 'general' | string;
+  urgency: 'routine' | 'urgent';
+  mode: 'in_person' | 'telehealth';
+  status: 'offered' | 'booked' | 'cancelled' | 'attended';
+  slot_date?: string | null;
+  slot?: string | null;
+  reason?: string | null;
+  created_at: string;
+  acknowledged_at?: string | null;
+  admin_flagged_at?: string | null;
+  escalation_state?: 'pending' | 're_notify' | 'admin_flag' | 'acknowledged' | 'none';
+}
+
+export interface ProviderDirectoryEntry {
+  id: string;
+  display_name: string;
+  name?: string;
+  clinic?: string;
+  specialty: string;
+  available: boolean;
+  is_available?: boolean;
+  created_at: string;
 }
 
 export interface UserCheckinSummaryResponse {
@@ -1270,5 +1300,54 @@ export const api = {
       headers: isFhir ? { "Content-Type": "application/fhir+json" } : { "Content-Type": "application/json" },
       body: typeof payload === "string" ? payload : JSON.stringify(payload),
     });
+  },
+
+  // 9. Appointments & Provider Directory (PR D / Proposal Sec 15)
+  getMyAppointments: async (): Promise<{ appointments: Appointment[] }> => {
+    return request<{ appointments: Appointment[] }>("/api/me/appointments");
+  },
+
+  bookAppointment: async (appointmentId: string, slotDate: string, mode: string = "telehealth"): Promise<Appointment> => {
+    return request<Appointment>(`/api/me/appointments/${encodeURIComponent(appointmentId)}/book`, {
+      method: "POST",
+      body: JSON.stringify({ slot_date: slotDate, mode }),
+    });
+  },
+
+  cancelAppointment: async (appointmentId: string): Promise<Appointment> => {
+    return request<Appointment>(`/api/me/appointments/${encodeURIComponent(appointmentId)}/cancel`, {
+      method: "POST",
+    });
+  },
+
+  getProviderAppointments: async (): Promise<{ appointments: Appointment[] }> => {
+    return request<{ appointments: Appointment[] }>("/api/provider/appointments");
+  },
+
+  acknowledgeAppointment: async (appointmentId: string): Promise<Appointment> => {
+    return request<Appointment>(`/api/provider/appointments/${encodeURIComponent(appointmentId)}/acknowledge`, {
+      method: "POST",
+    });
+  },
+
+  markAppointmentAttended: async (appointmentId: string): Promise<Appointment> => {
+    return request<Appointment>(`/api/provider/appointments/${encodeURIComponent(appointmentId)}/attended`, {
+      method: "POST",
+    });
+  },
+
+  getAdminProviders: async (): Promise<{ providers: ProviderDirectoryEntry[] }> => {
+    return request<{ providers: ProviderDirectoryEntry[] }>("/api/admin/providers");
+  },
+
+  updateProviderAvailability: async (providerId: string, available: boolean): Promise<ProviderDirectoryEntry> => {
+    return request<ProviderDirectoryEntry>(`/api/admin/providers/${encodeURIComponent(providerId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ available }),
+    });
+  },
+
+  getAdminEscalations: async (): Promise<{ escalations: Appointment[] }> => {
+    return request<{ escalations: Appointment[] }>("/api/admin/escalations");
   },
 };

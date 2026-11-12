@@ -58,8 +58,8 @@
 | Triage Severity Colors (Green=Routine, Yellow=Review, Red=Urgent/Emergency) | Sec 15 | `backend-poc-technical/agents/final_triage.py` & `app/components/TriageColourChip.tsx` | LA-20 | **PASS** | Usman | Done (PR A) |
 | Stage-2 Clinical Risk Elevation (Routine -> Review on high risk band) | Sec 15 | `backend-poc-technical/agents/final_triage.py` | LA-21, LA-21b, LA-21c | **PASS** | Usman | Done (PR A) |
 | Patient-Facing Risk Band Display (Plain sentence + action only) | Sec 15 | `app/components/RiskResultScreen.tsx` & `backend-poc-technical/orchestrator/steps.py` | LA-23 | **PASS** | Usman | Done (PR A) |
-| Appointment Booking by Triage Level & Clinical Specialty | Sec 15 | `backend-poc-technical/appointments/` | LA-25 | **NOT BUILT YET** | Usman | 12 Nov 2026 (PR D) |
-| Red-Flag Escalation Notification & Timeout Tracking | Sec 15 | `backend-poc-technical/escalation/` | LA-25 | **NOT BUILT YET** | Usman | 12 Nov 2026 (PR D) |
+| Appointment Booking by Triage Level & Clinical Specialty | Sec 15 | `backend-poc-technical/services/appointment_service.py` | LA-25 | **PASS** | Hassaan | Done (PR D) |
+| Red-Flag Escalation Notification & Timeout Tracking | Sec 15 | `backend-poc-technical/services/appointment_service.py` | LA-25 | **PASS** | Hassaan | Done (PR D) |
 
 ---
 

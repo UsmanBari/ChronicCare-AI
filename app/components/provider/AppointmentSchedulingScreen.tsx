@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
-import { Calendar, Clock, CheckCircle2, User, Stethoscope, ArrowLeft } from "lucide-react";
+import { api, Appointment } from "../../lib/api";
+import { Calendar, Clock, CheckCircle2, User, Stethoscope, ArrowLeft, AlertCircle, AlertTriangle, ShieldCheck, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 
 export const AppointmentSchedulingScreen = () => {
@@ -14,6 +15,48 @@ export const AppointmentSchedulingScreen = () => {
     isUrdu,
   } = useApp();
 
+  const [activeTab, setActiveTab] = useState<"queue" | "manual">("queue");
+  const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  const fetchProviderAppointments = async () => {
+    setIsLoading(true);
+    try {
+      const res = await api.getProviderAppointments();
+      setLiveAppointments(res.appointments || []);
+    } catch {
+      // Offline fallback
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProviderAppointments();
+  }, []);
+
+  const handleAcknowledge = async (id: string) => {
+    try {
+      await api.acknowledgeAppointment(id);
+      setActionMessage("Appointment acknowledged; escalation alert cleared.");
+      await fetchProviderAppointments();
+    } catch (err: any) {
+      setActionMessage(err.message || "Failed to acknowledge");
+    }
+  };
+
+  const handleMarkAttended = async (id: string) => {
+    try {
+      await api.markAppointmentAttended(id);
+      setActionMessage("Appointment marked as attended.");
+      await fetchProviderAppointments();
+    } catch (err: any) {
+      setActionMessage(err.message || "Failed to mark attended");
+    }
+  };
+
+  // Mock slot selection state
   const slots = [
     "Mon, Sep 7 • 9:00 AM",
     "Mon, Sep 7 • 2:00 PM",
@@ -49,7 +92,8 @@ export const AppointmentSchedulingScreen = () => {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-lg mx-auto surface-card rounded-2xl overflow-hidden"
+      className="w-full max-w-2xl mx-auto surface-card rounded-2xl overflow-hidden shadow-lg border border-slate-200"
+      dir={isUrdu ? "rtl" : "ltr"}
     >
       {/* Header */}
       <div className="bg-navy-800 p-6 text-white text-center relative overflow-hidden">
@@ -62,10 +106,165 @@ export const AppointmentSchedulingScreen = () => {
         <p className="text-xs text-slate-300 font-medium">
           {t.scheduleSubtitle}
         </p>
+
+        {/* Tab switcher */}
+        <div className="flex justify-center gap-2 mt-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab("queue")}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "queue"
+                ? "bg-teal-600 text-white shadow-xs"
+                : "bg-navy-700 text-slate-300 hover:text-white"
+            }`}
+          >
+            {isUrdu ? "ملاقاتوں کی فہرست" : "Appointments Queue"} ({liveAppointments.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("manual")}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "manual"
+                ? "bg-teal-600 text-white shadow-xs"
+                : "bg-navy-700 text-slate-300 hover:text-white"
+            }`}
+          >
+            {isUrdu ? "مینوئل بکنگ" : "Schedule Follow-up"}
+          </button>
+        </div>
       </div>
 
       <div className="p-6 space-y-6">
-        {!isBooked ? (
+        {actionMessage && (
+          <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-900 text-xs flex items-center justify-between">
+            <span>{actionMessage}</span>
+            <button type="button" onClick={() => setActionMessage(null)} className="text-teal-700 font-bold ml-2">×</button>
+          </div>
+        )}
+
+        {activeTab === "queue" ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                {isUrdu ? "طبی نگہداشت کی تقرریاں" : "Triaged Appointments Roster"}
+              </span>
+              <button
+                type="button"
+                onClick={fetchProviderAppointments}
+                className="text-xs text-teal-700 hover:text-teal-800 font-semibold flex items-center gap-1"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
+                <span>{isUrdu ? "تازہ کریں" : "Refresh"}</span>
+              </button>
+            </div>
+
+            {liveAppointments.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 text-xs">
+                {isUrdu ? "فی الوقت کوئی تقرری زیر التوا نہیں ہے۔" : "No appointments in the queue."}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {liveAppointments.map((apt) => {
+                  const isUrgent = apt.urgency === "urgent";
+                  const isBooked = apt.status === "booked";
+                  const isAcknowledged = Boolean(apt.acknowledged_at);
+                  const isAttended = apt.status === "attended";
+                  const isEscalated = apt.escalation_state === "admin_flag";
+
+                  return (
+                    <div
+                      key={apt.id}
+                      className={`p-4 rounded-2xl border transition-all space-y-3 ${
+                        isUrgent
+                          ? "bg-red-50/60 border-red-300 ring-1 ring-red-300"
+                          : "bg-white border-slate-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                            isUrgent ? "bg-red-600 text-white" : "bg-teal-100 text-teal-900 border border-teal-200"
+                          }`}>
+                            {apt.urgency === "urgent" ? t.urgencyUrgent : t.urgencyRoutine}
+                          </span>
+                          <span className="text-xs font-bold text-navy-800">
+                            Patient: {apt.patient_id}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] px-2 py-0.5 rounded-md font-semibold bg-slate-100 text-slate-700">
+                            {apt.status === "offered" ? t.appointmentOffered : apt.status === "booked" ? t.appointmentBooked : apt.status === "cancelled" ? t.appointmentCancelled : t.appointmentAttended}
+                          </span>
+                          {isEscalated && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-rose-600 text-white font-bold animate-pulse">
+                              {t.escalationAdminFlag}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 pt-1">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">{t.appointmentSpecialty}</span>
+                          <span className="font-semibold text-navy-800">
+                            {apt.specialty === "endocrinology" ? t.specialtyEndocrinology : apt.specialty === "cardiology_im" ? t.specialtyCardiology : apt.specialty === "internal_medicine" ? t.specialtyInternalMedicine : t.specialtyGeneral}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">{isUrdu ? "ملاقات کا وقت" : "Slot"}</span>
+                          <span className="font-semibold text-navy-800">{apt.slot_date || apt.slot || "Awaiting booking"}</span>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-slate-500">
+                        <span className="font-semibold text-slate-700">{t.appointmentReason}:</span> {apt.reason || "Routine clinical review"}
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+                        {isBooked && !isAcknowledged && (
+                          <button
+                            type="button"
+                            onClick={() => handleAcknowledge(apt.id)}
+                            className="min-h-[34px] px-3.5 py-1.5 bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs rounded-xl shadow-2xs flex items-center gap-1.5"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>{t.acknowledgeAppointmentBtn}</span>
+                          </button>
+                        )}
+                        {isAcknowledged && !isAttended && (
+                          <button
+                            type="button"
+                            onClick={() => handleMarkAttended(apt.id)}
+                            className="min-h-[34px] px-3.5 py-1.5 bg-navy-800 hover:bg-navy-900 text-white font-bold text-xs rounded-xl shadow-2xs flex items-center gap-1.5"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>{t.markAttendedBtn}</span>
+                          </button>
+                        )}
+                        {isAttended && (
+                          <span className="text-xs text-mutedGreen-800 font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Attended
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setProviderScreen("dashboard")}
+                className="w-full min-h-[44px] py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all"
+              >
+                {t.backToDashboard}
+              </button>
+            </div>
+          </div>
+        ) : !isBooked ? (
           <div className="space-y-5">
             {/* Patient Context Tag */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
@@ -195,4 +394,3 @@ export const AppointmentSchedulingScreen = () => {
     </motion.div>
   );
 };
-

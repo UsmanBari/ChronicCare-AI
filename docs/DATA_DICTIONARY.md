@@ -492,3 +492,42 @@ Personal data is stored across several parts of the ChronicCare AI data model. A
   - Unchanged confirmed values create `record_edits` entries with `old_value = NULL`, `origin = "ocr"`, and `reason = "ocr_confirmed"`.
   - Values modified by the patient during review create `record_edits` entries with `old_value = <staged_extracted_value>`, `new_value = <confirmed_value>`, `origin = "ocr"`, and `reason = "patient corrected OCR value"`.
 - **Audit Logging**: Upload and confirmation audit events (`record_ocr_upload_processed`, `record_ocr_upload_confirmed`) record discrete counts only (`med_count`, `obs_count`, `allergy_count`, `confirmed_count`), never filenames or clinical values.
+
+---
+
+## Appointments & Provider Directory Tables (Schema Version 17, Iteration 4)
+
+### `provider_directory` Table
+Holds the synthetic clinical roster for appointment routing and availability management without external EHR lock-in.
+
+| Column | Type (MySQL) | Type (SQLite) | Nullable | Default | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `VARCHAR(191)` | `TEXT` | No | — | Unique provider ID (e.g. `prov-demo-endo`) |
+| `display_name` | `TEXT` | `TEXT` | No | — | Clinical provider name (e.g. `Dr. Ayesha Siddiqa`) |
+| `specialty` | `VARCHAR(191)` | `TEXT` | No | — | Clinical specialty (`endocrinology`, `cardiology_im`, `internal_medicine`, `general`) |
+| `available` | `BOOLEAN` | `INTEGER` | No | `1` | Availability switch for appointment booking |
+| `created_at` | `VARCHAR(191)` | `TEXT` | No | — | ISO 8601 UTC timestamp |
+
+### `appointments` Table
+Records triage-driven clinical appointment allocations, booking selections, and red-flag escalation tracking.
+
+| Column | Type (MySQL) | Type (SQLite) | Nullable | Default | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `VARCHAR(191)` | `TEXT` | No | — | Primary key (`apt-...`) |
+| `patient_id` | `VARCHAR(191)` | `TEXT` | No | — | Foreign key to `users(id)` |
+| `checkin_id` | `VARCHAR(191)` | `TEXT` | No | — | Unique check-in identifier linking appointment to triage event |
+| `provider_id` | `VARCHAR(191)` | `TEXT` | No | — | Assigned provider ID from `provider_directory`, or empty if unassigned |
+| `specialty` | `VARCHAR(191)` | `TEXT` | No | — | Clinical specialty (`endocrinology`, `cardiology_im`, `internal_medicine`, `general`) |
+| `urgency` | `VARCHAR(32)` | `TEXT` | No | — | Clinical urgency level (`routine` for Yellow review, `urgent` for Red alert) |
+| `mode` | `VARCHAR(32)` | `TEXT` | No | — | Consultation modality (`telehealth` or `in_person`) |
+| `status` | `VARCHAR(32)` | `TEXT` | No | — | Lifecycle state (`offered`, `booked`, `cancelled`, `attended`) |
+| `slot_date` | `TEXT` | `TEXT` | Yes | `NULL` | Selected date/time slot (ISO string or plain slot label) |
+| `created_at` | `VARCHAR(191)` | `TEXT` | No | — | ISO 8601 UTC creation timestamp |
+| `acknowledged_at` | `VARCHAR(191)` | `TEXT` | Yes | `NULL` | ISO 8601 UTC timestamp when provider acknowledged the urgent alert |
+| `admin_flagged_at` | `VARCHAR(191)` | `TEXT` | Yes | `NULL` | ISO 8601 UTC timestamp when 24h escalation timeout flagged to admin |
+
+#### Indexes
+- `idx_appointments_patient_id` on `patient_id`
+- `idx_appointments_provider_id` on `provider_id`
+- `idx_appointments_checkin_id` on `checkin_id` (Unique)
+

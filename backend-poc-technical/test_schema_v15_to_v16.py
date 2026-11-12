@@ -182,8 +182,8 @@ def create_v15_database(db_path: str):
 
 
 def test_latest_schema_version_is_16():
-    """Confirms LATEST_SCHEMA_VERSION constant is updated to 16."""
-    assert LATEST_SCHEMA_VERSION == 16
+    """Confirms LATEST_SCHEMA_VERSION constant is updated to at least 16."""
+    assert LATEST_SCHEMA_VERSION >= 16
 
 
 def test_sqlite_v15_to_v16_migration(test_db_path):
