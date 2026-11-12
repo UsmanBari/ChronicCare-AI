@@ -713,7 +713,8 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 cursor.execute(SQLITE_APPOINTMENTS_CHECKIN_INDEX)
 
                 cursor.execute("SELECT COUNT(*) FROM provider_directory")
-                cnt = cursor.fetchone()[0]
+                cnt_row = cursor.fetchone()
+                cnt = cnt_row[0] if cnt_row else 0
                 if cnt == 0:
                     for p in DEFAULT_FICTIONAL_PROVIDERS:
                         cursor.execute(
@@ -1119,7 +1120,8 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 cursor.execute(MYSQL_APPOINTMENTS_DDL)
 
                 cursor.execute("SELECT COUNT(*) FROM provider_directory")
-                cnt = cursor.fetchone()[0]
+                cnt_row = cursor.fetchone()
+                cnt = cnt_row[0] if cnt_row else 0
                 if cnt == 0:
                     for p in DEFAULT_FICTIONAL_PROVIDERS:
                         cursor.execute(
