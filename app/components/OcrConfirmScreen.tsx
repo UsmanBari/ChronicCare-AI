@@ -29,6 +29,7 @@ interface EditableObservation {
   confidence: string;
   confirmed: boolean;
   isEditing: boolean;
+  needsVerification?: boolean;
 }
 
 interface EditableMedication {
@@ -59,26 +60,33 @@ export default function OcrConfirmScreen() {
   const returnTarget = ocrReturnScreen || "health_record";
 
   const [observations, setObservations] = useState<EditableObservation[]>(() => {
-    return (stagedOcrUpload?.extracted?.observations || []).map((o, idx) => ({
-      id: o.id || `obs-${idx}`,
-      type: o.type,
-      value: o.value,
-      unit: o.unit || "",
-      date: o.date || null,
-      evidence: o.evidence || null,
-      confidence: o.confidence || "High",
-      confirmed: true,
-      isEditing: false,
-    }));
+    return (stagedOcrUpload?.extracted?.observations || []).map((o, idx) => {
+      const conf = o.confidence || "Low";
+      const isLowConf = conf === "Low";
+      return {
+        id: o.id || `obs-${idx}`,
+        type: o.type,
+        value: o.value,
+        unit: o.unit || "",
+        date: o.date || null,
+        evidence: o.evidence || null,
+        confidence: conf,
+        confirmed: true,
+        isEditing: false,
+        needsVerification: isLowConf,
+      };
+    });
   });
 
   const [medications, setMedications] = useState<EditableMedication[]>(() => {
     return (stagedOcrUpload?.extracted?.medications || []).map((m, idx) => {
-      const conf = m.confidence || (m.dosage && m.dosage.trim() ? "Medium" : "Low");
+      const conf = m.confidence || "Low";
       const isMissingDose =
         !m.dosage ||
         m.dosage.trim() === "" ||
-        m.dosage.trim().toLowerCase() === "dosage";
+        m.dosage.trim().toLowerCase() === "dosage" ||
+        m.dosage.toLowerCase().includes("dose not specified") ||
+        m.dosage.toLowerCase().includes("not specified");
       const isLowConf = conf === "Low" || isMissingDose;
       return {
         id: m.id || `med-${idx}`,
@@ -88,7 +96,7 @@ export default function OcrConfirmScreen() {
         evidence: m.evidence || null,
         confidence: conf,
         confirmed: true,
-        // Low confidence medication or missing dose opens manual entry form pre-filled with what was read (K3)
+        // Low confidence medication or missing dose opens manual entry form pre-filled with what was read (K1/K3)
         isEditing: isLowConf,
         needsVerification: isLowConf,
       };
@@ -116,11 +124,43 @@ export default function OcrConfirmScreen() {
     reasonCode: string;
   } | null>(null);
 
+  const rawLines: string[] = stagedOcrUpload?.extracted?.raw_lines || [];
+
+  const detectedDoctor = (() => {
+    for (const line of rawLines) {
+      const trimmed = line.trim();
+      if (/^dr\.?\s+/i.test(trimmed)) {
+        return trimmed;
+      }
+    }
+    return null;
+  })();
+
+  const detectedRegNo = (() => {
+    for (const line of rawLines) {
+      const trimmed = line.trim();
+      if (/\b(?:pmdc|pmc|reg(?:istration)?(?:\.?\s*no\.?)?)\s*[:#-]?\s*[a-z0-9-]+/i.test(trimmed)) {
+        return trimmed;
+      }
+    }
+    return null;
+  })();
+
+  const detectedClinic = (() => {
+    for (const line of rawLines) {
+      const trimmed = line.trim();
+      if (/\b(?:hospital|clinic|medical\s+cent(?:re|er))\b/i.test(trimmed)) {
+        return trimmed;
+      }
+    }
+    return null;
+  })();
+
   const detectedDate = (() => {
     for (const o of stagedOcrUpload?.extracted?.observations || []) {
       if (o.date) return o.date;
     }
-    for (const line of stagedOcrUpload?.extracted?.raw_lines || []) {
+    for (const line of rawLines) {
       const m = line.match(/\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/);
       if (m) return m[0];
     }
@@ -356,34 +396,61 @@ export default function OcrConfirmScreen() {
           {/* Doctor Name */}
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
             <span className="font-semibold text-slate-700">{t.ocrHeaderDoctor}</span>
-            <span
-              data-testid="header-doctor-status"
-              className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200"
-            >
-              {t.ocrHeaderNotRead}
-            </span>
+            {detectedDoctor ? (
+              <span
+                data-testid="header-doctor-status"
+                className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-900 border border-amber-200"
+              >
+                {t.ocrHeaderReadPleaseCheck}: {detectedDoctor}
+              </span>
+            ) : (
+              <span
+                data-testid="header-doctor-status"
+                className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200"
+              >
+                {t.ocrHeaderNotRead}
+              </span>
+            )}
           </div>
 
           {/* Registration Number */}
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
             <span className="font-semibold text-slate-700">{t.ocrHeaderRegNo}</span>
-            <span
-              data-testid="header-regno-status"
-              className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200"
-            >
-              {t.ocrHeaderNotRead}
-            </span>
+            {detectedRegNo ? (
+              <span
+                data-testid="header-regno-status"
+                className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-900 border border-amber-200"
+              >
+                {t.ocrHeaderReadPleaseCheck}: {detectedRegNo}
+              </span>
+            ) : (
+              <span
+                data-testid="header-regno-status"
+                className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200"
+              >
+                {t.ocrHeaderNotRead}
+              </span>
+            )}
           </div>
 
           {/* Hospital / Clinic */}
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
             <span className="font-semibold text-slate-700">{t.ocrHeaderClinic}</span>
-            <span
-              data-testid="header-clinic-status"
-              className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200"
-            >
-              {t.ocrHeaderNotRead}
-            </span>
+            {detectedClinic ? (
+              <span
+                data-testid="header-clinic-status"
+                className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-900 border border-amber-200"
+              >
+                {t.ocrHeaderReadPleaseCheck}: {detectedClinic}
+              </span>
+            ) : (
+              <span
+                data-testid="header-clinic-status"
+                className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200"
+              >
+                {t.ocrHeaderNotRead}
+              </span>
+            )}
           </div>
 
           {/* Prescription Date */}
@@ -498,7 +565,7 @@ export default function OcrConfirmScreen() {
                       {t.ocrBadge}
                     </span>
                     <span
-                      data-testid={`confidence-badge-${obs.confidence?.toLowerCase() || "high"}`}
+                      data-testid={`confidence-badge-${obs.confidence?.toLowerCase() || "low"}`}
                       className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
                         obs.confidence === "High"
                           ? "bg-emerald-100 text-emerald-800 border-emerald-300"
@@ -613,6 +680,16 @@ export default function OcrConfirmScreen() {
                   </div>
                 )}
 
+                {obs.needsVerification && (
+                  <div
+                    data-testid="ocr-obs-low-confidence-hint"
+                    className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2"
+                  >
+                    <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>{t.ocrVerifyLowConfHint}</span>
+                  </div>
+                )}
+
                 {invalidItem?.type === "observation" && invalidItem?.index === idx && (
                   <div
                     data-testid="ocr-invalid-item-highlight"
@@ -693,7 +770,7 @@ export default function OcrConfirmScreen() {
                       {t.ocrBadge}
                     </span>
                     <span
-                      data-testid={`confidence-badge-${med.confidence?.toLowerCase() || "medium"}`}
+                      data-testid={`confidence-badge-${med.confidence?.toLowerCase() || "low"}`}
                       className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
                         med.confidence === "High"
                           ? "bg-emerald-100 text-emerald-800 border-emerald-300"

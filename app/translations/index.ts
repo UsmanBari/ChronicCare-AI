@@ -549,6 +549,7 @@ export interface Translations {
   ocrHeaderDate: string;
   ocrHeaderMedication: string;
   ocrHeaderNotRead: string;
+  ocrHeaderReadPleaseCheck: string;
   ocrHeaderFound: string;
   unverifiedPatientUploadBadge: string;
   ocrVerifyLowConfHint: string;
@@ -1143,6 +1144,7 @@ export const translations: Record<Language, Translations> = {
     ocrHeaderDate: "Prescription Date",
     ocrHeaderMedication: "Medication Listed",
     ocrHeaderNotRead: "not read: please check the paper",
+    ocrHeaderReadPleaseCheck: "read, please check",
     ocrHeaderFound: "Found",
     unverifiedPatientUploadBadge: "Unverified (patient upload)",
     ocrVerifyLowConfHint: "Low confidence or missing dose: please verify from paper prescription.",
@@ -1737,6 +1739,7 @@ export const translations: Record<Language, Translations> = {
     ocrHeaderDate: "نسخے کی تاریخ",
     ocrHeaderMedication: "درج شدہ ادویات",
     ocrHeaderNotRead: "پڑھا نہیں جا سکا: براہ کرم نسخہ چیک کریں",
+    ocrHeaderReadPleaseCheck: "پڑھا گیا، براہ کرم چیک کریں",
     ocrHeaderFound: "مل گیا",
     unverifiedPatientUploadBadge: "غیر تصدیق شدہ (مریض کا اپ لوڈ)",
     ocrVerifyLowConfHint: "کم اعتماد یا خوراک درج نہیں: براہ کرم کاغذ سے چیک کریں۔",

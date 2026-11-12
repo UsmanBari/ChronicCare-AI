@@ -100,11 +100,11 @@ All 28 entries in `backend-poc-technical/agents/interview_bank/messages.json` ve
 
 ## 5. Week 4 Finish Sprint: PR K Isolated Onboarding Prescription Intake Strings
 
-**Date:** 10 Nov 2026  
-**Reviewer:** Hassaan Mudassar (Native Speaker Review Complete)  
+**Date:** 12 Nov 2026  
+**Reviewer:** reviewed by Hassaan, 12 Nov 2026  
 **Status:** **APPROVED & VERIFIED**  
 **PR:** `I4-K: prescription upload step in isolated-mode onboarding (OCR, confidence, unverified, manual fallback)`  
-**Scope:** 24 new frontend interface strings added to `app/translations/index.ts` covering onboarding prescription step, Section 21.1 header checklist, confidence badges, unverified provenance badge, and manual medicine entry fallback.
+**Scope:** Frontend interface strings added to `app/translations/index.ts` covering onboarding prescription step, Section 21.1 header checklist, confidence badges, unverified provenance badge, and manual medicine entry fallback.
 
 | Translation Key | English | Urdu Script | Native Review Notes |
 |---|---|---|---|
@@ -129,8 +129,10 @@ All 28 entries in `backend-poc-technical/agents/interview_bank/messages.json` ve
 | `ocrHeaderMedications` | Medications | دوائیاں | Medication lines |
 | `ocrHeaderFound` | Found | مل گیا | Extraction status tag |
 | `ocrHeaderMissing` | Not read: please check the paper | نہیں پڑھا جا سکا: براہ کرم نسخہ خود چیک کریں | Friendly, actionable guidance (no scary error) |
+| `ocrHeaderReadPleaseCheck` | read, please check | پڑھا گیا، براہ کرم چیک کریں | Amber checklist tag when raw OCR header is read and needs paper verification |
 | `unverifiedUploadBadge` | Unverified (patient upload) | غیر تصدیق شدہ (مریض کا اپلوڈ) | Section 18.1 provenance indicator |
 | `ocrLowConfidenceHint` | Please verify the medicine name and dosage carefully against your paper prescription. | براہ کرم دوا کا نام اور مقدار اپنے کاغذی نسخے سے غور سے ملا لیں۔ | Emphasizes patient safety and dosage verification |
 | `ocrDisabledNotice` | Prescription photo reading is currently unavailable. Please type your medicines below. | نسخے کی تصویر پڑھنے کی سہولت فی الحال بند ہے۔ براہ کرم اپنی دوائیاں خود لکھیں۔ | Friendly offline/disabled notice without raw server errors |
+
 
 

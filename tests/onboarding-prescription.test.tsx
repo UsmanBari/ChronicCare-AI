@@ -214,4 +214,60 @@ describe("Onboarding Prescription Step (Section 18 & 21.1)", () => {
       expect(mockAppContext.setScreen).toHaveBeenCalledWith("home");
     });
   });
+
+  it("an observation with no confidence shows the Low badge and opens manual check with verification hint (K1)", async () => {
+    mockAppContext.ocrReturnScreen = "home";
+    mockAppContext.stagedOcrUpload = {
+      upload_id: "up-obs-no-conf",
+      expires_in_seconds: 1800,
+      extracted: {
+        observations: [
+          { id: "o-no-conf", type: "fasting_blood_glucose", value: 110, unit: "mg/dL" }, // no confidence provided!
+        ],
+        medications: [],
+        allergies: [],
+      },
+    };
+
+    render(<OcrConfirmScreen />);
+
+    expect(screen.getByTestId("confidence-badge-low")).toBeTruthy();
+    expect(screen.getByTestId("ocr-obs-low-confidence-hint")).toBeTruthy();
+  });
+
+  it("reads real header fields when text is present in raw_lines (Section 21.1 / K2)", async () => {
+    mockAppContext.ocrReturnScreen = "home";
+    mockAppContext.stagedOcrUpload = {
+      upload_id: "up-header-fake-script",
+      expires_in_seconds: 1800,
+      extracted: {
+        observations: [],
+        medications: [
+          { id: "m-fake", name: "Glimepiride", dosage: "2mg", status: "active", confidence: "High" },
+        ],
+        allergies: [],
+        raw_lines: [
+          "Dr. Test Fictional",
+          "PMDC-00000-X",
+          "Test Clinic",
+          "Date: 12/11/2026",
+          "Rx: Glimepiride 2mg",
+        ],
+      },
+    };
+
+    render(<OcrConfirmScreen />);
+
+    const doctorStatus = screen.getByTestId("header-doctor-status");
+    expect(doctorStatus.textContent).toContain("read, please check");
+    expect(doctorStatus.textContent).toContain("Dr. Test Fictional");
+
+    const regStatus = screen.getByTestId("header-regno-status");
+    expect(regStatus.textContent).toContain("read, please check");
+    expect(regStatus.textContent).toContain("PMDC-00000-X");
+
+    const clinicStatus = screen.getByTestId("header-clinic-status");
+    expect(clinicStatus.textContent).toContain("read, please check");
+    expect(clinicStatus.textContent).toContain("Test Clinic");
+  });
 });

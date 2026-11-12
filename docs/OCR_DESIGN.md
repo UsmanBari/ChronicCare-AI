@@ -341,19 +341,19 @@ In isolated/local mode (where EHR connection is unavailable), onboarding guides 
 ### 7.2 Section 21.1 Quality & Confidence Controls
 
 1. **Header Extraction Checklist**:
-   Prescriptions are validated against the Section 21.1 required header checklist:
-   - Doctor Name (`doctor_name`)
-   - Registration Number (`registration_number`)
-   - Hospital / Clinic (`hospital_or_clinic`)
-   - Prescription Date (`date`)
-   - Medication Line Items (`medications`)
+   Prescriptions are validated against the Section 21.1 required header checklist using detected raw OCR lines (`stagedOcrUpload.extracted.raw_lines`):
+   - Doctor Name (`doctor_name`): Detected from lines starting with "Dr" / "Dr." (displayed with amber *"read, please check"* badge).
+   - Registration Number (`registration_number`): Detected from PMDC/PMC/Reg patterns (displayed with amber *"read, please check"* badge).
+   - Hospital / Clinic (`hospital_or_clinic`): Detected from lines containing "Hospital", "Clinic", or "Medical Centre" (displayed with amber *"read, please check"* badge).
+   - Prescription Date (`date`): Extracted date entity or parsed date pattern.
+   - Medication Line Items (`medications`): Found count of extracted medication rows.
 
-   *Current Extraction Status*: Field extractor currently targets medication and lab value entities. Unextracted header fields display user guidance: *"Not read: please check the paper"* (marked as NOT BUILT in backend entity extractor).
+   *Missing Headers*: Any unextracted header field displays the honest fallback badge: *"not read: please check the paper"*.
 
 2. **Per-Field Confidence Tags**:
-   - `High`: Both dosage and frequency successfully extracted.
-   - `Medium`: Name identified, but partial schedule or dosage details.
-   - `Low`: Ambiguous token match or missing dosage. Automatically triggers pre-filled manual correction modal for patient verification before confirming.
+   - `High`: Both dosage and frequency successfully extracted (e.g. from `extract_fields.py` line 437).
+   - `Medium`: Name identified with partial dose or frequency.
+   - `Low`: Ambiguous token match, missing dosage, or missing confidence. Any item without an explicit confidence from the extractor is strictly treated as `Low` (never defaulting to High or Medium) and surfaces the verification notice for the patient.
 
 3. **Trust & Provenance**:
    - Confirmed items are tagged with `origin: "ocr"` and assigned `trust_level: "medium"` (Unverified patient upload, Section 18.1).
