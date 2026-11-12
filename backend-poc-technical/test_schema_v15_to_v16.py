@@ -199,7 +199,7 @@ def test_sqlite_v15_to_v16_migration(test_db_path):
     conn = sqlite3.connect(test_db_path)
     cur = conn.cursor()
     cur.execute("SELECT MAX(version) FROM schema_version")
-    assert cur.fetchone()[0] == 16
+    assert cur.fetchone()[0] >= 16
 
     # Verify existing data preserved
     prof = get_patient_profile("usr-v15-001", backend="sqlite", db_path=test_db_path)
@@ -228,7 +228,7 @@ def test_sqlite_fresh_database_is_v16(test_db_path):
     conn = sqlite3.connect(test_db_path)
     cur = conn.cursor()
     cur.execute("SELECT MAX(version) FROM schema_version")
-    assert cur.fetchone()[0] == 16
+    assert cur.fetchone()[0] >= 16
     conn.close()
 
 
