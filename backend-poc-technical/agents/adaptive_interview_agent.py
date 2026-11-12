@@ -521,7 +521,7 @@ def _process_glucose_input(answer: str, previously_asked: bool = False) -> Tuple
         return None, None, True, None, None
 
     if v_res.is_possible_severe_low or (previously_asked and v_res.value is not None and float(v_res.value) <= 54):
-        val = float(v_res.value) if v_res.value is not None else 35.0
+        val = float(v_res.value) if v_res.value is not None else None
         guidance = v_res.safety_guidance or "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."
         reason = v_res.review_reason or "glucose value unit unclear, possible low"
         return val, "unclear", False, guidance, reason
@@ -598,12 +598,15 @@ def _diabetes_advance_v2_3(state: InterviewState, answer: str) -> InterviewState
                 state.step = DiabetesStep.GLUCOSE_CONTEXT.value
     elif step == DiabetesStep.MISSING_DATA_CHECKPOINT:
         pending_raw = answers.pop("_glucose_pending_raw", None)
-        combined_answer = f"{pending_raw} {answer}" if pending_raw else answer
-        reading, unit, _, guidance, rev_reason = _process_glucose_input(combined_answer, previously_asked=True)
-        if reading is None and pending_raw:
-            reading, unit, _, guidance, rev_reason = _process_glucose_input(answer, previously_asked=True)
-        if reading is None and pending_raw:
-            reading, unit, _, guidance, rev_reason = _process_glucose_input(pending_raw, previously_asked=True)
+        if pending_raw is not None:
+            combined_answer = f"{pending_raw} {answer}"
+            reading, unit, _, guidance, rev_reason = _process_glucose_input(combined_answer, previously_asked=True)
+            if reading is None and pending_raw:
+                reading, unit, _, guidance, rev_reason = _process_glucose_input(answer, previously_asked=True)
+            if reading is None and pending_raw:
+                reading, unit, _, guidance, rev_reason = _process_glucose_input(pending_raw, previously_asked=True)
+        else:
+            reading, unit, _, guidance, rev_reason = _process_glucose_input(answer, previously_asked=False)
 
         answers["glucose_reading"] = reading
         if guidance:
@@ -799,12 +802,15 @@ def _diabetes_advance(state: InterviewState, answer: str) -> InterviewState:
             state.step = DiabetesStep.HYPERGLYCEMIA_SYMPTOMS.value
     elif step == DiabetesStep.MISSING_DATA_CHECKPOINT:
         pending_raw = answers.pop("_glucose_pending_raw", None)
-        combined_answer = f"{pending_raw} {answer}" if pending_raw else answer
-        reading, unit, _, guidance, rev_reason = _process_glucose_input(combined_answer, previously_asked=True)
-        if reading is None and pending_raw:
-            reading, unit, _, guidance, rev_reason = _process_glucose_input(answer, previously_asked=True)
-        if reading is None and pending_raw:
-            reading, unit, _, guidance, rev_reason = _process_glucose_input(pending_raw, previously_asked=True)
+        if pending_raw is not None:
+            combined_answer = f"{pending_raw} {answer}"
+            reading, unit, _, guidance, rev_reason = _process_glucose_input(combined_answer, previously_asked=True)
+            if reading is None and pending_raw:
+                reading, unit, _, guidance, rev_reason = _process_glucose_input(answer, previously_asked=True)
+            if reading is None and pending_raw:
+                reading, unit, _, guidance, rev_reason = _process_glucose_input(pending_raw, previously_asked=True)
+        else:
+            reading, unit, _, guidance, rev_reason = _process_glucose_input(answer, previously_asked=False)
 
         answers["glucose_reading"] = reading
         if guidance:
