@@ -275,8 +275,14 @@ def step_parse_and_validate_intake(
                     patient_id=checkin.get("user_id") or "anonymous",
                     final_triage_level="emergency",
                 )
+                from services.notification_service import notify_urgent_checkin
+                notify_urgent_checkin(
+                    checkin_id=checkin_id,
+                    patient_id=checkin.get("user_id") or "anonymous",
+                    triage_level="emergency",
+                )
             except Exception as e_exc:
-                logger.warning(f"Emergency appointment creation failed for {checkin_id}: {e_exc}")
+                logger.warning(f"Emergency appointment or notification creation failed for {checkin_id}: {e_exc}")
             update_checkin_state(
                 checkin_id=checkin_id,
                 state_dict=raw_state,
@@ -407,8 +413,14 @@ def step_parse_and_validate_intake(
                     patient_id=checkin.get("user_id") or "anonymous",
                     final_triage_level="emergency",
                 )
+                from services.notification_service import notify_urgent_checkin
+                notify_urgent_checkin(
+                    checkin_id=checkin_id,
+                    patient_id=checkin.get("user_id") or "anonymous",
+                    triage_level="emergency",
+                )
             except Exception as e_exc:
-                logger.warning(f"Emergency appointment creation failed for {checkin_id}: {e_exc}")
+                logger.warning(f"Emergency appointment or notification creation failed for {checkin_id}: {e_exc}")
             update_checkin_state(
                 checkin_id=checkin_id,
                 state_dict=state.to_dict(),
@@ -1305,6 +1317,15 @@ def step_persist_and_respond(
             final_triage_level=final_triage_level,
             patient_conditions=p_conds,
         )
+        if final_triage_level in ("urgent", "emergency"):
+            from services.notification_service import notify_urgent_checkin
+            target_prov = appt_record.get("provider_id") if appt_record else None
+            notify_urgent_checkin(
+                checkin_id=checkin_id,
+                patient_id=p_id,
+                triage_level=final_triage_level,
+                provider_id=target_prov,
+            )
     except Exception as exc:
         logger.warning(f"Appointment evaluation failed for checkin {checkin_id}: {exc}")
 

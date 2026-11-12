@@ -128,8 +128,8 @@ def create_v16_database(db_path: str):
 
 
 def test_latest_schema_version_is_17():
-    """Confirms LATEST_SCHEMA_VERSION constant is updated to 17."""
-    assert LATEST_SCHEMA_VERSION == 17
+    """Confirms LATEST_SCHEMA_VERSION constant is updated to at least 17."""
+    assert LATEST_SCHEMA_VERSION >= 17
 
 
 def test_sqlite_v16_to_v17_migration(test_db_path):
@@ -149,7 +149,7 @@ def test_sqlite_v16_to_v17_migration(test_db_path):
     conn = sqlite3.connect(test_db_path)
     cur = conn.cursor()
     cur.execute("SELECT MAX(version) FROM schema_version")
-    assert cur.fetchone()[0] == 17
+    assert cur.fetchone()[0] >= 17
 
     # Check provider_directory exists and has 5 fictional providers
     cur.execute("SELECT id, display_name, specialty, available FROM provider_directory ORDER BY id")
@@ -203,7 +203,7 @@ def test_fresh_sqlite_db_initializes_to_v17(test_db_path):
     conn = sqlite3.connect(test_db_path)
     cur = conn.cursor()
     cur.execute("SELECT MAX(version) FROM schema_version")
-    assert cur.fetchone()[0] == 17
+    assert cur.fetchone()[0] >= 17
     conn.close()
 
     providers = list_providers(backend="sqlite", db_path=test_db_path)

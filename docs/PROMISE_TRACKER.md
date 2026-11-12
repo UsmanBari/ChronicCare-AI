@@ -48,6 +48,7 @@
 | System Health & Admin Configuration Status Endpoint | Sec 13.2 | `backend-poc-technical/main.py` | LA-01 | **PASS** | Usman | Done |
 | Patient Record History, Export and Import Service | Sec 13.2 | `backend-poc-technical/main.py` | LA-17 | **PASS** | Usman | Done |
 | Server-Side OCR Intake Service (Prescriptions & lab reports) | Sec 13.2, 21.1 | `backend-poc-technical/main.py` | LA-15 | **PASS** | Hassaan / Saad | Done (PR #96) |
+| Notification Service (In-App notification centre, daily reminders & FCM Web Push) | Sec 13.2, 15, 35 | `backend-poc-technical/services/notification_service.py` | LA-29 | **PASS** | Hassaan | Done (PR H) |
 
 ---
 

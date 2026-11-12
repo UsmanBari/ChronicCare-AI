@@ -143,3 +143,19 @@ def test_width_contract_appointments_id_columns():
         declared_width = parse_mysql_column_width(ddl, "appointments", col)
         assert declared_width >= 191, f"appointments.{col} width {declared_width} is < 191"
 
+
+def test_width_contract_notifications_id_columns():
+    """notifications.id, recipient_id, reference_id must be VARCHAR(191) per hotfix contract."""
+    ddl = app_store.MYSQL_NOTIFICATIONS_DDL
+    for col in ("id", "recipient_id", "reference_id"):
+        declared_width = parse_mysql_column_width(ddl, "notifications", col)
+        assert declared_width >= 191, f"notifications.{col} width {declared_width} is < 191"
+
+
+def test_width_contract_fcm_tokens_id_columns():
+    """fcm_tokens.user_id must be VARCHAR(191) per hotfix contract."""
+    ddl = app_store.MYSQL_FCM_TOKENS_DDL
+    declared_width = parse_mysql_column_width(ddl, "fcm_tokens", "user_id")
+    assert declared_width >= 191, f"fcm_tokens.user_id width {declared_width} is < 191"
+
+

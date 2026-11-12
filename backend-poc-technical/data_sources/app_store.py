@@ -50,10 +50,12 @@ APP_STORE_TABLES = {
     "guideline_chunks",
     "provider_directory",
     "appointments",
+    "notifications",
+    "fcm_tokens",
     "schema_version",
 }
 
-LATEST_SCHEMA_VERSION = 17
+LATEST_SCHEMA_VERSION = 18
 
 SQLITE_RECORD_EDITS_DDL = """
 CREATE TABLE IF NOT EXISTS record_edits (
@@ -212,6 +214,76 @@ CREATE TABLE IF NOT EXISTS appointments (
     INDEX idx_appointments_patient (patient_id, created_at DESC),
     INDEX idx_appointments_provider (provider_id, created_at DESC),
     INDEX idx_appointments_checkin (checkin_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+SQLITE_NOTIFICATIONS_DDL = """
+CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    recipient_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    reference_id TEXT DEFAULT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    read_at TEXT DEFAULT NULL
+);
+"""
+SQLITE_NOTIFICATIONS_RECIPIENT_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient
+    ON notifications (recipient_id, created_at DESC);
+"""
+SQLITE_NOTIFICATIONS_ROLE_UNREAD_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_notifications_role_unread
+    ON notifications (role, is_read, created_at DESC);
+"""
+SQLITE_NOTIFICATIONS_REFERENCE_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_notifications_reference
+    ON notifications (reference_id);
+"""
+
+SQLITE_FCM_TOKENS_DDL = """
+CREATE TABLE IF NOT EXISTS fcm_tokens (
+    user_id TEXT NOT NULL,
+    token TEXT NOT NULL,
+    device_info TEXT DEFAULT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, token)
+);
+"""
+SQLITE_FCM_TOKENS_USER_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user
+    ON fcm_tokens (user_id);
+"""
+
+MYSQL_NOTIFICATIONS_DDL = """
+CREATE TABLE IF NOT EXISTS notifications (
+    id VARCHAR(191) PRIMARY KEY,
+    recipient_id VARCHAR(191) NOT NULL,
+    role VARCHAR(32) NOT NULL,
+    event_type VARCHAR(64) NOT NULL,
+    reference_id VARCHAR(191) DEFAULT NULL,
+    title VARCHAR(191) NOT NULL,
+    body TEXT NOT NULL,
+    is_read TINYINT(1) NOT NULL DEFAULT 0,
+    created_at VARCHAR(191) NOT NULL,
+    read_at VARCHAR(191) DEFAULT NULL,
+    INDEX idx_notifications_recipient (recipient_id, created_at DESC),
+    INDEX idx_notifications_role_unread (role, is_read, created_at DESC),
+    INDEX idx_notifications_reference (reference_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+"""
+
+MYSQL_FCM_TOKENS_DDL = """
+CREATE TABLE IF NOT EXISTS fcm_tokens (
+    user_id VARCHAR(191) NOT NULL,
+    token VARCHAR(255) NOT NULL,
+    device_info TEXT DEFAULT NULL,
+    updated_at VARCHAR(191) NOT NULL,
+    PRIMARY KEY (user_id, token),
+    INDEX idx_fcm_tokens_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
@@ -650,6 +722,16 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                             (p["id"], p["display_name"], p["specialty"], p["available"], now),
                         )
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (17, ?)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 18")
+            if not cursor.fetchone():
+                cursor.execute(SQLITE_NOTIFICATIONS_DDL)
+                cursor.execute(SQLITE_NOTIFICATIONS_RECIPIENT_INDEX)
+                cursor.execute(SQLITE_NOTIFICATIONS_ROLE_UNREAD_INDEX)
+                cursor.execute(SQLITE_NOTIFICATIONS_REFERENCE_INDEX)
+                cursor.execute(SQLITE_FCM_TOKENS_DDL)
+                cursor.execute(SQLITE_FCM_TOKENS_USER_INDEX)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (18, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -1047,6 +1129,12 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                             (p["id"], p["display_name"], p["specialty"], p["available"], now),
                         )
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (17, %s)", (now,))
+
+            cursor.execute("SELECT version FROM schema_version WHERE version = 18")
+            if not cursor.fetchone():
+                cursor.execute(MYSQL_NOTIFICATIONS_DDL)
+                cursor.execute(MYSQL_FCM_TOKENS_DDL)
+                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (18, %s)", (now,))
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -3034,4 +3122,265 @@ def update_appointment(
         cursor.execute(query, tuple(params))
 
     return get_appointment(appointment_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+
+
+# ---------------------------------------------------------------------------
+# Notifications & FCM Tokens (Schema v18, Iteration 4)
+# ---------------------------------------------------------------------------
+
+def create_notification(
+    recipient_id: str,
+    role: str,
+    event_type: str,
+    title: str,
+    body: str,
+    reference_id: Optional[str] = None,
+    notification_id: Optional[str] = None,
+    created_at: Optional[str] = None,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Creates an in-app notification row.
+    Idempotent: If reference_id is provided, checks if an identical notification
+    (recipient_id, event_type, reference_id) already exists and returns it.
+    """
+    now = created_at or _utc_now_iso()
+    nid = notification_id or f"notif-{uuid.uuid4().hex[:12]}"
+
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        if reference_id:
+            check_q = f"SELECT id FROM notifications WHERE recipient_id = {ph} AND event_type = {ph} AND reference_id = {ph}"
+            cursor.execute(check_q, (recipient_id, event_type, reference_id))
+            row = cursor.fetchone()
+            if row:
+                existing_id = row[0]
+                return get_notification(existing_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) or {}
+
+        insert_q = f"""
+            INSERT INTO notifications (id, recipient_id, role, event_type, reference_id, title, body, is_read, created_at, read_at)
+            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph}, NULL)
+        """
+        cursor.execute(insert_q, (nid, recipient_id, role, event_type, reference_id, title, body, now))
+
+    return get_notification(nid, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) or {}
+
+
+def get_notification(
+    notification_id: str,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Retrieves a single notification by id."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        query = f"""
+            SELECT id, recipient_id, role, event_type, reference_id, title, body, is_read, created_at, read_at
+            FROM notifications WHERE id = {ph}
+        """
+        cursor.execute(query, (notification_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "recipient_id": row[1],
+            "role": row[2],
+            "event_type": row[3],
+            "reference_id": row[4],
+            "title": row[5],
+            "body": row[6],
+            "is_read": bool(row[7]),
+            "created_at": row[8],
+            "read_at": row[9],
+        }
+
+
+def list_notifications(
+    recipient_id: Optional[str] = None,
+    role: Optional[str] = None,
+    unread_only: bool = False,
+    limit: int = 50,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Lists notifications ordered by created_at DESC with optional filters."""
+    conditions = []
+    params: List[Any] = []
+
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        if recipient_id is not None:
+            conditions.append(f"recipient_id = {ph}")
+            params.append(recipient_id)
+        if role is not None:
+            conditions.append(f"role = {ph}")
+            params.append(role)
+        if unread_only:
+            conditions.append(f"is_read = 0")
+
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        query = f"""
+            SELECT id, recipient_id, role, event_type, reference_id, title, body, is_read, created_at, read_at
+            FROM notifications
+            {where_clause}
+            ORDER BY created_at DESC
+            LIMIT {limit}
+        """
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall()
+        return [
+            {
+                "id": r[0],
+                "recipient_id": r[1],
+                "role": r[2],
+                "event_type": r[3],
+                "reference_id": r[4],
+                "title": r[5],
+                "body": r[6],
+                "is_read": bool(r[7]),
+                "created_at": r[8],
+                "read_at": r[9],
+            }
+            for r in rows
+        ]
+
+
+def count_unread_notifications(
+    recipient_id: Optional[str] = None,
+    role: Optional[str] = None,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> int:
+    """Counts unread notifications matching recipient_id and/or role."""
+    conditions = ["is_read = 0"]
+    params: List[Any] = []
+
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        if recipient_id is not None:
+            conditions.append(f"recipient_id = {ph}")
+            params.append(recipient_id)
+        if role is not None:
+            conditions.append(f"role = {ph}")
+            params.append(role)
+
+        query = f"SELECT COUNT(*) FROM notifications WHERE {' AND '.join(conditions)}"
+        cursor.execute(query, tuple(params))
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+
+
+def mark_notification_read(
+    notification_id: str,
+    recipient_id: Optional[str] = None,
+    read_at: Optional[str] = None,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Marks a single notification as read."""
+    now = read_at or _utc_now_iso()
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        if recipient_id:
+            query = f"UPDATE notifications SET is_read = 1, read_at = {ph} WHERE id = {ph} AND recipient_id = {ph}"
+            cursor.execute(query, (now, notification_id, recipient_id))
+        else:
+            query = f"UPDATE notifications SET is_read = 1, read_at = {ph} WHERE id = {ph}"
+            cursor.execute(query, (now, notification_id))
+
+    return get_notification(notification_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+
+
+def mark_all_notifications_read(
+    recipient_id: str,
+    role: Optional[str] = None,
+    read_at: Optional[str] = None,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> int:
+    """Marks all unread notifications for a recipient as read. Returns count updated."""
+    now = read_at or _utc_now_iso()
+    conditions = ["is_read = 0", "recipient_id = ?"]
+    params: List[Any] = [now, recipient_id]
+
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        conds = [f"is_read = 0", f"recipient_id = {ph}"]
+        prms = [now, recipient_id]
+        if role is not None:
+            conds.append(f"role = {ph}")
+            prms.append(role)
+
+        query = f"UPDATE notifications SET is_read = 1, read_at = {ph} WHERE {' AND '.join(conds[1:])} AND is_read = 0"
+        cursor.execute(f"UPDATE notifications SET is_read = 1, read_at = {ph} WHERE {' AND '.join(conds[1:])} AND is_read = 0", tuple(prms))
+        return cursor.rowcount if hasattr(cursor, "rowcount") else 0
+
+
+def save_fcm_token(
+    user_id: str,
+    token: str,
+    device_info: Optional[str] = None,
+    updated_at: Optional[str] = None,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Stores or updates an FCM registration token for a user."""
+    now = updated_at or _utc_now_iso()
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        if be == "mysql":
+            query = f"""
+                INSERT INTO fcm_tokens (user_id, token, device_info, updated_at)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE device_info = VALUES(device_info), updated_at = VALUES(updated_at)
+            """
+            cursor.execute(query, (user_id, token, device_info, now))
+        else:
+            query = f"""
+                INSERT OR REPLACE INTO fcm_tokens (user_id, token, device_info, updated_at)
+                VALUES ({ph}, {ph}, {ph}, {ph})
+            """
+            cursor.execute(query, (user_id, token, device_info, now))
+
+    return {"user_id": user_id, "token": token, "device_info": device_info, "updated_at": now}
+
+
+def delete_fcm_token(
+    user_id: str,
+    token: str,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> bool:
+    """Removes an FCM registration token."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        query = f"DELETE FROM fcm_tokens WHERE user_id = {ph} AND token = {ph}"
+        cursor.execute(query, (user_id, token))
+        return True
+
+
+def list_fcm_tokens(
+    user_id: str,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> List[str]:
+    """Retrieves all active FCM registration tokens for a user."""
+    with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        query = f"SELECT token FROM fcm_tokens WHERE user_id = {ph} ORDER BY updated_at DESC"
+        cursor.execute(query, (user_id,))
+        rows = cursor.fetchall()
+        return [r[0] for r in rows]
+
 

@@ -531,3 +531,43 @@ Records triage-driven clinical appointment allocations, booking selections, and 
 - `idx_appointments_provider_id` on `provider_id`
 - `idx_appointments_checkin_id` on `checkin_id` (Unique)
 
+---
+
+## In-App Notifications & FCM Web Push Tables (Schema Version 18, Iteration 4)
+
+### `notifications` Table
+Stores in-app notifications for patients, providers, and system administrators.
+Enforces strict PHI-free title and body strings (no BP or blood glucose values).
+
+| Column | Type (MySQL) | Type (SQLite) | Nullable | Default | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `id` | `VARCHAR(191)` | `TEXT` | No | — | Primary key (`notif-...`) |
+| `user_id` | `VARCHAR(191)` | `TEXT` | No | — | Recipient identifier (patient ID, provider ID, or admin ID) |
+| `role` | `VARCHAR(32)` | `TEXT` | No | — | Recipient role (`patient`, `provider`, `admin`) |
+| `type` | `VARCHAR(64)` | `TEXT` | No | — | Notification event type (`urgent_checkin`, `escalation_renotify`, `escalation_admin_flag`, `daily_reminder`) |
+| `title` | `VARCHAR(255)` | `TEXT` | No | — | Generic summary title (PHI-safe) |
+| `body` | `TEXT` | `TEXT` | No | — | Detailed notification body (PHI-safe) |
+| `reference_id` | `VARCHAR(191)` | `TEXT` | Yes | `NULL` | Linked entity ID (`checkin_id`, `appointment_id`, or reminder date key) |
+| `is_read` | `BOOLEAN` | `INTEGER` | No | `0` | Read status flag (`0` for unread, `1` for read) |
+| `created_at` | `VARCHAR(64)` | `TEXT` | No | — | ISO 8601 UTC creation timestamp |
+| `read_at` | `VARCHAR(64)` | `TEXT` | Yes | `NULL` | ISO 8601 UTC read timestamp |
+
+#### Indexes
+- `idx_notifications_user_unread` on `(user_id, is_read)`
+- `idx_notifications_reference` on `(user_id, reference_id)`
+
+### `fcm_tokens` Table
+Stores browser push notification device tokens for Web Push via Firebase Cloud Messaging.
+
+| Column | Type (MySQL) | Type (SQLite) | Nullable | Default | Description |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `token` | `VARCHAR(255)` | `TEXT` | No | — | Primary key (unique registration token returned by FCM) |
+| `user_id` | `VARCHAR(191)` | `TEXT` | No | — | Foreign key to `users(id)` |
+| `device_info` | `VARCHAR(255)` | `TEXT` | Yes | `NULL` | Client User-Agent or device descriptor |
+| `created_at` | `VARCHAR(64)` | `TEXT` | No | — | ISO 8601 UTC creation timestamp |
+| `updated_at` | `VARCHAR(64)` | `TEXT` | No | — | ISO 8601 UTC timestamp of last token refresh |
+
+#### Indexes
+- `idx_fcm_tokens_user` on `user_id`
+
+

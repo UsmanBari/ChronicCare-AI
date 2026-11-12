@@ -195,8 +195,34 @@ def compute_escalation_state(
                 mysql_url=mysql_url,
                 ssl_ca=ssl_ca,
             )
+        try:
+            from services.notification_service import notify_escalation_admin_flag
+            notify_escalation_admin_flag(
+                appointment_id=appt["id"],
+                patient_id=appt.get("patient_id", ""),
+                provider_id=appt.get("provider_id"),
+                backend=backend,
+                db_path=db_path,
+                mysql_url=mysql_url,
+                ssl_ca=ssl_ca,
+            )
+        except Exception:
+            pass
     elif elapsed_seconds >= 7200:  # 2 hours
         escalation_state = "re_notify"
+        try:
+            from services.notification_service import notify_escalation_renotify
+            notify_escalation_renotify(
+                appointment_id=appt["id"],
+                provider_id=appt.get("provider_id", "prov-demo-gen-1"),
+                patient_id=appt.get("patient_id", ""),
+                backend=backend,
+                db_path=db_path,
+                mysql_url=mysql_url,
+                ssl_ca=ssl_ca,
+            )
+        except Exception:
+            pass
     else:
         escalation_state = "pending"
 
