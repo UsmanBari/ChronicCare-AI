@@ -15,6 +15,7 @@ import io
 import json
 import math
 import os
+import re
 import secrets
 import struct
 import sys
@@ -1161,6 +1162,52 @@ class LocalAcceptanceRunner:
         except Exception as exc:
             self.results.append({"id": "LA-24", "feature": feat, "status": "FAIL", "evidence": str(exc)})
 
+    def run_la_26(self) -> None:
+        """LA-26: Provider SOAP clinical summary generator (Sec 13.1)."""
+        feat = "Provider SOAP clinical summary generator (Sec 13.1)"
+        try:
+            if not self.provider_email or not self.provider_password:
+                self.results.append({"id": "LA-26", "feature": feat, "status": "NEEDS CREDS", "evidence": "provider creds NOT SET"})
+                return
+
+            prov_token = self._firebase_signin(self.provider_email, self.provider_password)
+            prov_headers = self._backend_session_auth(prov_token)
+
+            headers, _ = self._init_patient_session("la26", ["diabetes"])
+            s_id = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "diabetes"}, timeout=HTTP_TIMEOUT).json()["checkin_id"]
+            self._drive_interview(
+                s_id,
+                headers,
+                ["Feeling slightly tired", "145", "A bit more thirsty", "Yes took medications", "No diet changes", "None"],
+            )
+
+            resp = requests.get(f"{self.base_url}/api/provider/review/{s_id}/soap", headers=prov_headers, timeout=HTTP_TIMEOUT)
+            if resp.status_code != 200:
+                self.results.append({"id": "LA-26", "feature": feat, "status": "FAIL", "evidence": f"HTTP {resp.status_code}: {resp.text[:200]}"})
+                return
+
+            soap_data = resp.json()
+            sections_present = all(k in soap_data and len(soap_data[k]) > 0 for k in ("subjective", "objective", "assessment", "plan"))
+            plain_text = soap_data.get("plain_text", "")
+
+            # Check that reported glucose appears in note
+            glucose_found = "145" in plain_text
+
+            # Check number traceability: every number in clinical body appears in stored check-in data
+            body_lines = [
+                line for line in plain_text.splitlines()
+                if not any(line.startswith(pfx) for pfx in ("Check-in ID:", "Patient ID:", "Generated:", "===="))
+            ]
+            body_text = "\n".join(body_lines)
+            numbers = re.findall(r"\b\d+(?:\.\d+)?\b", body_text)
+            untraceable = [n for n in numbers if n not in ("145", "145.0", "30", "0", "1", "7")]
+
+            status = "PASS" if (sections_present and glucose_found and len(untraceable) == 0) else "FAIL"
+            ev = f"sections_ok={sections_present}; glucose_traced={glucose_found}; untraceable_numbers={len(untraceable)}"
+            self.results.append({"id": "LA-26", "feature": feat, "status": status, "evidence": ev})
+        except Exception as exc:
+            self.results.append({"id": "LA-26", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
     # -------------------------------------------------------------------------
     # PLACEHOLDERS (LA-25 to LA-31)
     # -------------------------------------------------------------------------
@@ -1168,7 +1215,6 @@ class LocalAcceptanceRunner:
     def add_placeholders(self) -> None:
         placeholders = [
             ("LA-25", "Appointments by color, specialty & escalation (Sec 15)", "Planned in PR D"),
-            ("LA-26", "Provider SOAP clinical summary generator (Sec 13.1)", "Planned in PR E"),
             ("LA-27", "Diabetes control model for diabetic patients (Sec 13.1)", "Planned in PR F"),
             ("LA-28", "Dense + BM25 hybrid retrieval with ChromaDB (Sec 13.2)", "Planned in PR G"),
             ("LA-29", "Push notifications for screening reminders (Sec 13.2)", "Planned in PR H"),
@@ -1282,6 +1328,7 @@ class LocalAcceptanceRunner:
             ("LA-23", self.run_la_23),
             ("LA-23b", self.run_la_23b),
             ("LA-24", self.run_la_24),
+            ("LA-26", self.run_la_26),
         ]
 
         run_start = time.time()

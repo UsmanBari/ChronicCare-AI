@@ -24,8 +24,12 @@ import {
   Minus,
   Clock,
   FileCheck,
+  Copy,
+  Printer,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
-import { api, ApiError, ReviewDetailResponse } from "../../lib/api";
+import { api, ApiError, ReviewDetailResponse, SoapNoteResponse } from "../../lib/api";
 import { DecisionTimeline } from "./DecisionTimeline";
 import { describeSide, describeReviewReason, describeMedicationItem } from "../../lib/presentation";
 import { TriageColourChip } from "../TriageColourChip";
@@ -50,6 +54,12 @@ export const ReconciliationAlertDetail = () => {
   // Live state
   const [liveDetail, setLiveDetail] = useState<ReviewDetailResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
+
+  // SOAP Note state
+  const [soapNote, setSoapNote] = useState<SoapNoteResponse | null>(null);
+  const [isSoapLoading, setIsSoapLoading] = useState<boolean>(false);
+  const [isSoapExpanded, setIsSoapExpanded] = useState<boolean>(true);
+  const [copiedSoap, setCopiedSoap] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isLiveMode || selectedPatient === "Ali Khan") {
@@ -232,6 +242,86 @@ export const ReconciliationAlertDetail = () => {
       isMounted = false;
     };
   }, [isLiveMode, selectedPatient, demoScenario, isUrdu]);
+
+  useEffect(() => {
+    if (isLiveMode && selectedPatient && selectedPatient !== "Ali Khan") {
+      setIsSoapLoading(true);
+      api
+        .getProviderSoapNote(selectedPatient)
+        .then((note) => {
+          setSoapNote(note);
+        })
+        .catch((err) => {
+          console.warn("SOAP note fetch failed:", err);
+        })
+        .finally(() => {
+          setIsSoapLoading(false);
+        });
+    }
+  }, [isLiveMode, selectedPatient]);
+
+  const mockSoapNote: SoapNoteResponse = {
+    checkin_id: "chk-demo-001",
+    patient_id: "PT-04821",
+    generated_at: new Date().toISOString(),
+    subjective: [
+      "General condition: Feeling slightly fatigued",
+      "Reported symptoms: Mild morning thirst reported",
+      "Danger words: None detected",
+      "Medication adherence: Reported taking medications as prescribed",
+    ],
+    objective: [
+      "Reading - glucose: 142.0 mg/dL [Source: Patient-reported, Trust: Low]",
+      "Reading - blood_pressure: 135/85 mmHg [Source: FHIR, Trust: High]",
+      "Reconciliation: Reconciled with baseline; no discrepancies detected",
+      "Trend - glucose: stable (12 readings over 30 days)",
+    ],
+    assessment: [
+      "Triage evaluation: routine (Green)",
+      "Clinical rules rationale: Routine check-in protocol completed within expected bounds",
+      "Stage-2 escalation: None (rules level maintained)",
+      "Risk model (t2d_3yr): Band Moderate, Probability 0.42",
+      "Risk drivers (t2d_3yr): bmi: 0.15, sbp: 0.12, age: 0.08",
+      "Investigational caveat: Risk model scores are investigational decision support tools and do not represent a clinical diagnosis.",
+      "Data confidence: High",
+    ],
+    plan: [
+      "Patient guidance provided: Continue routine self-monitoring and care plan.",
+      "Appointment action: appointment workflow: not available in this build",
+      "Clinician review: Routine monitoring, no clinician review required",
+      "Guideline sources:",
+      "- 2020 International Society of Hypertension Global Hypertension Practice Guidelines (Section: HMOD, CKD)",
+    ],
+    data_sources: [
+      "FHIR R4 in-process simulator (sim://demo)",
+      "Check-in interview responses",
+      "Deterministic clinical rules engine",
+      "Investigational risk models",
+      "Longitudinal reading history (30-day window)",
+      "Clinical practice guideline corpus",
+    ],
+    plain_text:
+      "SOAP NOTE - CHRONICCARE AI CLINICAL DECISION SUPPORT\nCheck-in ID: chk-demo-001\nPatient ID: PT-04821\n...",
+  };
+
+  const activeSoap = soapNote || (!isLiveMode || selectedPatient === "Ali Khan" ? mockSoapNote : null);
+
+  const handleCopySoap = async () => {
+    if (!activeSoap?.plain_text) return;
+    try {
+      await navigator.clipboard.writeText(activeSoap.plain_text);
+      setCopiedSoap(true);
+      setTimeout(() => setCopiedSoap(false), 2500);
+    } catch (e) {
+      console.warn("Copy failed:", e);
+    }
+  };
+
+  const handlePrintSoap = () => {
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  };
 
   const isResolved =
     resolvedCases.includes(selectedPatient || "Ali Khan") ||
@@ -1105,6 +1195,154 @@ export const ReconciliationAlertDetail = () => {
           </div>
         </div>
       )}
+
+      {/* SOAP Note Generation Panel (Proposal Section 13.1 Agent 7) */}
+      <div
+        className="surface-card rounded-3xl p-5 sm:p-6 space-y-4 border border-slate-200"
+        data-testid="provider-soap-note-panel"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+          <button
+            type="button"
+            onClick={() => setIsSoapExpanded(!isSoapExpanded)}
+            className="flex items-center gap-2 text-left group cursor-pointer"
+            aria-expanded={isSoapExpanded}
+          >
+            <FileText className="w-5 h-5 text-teal-700 shrink-0" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-heading font-bold text-base text-navy-900 group-hover:text-teal-700 transition-colors">
+                  {t.soapNoteTitle}
+                </h3>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+                  Agent 7
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Deterministic S/O/A/P summary for clinical records
+              </p>
+            </div>
+            {isSoapExpanded ? (
+              <ChevronUp className="w-4 h-4 text-slate-400 group-hover:text-slate-600 ml-1" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-600 ml-1" />
+            )}
+          </button>
+
+          {activeSoap && (
+            <div className="flex items-center gap-2 self-end sm:self-center">
+              <button
+                type="button"
+                onClick={handleCopySoap}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-navy-800 shadow-xs transition-colors cursor-pointer"
+                title={t.soapCopyNote}
+              >
+                {copiedSoap ? (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-700 font-bold">{t.soapCopied}</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-slate-600" />
+                    <span>{t.soapCopyNote}</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrintSoap}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-navy-800 shadow-xs transition-colors cursor-pointer"
+                title={t.soapPrintNote}
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-600" />
+                <span>{t.soapPrintNote}</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {isSoapLoading ? (
+          <div className="py-6 flex items-center justify-center gap-2 text-xs text-slate-500">
+            <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+            <span>{t.soapLoading}</span>
+          </div>
+        ) : isSoapExpanded && activeSoap ? (
+          <div className="space-y-4 pt-1">
+            {/* Subjective */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5" data-testid="soap-section-subjective">
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-900 block">
+                {t.soapSubjective}
+              </span>
+              <ul className="list-disc list-inside space-y-1 text-xs text-navy-900">
+                {activeSoap.subjective.map((line, idx) => (
+                  <li key={idx} className="leading-relaxed">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Objective */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5" data-testid="soap-section-objective">
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-900 block">
+                {t.soapObjective}
+              </span>
+              <ul className="list-disc list-inside space-y-1 text-xs text-navy-900">
+                {activeSoap.objective.map((line, idx) => (
+                  <li key={idx} className="leading-relaxed">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Assessment */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5" data-testid="soap-section-assessment">
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-900 block">
+                {t.soapAssessment}
+              </span>
+              <ul className="list-disc list-inside space-y-1 text-xs text-navy-900">
+                {activeSoap.assessment.map((line, idx) => (
+                  <li key={idx} className="leading-relaxed">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Plan */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5" data-testid="soap-section-plan">
+              <span className="text-xs font-bold uppercase tracking-wider text-teal-900 block">
+                {t.soapPlan}
+              </span>
+              <ul className="list-disc list-inside space-y-1 text-xs text-navy-900">
+                {activeSoap.plan.map((line, idx) => (
+                  <li key={idx} className="leading-relaxed">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Data Sources Provenance Footer */}
+            {activeSoap.data_sources && activeSoap.data_sources.length > 0 && (
+              <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-500 mr-1">Sources:</span>
+                {activeSoap.data_sources.map((ds, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2 py-0.5 rounded-md bg-slate-200/70 text-slate-700 text-[10px] font-medium"
+                  >
+                    {ds}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
 
       {/* Emergency Detail View or Reconciliation Comparison Card */}
       {isEmergencyItem ? (
