@@ -96,3 +96,24 @@ All 28 entries in `backend-poc-technical/agents/interview_bank/messages.json` ve
 - Adherence clarification queries (`adherence_clarification_question`, `adherence_clarification_why`, `adherence_clarification_unclear_note`) verified for respectful, collaborative tone.
 - Flag `"needs_native_review"` confirmed `false` across all 28 entries.
 
+---
+
+## 5. Pending Native Review (12 Nov 2026)
+
+**PR:** #134 (`fix/i3-no-readings-wording`)  
+**Target:** `backend-poc-technical/rag/templates.json` -> `routine_no_readings`  
+**Status:** **PENDING NATIVE REVIEW (Hassaan Mudassar)**  
+**Flag in Code:** `"needs_native_review": true`
+
+### 5.1 Proposed Template Changes (Awaiting Approval)
+
+| Language | Field | Proposed Text | Status |
+|---|---|---|---|
+| English | `sentence_2` | `You did not report any warning signs today.` | Approved (K3) |
+| Urdu | `sentence_2` | `آپ نے آج کسی خطرے کی علامت کی اطلاع نہیں دی۔` | Pending Hassaan OK |
+| Roman Urdu | `sentence_2` | `Aap ne aaj kisi khatray ki alamat ki ittila nahi di.` | Pending Hassaan OK |
+
+**Context / Rationale:**  
+Reviewer correction K3 for PR #134 updated Sentence 2 of the `routine_no_readings` template to avoid misleading phrasing when a patient logs symptoms or check-in answers without quantitative glucose/BP numbers. Urdu and Roman Urdu drafts are staged with `"needs_native_review": true` until Hassaan confirms or refines the phrasing on PR #134.
+
+

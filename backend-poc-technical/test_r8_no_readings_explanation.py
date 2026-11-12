@@ -175,7 +175,7 @@ def test_guarded_explain_no_readings_english():
 
     expected_en = [
         "You did not enter a blood sugar or blood pressure reading today.",
-        "No warning symptoms were reported, so no doctor review is needed today.",
+        "You did not report any warning signs today.",
         "Adding a reading next time helps track your health over time.",
     ]
     texts = [s["text"] for s in res["sentences"]]
@@ -196,7 +196,7 @@ def test_guarded_explain_no_readings_urdu():
 
     expected_ur = [
         "آپ نے آج بلڈ شوگر یا بلڈ پریشر کی کوئی ریڈنگ درج نہیں کی۔",
-        "کسی خطرے کی علامت کی اطلاع نہیں دی گئی، اس لیے آج ڈاکٹر کے جائزے کی ضرورت نہیں ہے۔",
+        "آپ نے آج کسی خطرے کی علامت کی اطلاع نہیں دی۔",
         "اگلی بار ریڈنگ شامل کرنا وقت کے ساتھ آپ کی صحت کی نگرانی میں مدد کرتا ہے۔"
     ]
     texts = [s["text"] for s in res["sentences"]]
@@ -217,7 +217,7 @@ def test_guarded_explain_no_readings_roman_urdu():
 
     expected_roman_ur = [
         "Aap ne aaj blood sugar ya blood pressure ki koi reading darj nahi ki.",
-        "Kisi khatray ki alamat ki ittila nahi di gayi, is liye aaj doctor ke jaizay ki zaroorat nahi hai.",
+        "Aap ne aaj kisi khatray ki alamat ki ittila nahi di.",
         "Agli baar reading shamil karna waqt ke sath aap ki sehat ki nigrani mein madad karta hai."
     ]
     texts = [s["text"] for s in res["sentences"]]

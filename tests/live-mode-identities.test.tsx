@@ -147,6 +147,8 @@ describe("Live Mode Demo Identities Gating (Part E)", () => {
           ts: "2026-11-08T12:00:00Z",
           outcome: "ok",
           target: "system",
+          actor_user_id: "admin-1",
+          detail: {},
         },
       ]);
 
