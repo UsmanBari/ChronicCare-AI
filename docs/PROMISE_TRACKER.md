@@ -12,7 +12,7 @@
 | Promise | Proposal Section | Built Where (File) | Local Check ID | Status Today | Owner | Target Date |
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
 | Multi-agent, dual-mode reconciliation pipeline with clinically structured adaptive interview | Objective 1 | `backend-poc-technical/agents/reconciliation_agent.py` | LA-02, LA-09 | **PASS** | Usman | Done (PR #80, #135) |
-| Two explainable risk classifiers (diabetes full NHANES, hypertension/heart) with SHAP | Objective 2 | `backend-poc-technical/agents/risk_agent.py` | LA-13, LA-24, LA-27 | **PARTIAL** (Full NHANES PASS, CHD10/Control PR B/F) | Usman / Saad | 11 Nov 2026 |
+| Two explainable risk classifiers (diabetes full NHANES, hypertension/heart) with SHAP | Objective 2 | `backend-poc-technical/agents/risk_agent.py` | LA-13, LA-24, LA-27 | **PASS** (NHANES & Framingham CHD10 in PR A, Control PR F) | Usman / Saad | Done (PR A) |
 | Verification step checking outputs against explicit ground truth | Objective 3 | `backend-poc-technical/agents/verification_agent.py` | LA-09, LA-12 | **PASS** | Usman | Done (PR #80, #128) |
 | Plain-language explanations in English and Urdu with guideline citations | Objective 4 | `backend-poc-technical/rag/explain_jobs.py` | LA-10, LA-11, LA-12 | **PASS** | Usman | Done (PR #128) |
 | Multi-tier validation: scenarios, mutation proofs, single-LLM baseline | Objective 5 | `scripts/verify_mutations.py` | LA-18, LA-31 | **PARTIAL** (Mutations PASS, Single-LLM PR J) | Usman | 14 Nov 2026 |
@@ -30,8 +30,8 @@
 | Agent 5: Record Retrieval Agent (Unified DataSource: FHIR vs Local Store) | Sec 13.1 | `backend-poc-technical/data_sources/local_store.py` | LA-02, LA-09 | **PASS** | Usman | Done |
 | Agent 6: Clinical Reconciliation Agent (Source-blind comparison & conflict flag) | Sec 13.1 | `backend-poc-technical/agents/reconciliation_agent.py` | LA-09 | **PASS** | Usman | Done |
 | Agent 7: Verification Agent (Source trust levels, clinical severity rating) | Sec 13.1 | `backend-poc-technical/agents/verification_agent.py` | LA-09 | **PASS** | Usman | Done |
-| Agent 8: Longitudinal Trend Agent (Direction calculation, escalation trigger) | Sec 13.1, 16 | `backend-poc-technical/agents/trend_agent.py` | LA-14, LA-22 | **PARTIAL** (Trends API PASS, Escalation PR A) | Saad | 10 Nov 2026 |
-| Agent 9: Advisory Risk Models (NHANES Diabetes, Framingham CHD10) | Sec 13.1 | `backend-poc-technical/agents/risk_agent.py` | LA-13, LA-24 | **PARTIAL** (NHANES PASS, CHD10 PR B) | Usman / Saad | 11 Nov 2026 |
+| Agent 8: Longitudinal Trend Agent (Direction calculation, escalation trigger) | Sec 13.1, 16 | `backend-poc-technical/agents/trend_agent.py` & `agents/final_triage.py` | LA-14, LA-22 | **PASS** | Saad / Usman | Done (PR A) |
+| Agent 9: Advisory Risk Models (NHANES Diabetes, Framingham CHD10) | Sec 13.1 | `backend-poc-technical/agents/risk_agent.py` | LA-13, LA-24 | **PASS** | Usman / Saad | Done (PR A) |
 | Agent 10: Provider SOAP Summary Agent (Structured clinical synthesis) | Sec 13.1 | `backend-poc-technical/rag/soap_agent.py` | LA-26 | **NOT BUILT YET** | Usman | 13 Nov 2026 (PR E) |
 
 ---
@@ -55,9 +55,9 @@
 
 | Promise | Proposal Section | Built Where (File) | Local Check ID | Status Today | Owner | Target Date |
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
-| Triage Severity Colors (Green=Routine, Yellow=Review, Red=Urgent/Emergency) | Sec 15 | `app/components/` & `backend-poc-technical/` | LA-20 | **NOT BUILT YET** | Usman | 10 Nov 2026 (PR A) |
-| Stage-2 Clinical Risk Elevation (Routine -> Review on high risk band) | Sec 15 | `backend-poc-technical/agents/triage_protocol.py` | LA-21 | **NOT BUILT YET** | Usman | 10 Nov 2026 (PR A) |
-| Patient-Facing Risk Band Display (Plain sentence + action only) | Sec 15 | `app/` & `backend-poc-technical/` | LA-23 | **NOT BUILT YET** | Usman | 10 Nov 2026 (PR A) |
+| Triage Severity Colors (Green=Routine, Yellow=Review, Red=Urgent/Emergency) | Sec 15 | `backend-poc-technical/agents/final_triage.py` & `app/components/TriageColourChip.tsx` | LA-20 | **PASS** | Usman | Done (PR A) |
+| Stage-2 Clinical Risk Elevation (Routine -> Review on high risk band) | Sec 15 | `backend-poc-technical/agents/final_triage.py` | LA-21, LA-21b, LA-21c | **PASS** | Usman | Done (PR A) |
+| Patient-Facing Risk Band Display (Plain sentence + action only) | Sec 15 | `app/components/RiskResultScreen.tsx` & `backend-poc-technical/orchestrator/steps.py` | LA-23 | **PASS** | Usman | Done (PR A) |
 | Appointment Booking by Triage Level & Clinical Specialty | Sec 15 | `backend-poc-technical/appointments/` | LA-25 | **NOT BUILT YET** | Usman | 12 Nov 2026 (PR D) |
 | Red-Flag Escalation Notification & Timeout Tracking | Sec 15 | `backend-poc-technical/escalation/` | LA-25 | **NOT BUILT YET** | Usman | 12 Nov 2026 (PR D) |
 
@@ -68,8 +68,8 @@
 | Promise | Proposal Section | Built Where (File) | Local Check ID | Status Today | Owner | Target Date |
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
 | Longitudinal Observation Series Retrieval | Sec 16 | `backend-poc-technical/main.py` | LA-14 | **PASS** | Saad / Usman | Done |
-| Trend Elevation Trigger (5 consecutive worsening check-ins -> Review) | Sec 16 | `backend-poc-technical/agents/trend_agent.py` | LA-22 | **NOT BUILT YET** | Usman / Saad | 10 Nov 2026 (PR A) |
-| Clinician Review Longitudinal BP & Glucose Charts | Sec 16 | `app/components/provider/` | LA-22 | **NOT BUILT YET** | Usman | 10 Nov 2026 (PR A) |
+| Trend Elevation Trigger (5 consecutive worsening check-ins -> Review) | Sec 16 | `backend-poc-technical/agents/final_triage.py` | LA-22 | **PASS** | Usman / Saad | Done (PR A) |
+| Clinician Review Longitudinal BP & Glucose Charts | Sec 16 | `app/components/provider/ReconciliationAlertDetail.tsx` | LA-22 | **PASS** | Usman | Done (PR A) |
 
 ---
 
@@ -79,6 +79,7 @@
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
 | 3-Tier Source Trust Hierarchy (High: EHR/Clinician; Med: OCR/Upload; Low: Self-Report) | Sec 17 | `backend-poc-technical/agents/verification_agent.py` | LA-09, LA-15 | **PASS** | Usman | Done |
 | Assessment Confidence Label (High / Medium / Low based on completeness) | Sec 17 | `backend-poc-technical/agents/verification_agent.py` | LA-02, LA-08 | **PASS** | Usman | Done |
+| Risk Assessment Confidence Hierarchy (High: EHR same-day; Med: Patient/7d+; Low: Unconfirmed OCR) | Sec 17 | `backend-poc-technical/agents/risk_agent.py` | LA-23b | **PASS** | Usman | Done (PR A) |
 
 ---
 

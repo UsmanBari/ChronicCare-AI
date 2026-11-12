@@ -440,6 +440,23 @@ export interface Translations {
   riskMissingSmoking: string;
   riskMissingHeightWeight: string;
 
+  // Stage-2 Final Triage & Patient Risk Display
+  triageChipGreenRoutine: string;
+  triageChipYellowReview: string;
+  triageChipRedUrgent: string;
+  triageChipRedEmergency: string;
+  patientRiskEstimatesTitle: string;
+  patientRiskEstimatesSubtitle: string;
+  risk_chd_low: string;
+  risk_chd_moderate: string;
+  risk_chd_high: string;
+  risk_chd_not_enough_info: string;
+  risk_diabetes_low: string;
+  risk_diabetes_moderate: string;
+  risk_diabetes_high: string;
+  risk_diabetes_not_enough_info: string;
+  patientReasonTrendRising: string;
+
   // Record History, Export & Import (Day 6)
   recordHistoryTitle: string;
   recordHistoryBtn: string;
@@ -984,6 +1001,23 @@ export const translations: Record<Language, Translations> = {
     riskMissingSmoking: "Smoking status in patient profile",
     riskMissingHeightWeight: "Height and weight in patient profile",
 
+    // Stage-2 Final Triage & Patient Risk Display
+    triageChipGreenRoutine: "Green - Routine",
+    triageChipYellowReview: "Yellow - Review",
+    triageChipRedUrgent: "Red - Urgent",
+    triageChipRedEmergency: "Red - Emergency",
+    patientRiskEstimatesTitle: "Your Risk Estimates",
+    patientRiskEstimatesSubtitle: "Calculated research estimates based on your profile and vitals.",
+    risk_chd_low: "Your 10-year heart risk estimate is Low. Keep up your routine. This is an estimate from a research model, not a diagnosis.",
+    risk_chd_moderate: "Your 10-year heart risk estimate is Moderate. Keep your blood pressure in control and talk to your doctor at your next visit. This is an estimate from a research model, not a diagnosis.",
+    risk_chd_high: "Your 10-year heart risk estimate is High. Please discuss it with your doctor soon. This is an estimate from a research model, not a diagnosis.",
+    risk_chd_not_enough_info: "Add missing details in your profile to see your heart risk estimate. This is an estimate from a research model, not a diagnosis.",
+    risk_diabetes_low: "Your chance of undetected high sugar is Low. This is an estimate from a research model, not a diagnosis.",
+    risk_diabetes_moderate: "Your chance of undetected high sugar is Moderate. Ask your doctor whether you need an HbA1c (sugar) test. This is an estimate from a research model, not a diagnosis.",
+    risk_diabetes_high: "Your chance of undetected high sugar is High. Ask your doctor whether you need an HbA1c (sugar) test. This is an estimate from a research model, not a diagnosis.",
+    risk_diabetes_not_enough_info: "Add missing details in your profile to see your sugar risk estimate. This is an estimate from a research model, not a diagnosis.",
+    patientReasonTrendRising: "Your readings have been going up over your last few check-ins, so we have asked your care team to look.",
+
     // Record History, Export & Import (Day 6)
     recordHistoryTitle: "Record History",
     recordHistoryBtn: "History",
@@ -1527,6 +1561,23 @@ export const translations: Record<Language, Translations> = {
     riskMissingWaist: "مریض کے پروفائل میں کمر کی پیمائش",
     riskMissingSmoking: "مریض کے پروفائل میں تمباکو نوشی کی تفصیل",
     riskMissingHeightWeight: "مریض کے پروفائل میں قد اور وزن",
+
+    // Stage-2 Final Triage & Patient Risk Display (needs_native_review for Hassaan)
+    triageChipGreenRoutine: "سبز - معمول",
+    triageChipYellowReview: "پیلا - جائزہ",
+    triageChipRedUrgent: "سرخ - فوری",
+    triageChipRedEmergency: "سرخ - ایمرجنسی",
+    patientRiskEstimatesTitle: "آپ کے خطرے کے تخمینے",
+    patientRiskEstimatesSubtitle: "آپ کے پروفائل اور پیمائشوں پر مبنی تحقیقی تخمینے۔",
+    risk_chd_low: "آپ کے دل کی بیماری کا ۱۰ سالہ تخمینہ کم (Low) ہے۔ اپنا معمول برقرار رکھیں۔ یہ تحقیقی ماڈل کا تخمینہ ہے، کوئی حتمی تشخیص نہیں۔",
+    risk_chd_moderate: "آپ کے دل کی بیماری کا ۱۰ سالہ تخمینہ معتدل (Moderate) ہے۔ بلڈ پریشر قابو میں رکھیں اور اگلے وزٹ پر ڈاکٹر سے بات کریں۔ یہ تحقیقی ماڈل کا تخمینہ ہے، کوئی حتمی تشخیص نہیں۔",
+    risk_chd_high: "آپ کے دل کی بیماری کا ۱۰ سالہ تخمینہ زیادہ (High) ہے۔ برائے مہربانی جلد اپنے ڈاکٹر سے رجوع کریں۔ یہ تحقیقی ماڈل کا تخمینہ ہے، کوئی حتمی تشخیص نہیں۔",
+    risk_chd_not_enough_info: "دل کے خطرے کا تخمینہ دیکھنے کے لیے اپنے پروفائل میں مطلوبہ معلومات درج کریں۔ یہ تحقیقی ماڈل کا تخمینہ ہے، کوئی حتمی تشخیص نہیں۔",
+    risk_diabetes_low: "آپ کے شوگر کے غیر تشخیص شدہ خطرے کا امکان کم (Low) ہے۔ یہ تحقیقی ماڈل کا تخمینہ ہے، کوئی حتمی تشخیص نہیں۔",
+    risk_diabetes_moderate: "آپ کے شوگر کے غیر تشخیص شدہ خطرے کا امکان معتدل (Moderate) ہے۔ اپنے ڈاکٹر سے پوچھیں کہ کیا HbA1c ٹیسٹ کی ضرورت ہے۔ یہ تحقیقی ماڈل کا تخمینہ ہے، کوئی حتمی تشخیص نہیں۔",
+    risk_diabetes_high: "آپ کے شوگر کے غیر تشخیص شدہ خطرے کا امکان زیادہ (High) ہے۔ اپنے ڈاکٹر سے پوچھیں کہ کیا HbA1c ٹیسٹ کی ضرورت ہے۔ یہ تحقیقی ماڈل کا تخمینہ ہے، کوئی حتمی تشخیص نہیں۔",
+    risk_diabetes_not_enough_info: "شوگر کے خطرے کا تخمینہ دیکھنے کے لیے اپنے پروفائل میں مطلوبہ معلومات درج کریں۔ یہ تحقیقی ماڈل کا تخمینہ ہے، کوئی حتمی تشخیص نہیں۔",
+    patientReasonTrendRising: "پچھلے چند چیک انز میں آپ کی ریڈنگز بڑھ رہی ہیں، اس لیے ہم نے کیئر ٹیم سے جائزہ لینے کی درخواست کی ہے۔",
 
     // Record History, Export & Import (Day 6)
     recordHistoryTitle: "ریکارڈ کی تاریخ",

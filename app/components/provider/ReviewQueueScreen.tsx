@@ -18,6 +18,7 @@ import {
   RotateCw,
 } from "lucide-react";
 import { api, ReviewQueueItemResponse } from "../../lib/api";
+import { TriageColourChip } from "../TriageColourChip";
 
 export const ReviewQueueScreen = () => {
   const {
@@ -302,15 +303,18 @@ export const ReviewQueueScreen = () => {
                           </div>
                         </td>
                         <td className="py-4.5 px-5">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase ${
-                            item.emergency || item.max_severity === "critical"
-                              ? "bg-emergencyRed-100 text-emergencyRed-800"
-                              : item.max_severity === "high"
-                              ? "bg-amber-100 text-amber-900"
-                              : "bg-slate-100 text-slate-700"
-                          }`}>
-                            {item.emergency ? "CRITICAL" : item.max_severity || "Review"}
-                          </span>
+                          <div className="flex flex-col gap-1 items-start">
+                            <TriageColourChip
+                              level={item.triage_level || (item.emergency ? "emergency" : "review")}
+                              colour={item.triage_colour}
+                              size="sm"
+                            />
+                            {item.max_severity && item.max_severity !== "none" && (
+                              <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                                Sev: {item.max_severity}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-4.5 px-5">
                           <span className="inline-flex items-center gap-1.5 text-amber-800 font-bold text-xs">

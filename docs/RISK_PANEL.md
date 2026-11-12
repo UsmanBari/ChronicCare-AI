@@ -33,9 +33,64 @@ When `RISK_ENABLED` is absent or set to any value other than `"true"`, the backe
 
 ## Safety Constraints & Guardrails
 
-### 1. Zero Patient Exposure (Strict Leak Defense)
-- **Zero UI Visibility**: Patients never see a risk score, risk band, percentage, or advisory hint anywhere in the patient portal.
-- **Endpoint Protection**: Patient-facing endpoints (`/api/me`, `/api/me/profile`, `/api/checkins/{id}`, `/api/me/trends`) are structurally prevented from evaluating or returning `risk` data. This invariant is continuously verified by `backend-poc-technical/test_risk_panel_api.py`.
+### 1. Patient Exposure & Policy Evolution (Change D12, Dated 8 Nov 2026)
+- **Historical Policy (Iteration 2 D12)**: Zero patient visibility; provider panel only.
+- **Clinician Guidance (Update 8 Nov 2026)**: A clinician approved patient-facing visibility of risk bands ("Patients should see their risk band too: YES").
+- **Current Architecture (`RISK_PATIENT_VISIBLE`)**:
+  - Controlled by runtime flag `RISK_PATIENT_VISIBLE` (default `false` in production code).
+  - When enabled, patients see only their qualitative **band** (`Low` / `Moderate` / `High`) along with a plain-language sentence and recommended action.
+  - **Strict Privacy & Anti-Alarmism Invariant**: Patients **never** see raw probabilities, decimal percentages, statistical model identifiers (`chd10_framingham`, `diabetes_full_nhanes`), logits, or mathematical SHAP driver contributions.
+  - Providers continue to have full access to model name, drivers, confidence, and research banners.
+
+---
+
+## Stage-2 Final Triage & Escalation Agent
+
+Proposal Sections 13.1 (Agent 10), 15, and 17 establish Stage-2 Final Triage.
+Motto: *"The model proposes, the rules decide."*
+
+### Stage-2 Escalation Rules Table
+
+| Rule ID | Condition | Effect | Flag / Guard |
+|---------|-----------|--------|--------------|
+| **R-S2-0** | Level is already `emergency`, `urgent`, or `review` | Level unchanged | Invariant: Stage-2 **never lowers** any level and never touches emergency |
+| **R-S2-1** | Clinical rules level is `routine`, any applicable risk model outputs band `high` | routine $\to$ `review` | `RISK_CAN_RAISE=true` (Subject to `RISK_RAISE_COOLDOWN_DAYS`) |
+| **R-S2-2** | Clinical rules level is `routine`, trend agent reports direction `rising` with $\ge 5$ points (`TREND_MIN_POINTS=5`, Doctor Answer 2), and latest reading is above target threshold (>140 SBP or >180 Glucose) | routine $\to$ `review` | `TREND_CAN_RAISE=true` (Provider review detail displays longitudinal trend chart) |
+| **R-S2-3** | Any Stage-2 escalation | Maximum 1 step (`routine` $\to$ `review`) | Invariant: Stage-2 can **never** escalate directly to `urgent` or `emergency` |
+| **R-S2-4** | Clinical rules level is `routine`, no BP or glucose readings available, and patient reported feeling unwell (severe symptom picture) | routine $\to$ `review` | `NO_READING_SYMPTOM_RAISE=true` (**Pending clinician formal sign-off**) |
+
+### Single Source of Truth Triage Colors
+
+Colors are computed centrally via `level_to_colour(level)` in `backend-poc-technical/agents/final_triage.py`:
+- `routine` $\to$ **Green** ("Green - Routine")
+- `review` $\to$ **Yellow** ("Yellow - Review")
+- `urgent` $\to$ **Red** ("Red - Urgent")
+- `emergency` $\to$ **Red** ("Red - Emergency")
+
+Accessibility Requirement: Text labels are always rendered alongside color chips; color is never the sole indicator.
+
+---
+
+## Confidence Level Calculation (Section 17)
+
+Each risk assessment carries an evidence confidence rating:
+- **High**: Vital reading acquired via FHIR connection, recorded on the same day (`age_days == 0`), with no reconciliation conflict.
+- **Medium**: Patient self-reported vital reading, or FHIR reading older than 7 days.
+- **Low**: OCR extracted reading not yet confirmed by patient.
+- **First-Checkin Cap**: A patient's first completed check-in is capped at **Medium** confidence (Section 13.1.1).
+
+---
+
+## Multi-Model Architecture & SHAP Drivers
+
+- **Dynamic Loading**: Loads all models from `backend-poc-technical/models/*.json`.
+- **Supported Models**:
+  - `diabetes_full_nhanes`: Evaluated for hypertensive patients without diabetes.
+  - `chd10_framingham`: Framingham 10-year coronary heart disease model, evaluated for patients with hypertension OR diabetes.
+- **Standardized SHAP Drivers**: Feature contributions in standardized log-odds space:
+  $$\text{contribution}_i = \text{coef}_i \times \frac{x_i - \text{mean}_i}{\text{scale}_i}$$
+  Guaranteed identity: $\text{intercept} + \sum_i \text{contribution}_i = \text{logit}$.
+  Provider review UI renders top 3 drivers with direction (+ / -) and localized clinical labels.
 
 ### 2. Clinical Applicability Criteria
 Risk assessment is only computed when **both** conditions are met:

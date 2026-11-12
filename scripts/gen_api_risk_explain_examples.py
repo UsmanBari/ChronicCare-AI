@@ -31,6 +31,7 @@ if str(REPO_ROOT) not in sys.path:
 os.environ["RISK_ENABLED"] = "true"
 os.environ["RISK_CAN_RAISE"] = "false"
 os.environ["EXPLAIN_ENABLED"] = "true"
+os.environ["EXPLAIN_MODE"] = "inline"
 os.environ["ORCHESTRATOR"] = "direct"
 os.environ["FIREBASE_PROJECT_ID"] = "chroniccare-contract-gen"
 os.environ["DB_BACKEND"] = "sqlite"
@@ -438,7 +439,7 @@ Patient has hypertension and blood pressure readings, but waist circumference is
 ---
 
 ### State 3: `not_applicable` (Diabetes Patient)
-Risk assessment is specifically calibrated for individuals with hypertension without diagnosed diabetes. For diabetes patients, `risk` and `checkin_risk` are `null`.
+Diabetes patient: diabetes screening model not applicable; heart-disease model applies.
 
 #### Patient View:
 ```json
