@@ -313,8 +313,8 @@ MUTATIONS = [
         "id": "M-U5-3",
         "name": "Risk Agent: Fall back to basic when waist is missing",
         "file": BACKEND_DIR / "agents" / "risk_agent.py",
-        "target": "        # 4. Check Missing Features (No Basic Fallback per D8/D12)\n        if missing:\n            return {\n                \"status\": \"not_enough_information\",\n                \"missing\": sorted(list(set(missing))),\n                \"audience\": \"provider_only\",\n            }",
-        "replacement": "        # 4. Check Missing Features (No Basic Fallback per D8/D12)\n        if missing and missing != [\"waist_cm\"]:\n            return {\n                \"status\": \"not_enough_information\",\n                \"missing\": sorted(list(set(missing))),\n                \"audience\": \"provider_only\",\n            }\n        if missing == [\"waist_cm\"]:\n            raw_features[\"waist_cm\"] = 85.0",
+        "target": "    if missing:\n        return {\n            \"status\": \"not_enough_information\",\n            \"model_name\": m_name,\n            \"disease\": \"cardiovascular\" if \"chd\" in m_name else \"diabetes\",\n            \"missing\": sorted(list(set(missing))),\n            \"audience\": model.get(\"audience\", \"provider_only\"),\n            \"confidence\": confidence,\n            \"label_text\": model.get(\"label_text\", {}),\n        }",
+        "replacement": "    if missing and missing != [\"waist_cm\"]:\n        return {\n            \"status\": \"not_enough_information\",\n            \"model_name\": m_name,\n            \"disease\": \"cardiovascular\" if \"chd\" in m_name else \"diabetes\",\n            \"missing\": sorted(list(set(missing))),\n            \"audience\": model.get(\"audience\", \"provider_only\"),\n            \"confidence\": confidence,\n            \"label_text\": model.get(\"label_text\", {}),\n        }\n    if missing == [\"waist_cm\"]:\n        raw_features[\"waist_cm\"] = 85.0",
         "test_node": "backend-poc-technical/test_risk_agent.py::test_missing_waist_yields_not_enough_info",
     },
     # --- Day 6 Mutations (M-H6-1 to M-H6-2: Edit History & Import Validation) ---

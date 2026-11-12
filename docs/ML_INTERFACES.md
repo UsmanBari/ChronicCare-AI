@@ -265,6 +265,20 @@ The 10-year coronary heart disease (CHD) risk model (`backend-poc-technical/mode
   7. `bp_meds` (binary, 1=yes, 0=no)
   8. `diabetes` (binary, 1=yes, 0=no)
   9. `prevalent_hyp` (binary, 1=yes, 0=no)
+
+### Feature Contract & Acquisition Specification
+
+| Feature | Unit | How the App Acquires It | Missing Handling |
+|---|---|---|---|
+| `age` | years | Computed from `date_of_birth` in patient profile relative to check-in date | `not_enough_information` (model skipped, missing reported) |
+| `sex_male` | binary (1=male, 0=female) | `sex_at_birth` in patient profile | `not_enough_information` (model skipped, missing reported) |
+| `current_smoker` | binary (1=yes, 0=no) | `smoking_status` in patient profile (1 only if `"current"`, 0 for `"never"` or `"former"`) | `not_enough_information` (model skipped, missing reported) |
+| `bmi` | kg/m² | Derived from `weight_kg / ((height_cm/100)^2)` in patient profile | `not_enough_information` (model skipped, missing reported) |
+| `sbp` | mmHg | Systolic blood pressure reading from check-in vitals or FHIR within 30 days | `not_enough_information` (model skipped, missing reported) |
+| `dbp` | mmHg | Diastolic blood pressure reading from check-in vitals or FHIR within 30 days | `not_enough_information` (model skipped, missing reported) |
+| `bp_meds` | binary (1=yes, 0=no) | Active medications checked against known antihypertensive drug list | Evaluated from active medication scope (0.0 if none) |
+| `diabetes` | binary (1=yes, 0=no) | Patient tracked conditions contain `"diabetes"` | Deterministic (1 if diabetic, 0 otherwise) |
+| `prevalent_hyp` | binary (1=yes, 0=no) | Patient tracked conditions contain `"hypertension"` | Deterministic (1 if hypertensive, 0 otherwise) |
 - **Audience:** `"audience": "provider_and_patient_band"`
 - **Risk Bands:** Low `< 0.10`, Moderate `0.10` to `< 0.20`, High `\ge 0.20` (NCEP ATP III clinical guidelines)
 - **Patient Note:** Educational disclaimer in English, Urdu, and Roman Urdu (`needs_native_review: true`). Raw numerical probabilities are never presented to patients.

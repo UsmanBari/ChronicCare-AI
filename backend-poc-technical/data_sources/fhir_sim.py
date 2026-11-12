@@ -87,6 +87,32 @@ SAMPLE_PATIENTS: Dict[str, Dict[str, Any]] = {
 }
 
 
+# In-process store for dynamically created DocumentReference resources
+STORED_DOCUMENT_REFERENCES: List[Dict[str, Any]] = []
+
+
+def store_document_reference(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """Stores a FHIR DocumentReference in-process."""
+    STORED_DOCUMENT_REFERENCES.append(copy.deepcopy(doc))
+    return doc
+
+
+def get_stored_document_references(patient_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Retrieves in-process stored DocumentReferences, optionally filtered by patient_id."""
+    if not patient_id:
+        return list(STORED_DOCUMENT_REFERENCES)
+    clean_pid = patient_id.replace("Patient/", "")
+    return [
+        d for d in STORED_DOCUMENT_REFERENCES
+        if d.get("subject", {}).get("reference") in (clean_pid, f"Patient/{clean_pid}")
+    ]
+
+
+def reset_stored_document_references() -> None:
+    """Hermetic reset helper for tests."""
+    STORED_DOCUMENT_REFERENCES.clear()
+
+
 def _get_now(now: Optional[datetime] = None) -> datetime:
     if now is not None:
         if now.tzinfo is None:
@@ -751,7 +777,36 @@ def handle(path: str, params: Optional[Dict[str, Any]] = None, now: Optional[dat
         count = int(params.get("_count", 100))
         return 200, _make_bundle(alg_list[:count])
 
+    # 7. DocumentReference search or read
+    if clean_path == "DocumentReference":
+        patient_id = params.get("patient") or params.get("subject")
+        docs = get_stored_document_references(patient_id)
+        count = int(params.get("_count", 100))
+        return 200, _make_bundle(copy.deepcopy(docs[:count]))
+
+    if clean_path.startswith("DocumentReference/"):
+        doc_id = clean_path.split("/", 1)[1].strip()
+        for doc in STORED_DOCUMENT_REFERENCES:
+            if doc.get("id") == doc_id:
+                return 200, copy.deepcopy(doc)
+        return 404, {
+            "resourceType": "OperationOutcome",
+            "issue": [{"severity": "error", "code": "not-found", "diagnostics": f"DocumentReference '{doc_id}' not found in simulator"}]
+        }
+
     return 404, {
         "resourceType": "OperationOutcome",
         "issue": [{"severity": "error", "code": "not-found", "diagnostics": f"Resource path '{clean_path}' not supported by simulator"}]
+    }
+
+
+def handle_post(path: str, resource: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
+    """Handles simulated FHIR POST requests."""
+    clean_path = path.strip("/").split("?")[0]
+    if clean_path == "DocumentReference":
+        stored = store_document_reference(copy.deepcopy(resource))
+        return 201, stored
+    return 400, {
+        "resourceType": "OperationOutcome",
+        "issue": [{"severity": "error", "code": "not-supported", "diagnostics": f"POST to '{clean_path}' not supported by simulator"}]
     }

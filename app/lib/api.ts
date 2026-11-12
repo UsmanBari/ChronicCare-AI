@@ -361,7 +361,7 @@ export interface AdminConfigItem {
 
 export interface AdminConfigStatusResponse {
   settings: AdminConfigItem[];
-  flags?: Record<string, boolean | string>;
+  flags?: Record<string, boolean | string | number>;
   keys_and_models?: Record<string, string>;
   explainer_metrics?: {
     tokens_used_today?: number;
@@ -393,6 +393,9 @@ export interface CheckinCompleteResponse {
   record_source_label?: string | null;
   safety_note?: string | null;
   explanation?: PatientExplanation | null;
+  triage_colour?: string | null;
+  triage_level?: string | null;
+  risk_patient?: Array<{ model_key: string; band: string; message_key: string }> | null;
 }
 
 export interface UserCheckinSummaryResponse {
@@ -406,6 +409,8 @@ export interface UserCheckinSummaryResponse {
   requires_review: boolean;
   max_severity: string | null;
   review_status: string | null;
+  triage_level?: string | null;
+  triage_colour?: string | null;
 }
 
 export interface UserCheckinDetailResponse {
@@ -418,6 +423,9 @@ export interface UserCheckinDetailResponse {
   completed_at: string | null;
   state: Record<string, any>;
   result: Record<string, any> | null;
+  triage_level?: string | null;
+  triage_colour?: string | null;
+  risk_patient?: Array<{ model_key: string; band: string; message_key: string }> | null;
 }
 
 export interface ReviewQueueItemResponse {
@@ -433,6 +441,8 @@ export interface ReviewQueueItemResponse {
   trigger_text?: string | null;
   trigger_reading?: Record<string, any> | string | null;
   escalated_at?: string | null;
+  triage_level?: string | null;
+  triage_colour?: string | null;
 }
 
 export interface ReviewActionResponse {
@@ -558,10 +568,26 @@ export interface ReviewDetailResponse {
   trends?: TrendsResponse | null;
   risk?: RiskAssessmentResponse | null;
   checkin_risk?: CheckinRiskResponse | null;
+  checkin_risk_results?: CheckinRiskResponse[] | null;
   explanation?: ProviderExplanationResponse | null;
   trace?: TraceStepItem[] | null;
   recent_record_edits?: RecordEditItem[] | null;
   danger_wordgroups?: string[] | null;
+  triage_level?: string | null;
+  triage_colour?: string | null;
+  raised_by?: Array<{ source: string; detail: string; [key: string]: any }> | null;
+}
+
+export interface SoapNoteResponse {
+  checkin_id: string;
+  patient_id?: string;
+  generated_at: string;
+  subjective: string[];
+  objective: string[];
+  assessment: string[];
+  plan: string[];
+  data_sources: string[];
+  plain_text: string;
 }
 export interface RecordEditItem {
   edit_id: string;
@@ -1155,6 +1181,14 @@ export const api = {
     checkin_id: string
   ): Promise<ReviewDetailResponse> => {
     return request<ReviewDetailResponse>(`/api/provider/review/${encodeURIComponent(checkin_id)}`, {
+      method: "GET",
+    });
+  },
+
+  getProviderSoapNote: async (
+    checkin_id: string
+  ): Promise<SoapNoteResponse> => {
+    return request<SoapNoteResponse>(`/api/provider/review/${encodeURIComponent(checkin_id)}/soap`, {
       method: "GET",
     });
   },

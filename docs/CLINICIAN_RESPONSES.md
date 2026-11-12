@@ -161,3 +161,16 @@ Sources: Dr Shaiza Jabbar: voice note (relayed by Usman). Dr Anam Zafar: marked 
 - Item 2: Dr Anam (page 1 not received).
 - Item 3: Dr Shaiza (not mentioned).
 - Item 5: Dr Shaiza gave no exact age cut-off ("very old" vs "below 50").
+
+---
+## Update 8 Nov 2026: Clinician guidance
+
+Source: Answers sent by one doctor in a written message to Usman on 8 Nov 2026; doctor's name: PENDING (Usman to add).
+
+### The 5 Answers (Verbatim / As Relayed):
+1. **Risk model HIGH raising level**: Risk model HIGH may raise a Green (routine) check-in to Yellow (review): **YES**.
+2. **Trend raise**: "5 check-ins / BP charting to be done before referring pt for review" -> The trend rule needs at least 5 check-ins with readings, and the provider must see the BP chart when a check-in is raised by trend.
+3. **Heart-disease risk bands**: Heart-disease risk bands Low < 10%, Moderate 10-20%, High >= 20%: **YES**.
+4. **Referral for dual conditions**: Referral for diabetes + hypertension together: **Internal Medicine**.
+5. **Patient risk visibility**: Patients should see their risk band too: **YES**. (This changes the earlier provider-only decision D12; recorded as a change dated 8 Nov 2026 across `CLINICIAN_RESPONSES.md` and `docs/RISK_PANEL.md`).
+
