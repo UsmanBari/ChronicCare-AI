@@ -34,4 +34,5 @@
 | Red-flag escalation timeout tracking with 24h admin audit alert (Sec 15, 37) | `backend-poc-technical/services/appointment_service.py` | `backend-poc-technical/test_appointments.py::test_escalation_timeout_milestones` | `docs/APPOINTMENTS.md` | BUILT |
 | In-app notification centre and daily reminder alerts (Sec 13.2, 35, 37) | `backend-poc-technical/services/notification_service.py` | `backend-poc-technical/test_notifications.py::test_urgent_checkin_notification_idempotent` | `docs/NOTIFICATIONS.md` | BUILT |
 | Web push notification service with FCM (Sec 13.2, 35, 37) | `backend-poc-technical/services/notification_service.py` | `backend-poc-technical/test_notifications.py::test_fcm_push_dormant_when_flag_off` | `docs/NOTIFICATIONS.md` | BUILT |
+| Spoken explanations in Urdu and English with Meta MMS-TTS (Sec 23, 24) | `backend-poc-technical/voice/tts_service.py` | `backend-poc-technical/test_tts.py::test_fake_wav_generator_produces_valid_riff_pcm` | `docs/URDU_VOICE_TTS.md` | BUILT |
 

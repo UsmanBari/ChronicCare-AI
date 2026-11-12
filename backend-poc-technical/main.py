@@ -32,7 +32,7 @@ from fastapi import FastAPI, HTTPException, status, Header, Depends, Query, Requ
 import io
 from data_sources.ocr.provider import get_ocr_provider, check_ocr_provider_available
 from data_sources.ocr.staging import stage_upload, get_staged_upload, remove_staged_upload
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
@@ -5056,6 +5056,80 @@ def get_checkin_explanation_endpoint(
         sentences=patient_view.get("sentences", []),
         sources=patient_view.get("sources", []),
     )
+
+
+@app.post("/api/checkins/{checkin_id}/speech", tags=["Check-in"])
+def get_checkin_speech_endpoint(
+    checkin_id: str,
+    lang: Optional[str] = Query(None),
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """
+    Synthesizes spoken audio for a check-in explanation using Meta MMS-TTS (PR I4-I).
+    Safety Invariant: Speaks ONLY already-shown explanation sentences for this patient's check-in.
+    Returns audio/wav bytes with local caching.
+    """
+    from voice import tts_service
+    if not tts_service.is_tts_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Speech output service not enabled (TTS_ENABLED=false)",
+        )
+
+    try:
+        wav_bytes = tts_service.get_checkin_speech(
+            checkin_id=checkin_id,
+            current_user_id=current_user["user_id"],
+            requested_language=lang,
+        )
+        return Response(
+            content=wav_bytes,
+            media_type="audio/wav",
+            headers={"Content-Disposition": f'inline; filename="checkin_{checkin_id}.wav"'},
+        )
+    except tts_service.TtsDisabledError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Speech output service not enabled")
+    except KeyError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Check-in session not found")
+    except PermissionError:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: cannot access another patient's check-in")
+    except tts_service.RomanUrduVoiceUnavailableError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="voice not available for Roman Urdu text",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except Exception as exc:
+        logger.error(f"TTS synthesis error: {exc}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Speech generation failed")
+
+
+@app.post("/api/emergency/speech", tags=["Check-in"])
+def get_emergency_speech_endpoint(
+    lang: str = Query("ur"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Returns pre-cached spoken audio instructions for emergency services (1122) in Urdu or English.
+    """
+    from voice import tts_service
+    if not tts_service.is_tts_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Speech output service not enabled (TTS_ENABLED=false)",
+        )
+
+    try:
+        wav_bytes = tts_service.get_emergency_speech(language=lang)
+        return Response(
+            content=wav_bytes,
+            media_type="audio/wav",
+            headers={"Content-Disposition": f'inline; filename="emergency_{lang}.wav"'},
+        )
+    except Exception as exc:
+        logger.error(f"Emergency speech error: {exc}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Emergency speech generation failed")
 
 
 # =============================================================================

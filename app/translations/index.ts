@@ -571,6 +571,11 @@ export interface Translations {
   explanationSourcesTitle: string;
   explanationPending: string;
   explanationDoiLabel: string;
+  listenToExplanationBtn: string;
+  listeningToExplanation: string;
+  speechLoading: string;
+  speechError: string;
+  listenToEmergencyInstructions: string;
   adminConfigTitle: string;
   adminConfigSubtitle: string;
 
@@ -1177,6 +1182,11 @@ export const translations: Record<Language, Translations> = {
     explanationSourcesTitle: "Clinical Sources",
     explanationPending: "Preparing your explanation...",
     explanationDoiLabel: "DOI / Source Link",
+    listenToExplanationBtn: "Listen",
+    listeningToExplanation: "Playing...",
+    speechLoading: "Generating voice...",
+    speechError: "Voice output unavailable",
+    listenToEmergencyInstructions: "Listen to Instructions",
     adminConfigTitle: "System Configuration & Guards Status",
     adminConfigSubtitle: "Live runtime feature flags, LLM keys presence, and explainer performance metrics",
 
@@ -1783,6 +1793,11 @@ export const translations: Record<Language, Translations> = {
     explanationSourcesTitle: "طبی ذرائع",
     explanationPending: "آپ کی وضاحت تیار کی جا رہی ہے...",
     explanationDoiLabel: "طبی حوالہ / ربط",
+    listenToExplanationBtn: "وضاحت سنیں",
+    listeningToExplanation: "آواز چل رہی ہے...",
+    speechLoading: "آواز تیار ہو رہی ہے...",
+    speechError: "آواز دستیاب نہیں ہے",
+    listenToEmergencyInstructions: "ایمرجنسی ہدایات سنیں",
     adminConfigTitle: "سسٹم کنفیگریشن اور گارڈز کی حالت",
     adminConfigSubtitle: "لائیو رن ٹائم فیچر فلیگز، ایل ایل ایم کیز اور وضاحت کار کی کارکردگی کے میٹرکس",
 
