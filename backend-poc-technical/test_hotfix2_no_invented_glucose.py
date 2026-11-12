@@ -166,11 +166,6 @@ def test_t1_exact_reproduction_no_emergency_no_invented_35(rsa_key_pair, monkeyp
     Assert NOT emergency, readings contain NO glucose, no '35' anywhere in triage JSON.
     """
     monkeypatch.setenv("ORCHESTRATOR", orchestrator)
-    if orchestrator == "graph":
-        try:
-            import langgraph  # noqa: F401
-        except ImportError:
-            pytest.skip("langgraph not installed in local environment")
     client = TestClient(app)
     token = create_token(rsa_key_pair, sub=f"t1-pat-{orchestrator}", email=f"t1-{orchestrator}@demo.com")
     bootstrap_patient(client, token, conditions=["diabetes"])
