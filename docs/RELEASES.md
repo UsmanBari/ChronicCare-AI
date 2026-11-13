@@ -1,5 +1,81 @@
 # ChronicCare AI — Release Log
 
+## Hotfix 2 — 12 Nov 2026
+
+- **Branch:** `fix/i3-no-invented-glucose`
+- **Target Base:** `dev`
+- **PR Title:** `"HOTFIX 2: no invented glucose / false emergency when the patient skips the reading"`
+- **Severity:** P0 Safety Hotfix
+
+---
+
+### 1. Problem Description & Root Cause
+
+During local demo rehearsal on 8 Nov 2026, a critical clinical safety defect was discovered and confirmed through the real API (`POST /api/checkins/start`, `/answer`, `/complete`) on `dev` commit `c025e46`:
+A diabetic patient in isolated mode reported feeling bad, skipped their blood sugar measurement (`"skip"`), and skipped the subsequent checkpoint question (`"skip"`). Upon check-in completion, the system assigned the patient an invented glucose reading of `35.0 mg/dL`, triggered the `glucose_low` protocol, assigned triage level `EMERGENCY`, and generated reasons `["Low glucose with disorientation or acute confusion."]`, despite the patient never entering any numeric value.
+
+**Root Cause:**
+1. In `backend-poc-technical/agents/adaptive_interview_agent.py`, step `MISSING_DATA_CHECKPOINT` unconditionally called `_process_glucose_input(combined_answer, previously_asked=True)` even when no prior number was pending (`_glucose_pending_raw is None`, i.e., the "describe how you feel instead" checkpoint, not the "mg/dL or mmol/L?" unit question).
+2. With `previously_asked=True`, `validate_glucose_input` in `answer_validation.py` interpreted `"skip"`, `"don't know"`, or `"not sure"` as "unit clarification failed for a low number", setting `is_possible_severe_low=True` with `value=None`.
+3. In `_process_glucose_input` (line ~524), `val = float(v_res.value) if v_res.value is not None else 35.0` filled in `35.0` whenever `v_res.value` was `None`.
+4. At triage completion, the rule engine evaluated `glucose == 35.0 <= 54`, immediately triggering the severe low glucose emergency protocol.
+
+**Historical Origin:**
+Introduced in commit `b8ec5f2c5f00302403174d4e557894847cfc3354`:
+```text
+commit b8ec5f2c5f00302403174d4e557894847cfc3354
+Author: Usman Bari <usmanbari@users.noreply.github.com>
+Date:   Fri Oct 9 16:55:32 2026 +0500
+
+    feat(stage9a-4): add glucose unit safety live path fallback and update clinical rules
+```
+`git log -S "35.0"` confirms the fallback line was introduced in `_process_glucose_input` on 9 Oct 2026.
+
+**Affected Users:**
+Diabetic patients who skipped their blood sugar reading and replied `"skip"`, `"not sure"`, or `"don't know"` to subsequent checkpoint questions.
+
+---
+
+### 2. Resolution
+
+1. **Conditional Unit Clarification Parameter (F1):**
+   - In `adaptive_interview_agent.py` (`_diabetes_advance_v2_3` and `_diabetes_advance`), `previously_asked=True` is now passed to `_process_glucose_input` **only** when `pending_raw is not None` (i.e. an actual numeric value was entered on turn 1).
+   - When `pending_raw is None`, the checkpoint answer is parsed with `previously_asked=False`. Non-numeric answers (`"skip"`, `"tired"`, `"not sure"`) return no reading, record `answers["symptom_only_note"] = answer`, and advance directly to symptom questions without inventing a reading.
+
+2. **Removal of 35.0 Fallback (F2):**
+   - In `_process_glucose_input` (line 524), removed the fabricated default:
+     ```python
+     val = float(v_res.value) if v_res.value is not None else None
+     ```
+   - If `is_possible_severe_low` is flagged without a number, `val = None` is returned. Safety guidance and review reason are preserved for clinician review, but no numeric reading is fabricated and no `glucose_low` emergency protocol is triggered.
+   - The genuine clinical rule is preserved: a bare number $\le 40$ without unit followed by `"don't know"` continues to flag `possible_severe_low=True` with safety advice for clinician review.
+
+3. **Emergency Screen Notification Copy Correction (F3):**
+   - Updated `app/components/EmergencyScreen.tsx` and `app/translations/index.ts`.
+   - Replaced inaccurate `"Priority clinical notification dispatched to on-call care team."` subtitle with `"Your check-in has been sent to your care team's review list."` (English) and `"آپ کا چیک ان نگہداشت ٹیم کی جائزہ فہرست میں بھیج دیا گیا ہے۔"` (Urdu).
+   - Preserved emergency hotline (1122) dispatch button and copy unchanged.
+
+---
+
+### 3. Verification & Test Evidence
+
+- **T1 API Reproduction (`test_hotfix2_no_invented_glucose.py`):**
+  Exact reproduction through the real API (`POST /api/checkins/start`, `/answer`, `/complete`) in both `direct` and `graph` orchestrator modes:
+  - Fails on unedited `dev` code (`emergency=True`, `glucose=35.0`).
+  - Passes on hotfix branch (`emergency=False`, triage level != `emergency`, `readings` contains no glucose, "35" absent from JSON).
+- **T2 Checkpoint Variations:**
+  Diabetic patient skipping reading and answering `"not sure"`, `"don't know"`, `"dont know"`, `"maloom nahi"`, or `"nahi pata"` produces no fabricated reading and non-emergency triage (5 passed).
+- **T3 Invariant Test ("no invented readings"):**
+  Across diabetes, hypertension, and dual patients, answer scripts containing zero digits (English, Roman Urdu, Urdu) strictly yield an empty `readings` dictionary `{}` in final triage (12 passed).
+- **T4 Real Low Path Verification:**
+  Patient entering bare `"35"` followed by `"don't know"` to unit clarification retains `possible_severe_low=True`, low-sugar safety guidance, review reason, and `requires_review=True` (1 passed).
+- **Regression Suites:**
+  - 52 simulated personas in `test_sim_personas.py` pass 100% with zero level shifts.
+  - Subprocess mutation verification (`scripts/verify_mutations.py`): all 60 mutations killed (60/60).
+  - Existing glucose safety tests (`test_glucose_v2_low_gap.py`, `test_glucose_unit_safety.py`) pass 100%.
+
+---
+
 ## Hotfix 1 — 8/9 Nov 2026
 
 - **Branch:** `fix/i3-mysql-id-width`

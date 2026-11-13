@@ -193,7 +193,7 @@ export const ConnectionScreen = () => {
         connection: null,
       });
       setTimeout(() => {
-        setScreen("health_record");
+        setScreen("onboarding_prescription");
       }, 800);
       return;
     }

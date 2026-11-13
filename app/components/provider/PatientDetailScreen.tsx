@@ -244,7 +244,16 @@ export const PatientDetailScreen = () => {
                   ]).map((med, i) => (
                     <div key={i} className="flex items-center justify-between">
                       <span>• {med}</span>
-                      {connectionMode === "fhir" && <FhirSourceBadge />}
+                      {connectionMode === "fhir" ? (
+                        <FhirSourceBadge />
+                      ) : (
+                        <span
+                          data-testid="badge-unverified-upload"
+                          className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200"
+                        >
+                          Unverified (patient upload)
+                        </span>
+                      )}
                     </div>
                   ))
                 )}

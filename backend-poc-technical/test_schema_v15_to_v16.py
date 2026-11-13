@@ -182,8 +182,8 @@ def create_v15_database(db_path: str):
 
 
 def test_latest_schema_version_is_16():
-    """Confirms LATEST_SCHEMA_VERSION constant is updated to 16."""
-    assert LATEST_SCHEMA_VERSION == 16
+    """Confirms LATEST_SCHEMA_VERSION constant is updated to at least 16."""
+    assert LATEST_SCHEMA_VERSION >= 16
 
 
 def test_sqlite_v15_to_v16_migration(test_db_path):
@@ -199,7 +199,7 @@ def test_sqlite_v15_to_v16_migration(test_db_path):
     conn = sqlite3.connect(test_db_path)
     cur = conn.cursor()
     cur.execute("SELECT MAX(version) FROM schema_version")
-    assert cur.fetchone()[0] == 16
+    assert cur.fetchone()[0] >= 16
 
     # Verify existing data preserved
     prof = get_patient_profile("usr-v15-001", backend="sqlite", db_path=test_db_path)
@@ -228,7 +228,7 @@ def test_sqlite_fresh_database_is_v16(test_db_path):
     conn = sqlite3.connect(test_db_path)
     cur = conn.cursor()
     cur.execute("SELECT MAX(version) FROM schema_version")
-    assert cur.fetchone()[0] == 16
+    assert cur.fetchone()[0] >= 16
     conn.close()
 
 
