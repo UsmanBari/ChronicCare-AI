@@ -9,7 +9,18 @@ import { api, ApiError } from "../../lib/api";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 
 export const ProviderLoginScreen = () => {
-  const { setProviderScreen, setPortal, setProviderIdentifier, setUserRole, sessionNotice, setSessionNotice, t, isUrdu } = useApp();
+  const {
+    setProviderScreen,
+    setPortal,
+    setProviderIdentifier,
+    setProviderDisplayName,
+    setUserRole,
+    sessionNotice,
+    setSessionNotice,
+    isLiveMode,
+    t,
+    isUrdu,
+  } = useApp();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -60,6 +71,7 @@ export const ProviderLoginScreen = () => {
         }
 
         setProviderIdentifier(email);
+        setProviderDisplayName(session.display_name || userCredential.user.displayName || null);
         setUserRole(session.role);
         setProviderScreen("dashboard");
       } catch (err: any) {
@@ -83,6 +95,7 @@ export const ProviderLoginScreen = () => {
     }
     setError("");
     setProviderIdentifier(cleanId);
+    setProviderDisplayName(null);
     setProviderScreen("dashboard");
   };
 
@@ -139,7 +152,10 @@ export const ProviderLoginScreen = () => {
                 setIdentifier(e.target.value);
                 if (sessionNotice && setSessionNotice) setSessionNotice(null);
               }}
-              placeholder={process.env.NEXT_PUBLIC_DEMO_PROVIDER_EMAIL || "dr.sanamalik@citygeneral.org"}
+              placeholder={
+                process.env.NEXT_PUBLIC_DEMO_PROVIDER_EMAIL ||
+                (isLiveMode ? "provider@example.com" : "dr.sanamalik@citygeneral.org")
+              }
               autoComplete="username"
               autoCapitalize="none"
               spellCheck={false}

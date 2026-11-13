@@ -36,6 +36,9 @@ export const Header = () => {
     adminScreen,
     isLiveMode,
     liveEhrConnection,
+    providerIdentifier,
+    providerDisplayName,
+    userIdentifier,
     setPortal,
     setScreen,
     setProviderScreen,
@@ -68,7 +71,12 @@ export const Header = () => {
   };
 
   const getPortalLabel = () => {
-    if (portal === "provider") return t.providerPortal;
+    if (portal === "provider") {
+      if (isLiveMode) {
+        return providerDisplayName || providerIdentifier || (isUrdu ? "ڈاکٹر" : ((language as string) === "roman_ur" ? "Doctor" : "Provider"));
+      }
+      return t.providerPortal;
+    }
     if (portal === "admin") return t.adminPortal;
     if (portal === "patient") return t.patientPortal;
     return "Clinical Suite";
@@ -197,7 +205,7 @@ export const Header = () => {
                   }`}
                 >
                   <User className="w-4 h-4" />
-                  <span>{t.patientPortal} (Ali Khan)</span>
+                  <span>{t.patientPortal}{!isLiveMode ? " (Ali Khan)" : ""}</span>
                 </button>
 
                 <button
@@ -213,7 +221,7 @@ export const Header = () => {
                   }`}
                 >
                   <Stethoscope className="w-4 h-4" />
-                  <span>{t.providerPortal} (Dr. Sana)</span>
+                  <span>{t.providerPortal}{!isLiveMode ? " (Dr. Sana)" : ""}</span>
                 </button>
 
                 <button
@@ -349,7 +357,7 @@ export const Header = () => {
                 >
                   <div className="flex items-center gap-3">
                     <User className="w-5 h-5 text-teal-700" />
-                    <span>{t.patientPortal} (Ali Khan)</span>
+                    <span>{t.patientPortal}{!isLiveMode ? " (Ali Khan)" : ""}</span>
                   </div>
                   <ArrowRight className={`w-4 h-4 text-slate-400 ${isUrdu ? "rotate-180" : ""}`} />
                 </button>
@@ -370,7 +378,7 @@ export const Header = () => {
                 >
                   <div className="flex items-center gap-3">
                     <Stethoscope className="w-5 h-5 text-teal-400" />
-                    <span>{t.providerPortal} (Dr. Sana Malik)</span>
+                    <span>{t.providerPortal}{!isLiveMode ? " (Dr. Sana Malik)" : ""}</span>
                   </div>
                   <ArrowRight className={`w-4 h-4 text-slate-400 ${isUrdu ? "rotate-180" : ""}`} />
                 </button>

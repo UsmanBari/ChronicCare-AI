@@ -26,13 +26,13 @@ export function getRoleFromEmail(email: string | null | undefined): UserRole | n
 
   // Fallback demo mapping only when env vars are completely absent
   if (!patientEmail && !providerEmail && !adminEmail) {
-    if (normalized === "saad@gmail.com" || normalized === "ali.khan@demo.care" || normalized === "patient@demo.care") {
+    if (normalized === "ali.khan@demo.care" || normalized === "patient@demo.care") {
       return "patient";
     }
-    if (normalized === "hassaan@gmail.com" || normalized === "dr.sanamalik@citygeneral.org" || normalized === "provider@demo.care") {
+    if (normalized === "dr.sanamalik@citygeneral.org" || normalized === "provider@demo.care") {
       return "provider";
     }
-    if (normalized === "usman@gmail.com" || normalized === "admin@citygeneral.org" || normalized === "admin@demo.care") {
+    if (normalized === "admin@citygeneral.org" || normalized === "admin@demo.care") {
       return "admin";
     }
   }

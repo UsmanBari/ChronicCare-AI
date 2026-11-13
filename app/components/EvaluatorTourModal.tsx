@@ -53,7 +53,7 @@ const itemVariants: Variants = {
 };
 
 export const EvaluatorTourModal: React.FC<Props> = ({ isOpen, onClose }) => {
-  const { isUrdu } = useApp();
+  const { isLiveMode, isUrdu } = useApp();
 
   return (
     <AnimatePresence>
@@ -191,7 +191,9 @@ export const EvaluatorTourModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     </div>
 
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      Switch to Provider Portal (Dr. Sana) to triage glucose conflicts & alerts.
+                      {isLiveMode
+                        ? "Switch to Provider Portal to triage glucose conflicts & alerts."
+                        : "Switch to Provider Portal (Dr. Sana) to triage glucose conflicts & alerts."}
                     </p>
 
                     <div className="flex flex-wrap gap-1.5 pt-1">

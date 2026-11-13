@@ -127,6 +127,13 @@ TRIAGE_QUERY_TABLE: dict[str, QueryMapping] = {
         query_text="lifestyle modification salt sodium reduction physical activity blood pressure glucose targets",
         min_priority=1,
     ),
+    "routine_no_readings": QueryMapping(
+        trigger_category="routine_no_readings",
+        condition="both",
+        topic_slugs=["lifestyle", "bp_targets"],
+        query_text="lifestyle modification physical activity health monitoring checkin routine adherence",
+        min_priority=1,
+    ),
 }
 
 
@@ -194,4 +201,21 @@ def build_query_from_triage(
         return TRIAGE_QUERY_TABLE["bp_urgent"]
 
     # 5. Fallback to routine
+    has_readings = bool(
+        readings and any(
+            readings.get(k) is not None
+            for k in (
+                "blood_pressure_systolic",
+                "blood_pressure_diastolic",
+                "systolic",
+                "diastolic",
+                "glucose",
+                "fasting_glucose",
+                "random_glucose",
+            )
+        )
+    )
+    if not has_readings:
+        return TRIAGE_QUERY_TABLE["routine_no_readings"]
+
     return TRIAGE_QUERY_TABLE["routine"]

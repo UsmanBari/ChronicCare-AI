@@ -11,9 +11,18 @@ export const AppointmentSchedulingScreen = () => {
     setProviderScreen,
     setAppointment,
     demoScenario,
+    providerIdentifier,
+    providerDisplayName,
+    language,
+    isLiveMode,
     t,
     isUrdu,
   } = useApp();
+
+  const fallbackProvider = isUrdu ? "ڈاکٹر" : ((language as string) === "roman_ur" ? "Doctor" : "Provider");
+  const activeProviderName = isLiveMode
+    ? (providerDisplayName || providerIdentifier || fallbackProvider)
+    : "Dr. Sana Malik";
 
   const [activeTab, setActiveTab] = useState<"queue" | "manual">("queue");
   const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
@@ -80,7 +89,7 @@ export const AppointmentSchedulingScreen = () => {
       isBooked: true,
       slot: selectedSlot,
       reason: reasonText,
-      provider: "Dr. Sana Malik",
+      provider: activeProviderName,
       status: "Confirmed",
       bookedAt: "Just now",
     });
@@ -278,7 +287,7 @@ export const AppointmentSchedulingScreen = () => {
                 </div>
               </div>
               <span className="text-[10px] px-2.5 py-1 rounded-md bg-teal-100 text-teal-900 font-bold">
-                Dr. Sana Malik
+                {activeProviderName}
               </span>
             </div>
 
@@ -368,7 +377,7 @@ export const AppointmentSchedulingScreen = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Provider:</span>
-                <span className="font-bold text-navy-800">Dr. Sana Malik</span>
+                <span className="font-bold text-navy-800">{activeProviderName}</span>
               </div>
               <div className="flex justify-between pt-1 border-t border-slate-200">
                 <span className="text-slate-500">Cross-Portal Sync:</span>

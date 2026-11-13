@@ -190,5 +190,25 @@ All 28 entries in `backend-poc-technical/agents/interview_bank/messages.json` ve
 | `voiceNotAvailableRomanUrdu` | Voice is not available for Roman Urdu text | رومن اردو کے لیے آواز دستیاب نہیں ہے | Informative explanation for Roman Urdu template fallback |
 
 
+---
+
+## 7. Native Review Approved (12 Nov 2026)
+
+**PR:** #134 (`fix/i3-no-readings-wording`)  
+**Target:** `backend-poc-technical/rag/templates.json` -> `routine_no_readings`  
+**Status:** **APPROVED BY HASSAAN MUDASSAR ("Urdu OK")**  
+**Flag in Code:** `"needs_native_review": false`
+
+### 7.1 Template Changes (Approved)
+
+| Language | Field | Approved Text | Status |
+|---|---|---|---|
+| English | `sentence_2` | `You did not report any warning signs today.` | Approved (K3) |
+| Urdu | `sentence_2` | `آپ نے آج کسی خطرے کی علامت کی اطلاع نہیں دی۔` | Approved by Hassaan |
+| Roman Urdu | `sentence_2` | `Aap ne aaj kisi khatray ki alamat ki ittila nahi di.` | Approved by Hassaan |
+
+**Context / Rationale:**  
+Reviewer correction K3 for PR #134 updated Sentence 2 of the `routine_no_readings` template to avoid misleading phrasing when a patient logs symptoms or check-in answers without quantitative glucose/BP numbers. Hassaan provided native review sign-off ("Urdu OK" on PR #134); `needs_native_review` is set to `false`.
+
 
 

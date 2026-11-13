@@ -69,7 +69,7 @@ describe("TriageColourChip & RiskResultScreen Confidence Fix (A1, A4, A7)", () =
     });
   });
 
-  describe("RiskResultScreen Confidence Bugfix (A4)", () => {
+  describe("RiskResultScreen Confidence Bugfix (A4, K2)", () => {
     it("does NOT fall back to 'High' confidence when no readings are provided", () => {
       // Live check-in with NO readings (ambiguous symptom / cold start)
       mockAppContext.liveCheckinResult = {
@@ -90,11 +90,34 @@ describe("TriageColourChip & RiskResultScreen Confidence Fix (A1, A4, A7)", () =
 
       render(<RiskResultScreen />);
 
-      // Must NOT display "High" for confidence
+      // Must NOT display "High" for confidence, renders no-readings summary
       const fullText = document.body.textContent || "";
-      // Confidence card must show Low (or not High)
       expect(fullText).not.toContain("High");
-      expect(fullText).toContain("Low");
+      expect(fullText).toContain("No readings entered today");
+    });
+
+    it("does NOT display 'High' or confidence badge when readings are present but confidence_label is missing", () => {
+      mockAppContext.liveCheckinResult = {
+        emergency: false,
+        requires_review: false,
+        intakes: [
+          {
+            answered_by: "patient",
+            readings: [{ observation_type: "blood_pressure_systolic", value: 120 }],
+            // confidence_label omitted / undefined
+          },
+        ],
+        reconciliation: { summary: { agreement: 1, source_a_only: 0, source_b_only: 0 } },
+        triage: { level: "routine", triage_colour: "green" },
+        triage_level: "routine",
+        triage_colour: "green",
+      };
+
+      render(<RiskResultScreen />);
+
+      const fullText = document.body.textContent || "";
+      expect(fullText).not.toContain("High");
+      expect(screen.queryByText("Confidence")).toBeNull();
     });
   });
 

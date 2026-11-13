@@ -120,6 +120,8 @@ interface AppContextType {
   setUserIdentifier: (id: string) => void;
   providerIdentifier: string;
   setProviderIdentifier: (id: string) => void;
+  providerDisplayName: string | null;
+  setProviderDisplayName: (name: string | null) => void;
   adminIdentifier: string;
   setAdminIdentifier: (id: string) => void;
   userRole: string | null;
@@ -251,7 +253,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const t = translations[language];
   const isUrdu = language === "ur";
   const [userIdentifier, setUserIdentifier] = useState<string>("ali.khan@demo.care");
-  const [providerIdentifier, setProviderIdentifier] = useState<string>("dr.sanamalik@citygeneral.org");
+  const [providerIdentifier, setProviderIdentifier] = useState<string>(() => isFirebaseEnabled() ? "" : "dr.sanamalik@citygeneral.org");
+  const [providerDisplayName, setProviderDisplayName] = useState<string | null>(null);
   const [adminIdentifier, setAdminIdentifier] = useState<string>("admin@citygeneral.org");
   const [userRole, setUserRole] = useState<string | null>(null);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
@@ -341,7 +344,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     isBooked: false,
     slot: "",
     reason: "",
-    provider: "Dr. Sana Malik",
+    provider: isFirebaseEnabled() ? "" : "Dr. Sana Malik",
     status: "Confirmed",
     bookedAt: "",
   });
@@ -517,7 +520,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               setProviderScreenState("login");
               return;
             }
+            const name = session?.display_name || user.displayName || null;
             setProviderIdentifier(email);
+            setProviderDisplayName(name);
           } else if (portal === "admin") {
             if (role !== "admin") {
               await signOut(auth);
@@ -590,6 +595,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setUserRole(null);
     setUserIdentifier("");
     setProviderIdentifier("");
+    setProviderDisplayName(null);
     setAdminIdentifier("");
     setSelectedPatient(null);
     setLiveProfile(null);
@@ -609,7 +615,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       isBooked: false,
       slot: "",
       reason: "",
-      provider: "Dr. Sana Malik",
+      provider: isLiveMode ? "" : "Dr. Sana Malik",
       status: "Confirmed",
       bookedAt: "",
     });
@@ -709,7 +715,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       isBooked: false,
       slot: "",
       reason: "",
-      provider: "Dr. Sana Malik",
+      provider: isLiveMode ? "" : "Dr. Sana Malik",
       status: "Confirmed",
       bookedAt: "",
     });
@@ -743,6 +749,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setUserIdentifier,
         providerIdentifier,
         setProviderIdentifier,
+        providerDisplayName,
+        setProviderDisplayName,
         adminIdentifier,
         setAdminIdentifier,
         userRole,
