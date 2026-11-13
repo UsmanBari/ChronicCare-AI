@@ -190,6 +190,83 @@ For each clinical question below, please review the current application behavior
 
 ---
 
+### Question 5: Subjective BP Increase Belief ("mere khyal me bp barh gaya")
+
+```
++---------------------------------------------------------------------------------------------------+
+| QUESTION 5: SUBJECTIVE PERCEPTION OF ELEVATED BP -> ESCALATE TO YELLOW (REVIEW) OR GREEN (ROUTINE)?|
++---------------------------------------------------------------------------------------------------+
+| CLINICAL CONTEXT:                                                                                 |
+| In Urdu and Roman Urdu check-ins, patients frequently report subjective beliefs about their blood |
+| pressure without providing a numeric cuff measurement, such as:                                   |
+| "mere khyal me bp barh gaya" / "mujhe lagta hai mera bp high hai" / "I think my blood pressure    |
+| has gone up".                                                                                     |
+|                                                                                                   |
+| CURRENT APP BEHAVIOR:                                                                             |
+| The check-in prompts the patient to measure their blood pressure with a cuff. If no measurement   |
+| is entered and no acute symptoms (severe headache, chest pain, neurological deficit) are present,  |
+| the check-in completes at Green (Routine) because subjective perception of blood pressure is known |
+| to be poorly correlated with true hemodynamic values.                                             |
+|                                                                                                   |
+| CLINICAL PROPOSAL:                                                                                |
+| Should a patient's unverified subjective belief that their blood pressure is elevated ("mere       |
+| khyal me bp barh gaya") automatically escalate their triage to Yellow (Review), or should it      |
+| remain at Green (Routine) while advising them to take a formal cuff measurement?                  |
++---------------------------------------------------------------------------------------------------+
+| CLINICIAN DECISION:                                                                               |
+|                                                                                                   |
+|   [ ] KEEP AT GREEN (ROUTINE) -- Advise cuff measurement; subjective blood pressure perception is |
+|       clinically unreliable in asymptomatic patients.                                             |
+|                                                                                                   |
+|   [ ] ELEVATE TO YELLOW (REVIEW) -- Unverified belief of hypertension warrants clinical review to  |
+|       assess medication adherence or prompt clinic follow-up.                                     |
+|                                                                                                   |
+|   [ ] CHANGE IT TO: _____________________________________________________________________________ |
++---------------------------------------------------------------------------------------------------+
+| WHAT CHANGES IN THE APP:                                                                          |
+| - If KEEP AT GREEN: Subjective phrases remain informational prompts advising cuff measurement.    |
+| - If ELEVATE TO YELLOW: The phrase is mapped into the symptom dictionary to set triage = review.  |
++---------------------------------------------------------------------------------------------------+
+```
+
+---
+
+### Question 6: Severe Chest Pain in Urdu ("seene me shadeed dard")
+
+```
++---------------------------------------------------------------------------------------------------+
+| QUESTION 6: SEVERE CHEST PAIN IN URDU -> TRIGGER EMERGENCY (1122 DISPATCH) OR URGENT CLINIC VISIT? |
++---------------------------------------------------------------------------------------------------+
+| CLINICAL CONTEXT:                                                                                 |
+| Red flag detection captures chest pain in English, Urdu script, and Roman Urdu. For the phrase:   |
+| "seene me shadeed dard" / "سینے میں شدید درد" (severe chest pain).                                |
+|                                                                                                   |
+| CURRENT APP BEHAVIOR:                                                                             |
+| All acute chest pain mentions immediately trigger Red / EMERGENCY (immediate advice to call 1122 |
+| emergency services, interview halted).                                                            |
+|                                                                                                   |
+| CLINICAL PROPOSAL:                                                                                |
+| Confirm whether "seene me shadeed dard" should unconditionally trigger an EMERGENCY exit (1122    |
+| ambulance dispatch) as currently implemented, or whether any non-cardiac modifier allows triage to|
+| Urgent (same-day emergency department / urgent care visit)?                                       |
++---------------------------------------------------------------------------------------------------+
+| CLINICIAN DECISION:                                                                               |
+|                                                                                                   |
+|   [ ] CONFIRM EMERGENCY (1122 DISPATCH) -- Severe chest pain must always trigger immediate 1122   |
+|       emergency failsafe across all languages without exception.                                  |
+|                                                                                                   |
+|   [ ] DOWNGRADE TO URGENT -- Advise urgent same-day emergency clinic visit rather than 1122.      |
+|                                                                                                   |
+|   [ ] CHANGE IT TO: _____________________________________________________________________________ |
++---------------------------------------------------------------------------------------------------+
+| WHAT CHANGES IN THE APP:                                                                          |
+| - If CONFIRM EMERGENCY: The Stage-1 invariant in `RED_FLAG_PATTERNS` remains active at Emergency.  |
+| - If DOWNGRADE TO URGENT: The pattern is moved to the urgent symptom group in `triage_protocol.py`|
++---------------------------------------------------------------------------------------------------+
+```
+
+---
+
 ## Summary of Clinical Rules Governed by this Review
 
 | Rule Ref | Clinical Focus | Current Default | Proposed Review Modification |
@@ -198,4 +275,7 @@ For each clinical question below, please review the current application behavior
 | **Stage 2** | CVD High-Risk Alert Cooldown | 30 days suppression window | Clinician choice on repeat alert frequency |
 | **Stage 2** | Uncontrolled Diabetes (HbA1c >= 8%) | Informational model score | Option to escalate Routine to Review |
 | **Audit** | Edge-case benchmark suite | 51 synthetic personas (0 Category B gaps) | Expandable based on clinician feedback |
+| **Lang-1** | Subjective BP increase ("mere khyal me bp barh gaya") | Routine (Green) | Option to escalate to Review (Yellow) |
+| **Lang-2** | Urdu severe chest pain ("seene me shadeed dard") | Emergency (1122) | Confirmation of emergency failsafe |
+
 

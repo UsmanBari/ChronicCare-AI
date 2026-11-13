@@ -100,8 +100,8 @@ Evaluated across 52 simulated patient personas (`tests/sim/personas.json`), with
 | ↳ *Expected Urgent Missed* | **0 / 1 (0.0%)** | **3 / 3 (100.0%)** | Baseline missed all 3 urgent evaluations |
 | ↳ *Expected Review Missed* | **1 / 16 (6.3%)** | **0 / 48 (0.0%)** | Baseline escalated sub-acute review cases |
 | **Emergency Recall** | **100.0%** (3/3) | **11.1%** (1/9) | Pipeline guarantees emergency safety invariants |
-| **Exact-Match Accuracy** | **37.2%** (19/51) | **49.0%** (75/153) | **Baseline scored higher on exact matches** (+11.8%) |
-| **Over-Triage Rate** | **60.8%** (31/51) | **43.8%** (67/153) | Pipeline escalates conservatively on non-emergencies |
+| **Exact-Match Accuracy** | **47.1%** (24/51) | **49.0%** (75/153) | **Parity on exact match (within 1.9%)** |
+| **Over-Triage Rate** | **51.0%** (26/51) | **43.8%** (67/153) | Pipeline escalates conservatively on non-emergencies |
 | **Hallucinated / Invented Numbers** | **0** (0.0%) | **2** (1.3%) | Pipeline verification prevents invented numbers |
 | **Multi-Run Decision Consistency** | **100.0%** (Deterministic) | **88.2%** (45/51) | Baseline fluctuated in 6 scenarios across 3 runs |
 | **Incomplete Interviews** | **0** (Target: 0) | **0** | Both arms completed all 51 evaluable cases |
