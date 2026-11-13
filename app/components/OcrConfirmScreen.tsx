@@ -56,7 +56,7 @@ interface EditableAllergy {
 }
 
 export default function OcrConfirmScreen() {
-  const { stagedOcrUpload, setStagedOcrUpload, setScreen, ocrReturnScreen, t, isUrdu } = useApp();
+  const { stagedOcrUpload, setStagedOcrUpload, setScreen, ocrReturnScreen, t, isUrdu, isLiveMode } = useApp();
   const returnTarget = ocrReturnScreen || "health_record";
 
   const [observations, setObservations] = useState<EditableObservation[]>(() => {
@@ -264,7 +264,9 @@ export default function OcrConfirmScreen() {
         return;
       }
 
-      await api.confirmOcrUpload(uploadId, confirmedItems);
+      if (isLiveMode) {
+        await api.confirmOcrUpload(uploadId, confirmedItems);
+      }
       setStagedOcrUpload(null);
       setScreen(returnTarget);
     } catch (err: any) {
@@ -619,6 +621,7 @@ export default function OcrConfirmScreen() {
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Type</label>
                       <input
                         type="text"
+                        aria-label="Observation Type"
                         value={obs.type}
                         onChange={(e) =>
                           setObservations((prev) =>
@@ -635,6 +638,7 @@ export default function OcrConfirmScreen() {
                       <input
                         type="number"
                         step="any"
+                        aria-label="Observation Value"
                         value={obs.value}
                         onChange={(e) =>
                           setObservations((prev) =>
@@ -650,6 +654,7 @@ export default function OcrConfirmScreen() {
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Unit</label>
                       <input
                         type="text"
+                        aria-label="Observation Unit"
                         value={obs.unit}
                         onChange={(e) =>
                           setObservations((prev) =>
@@ -830,6 +835,7 @@ export default function OcrConfirmScreen() {
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Name</label>
                       <input
                         type="text"
+                        aria-label="Medication Name"
                         value={med.name}
                         onChange={(e) =>
                           setMedications((prev) =>
@@ -845,6 +851,7 @@ export default function OcrConfirmScreen() {
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Dosage</label>
                       <input
                         type="text"
+                        aria-label="Medication Dosage"
                         value={med.dosage}
                         onChange={(e) =>
                           setMedications((prev) =>
@@ -1001,6 +1008,7 @@ export default function OcrConfirmScreen() {
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Substance</label>
                       <input
                         type="text"
+                        aria-label="Allergy Substance"
                         value={all.substance}
                         onChange={(e) =>
                           setAllergies((prev) =>
@@ -1016,6 +1024,7 @@ export default function OcrConfirmScreen() {
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Reaction</label>
                       <input
                         type="text"
+                        aria-label="Allergy Reaction"
                         value={all.reaction || ""}
                         onChange={(e) =>
                           setAllergies((prev) =>

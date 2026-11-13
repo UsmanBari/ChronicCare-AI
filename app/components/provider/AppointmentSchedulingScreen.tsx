@@ -17,6 +17,7 @@ export const AppointmentSchedulingScreen = () => {
     isLiveMode,
     t,
     isUrdu,
+    isLiveMode,
   } = useApp();
 
   const fallbackProvider = isUrdu ? "ڈاکٹر" : ((language as string) === "roman_ur" ? "Doctor" : "Provider");
@@ -30,6 +31,10 @@ export const AppointmentSchedulingScreen = () => {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const fetchProviderAppointments = async () => {
+    if (!isLiveMode) {
+      setLiveAppointments([]);
+      return;
+    }
     setIsLoading(true);
     try {
       const res = await api.getProviderAppointments();
@@ -43,6 +48,7 @@ export const AppointmentSchedulingScreen = () => {
 
   useEffect(() => {
     fetchProviderAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAcknowledge = async (id: string) => {

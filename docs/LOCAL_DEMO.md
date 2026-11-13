@@ -161,6 +161,26 @@ This script strictly refuses to run on MySQL, creates all check-ins through the 
 
 At the conclusion of the seed run, a structured summary table is printed showing each persona's triage level, single-source color chip, risk model bands, and trend direction.
 
+### Step 13c: Run Playwright Demo Journeys & Accessibility Audit (Task U9 / I4-S)
+To execute the automated end-to-end browser demo journeys (`J-a` through `J-i`) and WCAG 2.1 AA accessibility audit:
+```powershell
+npx playwright test tests-e2e/journeys.playwright.ts
+npx playwright test tests-e2e/accessibility.playwright.ts
+```
+The test suite automatically seeds the local database and launches the backend uvicorn server and Next.js frontend web server, verifying:
+- **J-a**: New patient onboarding (consent, profile, routine check-in, Green chip, and guideline citations).
+- **J-b**: Urdu-script patient (`demo_patient_ur@demo.care`) with end-to-end RTL Urdu UI and template explanation.
+- **J-c**: Danger phrase patient (`demo_patient_emg@demo.care`) showing 1122 emergency hotline only (and no other emergency numbers).
+- **J-d**: HTN worsening trend persona (`demo_patient_htn@demo.care`) with Yellow status and provider longitudinal BP chart.
+- **J-e**: Provider queue (`provider.demo@demo.care`) with SHAP drivers and structured SOAP note generation.
+- **J-f**: Patient risk view (`demo_patient_dm@demo.care`) displaying qualitative risk band sentences only without raw percentages or raw model names.
+- **J-g**: No-readings check-in (`demo_patient_norx@demo.care`) displaying Rule R8 wording and zero invented readings.
+- **J-h**: OCR prescription upload, confirmation screen, and Medium trust / Unverified badge in Health Record.
+- **J-i**: Admin system configuration status page (`admin.demo@demo.care`) listing runtime flags and environment settings.
+
+Key screen captures at 1280px (desktop) and 375px (mobile) are saved into `docs/screenshots/w4/demo/`.
+*Note: Playwright is intentionally not wired into GitHub CI (`.github/workflows/ci.yml`) because its webServer requires PowerShell.*
+
 ### Step 14: Local Database Reset (Between Evaluation Rehearsals)
 To reset the local database back to a clean baseline between test runs:
 ```powershell

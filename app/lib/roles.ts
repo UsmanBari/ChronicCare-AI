@@ -26,13 +26,46 @@ export function getRoleFromEmail(email: string | null | undefined): UserRole | n
 
   // Fallback demo mapping only when env vars are completely absent
   if (!patientEmail && !providerEmail && !adminEmail) {
-    if (normalized === "ali.khan@demo.care" || normalized === "patient@demo.care") {
+    const demoPatients = [
+      "saad@gmail.com",
+      "ali.khan@demo.care",
+      "patient@demo.care",
+      "audit.patient@demo.care",
+      "new.patient@demo.care",
+      "demo_patient_htn@demo.care",
+      "demo_patient_dm@demo.care",
+      "demo_patient_dual@demo.care",
+      "demo_patient_ur@demo.care",
+      "demo_patient_roman_ur@demo.care",
+      "demo_patient_emg@demo.care",
+      "demo_patient_norx@demo.care",
+      "demo_patient_fhir@demo.care",
+      "demo_patient_new@demo.care",
+    ];
+
+    if (demoPatients.includes(normalized)) {
       return "patient";
     }
-    if (normalized === "dr.sanamalik@citygeneral.org" || normalized === "provider@demo.care") {
+
+    const demoProviders = [
+      "hassaan@gmail.com",
+      "dr.sanamalik@citygeneral.org",
+      "provider@demo.care",
+      "provider.demo@demo.care",
+    ];
+
+    if (demoProviders.includes(normalized)) {
       return "provider";
     }
-    if (normalized === "admin@citygeneral.org" || normalized === "admin@demo.care") {
+
+    const demoAdmins = [
+      "usman@gmail.com",
+      "admin@citygeneral.org",
+      "admin@demo.care",
+      "admin.demo@demo.care",
+    ];
+
+    if (demoAdmins.includes(normalized)) {
       return "admin";
     }
   }

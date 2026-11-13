@@ -19,7 +19,7 @@ interface NotificationBellProps {
 }
 
 export const NotificationBell: React.FC<NotificationBellProps> = ({ role }) => {
-  const { isUrdu, t, portal } = useApp();
+  const { isUrdu, t, portal, isLiveMode } = useApp();
   const effectiveRole = role || (portal === "provider" ? "provider" : portal === "admin" ? "admin" : "patient");
 
   const [isOpen, setIsOpen] = useState(false);
@@ -41,6 +41,11 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ role }) => {
   }, []);
 
   const fetchNotifications = useCallback(async () => {
+    if (!isLiveMode) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
     setLoading(true);
     try {
       let res;
@@ -58,7 +63,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ role }) => {
     } finally {
       setLoading(false);
     }
-  }, [effectiveRole]);
+  }, [effectiveRole, isLiveMode]);
 
   // Initial load and periodic refresh
   useEffect(() => {
