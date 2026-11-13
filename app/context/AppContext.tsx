@@ -221,27 +221,9 @@ export function computeNextPatientScreen(
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const e2eHooksEnabled = process.env.NEXT_PUBLIC_E2E_HOOKS === "1";
 
-  const [portal, setPortalState] = useState<PortalType>(() => {
-    if (e2eHooksEnabled && typeof window !== "undefined") {
-      const p = new URLSearchParams(window.location.search).get("portal");
-      if (p === "patient" || p === "provider" || p === "admin" || p === "landing") return p;
-    }
-    return "landing";
-  });
-  const [screen, setScreenState] = useState<PatientScreenType>(() => {
-    if (e2eHooksEnabled && typeof window !== "undefined") {
-      const s = new URLSearchParams(window.location.search).get("screen");
-      if (s) return s as PatientScreenType;
-    }
-    return "home";
-  });
-  const [providerScreen, setProviderScreenState] = useState<ProviderScreenType>(() => {
-    if (e2eHooksEnabled && typeof window !== "undefined") {
-      const ps = new URLSearchParams(window.location.search).get("provider_screen");
-      if (ps) return ps as ProviderScreenType;
-    }
-    return "dashboard";
-  });
+  const [portal, setPortalState] = useState<PortalType>("landing");
+  const [screen, setScreenState] = useState<PatientScreenType>("home");
+  const [providerScreen, setProviderScreenState] = useState<ProviderScreenType>("dashboard");
   const [adminScreen, setAdminScreenState] = useState<AdminScreenType>("dashboard");
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showTour, setShowTour] = useState<boolean>(false);
@@ -267,53 +249,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [liveProfile, setLiveProfile] = useState<ProfileResponse | null>(null);
   const [liveEhrConnection, setLiveEhrConnection] = useState<EHRConnectionResponse | null>(null);
   const [activeLiveCheckin, setActiveLiveCheckin] = useState<CheckinStartResponse | null>(null);
-  const [liveCheckinResult, setLiveCheckinResult] = useState<CheckinCompleteResponse | null>(() => {
-    if (e2eHooksEnabled && typeof window !== "undefined") {
-      const s = new URLSearchParams(window.location.search).get("screen");
-      const r = new URLSearchParams(window.location.search).get("risk");
-      const sc = new URLSearchParams(window.location.search).get("scenario");
-      if (s === "risk_result" || r === "true") {
-        return {
-          checkin_id: "demo-chk-mock-result",
-          triage_level: "routine",
-          triage_colour: "green",
-          emergency: false,
-          intakes: sc === "no_readings" ? [] : [
-            {
-              intake_id: "intake-mock-1",
-              confidence_label: "high",
-              readings: [],
-            },
-          ],
-          risk_patient: [
-            {
-              band: "moderate",
-              message_key: "risk_chd_moderate",
-            },
-          ],
-          explanation: {
-            status: "ready",
-            sentences: [
-              {
-                text: sc === "no_readings"
-                  ? "No readings entered today. Routine self-monitoring continues within target monitoring range today."
-                  : "Routine self-monitoring. Readings are stable and adhere to guidelines.",
-                cites: ["ada-2024-s6"],
-              },
-            ],
-            sources: [
-              {
-                chunk_id: "ada-2024-s6",
-                title: "ADA 2024 Standards of Care",
-                full_citation: "American Diabetes Association Standards of Care 2024 Section 6",
-              },
-            ],
-          },
-        } as any;
-      }
-    }
-    return null;
-  });
+  const [liveCheckinResult, setLiveCheckinResult] = useState<CheckinCompleteResponse | null>(null);
   const [escalationRecorded, setEscalationRecorded] = useState<boolean | null>(null);
 
   // Single-flight promise refs for authSession
@@ -321,40 +257,91 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const sessionUserUidRef = React.useRef<string | null>(null);
 
   // Presenter controls
-  const [demoScenario, setDemoScenario] = useState<DemoScenario>(() => {
-    if (e2eHooksEnabled && typeof window !== "undefined") {
-      const p = new URLSearchParams(window.location.search).get("scenario");
-      if (p === "conflict" || p === "emergency" || p === "ehr_update" || p === "no_readings") return p;
-    }
-    return "normal";
-  });
-  const [stagedOcrUpload, setStagedOcrUpload] = useState<OcrUploadResponse | null>(() => {
-    if (e2eHooksEnabled && typeof window !== "undefined") {
-      const s = new URLSearchParams(window.location.search).get("screen");
-      if (s === "ocr_confirm") {
-        return {
-          upload_id: "up-mock-staged-1",
-          expires_in_seconds: 1800,
-          extracted: {
-            observations: [
-              { id: "obs-0", type: "glucose", value: 142, unit: "mg/dL", evidence: "FBS: 142 mg/dL" },
-              { id: "obs-1", type: "blood_pressure_systolic", value: 130, unit: "mmHg", evidence: "BP: 130/85" },
-            ],
-            medications: [
-              { id: "med-0", name: "Glimepiride", dosage: "2mg daily", status: "active", evidence: "Glimepiride 2mg" },
-            ],
-            allergies: [
-              { id: "all-0", substance: "Penicillin", reaction: "Rash", severity: "moderate", status: "active", evidence: "Allergic to Penicillin" },
-            ],
-            raw_lines: ["FBS: 142 mg/dL", "BP: 130/85", "Glimepiride 2mg", "Allergic to Penicillin"],
-            has_urdu: false,
-          },
-        };
-      }
-    }
-    return null;
-  });
+  const [demoScenario, setDemoScenario] = useState<DemoScenario>("normal");
+  const [stagedOcrUpload, setStagedOcrUpload] = useState<OcrUploadResponse | null>(null);
   const [ocrReturnScreen, setOcrReturnScreen] = useState<PatientScreenType>("health_record");
+
+  // Synchronize URL parameters (E2E hooks) after mount to prevent hydration mismatch
+  useEffect(() => {
+    if (!e2eHooksEnabled || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const p = params.get("portal");
+    if (p === "patient" || p === "provider" || p === "admin" || p === "landing") {
+      setPortalState(p);
+    }
+    const s = params.get("screen");
+    if (s) {
+      setScreenState(s as PatientScreenType);
+    }
+    const ps = params.get("provider_screen");
+    if (ps) {
+      setProviderScreenState(ps as ProviderScreenType);
+    }
+    const sc = params.get("scenario");
+    if (sc === "conflict" || sc === "emergency" || sc === "ehr_update" || sc === "no_readings") {
+      setDemoScenario(sc);
+    }
+    const r = params.get("risk");
+    if (s === "risk_result" || r === "true") {
+      setLiveCheckinResult({
+        checkin_id: "demo-chk-mock-result",
+        triage_level: "routine",
+        triage_colour: "green",
+        emergency: false,
+        intakes: sc === "no_readings" ? [] : [
+          {
+            intake_id: "intake-mock-1",
+            confidence_label: "high",
+            readings: [],
+          },
+        ],
+        risk_patient: [
+          {
+            band: "moderate",
+            message_key: "risk_chd_moderate",
+          },
+        ],
+        explanation: {
+          status: "ready",
+          sentences: [
+            {
+              text: sc === "no_readings"
+                ? "No readings entered today. Routine self-monitoring continues within target monitoring range today."
+                : "Routine self-monitoring. Readings are stable and adhere to guidelines.",
+              cites: ["ada-2024-s6"],
+            },
+          ],
+          sources: [
+            {
+              chunk_id: "ada-2024-s6",
+              title: "ADA 2024 Standards of Care",
+              full_citation: "American Diabetes Association Standards of Care 2024 Section 6",
+            },
+          ],
+        },
+      } as any);
+    }
+    if (s === "ocr_confirm") {
+      setStagedOcrUpload({
+        upload_id: "up-mock-staged-1",
+        expires_in_seconds: 1800,
+        extracted: {
+          observations: [
+            { id: "obs-0", type: "glucose", value: 142, unit: "mg/dL", evidence: "FBS: 142 mg/dL" },
+            { id: "obs-1", type: "blood_pressure_systolic", value: 130, unit: "mmHg", evidence: "BP: 130/85" },
+          ],
+          medications: [
+            { id: "med-0", name: "Glimepiride", dosage: "2mg daily", status: "active", evidence: "Glimepiride 2mg" },
+          ],
+          allergies: [
+            { id: "all-0", substance: "Penicillin", reaction: "Rash", severity: "moderate", status: "active", evidence: "Allergic to Penicillin" },
+          ],
+          raw_lines: ["FBS: 142 mg/dL", "BP: 130/85", "Glimepiride 2mg", "Allergic to Penicillin"],
+          has_urdu: false,
+        },
+      });
+    }
+  }, [e2eHooksEnabled]);
 
   // Patient Baseline Profile (Mock mode fallback)
   const [profile, setProfile] = useState<HealthProfile>({

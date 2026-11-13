@@ -30,14 +30,20 @@ async function dismissPreloader(page: any) {
 /**
  * Captures key journey screens at both 1280px (desktop) and 375px (mobile) viewports into docs/screenshots/w4/demo/.
  */
-async function captureKeyScreenshots(page: any, baseName: string) {
+async function captureKeyScreenshots(page: any, baseName: string, scrollTargetLocator?: any) {
   // 1. Desktop 1280px
   await page.setViewportSize({ width: 1280, height: 720 });
+  if (scrollTargetLocator) {
+    await scrollTargetLocator.scrollIntoViewIfNeeded();
+  }
   await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(DEMO_SCREENSHOT_DIR, `${baseName}_1280px.png`) });
 
   // 2. Mobile 375px
   await page.setViewportSize({ width: 375, height: 667 });
+  if (scrollTargetLocator) {
+    await scrollTargetLocator.scrollIntoViewIfNeeded();
+  }
   await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(DEMO_SCREENSHOT_DIR, `${baseName}_375px.png`) });
 
@@ -76,6 +82,43 @@ async function loginAsPatient(page: any, email = "ali.khan@demo.care") {
 
 test.describe("I4-S: 17 Nov Evaluation Demo Journeys", () => {
   test.use({ colorScheme: "light" });
+
+  let pageErrors: Error[] = [];
+  let consoleErrors: string[] = [];
+
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    consoleErrors = [];
+    page.on("pageerror", (err) => {
+      console.log(`[PAGEERROR]: ${err.message}\n${err.stack}`);
+      pageErrors.push(err);
+    });
+    page.on("console", (msg) => {
+      if (msg.type() === "error") {
+        console.log(`[CONSOLE_ERROR]: ${msg.text()}`);
+        consoleErrors.push(msg.text());
+      }
+    });
+  });
+
+  test.afterEach(async ({ page }) => {
+    // Fail immediately if Next.js error badge ("1 error"), overlay, or toast is present
+    const nextErrorToast = page.locator("nextjs-portal, [data-nextjs-toast], [data-nextjs-dialog-overlay], button[data-nextjs-toast-errors-hide-button]");
+    const count = await nextErrorToast.count();
+    let hasNextError = false;
+    for (let i = 0; i < count; i++) {
+      if (await nextErrorToast.nth(i).isVisible().catch(() => false)) {
+        hasNextError = true;
+        break;
+      }
+    }
+    expect(hasNextError, "Next.js runtime error overlay or toast must not be visible on page").toBe(false);
+    expect(pageErrors, `Page errors encountered during journey: ${pageErrors.map(e => e.message).join("; ")}`).toHaveLength(0);
+    const fatalConsoleErrors = consoleErrors.filter(
+      (err) => !err.includes("favicon.ico") && !err.includes("Download the React DevTools")
+    );
+    expect(fatalConsoleErrors, `Console errors encountered during journey: ${fatalConsoleErrors.join("; ")}`).toHaveLength(0);
+  });
 
   test("J-a: New patient onboarding: consent -> profile -> routine check-in -> Green chip and guideline citations", async ({ page }) => {
     await page.goto("/");
@@ -238,7 +281,7 @@ test.describe("I4-S: 17 Nov Evaluation Demo Journeys", () => {
     await expect(trendsSection.getByText("Systolic").first()).toBeVisible({ timeout: 5000 });
     await expect(trendsSection.getByText(/Rising|Stable/i).first()).toBeVisible({ timeout: 5000 });
 
-    await captureKeyScreenshots(page, "jd_htn_trend_bp_chart");
+    await captureKeyScreenshots(page, "jd_htn_trend_bp_chart", trendsSection);
   });
 
   test("J-e: Provider queue (provider.demo@demo.care): Review detail -> risk panel with SHAP drivers -> SOAP note", async ({ page }) => {
@@ -266,7 +309,7 @@ test.describe("I4-S: 17 Nov Evaluation Demo Journeys", () => {
     await expect(page.locator('[data-testid="soap-section-assessment"]')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('[data-testid="soap-section-plan"]')).toBeVisible({ timeout: 5000 });
 
-    await captureKeyScreenshots(page, "je_provider_risk_soap");
+    await captureKeyScreenshots(page, "je_provider_risk_soap", soapPanel);
   });
 
   test("J-f: Patient risk view (demo_patient_dm@demo.care): Shows band sentence only (no %, no probability, no raw model name)", async ({ page }) => {
@@ -391,6 +434,42 @@ test.describe("I4-S: 17 Nov Evaluation Demo Journeys", () => {
 test.describe("H3-5-01: Five End-to-End User Journeys", () => {
   test.use({ colorScheme: "light" });
 
+  let pageErrors: Error[] = [];
+  let consoleErrors: string[] = [];
+
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    consoleErrors = [];
+    page.on("pageerror", (err) => {
+      console.log(`[PAGEERROR]: ${err.message}\n${err.stack}`);
+      pageErrors.push(err);
+    });
+    page.on("console", (msg) => {
+      if (msg.type() === "error") {
+        console.log(`[CONSOLE_ERROR]: ${msg.text()}`);
+        consoleErrors.push(msg.text());
+      }
+    });
+  });
+
+  test.afterEach(async ({ page }) => {
+    const nextErrorToast = page.locator("nextjs-portal, [data-nextjs-toast], [data-nextjs-dialog-overlay], button[data-nextjs-toast-errors-hide-button]");
+    const count = await nextErrorToast.count();
+    let hasNextError = false;
+    for (let i = 0; i < count; i++) {
+      if (await nextErrorToast.nth(i).isVisible().catch(() => false)) {
+        hasNextError = true;
+        break;
+      }
+    }
+    expect(hasNextError, "Next.js runtime error overlay or toast must not be visible on page").toBe(false);
+    expect(pageErrors, `Page errors encountered during journey: ${pageErrors.map(e => e.message).join("; ")}`).toHaveLength(0);
+    const fatalConsoleErrors = consoleErrors.filter(
+      (err) => !err.includes("favicon.ico") && !err.includes("Download the React DevTools")
+    );
+    expect(fatalConsoleErrors, `Console errors encountered during journey: ${fatalConsoleErrors.join("; ")}`).toHaveLength(0);
+  });
+
   test("J1: New patient onboarding: consent -> profile (en/ur) -> normal check-in -> routine result", async ({ page }) => {
     await page.goto("/");
     await dismissPreloader(page);
@@ -410,7 +489,9 @@ test.describe("H3-5-01: Five End-to-End User Journeys", () => {
 
     const consentHeader = page.locator("h1:has-text('Patient Privacy & Care Consent'), h1:has-text('طبی نگرانی اور رضامندی')");
     await expect(consentHeader).toBeVisible({ timeout: 10000 });
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j1_consent_en.png") });
+    if (process.env.UPDATE_W3_SCREENSHOTS === "1") {
+      await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j1_consent_en.png") });
+    }
 
     await page.check("#consent-data-processing-chk");
     await page.check("#consent-provider-notification-chk");
@@ -429,7 +510,9 @@ test.describe("H3-5-01: Five End-to-End User Journeys", () => {
     await langBtn.click();
 
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j1_profile_ur.png") });
+    if (process.env.UPDATE_W3_SCREENSHOTS === "1") {
+      await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j1_profile_ur.png") });
+    }
 
     await page.click("#profile-continue-btn");
 
@@ -457,7 +540,9 @@ test.describe("H3-5-01: Five End-to-End User Journeys", () => {
 
     const resultHeading = page.locator("h1:has-text('آپ کے روزانہ نتائج'), h1:has-text('Daily Health Analysis'), h1:has-text('Check-in Recorded')");
     await expect(resultHeading).toBeVisible({ timeout: 10000 });
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j1_result_routine.png") });
+    if (process.env.UPDATE_W3_SCREENSHOTS === "1") {
+      await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j1_result_routine.png") });
+    }
 
     await langBtn.click();
     await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
@@ -481,7 +566,9 @@ test.describe("H3-5-01: Five End-to-End User Journeys", () => {
     const fallbackText = page.locator("text=911");
     await expect(fallbackText).toHaveCount(0);
 
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j2_urgent_emergency.png") });
+    if (process.env.UPDATE_W3_SCREENSHOTS === "1") {
+      await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j2_urgent_emergency.png") });
+    }
     await expect(page.locator("#emergency-return-home-btn")).toBeVisible();
   });
 
@@ -507,7 +594,9 @@ test.describe("H3-5-01: Five End-to-End User Journeys", () => {
       await toggleBtn.click();
     }
 
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j3_record_edits.png") });
+    if (process.env.UPDATE_W3_SCREENSHOTS === "1") {
+      await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j3_record_edits.png") });
+    }
 
     const historyBtn = page.locator('[data-testid="view-full-history-btn"]');
     await expect(historyBtn).toBeVisible({ timeout: 5000 });
@@ -515,7 +604,9 @@ test.describe("H3-5-01: Five End-to-End User Journeys", () => {
 
     const historyModal = page.locator('[data-testid="record-history-modal"]');
     await expect(historyModal).toBeVisible({ timeout: 5000 });
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j3_record_history.png") });
+    if (process.env.UPDATE_W3_SCREENSHOTS === "1") {
+      await page.screenshot({ path: path.join(SCREENSHOT_DIR, "j3_record_history.png") });
+    }
 
     await page.keyboard.press("Escape");
     await expect(historyModal).toBeHidden({ timeout: 5000 });
@@ -529,13 +620,5 @@ test.describe("H3-5-01: Five End-to-End User Journeys", () => {
     if (download) {
       expect(download.suggestedFilename()).toContain(".json");
     }
-  });
-
-  test.skip("J4: Provider review with trace (RISK_ENABLED & EXPLAIN_ENABLED): patient explanation + provider trace", async () => {
-    // See J-e for full 17 Nov provider review & trace verification
-  });
-
-  test.skip("J5: OCR prescription reconciliation: confirm 2, fix 1, remove 1 -> save with OCR badge", async () => {
-    // See J-h for full 17 Nov OCR prescription flow verification
   });
 });

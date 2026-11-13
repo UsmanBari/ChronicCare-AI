@@ -60,6 +60,7 @@ describe("Mock Mode Graceful Fallback & Accessibility (I4-S / U9)", () => {
     expect(getRoleFromEmail("demo_patient_ur@demo.care")).toBe("patient");
     expect(getRoleFromEmail("provider.demo@demo.care")).toBe("provider");
     expect(getRoleFromEmail("admin.demo@demo.care")).toBe("admin");
+    expect(getRoleFromEmail("dr.patientcare@hospital.org")).toBeNull();
   });
 
   it("OcrConfirmScreen renders accessible aria-labels on editable input fields", () => {
