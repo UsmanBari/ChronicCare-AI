@@ -4441,23 +4441,40 @@ def answer_checkin_endpoint(
 
         # Stage-1 red-flag screen on medication answer
         triggered, reason = run_stage1_red_flag_screen(body.answer)
+        if not triggered and body.answer:
+            from agents.input_triage import classify_input
+            t_res = classify_input(body.answer)
+            if t_res.is_emergency:
+                triggered = True
+                reason = t_res.trigger_detail or "danger_phrase"
         med_safety_note = None
-        from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note
+        from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note, WordGroupResult
         if not triggered and is_danger_wordgroups_enabled() and body.answer:
-            wg_hit = detect_wordgroups(body.answer)
+            try:
+                wg_hit = detect_wordgroups(body.answer)
+            except Exception as e:
+                wg_hit = WordGroupResult(is_danger=True, group="detector_error")
+                append_audit(
+                    actor_user_id=current_user["user_id"],
+                    action="danger_wordgroup_hit",
+                    target=checkin_id,
+                    outcome="error",
+                    detail={"error": str(e)},
+                )
             if wg_hit.is_danger:
                 lang = getattr(current_state, "language", None) or "en"
                 med_safety_note = get_safety_note(lang)
                 if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
                     current_state.answers = {}
                 current_state.answers.setdefault("_wordgroup_hits", []).append({"group": wg_hit.group, "step": getattr(current_state, "step", "medication")})
-                append_audit(
-                    actor_user_id=current_user["user_id"],
-                    action="danger_wordgroup_hit",
-                    target=checkin_id,
-                    outcome="flagged",
-                    detail={"group": wg_hit.group},
-                )
+                if wg_hit.group != "detector_error":
+                    append_audit(
+                        actor_user_id=current_user["user_id"],
+                        action="danger_wordgroup_hit",
+                        target=checkin_id,
+                        outcome="flagged",
+                        detail={"group": wg_hit.group},
+                    )
         if triggered:
             rf_level = get_red_flag_level(reason)
             is_emerg = (rf_level == "emergency")
@@ -4670,11 +4687,12 @@ def answer_checkin_endpoint(
         if next_state.get("wordgroup_hits"):
             for h in next_state["wordgroup_hits"]:
                 if isinstance(h, dict) and h.get("group"):
+                    outcome_val = "error" if h.get("group") == "detector_error" else "flagged"
                     append_audit(
                         actor_user_id=current_user["user_id"],
                         action="danger_wordgroup_hit",
                         target=checkin_id,
-                        outcome="flagged",
+                        outcome=outcome_val,
                         detail={"group": h["group"]},
                     )
 
@@ -4725,20 +4743,41 @@ def answer_checkin_endpoint(
         )
 
     v2_safety_note = None
-    from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note
+    if not next_state.stage1_red_flag and body.answer:
+        try:
+            from agents.input_triage import classify_input
+            t_res = classify_input(body.answer)
+            if t_res.is_emergency or t_res.is_urgent_safety:
+                next_state.stage1_red_flag = True
+                next_state.stage1_reason = t_res.trigger_detail
+        except Exception:
+            pass
+
+    from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note, WordGroupResult
     if not next_state.stage1_red_flag and is_danger_wordgroups_enabled() and body.answer:
-        wg_hit = detect_wordgroups(body.answer)
+        try:
+            wg_hit = detect_wordgroups(body.answer)
+        except Exception:
+            wg_hit = WordGroupResult(is_danger=True, group="detector_error")
         if wg_hit.is_danger:
             lang = getattr(next_state, "language", None) or "en"
             v2_safety_note = get_safety_note(lang)
             if not hasattr(next_state, "answers") or not isinstance(next_state.answers, dict):
                 next_state.answers = {}
-            next_state.answers.setdefault("_wordgroup_hits", []).append({"group": wg_hit.group, "step": getattr(current_state, "step", "")})
+            hit_data = {"group": wg_hit.group, "step": getattr(current_state, "step", "")}
+            next_state.answers.setdefault("_wordgroup_hits", []).append(hit_data)
+            if hasattr(next_state, "intakes") and isinstance(next_state.intakes, list):
+                for intake_item in next_state.intakes:
+                    if isinstance(intake_item, dict):
+                        intake_item.setdefault("wordgroup_hits", []).append(hit_data)
+            if hasattr(next_state, "intake") and isinstance(next_state.intake, dict):
+                next_state.intake.setdefault("wordgroup_hits", []).append(hit_data)
+            outcome_val = "error" if wg_hit.group == "detector_error" else "flagged"
             append_audit(
                 actor_user_id=current_user["user_id"],
                 action="danger_wordgroup_hit",
                 target=checkin_id,
-                outcome="flagged",
+                outcome=outcome_val,
                 detail={"group": wg_hit.group},
             )
 

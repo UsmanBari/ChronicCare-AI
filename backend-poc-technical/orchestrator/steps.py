@@ -365,6 +365,14 @@ def step_parse_and_validate_intake(
 
     else:
         state = InterviewState.from_dict(checkin["state"])
+        raw_st = checkin.get("state") or {}
+        if isinstance(raw_st, dict):
+            hits = raw_st.get("wordgroup_hits") or (raw_st.get("answers", {}).get("_wordgroup_hits") if isinstance(raw_st.get("answers"), dict) else None)
+            if hits:
+                existing_hits = state.answers.setdefault("_wordgroup_hits", [])
+                for h in hits:
+                    if h not in existing_hits:
+                        existing_hits.append(h)
         protocol_state_dict = checkin.get("protocol_state")
         protocol_state = TriageProtocolState.from_dict(protocol_state_dict) if protocol_state_dict else None
         med_state_dict = checkin.get("med_state")
