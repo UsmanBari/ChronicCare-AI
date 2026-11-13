@@ -416,7 +416,10 @@ def extract_fields(ocr_text: str) -> Dict[str, Any]:
         r"(?:tab\.?|cap\.?|inj\.?|syp\.?|rx:?|[0-9]+\.|\bmg\b|\bmcg\b|\bunits?\b)",
         re.IGNORECASE,
     )
-    dose_pattern = re.compile(r"\b([0-9]+(?:\.[0-9]+)?\s*(?:mg|mcg|units?|iu)|[0-9]+[:\.]?[0-9]*\s*mg)\b", re.IGNORECASE)
+    dose_pattern = re.compile(
+        r"(?:^|\b|(?<=[a-zA-Z]))([0-9]+(?:\.[0-9]+)?\s*(?:mg|mcg|units?|iu)|[0-9]+[:\.]?[0-9]*\s*mg)\b",
+        re.IGNORECASE,
+    )
     freq_pattern = re.compile(
         r"\b(od|bd|tds|qid|hs|1\s*[+-]\s*0\s*[+-]\s*1|1\s*[+-]\s*1\s*[+-]\s*1|0\s*[+-]\s*0\s*[+-]\s*1|1\s*[+-]\s*0\s*[+-]\s*0|once daily|twice daily|three times daily|subah/shaam|at night|روزانہ(?:\s+دو\s+بار)?|کھانے\s+کے\s+بعد)\b",
         re.IGNORECASE,

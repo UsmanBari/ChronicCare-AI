@@ -54,6 +54,11 @@ For urgent (Red) appointments, Section 15 mandates an escalation ladder to preve
 | **≥ 24 hours** | `admin_flag` | Red pulse flag on admin dashboard | `escalation_timeout_24h` written once to immutable audit table |
 | **Provider Acknowledges** | `none` (or `acknowledged`) | Escalation alert cleared; `acknowledged_at` recorded | Provider acknowledgment logged |
 
+### 5.1 Environment Overrides for Evaluation Demonstrations
+In standard operation, timeouts default to the clinical specifications (2 hours for `re_notify` and 24 hours for `admin_flag`). For testing and live evaluation demonstrations (e.g. 10-minute viva demos), timeout durations can be overridden via environment variables without altering clinical business logic:
+- `ESCALATION_TIMEOUT_MINUTES`: Sets the admin flag timeout in minutes (code default: `1440` = 24 hours).
+- `ESCALATION_RENOTIFY_MINUTES`: Sets the re-notification timeout in minutes (code default: `120` = 2 hours; if omitted but `ESCALATION_TIMEOUT_MINUTES` is set, scales proportionally to `admin_minutes / 12`).
+
 ---
 
 ## 6. Synthetic Provider Directory
