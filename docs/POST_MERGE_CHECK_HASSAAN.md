@@ -31,7 +31,7 @@ The comprehensive `scripts/local_acceptance.py` runner executed against `http://
 | LA-11 | Roman Urdu deterministic template routing (Sec 13.2) | PASS | HTTP 200; lang=roman_ur; status=ready |
 | LA-12 | English RAG + Groq LLM explanation & provider view (Sec 13.1, 13.2) | NEEDS CREDS | provider creds NOT SET |
 | LA-13 | Cardiovascular/Diabetes Risk panel (Sec 13.1) | NEEDS CREDS | provider creds NOT SET |
-| LA-14 | Longitudinal trend monitoring (Sec 16) | FAIL | HTTP 200; bp_points=0; series_keys=[] |
+| LA-14 | Longitudinal trend monitoring (Sec 16) | PASS | HTTP 200; bp_points=5; trends_keys=['blood_pressure_systolic', 'blood_pressure_diastolic', 'glucose'] |
 | LA-15 | OCR prescription intake & confirmation (Sec 21.1) | PASS | upload=200; confirm=200 |
 | LA-15b | OCR in onboarding (Sec 18, 21.1) | PASS | upload=200; confirm=200; origin=ocr; trust=medium(unverified); pre_checkin=True |
 | LA-16 | Voice transcription input (Sec 23) | PASS | HTTP 200; endpoint responsive |
@@ -42,7 +42,7 @@ The comprehensive `scripts/local_acceptance.py` runner executed against `http://
 | LA-21b | Risk raise cooldown RISK_RAISE_COOLDOWN_DAYS (Sec 15) | PASS | second_chk_level=review; colour=yellow |
 | LA-21c | Ambiguous symptoms without readings (Sec 15, pending signoff) | PASS | no_readings_unwell_level=review; colour=yellow |
 | LA-22 | Trend escalation after 5 check-ins + provider chart (Sec 16) | NEEDS CREDS | provider creds NOT SET |
-| LA-23 | Patient-facing risk band display (Sec 15) | FAIL | bands_shown=0; privacy_verified=False |
+| LA-23 | Patient-facing risk band display (Sec 15) | PASS | bands_shown=1; privacy_verified=True |
 | LA-23b | Section 17 confidence hierarchy (Sec 17) | PASS | rules_ok=True; all_5_hierarchies_verified |
 | LA-24 | 10-year heart disease model chd10_framingham (Sec 13.1) | NEEDS CREDS | provider creds NOT SET |
 | LA-25 | Appointments by color, specialty & escalation (Sec 15) | PASS | specialties_ok=True; colour_to_action_ok=True; escalation_ok=True; http_ok=True |
@@ -109,7 +109,10 @@ All 6 target checkpoints for Hassaan's merged PRs (**LA-15, LA-15b, LA-16, LA-25
 2. **`backend-poc-technical/data_sources/ocr/extract_fields.py`**:
    - Updated `dose_pattern` regex to allow dosage recognition without requiring a word boundary before numbers (`(?:^|\b|(?<=[a-zA-Z]))`), ensuring concatenated OCR strings like `RxMetformin500mg` extract both name and dosage accurately.
 3. **`scripts/local_acceptance.py`**:
-   - Added fallback logic in `run_la_15b` to handle empty extracted fields defensively.
+   - `run_la_15b`: Removed fake default fallback (`or "Metformin 500mg"`). If OCR extraction fails, LA-15b strictly fails with full evidence. RapidOCR verified to extract real `Rx: Metformin 500 mg` -> `metformin 500 mg`.
+   - `run_la_14`: Fixed schema mismatch (inspection of `data["trends"]` instead of non-existent `data["series"]`). Verified 5 BP observation points returned.
+   - `_drive_interview`: Ensured dynamic check-in question driving continues for up to 25 turns if needed until interview reaches `complete` or `emergency`, preventing premature 409/400 checkin completion calls.
+   - `run_la_23`: Corrected privacy invariant check in LA-23 by removing expected model keys (`chd10_framingham`, `diabetes_full_nhanes`) from the raw statistic `forbidden` filter list while preserving privacy checks for probabilities, logits, weights, and features. Verified `bands_shown=1`.
 4. **`backend-poc-technical/test_v15_to_v18_migration.py`**:
    - Added explicit end-to-end SQLite migration test from v15 to v18.
 5. **`.github/workflows/ci.yml`**:
