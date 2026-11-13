@@ -118,6 +118,7 @@
 | Blind Set Danger Phrase Generalization Benchmark | Sec 36 | `docs/BLIND_SET_3_RESULTS.md` | Doc Record | **PASS** | Saad / Hassaan | Done |
 | Single-LLM Baseline Benchmark Comparison (RQ3) | Sec 36 | `scripts/benchmarks/single_llm_baseline.py` | LA-31 | **NOT BUILT YET** | Usman | 14 Nov 2026 (PR J) |
 | Requirements Traceability Matrix Verification | Sec 37 | `docs/TRACEABILITY.md` | `test_traceability_links.py` | **PASS** | Usman | Done |
+| Local Demo Seed, One-Command Start & 17 Nov Cue Sheet | Sec 13.1, 15, 17 | `scripts/seed_demo_local.py` | LA-32 | **PASS** | Usman | Done (PR I4-R) |
 
 ---
 

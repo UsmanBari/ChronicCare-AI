@@ -1586,6 +1586,74 @@ class LocalAcceptanceRunner:
         except Exception as exc:
             self.results.append({"id": "LA-30", "feature": feat, "status": "FAIL", "evidence": str(exc)})
 
+    def run_la_32(self) -> None:
+        """LA-32: Local demo seed ready (17 Nov personas and pipeline results)."""
+        feat = "Local demo seed ready (17 Nov personas)"
+        try:
+            import tempfile
+            from scripts.seed_demo_local import seed_demo_data
+            from data_sources import app_store
+
+            with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+                t_db = f.name
+
+            try:
+                users = seed_demo_data(reset=True, db_path=t_db)
+
+                # 1. HTN patient: 5+ checkins, review, rising trend, OCR Rx
+                htn_uid = users["htn"]
+                htn_checkins = app_store.get_user_checkins(htn_uid, limit=10, db_path=t_db)
+                htn_ok = len(htn_checkins) >= 5
+                htn_res = app_store.get_checkin_result(htn_checkins[0]["checkin_id"], db_path=t_db)
+                htn_review = htn_res.get("triage_level") == "review"
+
+                # 2. DM patient: High DM band, review
+                dm_uid = users["dm"]
+                dm_checkins = app_store.get_user_checkins(dm_uid, limit=10, db_path=t_db)
+                dm_res = app_store.get_checkin_result(dm_checkins[0]["checkin_id"], db_path=t_db)
+                dm_ok = len(dm_checkins) >= 5 and dm_res.get("triage_level") == "review"
+
+                # 3. Dual patient: risk results present
+                dual_uid = users["dual"]
+                dual_checkins = app_store.get_user_checkins(dual_uid, limit=5, db_path=t_db)
+                dual_res = app_store.get_checkin_result(dual_checkins[0]["checkin_id"], db_path=t_db)
+                dual_ok = dual_res is not None and dual_res.get("risk") is not None
+
+                # 4. Urdu script: Urdu characters in explanation
+                ur_uid = users["ur"]
+                ur_checkins = app_store.get_user_checkins(ur_uid, limit=5, db_path=t_db)
+                ur_res = app_store.get_checkin_result(ur_checkins[0]["checkin_id"], db_path=t_db)
+                ur_sentences = (ur_res.get("explanation") or {}).get("sentences", [])
+                ur_text = " ".join(s.get("text", "") for s in ur_sentences)
+                ur_ok = any("\u0600" <= ch <= "\u06ff" for ch in ur_text)
+
+                # 5. Emergency: emergency=True
+                emg_uid = users["emg"]
+                emg_checkins = app_store.get_user_checkins(emg_uid, limit=5, db_path=t_db)
+                emg_res = app_store.get_checkin_result(emg_checkins[0]["checkin_id"], db_path=t_db)
+                emg_ok = emg_res.get("emergency") is True
+
+                # 6. Cold start: 0 checkins
+                new_uid = users["new"]
+                new_checkins = app_store.get_user_checkins(new_uid, limit=5, db_path=t_db)
+                new_ok = len(new_checkins) == 0
+
+                passed = htn_ok and htn_review and dm_ok and dual_ok and ur_ok and emg_ok and new_ok
+                status = "PASS" if passed else "FAIL"
+                ev = (
+                    f"htn_review={htn_review}; dm_ok={dm_ok}; "
+                    f"dual_ok={dual_ok}; ur_ok={ur_ok}; "
+                    f"emg_ok={emg_ok}; new_ok={new_ok}"
+                )
+                self.results.append({"id": "LA-32", "feature": feat, "status": status, "evidence": ev})
+            finally:
+                try:
+                    os.unlink(t_db)
+                except OSError:
+                    pass
+        except Exception as exc:
+            self.results.append({"id": "LA-32", "feature": feat, "status": "FAIL", "evidence": str(exc)})
+
     # -------------------------------------------------------------------------
     # PLACEHOLDERS (LA-25 to LA-31)
     # -------------------------------------------------------------------------
@@ -1698,6 +1766,7 @@ class LocalAcceptanceRunner:
             ("LA-26", self.run_la_26),
             ("LA-29", self.run_la_29),
             ("LA-30", self.run_la_30),
+            ("LA-32", self.run_la_32),
         ]
 
         run_start = time.time()
