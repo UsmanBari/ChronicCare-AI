@@ -13,6 +13,7 @@ export const AppointmentSchedulingScreen = () => {
     demoScenario,
     t,
     isUrdu,
+    isLiveMode,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<"queue" | "manual">("queue");
@@ -21,6 +22,10 @@ export const AppointmentSchedulingScreen = () => {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const fetchProviderAppointments = async () => {
+    if (!isLiveMode) {
+      setLiveAppointments([]);
+      return;
+    }
     setIsLoading(true);
     try {
       const res = await api.getProviderAppointments();
@@ -34,6 +39,7 @@ export const AppointmentSchedulingScreen = () => {
 
   useEffect(() => {
     fetchProviderAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleAcknowledge = async (id: string) => {

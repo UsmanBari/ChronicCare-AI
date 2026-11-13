@@ -33,6 +33,7 @@ import {
   RecordConditionItem,
   RecordEditItem,
   RecordImportResponse,
+  OcrUploadResponse,
 } from "../lib/api";
 import { mapApiError, convertGlucoseMmolToMgDl } from "../lib/presentation";
 import { getConditionFlags } from "../lib/conditions";
@@ -48,7 +49,21 @@ export const HealthRecordScreen = () => {
   // Record data
   const [conditions, setConditions] = useState<RecordConditionItem[]>([]);
   const [conditionsBasis, setConditionsBasis] = useState<Record<string, string>>({});
-  const [medications, setMedications] = useState<RecordMedicationItem[]>([]);
+  const [medications, setMedications] = useState<RecordMedicationItem[]>(() => {
+    if (!isLiveMode) {
+      return [
+        {
+          id: "med-ocr-demo",
+          name: "Glimepiride 2mg",
+          dosage: "1 tablet daily",
+          status: "active",
+          origin: "ocr",
+          trust_level: "medium",
+        },
+      ];
+    }
+    return [];
+  });
   const [allergies, setAllergies] = useState<RecordAllergyItem[]>([]);
   const [observations, setObservations] = useState<RecordObservationItem[]>([]);
 
@@ -291,7 +306,26 @@ export const HealthRecordScreen = () => {
     setError(null);
     setIsUploadingOcr(true);
     try {
-      const res = await api.uploadOcrImage(file);
+      let res: OcrUploadResponse;
+      if (isLiveMode) {
+        res = await api.uploadOcrImage(file);
+      } else {
+        res = {
+          upload_id: `up-local-mock-${Date.now()}`,
+          expires_in_seconds: 1800,
+          extracted: {
+            observations: [
+              { id: "obs-0", type: "glucose", value: 142, unit: "mg/dL", evidence: "FBS: 142 mg/dL" },
+            ],
+            medications: [
+              { id: "med-0", name: "Glimepiride", dosage: "2mg daily", status: "active", evidence: "Glimepiride 2mg" },
+            ],
+            allergies: [
+              { id: "all-0", substance: "Penicillin", reaction: "Rash", severity: "moderate", status: "active", evidence: "Allergic to Penicillin" },
+            ],
+          },
+        };
+      }
       setStagedOcrUpload(res);
       setScreen("ocr_confirm");
     } catch (err: any) {

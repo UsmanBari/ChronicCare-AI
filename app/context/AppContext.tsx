@@ -52,7 +52,7 @@ export type AdminScreenType = "login" | "dashboard";
 export type ConnectionMode = "fhir" | "offline" | null;
 export type MissedMedsOption = "yes" | "no" | "prefer_not_to_answer" | null;
 export type RiskLevel = "low" | "moderate" | "high";
-export type DemoScenario = "normal" | "conflict" | "emergency" | "ehr_update";
+export type DemoScenario = "normal" | "conflict" | "emergency" | "ehr_update" | "no_readings";
 
 export interface HealthProfile {
   conditions: string[];
@@ -267,7 +267,53 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [liveProfile, setLiveProfile] = useState<ProfileResponse | null>(null);
   const [liveEhrConnection, setLiveEhrConnection] = useState<EHRConnectionResponse | null>(null);
   const [activeLiveCheckin, setActiveLiveCheckin] = useState<CheckinStartResponse | null>(null);
-  const [liveCheckinResult, setLiveCheckinResult] = useState<CheckinCompleteResponse | null>(null);
+  const [liveCheckinResult, setLiveCheckinResult] = useState<CheckinCompleteResponse | null>(() => {
+    if (e2eHooksEnabled && typeof window !== "undefined") {
+      const s = new URLSearchParams(window.location.search).get("screen");
+      const r = new URLSearchParams(window.location.search).get("risk");
+      const sc = new URLSearchParams(window.location.search).get("scenario");
+      if (s === "risk_result" || r === "true") {
+        return {
+          checkin_id: "demo-chk-mock-result",
+          triage_level: "routine",
+          triage_colour: "green",
+          emergency: false,
+          intakes: sc === "no_readings" ? [] : [
+            {
+              intake_id: "intake-mock-1",
+              confidence_label: "high",
+              readings: [],
+            },
+          ],
+          risk_patient: [
+            {
+              band: "moderate",
+              message_key: "risk_chd_moderate",
+            },
+          ],
+          explanation: {
+            status: "ready",
+            sentences: [
+              {
+                text: sc === "no_readings"
+                  ? "No readings entered today. Routine self-monitoring continues within target monitoring range today."
+                  : "Routine self-monitoring. Readings are stable and adhere to guidelines.",
+                cites: ["ada-2024-s6"],
+              },
+            ],
+            sources: [
+              {
+                chunk_id: "ada-2024-s6",
+                title: "ADA 2024 Standards of Care",
+                full_citation: "American Diabetes Association Standards of Care 2024 Section 6",
+              },
+            ],
+          },
+        } as any;
+      }
+    }
+    return null;
+  });
   const [escalationRecorded, setEscalationRecorded] = useState<boolean | null>(null);
 
   // Single-flight promise refs for authSession
@@ -278,7 +324,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [demoScenario, setDemoScenario] = useState<DemoScenario>(() => {
     if (e2eHooksEnabled && typeof window !== "undefined") {
       const p = new URLSearchParams(window.location.search).get("scenario");
-      if (p === "conflict" || p === "emergency" || p === "ehr_update") return p;
+      if (p === "conflict" || p === "emergency" || p === "ehr_update" || p === "no_readings") return p;
     }
     return "normal";
   });

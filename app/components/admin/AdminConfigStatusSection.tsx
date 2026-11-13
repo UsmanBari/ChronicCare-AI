@@ -267,6 +267,26 @@ export const AdminConfigStatusSection: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Environment Settings */}
+      {data?.settings && data.settings.length > 0 && (
+        <div className="rounded-2xl border border-slate-200/80 p-4 bg-slate-50/50 space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-2">
+            <Sliders className="w-4 h-4 text-teal-700" />
+            <span>Environment Settings</span>
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            {data.settings.map((s) => (
+              <div key={s.name} className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200/70">
+                <span className="font-mono text-[11px] text-slate-700">{s.name}</span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  {s.set ? "SET" : "NOT SET"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
