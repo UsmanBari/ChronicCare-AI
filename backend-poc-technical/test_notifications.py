@@ -11,7 +11,7 @@ Verifies:
 8. REST endpoints for Patient, Provider, and Admin roles.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 import os
 import tempfile
 import pytest
@@ -221,13 +221,13 @@ def test_escalation_milestones_trigger_notifications(temp_db):
 def test_daily_reminder_eligibility_rules(temp_db):
     """
     Verifies reminder rules:
-    - Hour < 18:00 -> not due.
-    - Hour >= 18:00 with no check-in today -> due.
-    - Hour >= 18:00 with check-in logged today -> suppressed (not due).
+    - Hour < 18:00 PKT (e.g. 10:00 UTC = 15:00 PKT) -> not due.
+    - Hour >= 18:00 PKT (e.g. 13:30 UTC = 18:30 PKT) with no check-in today -> due.
+    - Hour >= 18:00 PKT with check-in logged today -> suppressed (not due).
     - Already notified today -> suppressed (not due).
     """
-    now_early = datetime(2026, 11, 10, 14, 0, 0, tzinfo=UTC)
-    now_due = datetime(2026, 11, 10, 18, 30, 0, tzinfo=UTC)
+    now_early = datetime(2026, 11, 10, 10, 0, 0, tzinfo=timezone.utc)
+    now_due = datetime(2026, 11, 10, 13, 30, 0, tzinfo=timezone.utc)
 
     # Seed patient
     with app_store.get_db_cursor(db_path=temp_db) as (cur, be, ph):
@@ -298,8 +298,13 @@ def test_fcm_push_skipped_when_credentials_file_missing(temp_db, monkeypatch):
 # 6. REST API Endpoints & Role Isolation Tests
 # ---------------------------------------------------------------------------
 
-def test_patient_notifications_api_workflow(api_client, temp_db):
+def test_patient_notifications_api_workflow(api_client, temp_db, monkeypatch):
     """Tests GET, read, and read-all patient notification endpoints."""
+    # Freeze clock to 10:00 UTC (15:00 Pakistan time, before 18:00 reminder hour)
+    from services import reminder_service
+    frozen_now = datetime(2026, 11, 10, 10, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(reminder_service, "get_now_utc", lambda: frozen_now)
+
     patient_user = {"user_id": "pat-101", "role": "patient", "email": "pat101@example.com", "status": "active"}
     main.app.dependency_overrides[main.get_current_user] = lambda: patient_user
 
@@ -333,6 +338,70 @@ def test_patient_notifications_api_workflow(api_client, temp_db):
     assert resp_all.status_code == 200
     assert resp_all.json()["updated"] == 1
     assert api_client.get("/api/me/notifications").json()["unread_count"] == 0
+
+
+@pytest.mark.parametrize("utc_hour,utc_minute,expected_reminder_fired", [
+    (0, 30, False),   # 05:30 PKT (morning, not due)
+    (12, 0, False),   # 17:00 PKT (5:00 PM, before 18:00)
+    (13, 30, True),   # 18:30 PKT (evening, due!)
+    (23, 59, False),  # 04:59 PKT next day (early morning of new day, not due)
+])
+def test_notifications_api_clock_frozen_workflow(api_client, temp_db, monkeypatch, utc_hour, utc_minute, expected_reminder_fired):
+    """
+    Parametrized test that runs the API workflow with the clock frozen at
+    00:30, 12:00, 13:30, and 23:59 UTC.
+    Tests whether an unreminded patient receives an on-open reminder.
+    """
+    from services import reminder_service
+    frozen_dt = datetime(2026, 11, 10, utc_hour, utc_minute, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(reminder_service, "get_now_utc", lambda: frozen_dt)
+
+    # Seed patient
+    with app_store.get_db_cursor(db_path=temp_db) as (cur, be, ph):
+        cur.execute(
+            f"INSERT OR IGNORE INTO users (user_id, email, role, status, created_at) VALUES ({ph}, {ph}, 'patient', 'active', {ph})",
+            ("pat-clock-test", "clocktest@example.com", "2026-11-01T00:00:00Z"),
+        )
+
+    patient_user = {"user_id": "pat-clock-test", "role": "patient", "email": "clocktest@example.com", "status": "active"}
+    main.app.dependency_overrides[main.get_current_user] = lambda: patient_user
+
+    # Seed 1 existing notification
+    create_notification("pat-clock-test", "patient", "urgent_triage", "Urgent Alert", "Body", reference_id="alert-1", db_path=temp_db)
+
+    resp = api_client.get("/api/me/notifications")
+    assert resp.status_code == 200
+    data = resp.json()
+    if expected_reminder_fired:
+        # Initial 1 + 1 newly generated reminder
+        assert len(data["notifications"]) == 2
+        events = [n["event_type"] for n in data["notifications"]]
+        assert "daily_reminder" in events
+    else:
+        # Only the 1 seeded notification
+        assert len(data["notifications"]) == 1
+        assert data["notifications"][0]["event_type"] == "urgent_triage"
+
+
+def test_reminder_fires_at_1800_pkt_and_not_1759_pkt(temp_db):
+    """
+    Exact boundary tests in Pakistan local time:
+    - 17:59 PKT (12:59 UTC) -> False (not due)
+    - 18:00 PKT (13:00 UTC) -> True (due)
+    """
+    with app_store.get_db_cursor(db_path=temp_db) as (cur, be, ph):
+        cur.execute(
+            f"INSERT OR IGNORE INTO users (user_id, email, role, status, created_at) VALUES ({ph}, {ph}, 'patient', 'active', {ph})",
+            ("pat-boundary", "boundary@example.com", "2026-11-01T00:00:00Z"),
+        )
+
+    # 17:59 PKT = 12:59 UTC
+    dt_1759_pkt = datetime(2026, 11, 10, 12, 59, 59, tzinfo=timezone.utc)
+    assert is_patient_reminder_due("pat-boundary", now_dt=dt_1759_pkt, db_path=temp_db) is False
+
+    # 18:00 PKT = 13:00 UTC
+    dt_1800_pkt = datetime(2026, 11, 10, 13, 0, 0, tzinfo=timezone.utc)
+    assert is_patient_reminder_due("pat-boundary", now_dt=dt_1800_pkt, db_path=temp_db) is True
 
 
 def test_fcm_token_registration_endpoints(api_client, temp_db):

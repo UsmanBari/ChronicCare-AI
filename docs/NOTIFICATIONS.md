@@ -87,12 +87,17 @@ CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user ON fcm_tokens(user_id);
 ## 5. Daily Reminder Timing & Lifespan Task
 
 - **Environment Flag**: `REMINDERS_ENABLED` (boolean, defaults to `false`).
-- **Reminder Hour**: `DAILY_REMINDER_HOUR` (integer, defaults to `18` [6:00 PM local]).
+- **Reminder Hour**: `DEFAULT_REMINDER_HOUR` (integer, defaults to `18` [6:00 PM local Pakistan time]).
+- **Timezone & Local Offset**:
+  - `REMINDER_UTC_OFFSET_HOURS` (integer, defaults to `5` for Pakistan Standard Time, UTC+5; Pakistan observes no daylight saving).
+  - Reminder evaluation (`is_patient_reminder_due`) compares local hour (`now_dt.astimezone(timezone(timedelta(hours=5))).hour >= 18`).
+  - 18:00 PKT corresponds to 13:00 UTC (1:00 PM UTC). At 17:59 PKT (12:59 UTC) the reminder does not fire; at 18:00 PKT (13:00 UTC) the reminder fires.
+  - "Today" (calendar date and midnight boundary for check-ins) is computed relative to Pakistan midnight (00:00:00 PKT = 19:00:00 UTC of previous day).
 - **FastAPI Lifespan Integration**:
   - When `REMINDERS_ENABLED=true`, a background `asyncio` task runs on a 15-minute interval (`services.reminder_service.reminder_worker_loop`).
   - On application shutdown, the task is cancelled cleanly without leaking tasks or connections.
 - **On-Demand Dispatch**:
-  - When the patient navigates to the app and queries `GET /api/me/notifications`, due reminders are evaluated dynamically so users without push permissions still see in-app reminder badges immediately.
+  - When the patient navigates to the app and queries `GET /api/me/notifications`, due reminders are evaluated dynamically using local Pakistan time so users without push permissions still see in-app reminder badges immediately upon opening the app. Tests freeze or monkeypatch `get_now_utc` to ensure deterministic execution independent of the CI runner's wall-clock time.
 
 ---
 

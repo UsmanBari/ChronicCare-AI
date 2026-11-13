@@ -5939,9 +5939,11 @@ def get_my_notifications(
 
     # Compute due reminders on open (N3)
     try:
-        now_utc = datetime.now(timezone.utc)
-        if is_patient_reminder_due(user_id=user_id, now_dt=now_utc):
-            notify_daily_reminder(patient_id=user_id, reminder_date_iso=now_utc.strftime("%Y-%m-%d"))
+        from services.reminder_service import is_patient_reminder_due, get_local_today_bounds, get_now_utc
+        now_dt = get_now_utc()
+        if is_patient_reminder_due(user_id=user_id, now_dt=now_dt):
+            today_str, _ = get_local_today_bounds(now_dt)
+            notify_daily_reminder(patient_id=user_id, reminder_date_iso=today_str)
     except Exception as e:
         logger.warning("On-open reminder check failed: %s", e)
 
