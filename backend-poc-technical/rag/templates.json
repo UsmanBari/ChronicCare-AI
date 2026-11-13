@@ -301,7 +301,7 @@
         "اگلی بار ریڈنگ شامل کرنا وقت کے ساتھ آپ کی صحت کی نگرانی میں مدد کرتا ہے۔"
       ],
       "needs_doctor_review": false,
-      "needs_native_review": true
+      "needs_native_review": false
     },
     "roman_ur": {
       "sentences": [
@@ -310,7 +310,7 @@
         "Agli baar reading shamil karna waqt ke sath aap ki sehat ki nigrani mein madad karta hai."
       ],
       "needs_doctor_review": false,
-      "needs_native_review": true
+      "needs_native_review": false
     }
   }
 }
