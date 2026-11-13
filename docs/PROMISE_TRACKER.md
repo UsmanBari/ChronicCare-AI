@@ -15,7 +15,7 @@
 | Two explainable risk classifiers (diabetes full NHANES, hypertension/heart) with SHAP | Objective 2 | `backend-poc-technical/agents/risk_agent.py` | LA-13, LA-24, LA-27 | **PASS** (NHANES & Framingham CHD10 merged; Diabetes Control in PR #142 draft) | Usman / Saad | 13 Nov 2026 |
 | Verification step checking outputs against explicit ground truth | Objective 3 | `backend-poc-technical/agents/verification_agent.py` | LA-09, LA-12 | **PASS** | Usman | Done (PR #80, #128) |
 | Plain-language explanations in English and Urdu with guideline citations | Objective 4 | `backend-poc-technical/rag/explain_jobs.py` | LA-10, LA-11, LA-12 | **PASS** | Usman | Done (PR #128) |
-| Multi-tier validation: scenarios, mutation proofs, single-LLM baseline | Objective 5 | `scripts/verify_mutations.py` & `scripts/eval/single_llm_baseline.py` | LA-18, LA-31 | **PASS** (Mutations PASS, Single-LLM built in PR #144) | Usman | 13 Nov 2026 |
+| Multi-tier validation: scenarios, mutation proofs, single-LLM baseline | Objective 5 | `scripts/verify_mutations.py` & `scripts/eval/single_llm_baseline.py` | LA-18, LA-31 | **PASS** | Usman | Done (PR #144) |
 
 ---
 
@@ -117,7 +117,7 @@
 | Automated Mutation Proofs (23 deliberate rule breaks killed in CI) | Sec 36 | `scripts/verify_mutations.py` | CI Gate 3 | **PASS** | Usman | Done |
 | Deterministic Engine Scenarios Regression Testing | Sec 36 | `backend-poc-technical/scenarios/` | CI Gate 2 | **PASS** | Usman | Done |
 | Blind Set Danger Phrase Generalization Benchmark | Sec 36 | `docs/BLIND_SET_3_RESULTS.md` | Doc Record | **PASS** | Saad / Hassaan | Done |
-| Single-LLM Baseline Benchmark Comparison (RQ3) | Sec 36 | `scripts/eval/single_llm_baseline.py` | LA-31 | **PASS** (Built in PR #144; benchmark suite executed) | Usman | 13 Nov 2026 |
+| Single-LLM Baseline Benchmark Comparison (RQ3) | Sec 36 | `scripts/eval/single_llm_baseline.py` | LA-31 | **PASS** | Usman | Done (PR #144) |
 | Requirements Traceability Matrix Verification | Sec 37 | `docs/TRACEABILITY.md` | `test_traceability_links.py` | **PASS** | Usman | Done |
 | Local Demo Seed, One-Command Start & 17 Nov Cue Sheet | Sec 13.1, 15, 17, 36 | `scripts/seed_demo_local.py` & `scripts/start_local_demo.ps1` | LA-32 | **PASS** (Built in PR #149) | Usman | Done (PR I4-R) |
 

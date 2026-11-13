@@ -165,7 +165,7 @@ def build_persona_facts(p):
     # 2. Semantic keyword overrides
     for a in ans:
         a_low = a.lower()
-        if re.search(r'\b\d{2,3}\s*(mg|mmol|\bmg/dl|\bmmol/l)', a_low):
+        if re.search(r'\b\d{2,3}\s*(mg|mmol|\bmg/dl|\bmmol/l)', a_low) and not any(w in a_low for w in ["taking", "metformin", "tablet", "pill", "mg currently"]):
             facts["glucose"] = a
         if re.search(r'\b\d{2,3}\s*/\s*\d{2,3}\b', a_low):
             facts["bp"] = a
@@ -195,17 +195,18 @@ def pick_answer(facts, step, question_text, lang):
     fallback = "نہیں" if lang == "ur" else ("nahi" if lang == "roman_ur" else "no")
     unknown = "معلوم نہیں" if lang == "ur" else ("pata nahi" if lang == "roman_ur" else "I don't know")
     
-    # 1. Glucose reading
+    # 1. Glucose unit clarification (checked before glucose reading so disambiguation questions get units)
+    if ("did you mean" in q_low or "is that number in" in q_low or "is that reading in" in q_low or "unit" in step_low) and ("mmol" in q_low or "mg/dl" in q_low):
+        raw_facts = " ".join(str(v) for v in facts.values()).lower()
+        if "mmol" in raw_facts:
+            return "mmol/L", False
+        return "mg/dL", False
+
+    # 2. Glucose reading
     if "glucose_reading" in step_low or "blood sugar reading" in q_low or "sugar check ki" in q_low:
         if "glucose" in facts:
             return facts["glucose"], False
         return "100 mg/dL", True
-
-    # 2. Glucose unit clarification
-    if "did you mean" in q_low and ("mmol/l" in q_low or "mg/dl" in q_low):
-        if "glucose" in facts and "mmol" in facts["glucose"].lower():
-            return "mmol/L", False
-        return "mg/dL", False
 
     # 3. Glucose context
     if "glucose_context" in step_low or "fasting" in q_low and "before a meal" in q_low:
@@ -300,6 +301,12 @@ def pick_answer(facts, step, question_text, lang):
         if "greeting" in facts:
             return facts["greeting"], False
         return "feeling fine", True
+
+    # 20. Triage questionnaire handling
+    if step_low.startswith("triage:") or "are you confused" in q_low or "can you swallow" in q_low or "oriented in time" in q_low:
+        if "oriented in time" in q_low or "can you swallow" in q_low:
+            return ("ہاں" if lang == "ur" else ("haan" if lang == "roman_ur" else "yes")), True
+        return fallback, True
 
     if "closing" in facts:
         return facts["closing"], False
