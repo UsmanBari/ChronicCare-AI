@@ -54,6 +54,8 @@ flowchart LR
 
 ### Scene 1: English HTN Check-in & Trend Escalation [0:00 – 1:30]
 - **Portal & Persona**: Patient Portal (`demo_patient_htn@demo.care`).
+- **Benchmark Persona & Seed Patient**: `demo_patient_htn` (synthetic patient with 6-day systolic climb; maps to persona `p01_stoic_minimiser` trend archetype).
+- **Active Demo Flags**: `TREND_CAN_RAISE=true`, `RISK_ENABLED=true`, `EXPLAIN_ENABLED=true`, `EXPLAIN_MODE=background`.
 - **Proposal Reference**: Sec 13.1 Agent 8, Sec 16 (Longitudinal Trend Agent), LA-22.
 - **Actions**:
   1. Sign in as `demo_patient_htn@demo.care`.
@@ -70,6 +72,8 @@ flowchart LR
 
 ### Scene 2: Vernacular Urdu Script Check-in [1:30 – 3:00]
 - **Portal & Persona**: Patient Portal (`demo_patient_ur@demo.care`).
+- **Benchmark Persona & Seed Patient**: `demo_patient_ur` (Urdu Nastaliq script; maps to benchmark persona `p06_urdu_script_normal`).
+- **Active Demo Flags**: `APP_ENV=local`, `ORCHESTRATOR=graph`, `INTERVIEW_ENGINE=v2`.
 - **Proposal Reference**: Sec 13.2, Sec 23 (Urdu Multilingual Support), LA-10.
 - **Actions**:
   1. Sign in as `demo_patient_ur@demo.care` (interface defaults to Urdu Nastaliq script).
@@ -84,6 +88,8 @@ flowchart LR
 
 ### Scene 3: Red-Flag Emergency Bypass [3:00 – 4:15]
 - **Portal & Persona**: Patient Portal (`demo_patient_emg@demo.care`).
+- **Benchmark Persona & Seed Patient**: `demo_patient_emg` (acute red flag trigger; maps to benchmark persona `p22_hidden_danger_phrase_long_text`).
+- **Active Demo Flags**: `DANGER_WORDGROUPS_ENABLED=true`, Stage-1 deterministic bypass active.
 - **Proposal Reference**: Sec 13.1 Agent 1 (Stage 1 Red-Flag Screen), LA-05.
 - **Actions**:
   1. Sign in as `demo_patient_emg@demo.care`.
@@ -99,6 +105,8 @@ flowchart LR
 
 ### Scene 4: Caregiver Roman Urdu & Rule R8 No-Readings [4:15 – 5:30]
 - **Portal & Persona**: Patient Portal (`demo_patient_roman_ur@demo.care` & `demo_patient_norx@demo.care`).
+- **Benchmark Persona & Seed Patient**: `demo_patient_roman_ur` (maps to `p07_roman_urdu_normal` / `p10_caregiver_son`) & `demo_patient_norx` (maps to `p11_no_glucometer_barrier` / `p12_no_bp_cuff_barrier`).
+- **Active Demo Flags**: `NO_READING_SYMPTOM_RAISE=true`, Rule R8 non-hallucination wording verified.
 - **Proposal Reference**: Sec 13.2, Sec 15 (Rule R8 Wording), LA-11, LA-08.
 - **Actions**:
   1. Sign in as `demo_patient_roman_ur@demo.care`: complete Roman Urdu check-in (*"Tabiyat theek hai"*, *"128/84"*).
@@ -112,6 +120,8 @@ flowchart LR
 
 ### Scene 5: Provider Portal, Dual Risk Models & SOAP Summary [5:30 – 7:30]
 - **Portal & Persona**: Provider Portal (`provider.demo@demo.care`).
+- **Benchmark Persona & Seed Patient**: `demo_patient_dm` (maps to `p36_severe_hypo_urgent` / NHANES DM risk model) and `demo_patient_dual` (maps to `p34_dual_normal_readings` / NHANES DM + Framingham CHD10).
+- **Active Demo Flags**: `RISK_ENABLED=true`, `RISK_CAN_RAISE=true`, `RISK_PATIENT_VISIBLE=true`, `RISK_RAISE_COOLDOWN_DAYS=30`.
 - **Proposal Reference**: Sec 13.1 Agents 9 & 10, Sec 15, Sec 17, LA-13, LA-21, LA-23, LA-24, LA-26.
 - **Actions**:
   1. Sign in as `provider.demo@demo.care` $\rightarrow$ View prioritized clinical triage queue (Emergencies $\rightarrow$ Urgent $\rightarrow$ Review).
@@ -131,6 +141,8 @@ flowchart LR
 
 ### Scene 6: Prescription OCR Intake & Trust Hierarchy [7:30 – 8:30]
 - **Portal & Persona**: Patient / Provider Portal (`demo_patient_htn@demo.care`).
+- **Benchmark Persona & Seed Patient**: `demo_patient_htn` (synthetic prescription image: "Dr. Test Fictional", PMDC-00000-X).
+- **Active Demo Flags**: `OCR_ENABLED=true` (3-tier trust hierarchy: High-trust clinician EHR vs Medium-trust OCR vs Low-trust self-report).
 - **Proposal Reference**: Sec 17 (3-Tier Trust Hierarchy), Sec 21.1 (Server-Side RapidOCR), LA-15, LA-15b.
 - **Actions**:
   1. Open Patient Profile / Medical Record for `demo_patient_htn@demo.care`.
@@ -144,6 +156,8 @@ flowchart LR
 
 ### Scene 7: Admin System Configuration & Zero-Leak Proof [8:30 – 9:15]
 - **Portal & Persona**: Admin Portal (`admin@chronicare.org` / `admin.demo@demo.care`).
+- **Benchmark Persona & Seed Patient**: `admin.demo@demo.care` (system configuration inspection).
+- **Active Demo Flags**: `APP_ENV=local`, `DB_BACKEND=sqlite`, `ORCHESTRATOR=graph`, `RISK_ENABLED=true`, `RISK_CAN_RAISE=true`.
 - **Proposal Reference**: Sec 13.2, LA-01.
 - **Actions**:
   1. Navigate to `/admin` $\rightarrow$ System Configuration View (`/api/admin/config-status`).
@@ -156,6 +170,8 @@ flowchart LR
 ---
 
 ### Scene 8: Safety Architecture Wrap & Evidence [9:15 – 10:00]
+- **Benchmark Cohort**: Full 52-persona evaluation suite (`tests/sim/personas.json`) with zero dangerous under-triage on emergency/urgent cases.
+- **Active Demo Flags**: All 8 clinical feature flags active locally; purely hermetic SQLite with zero secrets.
 - **Summary Points**:
   1. **"The Model Proposes, the Rules Decide"**: ML classifiers and LLMs propose risk scores and explanations; deterministic clinical rules govern all triage escalations.
   2. **Deterministic Fallbacks**: If external APIs fail, the pipeline falls back to 100% verified, pre-approved clinical templates.
