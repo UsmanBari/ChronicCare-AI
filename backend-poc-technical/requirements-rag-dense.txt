@@ -1,0 +1,5 @@
+# Optional dense embedding & vector retrieval dependencies for ChronicCare AI RAG
+# Used ONLY locally when RETRIEVER=hybrid (not installed in live Render container)
+fastembed>=0.3.0
+chromadb>=0.4.22
+
