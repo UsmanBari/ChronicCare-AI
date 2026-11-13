@@ -1,7 +1,7 @@
 """
 Daily Check-in Reminder Service for ChronicCare AI (PR I4-H).
 Handles:
-1. Detecting overdue daily check-ins for enrolled patients after their reminder hour (default 18:00).
+1. Detecting overdue daily check-ins for enrolled patients after their reminder hour (default 18:00 PKT).
 2. Generating idempotent patient reminder notifications.
 3. In-process asyncio background task during FastAPI lifespan when REMINDERS_ENABLED=true.
 """
@@ -10,8 +10,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from datetime import UTC, datetime
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 from data_sources.app_store import get_db_cursor
 from services.notification_service import notify_daily_reminder
@@ -19,11 +19,41 @@ from services.notification_service import notify_daily_reminder
 logger = logging.getLogger("reminder_service")
 
 DEFAULT_REMINDER_HOUR = 18
+REMINDER_UTC_OFFSET_HOURS = int(os.environ.get("REMINDER_UTC_OFFSET_HOURS", "5"))
+DEFAULT_REMINDER_TZ = timezone(timedelta(hours=REMINDER_UTC_OFFSET_HOURS))
 
 
 def is_reminders_enabled() -> bool:
     """Returns True only when explicitly enabled via REMINDERS_ENABLED environment variable."""
     return os.environ.get("REMINDERS_ENABLED", "").strip().lower() in ("true", "1", "yes")
+
+
+def get_now_utc() -> datetime:
+    """Returns the current UTC datetime (mockable for testing)."""
+    return datetime.now(timezone.utc)
+
+
+def get_local_now(now_dt: Optional[datetime] = None) -> datetime:
+    """Converts now_dt (or current UTC time) into local Pakistan timezone."""
+    if now_dt is None:
+        now_dt = get_now_utc()
+    elif now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    return now_dt.astimezone(DEFAULT_REMINDER_TZ)
+
+
+def get_local_today_bounds(now_dt: Optional[datetime] = None) -> Tuple[str, str]:
+    """
+    Returns (today_str, midnight_utc_iso) in the local Pakistan timezone:
+    today_str: 'YYYY-MM-DD' representing the calendar day in Pakistan.
+    midnight_utc_iso: ISO UTC string of Pakistan midnight (00:00:00 local) for check-in queries.
+    """
+    local_dt = get_local_now(now_dt)
+    today_str = local_dt.strftime("%Y-%m-%d")
+    midnight_local = datetime(local_dt.year, local_dt.month, local_dt.day, 0, 0, 0, tzinfo=DEFAULT_REMINDER_TZ)
+    midnight_utc = midnight_local.astimezone(timezone.utc)
+    midnight_utc_iso = midnight_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return today_str, midnight_utc_iso
 
 
 def is_patient_reminder_due(
@@ -37,16 +67,15 @@ def is_patient_reminder_due(
 ) -> bool:
     """
     Evaluates whether a daily check-in reminder is due for the given patient:
-    1. Current hour >= reminder_hour.
-    2. Patient has NOT completed or started a check-in today (after midnight UTC).
+    1. Current local Pakistan hour >= reminder_hour.
+    2. Patient has NOT completed or started a check-in today (after midnight local time).
     3. Patient has NOT already received a reminder notification today.
     """
-    now = now_dt or datetime.now(UTC)
-    if now.hour < reminder_hour:
+    local_now = get_local_now(now_dt)
+    if local_now.hour < reminder_hour:
         return False
 
-    today_str = now.strftime("%Y-%m-%d")
-    midnight_utc = f"{today_str}T00:00:00Z"
+    today_str, midnight_utc = get_local_today_bounds(now_dt)
 
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         # Check if patient already completed a check-in today
@@ -77,8 +106,7 @@ def dispatch_due_reminders(
     Scans all active enrolled patients and dispatches daily check-in reminders
     for any whose reminder is due. Returns the number of reminders created.
     """
-    now = now_dt or datetime.now(UTC)
-    today_str = now.strftime("%Y-%m-%d")
+    today_str, _ = get_local_today_bounds(now_dt)
     dispatched = 0
 
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
@@ -89,7 +117,7 @@ def dispatch_due_reminders(
         pid = row[0]
         if is_patient_reminder_due(
             user_id=pid,
-            now_dt=now,
+            now_dt=now_dt,
             reminder_hour=reminder_hour,
             backend=backend,
             db_path=db_path,
