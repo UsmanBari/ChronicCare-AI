@@ -617,3 +617,40 @@ def test_orchestrator_level_invariant_and_appointments(temp_db, monkeypatch, mod
         assert appt["urgency"] == expected_urgency
         assert appt["specialty"] == "internal_medicine"
 
+
+def test_escalation_timeout_env_override(temp_db, monkeypatch):
+    """
+    Verifies that ESCALATION_TIMEOUT_MINUTES and ESCALATION_RENOTIFY_MINUTES
+    allow demoing escalation transitions within a short evaluation window (e.g. 10 minutes).
+    """
+    monkeypatch.setenv("ESCALATION_TIMEOUT_MINUTES", "10")
+    monkeypatch.setenv("ESCALATION_RENOTIFY_MINUTES", "2")
+
+    created_dt = datetime(2026, 11, 12, 10, 0, 0, tzinfo=UTC)
+    now_iso = created_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    appt = evaluate_and_create_appointment(
+        checkin_id="chk-esc-demo-001",
+        patient_id="pat-esc-demo",
+        final_triage_level="urgent",
+        patient_conditions=["hypertension"],
+        backend="sqlite",
+        db_path=temp_db,
+        now_iso=now_iso,
+    )
+
+    # 1. At 1m -> pending (< 2 min threshold)
+    t_1m = created_dt + timedelta(minutes=1)
+    s1 = compute_escalation_state(appt, now_dt=t_1m, backend="sqlite", db_path=temp_db)
+    assert s1["escalation_state"] == "pending"
+
+    # 2. At 2m -> re_notify (>= 2 min threshold)
+    t_2m = created_dt + timedelta(minutes=2)
+    s2 = compute_escalation_state(appt, now_dt=t_2m, backend="sqlite", db_path=temp_db)
+    assert s2["escalation_state"] == "re_notify"
+
+    # 3. At 10m -> admin_flag (>= 10 min threshold)
+    t_10m = created_dt + timedelta(minutes=10)
+    s3 = compute_escalation_state(appt, now_dt=t_10m, backend="sqlite", db_path=temp_db)
+    assert s3["escalation_state"] == "admin_flag"
+

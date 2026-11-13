@@ -891,10 +891,12 @@ class LocalAcceptanceRunner:
             extracted_meds = upload_data.get("extracted", {}).get("medications", [])
 
             # Confirm staged upload
+            med_name = (extracted_meds[0].get("name") if extracted_meds else None) or "Metformin 500mg"
+            med_dose = (extracted_meds[0].get("dosage") if extracted_meds else None) or "500mg"
             confirm_item = {
                 "type": "medication",
-                "name": extracted_meds[0]["name"] if extracted_meds else "Metformin 500mg",
-                "dosage": extracted_meds[0]["dosage"] if extracted_meds else "500mg",
+                "name": med_name,
+                "dosage": med_dose,
                 "status": "active",
             }
             conf_resp = requests.post(
