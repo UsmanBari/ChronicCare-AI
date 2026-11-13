@@ -142,3 +142,15 @@ To provide additional transparency for clinicians, the post-hoc evaluation will 
    - `bmi` / `waist_cm`: Expected positive ($\beta > 0$, adiposity-driven insulin resistance).
    - `age`: Frequently negative in NHANES ($\beta < 0$, younger adults often have higher HbA1c than older adults with stable routines). Report empirical directions without forcing.
 2. **SHAP Attributions:** Compute linear SHAP values for global ranking and evaluate 3 synthetic patient cases (Low, Moderate, High risk profiles).
+
+---
+
+## 10. Correction (12 Nov 2026, before any test-set number)
+
+As defined in the authoritative splitting code (`backend-poc-technical/ml/splits.py`, `nhanes_temporal_v1`), the exact cycle partition across time is:
+- **`TRAIN_CORE_CYCLES` (7 cycles):** `1999-2000`, `2001-2002`, `2003-2004`, `2005-2006`, `2007-2008`, `2009-2010`, `2011-2012` (1999–2012).
+- **`VALIDATION_CYCLES` (2 cycles):** `2013-2014`, `2015-2016` (2013–2016).
+- **`TEST_CYCLES` (2 cycles):** `2017-2018`, `2021-2023` (2017–2023). Note that the COVID-interrupted `2019-2020` cycle is NOT used in NHANES data processing or splits.
+
+Nothing else in this pre-registration changed: all features, candidate models, Decision D10 parsimony rules, validation threshold policies, D8 risk bands, and G1–G5 acceptance gates remain exactly as locked.
+
