@@ -32,7 +32,7 @@ from fastapi import FastAPI, HTTPException, status, Header, Depends, Query, Requ
 import io
 from data_sources.ocr.provider import get_ocr_provider, check_ocr_provider_available
 from data_sources.ocr.staging import stage_upload, get_staged_upload, remove_staged_upload
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
@@ -220,7 +220,25 @@ async def lifespan(app: FastAPI):
             logger.info("DbChunkStore loaded at startup: %d chunks", store.total_chunks())
         except Exception as e:
             logger.warning("DbChunkStore startup load skipped: %s", type(e).__name__)
+
+    reminder_task = None
+    if os.environ.get("REMINDERS_ENABLED", "").strip().lower() in ("true", "1", "yes"):
+        try:
+            import asyncio
+            from services.reminder_service import reminder_worker_loop
+            reminder_task = asyncio.create_task(reminder_worker_loop(interval_seconds=60))
+            logger.info("Reminder background worker launched.")
+        except Exception as e:
+            logger.warning("Failed to launch reminder background worker: %s", e)
+
     yield
+
+    if reminder_task:
+        reminder_task.cancel()
+        try:
+            await reminder_task
+        except (asyncio.CancelledError, Exception):
+            pass
 
 
 class DynamicCORSMiddleware(CORSMiddleware):
@@ -3911,6 +3929,7 @@ def get_config_status_endpoint(current_user: Dict[str, Any] = Depends(require_ro
         "NO_READING_SYMPTOM_RAISE": os.environ.get("NO_READING_SYMPTOM_RAISE", "").strip().lower() == "true",
         "RISK_RAISE_COOLDOWN_DAYS": int(os.environ.get("RISK_RAISE_COOLDOWN_DAYS", "0") or 0),
         "RETRIEVER": os.environ.get("RETRIEVER", "bm25").strip().lower(),
+        "TTS_ENABLED": os.environ.get("TTS_ENABLED", "").strip().lower() == "true",
     }
 
     def _status_val(env_var: str) -> str:
@@ -5047,6 +5066,89 @@ def get_checkin_explanation_endpoint(
     )
 
 
+@app.get("/api/voice/status", tags=["Voice"])
+def get_voice_status_endpoint():
+    """
+    Returns whether TTS speech synthesis is enabled (boolean flag only).
+    """
+    from voice import tts_service
+    return {"tts_enabled": bool(tts_service.is_tts_enabled())}
+
+
+@app.post("/api/checkins/{checkin_id}/speech", tags=["Check-in"])
+def get_checkin_speech_endpoint(
+    checkin_id: str,
+    lang: Optional[str] = Query(None),
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """
+    Synthesizes spoken audio for a check-in explanation using Meta MMS-TTS (PR I4-I).
+    Safety Invariant: Speaks ONLY already-shown explanation sentences for this patient's check-in.
+    Returns audio/wav bytes with local caching.
+    """
+    from voice import tts_service
+    if not tts_service.is_tts_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Speech output service not enabled (TTS_ENABLED=false)",
+        )
+
+    try:
+        wav_bytes = tts_service.get_checkin_speech(
+            checkin_id=checkin_id,
+            current_user_id=current_user["user_id"],
+            requested_language=lang,
+        )
+        return Response(
+            content=wav_bytes,
+            media_type="audio/wav",
+            headers={"Content-Disposition": f'inline; filename="checkin_{checkin_id}.wav"'},
+        )
+    except tts_service.TtsDisabledError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Speech output service not enabled")
+    except KeyError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Check-in session not found")
+    except PermissionError:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: cannot access another patient's check-in")
+    except tts_service.RomanUrduVoiceUnavailableError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="voice not available for Roman Urdu text",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except Exception as exc:
+        logger.error(f"TTS synthesis error: {exc}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Speech generation failed")
+
+
+@app.post("/api/emergency/speech", tags=["Check-in"])
+def get_emergency_speech_endpoint(
+    lang: str = Query("ur"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Returns pre-cached spoken audio instructions for emergency services (1122) in Urdu or English.
+    """
+    from voice import tts_service
+    if not tts_service.is_tts_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Speech output service not enabled (TTS_ENABLED=false)",
+        )
+
+    try:
+        wav_bytes = tts_service.get_emergency_speech(language=lang)
+        return Response(
+            content=wav_bytes,
+            media_type="audio/wav",
+            headers={"Content-Disposition": f'inline; filename="emergency_{lang}.wav"'},
+        )
+    except Exception as exc:
+        logger.error(f"Emergency speech error: {exc}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Emergency speech generation failed")
+
+
 # =============================================================================
 def _compute_patient_trends_safe(user_id: str, days: int = 30) -> Optional[TrendsResponse]:
     """Safely compute patient trends for clinical review; fails gracefully to None."""
@@ -5653,4 +5755,319 @@ async def voice_transcribe_endpoint(
     del audio_bytes
 
     return VoiceTranscribeResponse(text=text)
+
+
+# -------------------------------------------------------------------------
+# APPOINTMENT & PROVIDER DIRECTORY ENDPOINTS (PR D / Proposal Sec 15, 35)
+# -------------------------------------------------------------------------
+
+class BookAppointmentRequest(BaseModel):
+    slot_date: str
+    mode: Optional[str] = "telehealth"
+
+
+class UpdateProviderAvailabilityRequest(BaseModel):
+    available: bool
+
+
+@app.get("/api/me/appointments", tags=["Appointments"])
+def get_my_appointments(current_user: Dict[str, Any] = Depends(require_role("patient"))):
+    """Retrieves all appointments for the authenticated patient, with computed escalation states."""
+    from data_sources.app_store import list_patient_appointments
+    from services.appointment_service import compute_escalation_state
+
+    patient_id = current_user["user_id"]
+    raw_list = list_patient_appointments(patient_id=patient_id)
+    enhanced = [compute_escalation_state(a) for a in raw_list]
+    return {"appointments": enhanced}
+
+
+@app.post("/api/me/appointments/{appointment_id}/book", tags=["Appointments"])
+def book_my_appointment(
+    appointment_id: str,
+    req: BookAppointmentRequest,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Allows a patient to book an offered appointment within the allowed 3-day window."""
+    from services.appointment_service import book_appointment_slot
+
+    patient_id = current_user["user_id"]
+    try:
+        updated = book_appointment_slot(
+            appointment_id=appointment_id,
+            patient_id=patient_id,
+            slot_date=req.slot_date,
+            mode=req.mode,
+        )
+        return updated
+    except PermissionError as p_err:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(p_err)) from p_err
+    except ValueError as v_err:
+        msg = str(v_err)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from v_err
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=msg) from v_err
+
+
+@app.post("/api/me/appointments/{appointment_id}/cancel", tags=["Appointments"])
+def cancel_my_appointment(
+    appointment_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Allows a patient to cancel an appointment."""
+    from services.appointment_service import cancel_appointment
+
+    patient_id = current_user["user_id"]
+    try:
+        updated = cancel_appointment(appointment_id=appointment_id, patient_id=patient_id)
+        return updated
+    except PermissionError as p_err:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(p_err)) from p_err
+    except ValueError as v_err:
+        msg = str(v_err)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg) from v_err
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg) from v_err
+
+
+@app.get("/api/provider/appointments", tags=["Appointments"])
+def get_provider_appointments(current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin"))):
+    """Retrieves prioritized clinical appointments with computed escalation state."""
+    from data_sources.app_store import list_provider_appointments
+    from services.appointment_service import compute_escalation_state
+
+    raw_list = list_provider_appointments()
+    enhanced = [compute_escalation_state(a) for a in raw_list]
+    return {"appointments": enhanced}
+
+
+@app.post("/api/provider/appointments/{appointment_id}/acknowledge", tags=["Appointments"])
+def acknowledge_provider_appointment(
+    appointment_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin")),
+):
+    """Provider acknowledges an urgent appointment, clearing escalation timeout."""
+    from services.appointment_service import acknowledge_appointment
+
+    provider_id = current_user["user_id"]
+    try:
+        updated = acknowledge_appointment(appointment_id=appointment_id, provider_id=provider_id)
+        return updated
+    except ValueError as v_err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(v_err)) from v_err
+
+
+@app.post("/api/provider/appointments/{appointment_id}/attended", tags=["Appointments"])
+def mark_provider_appointment_attended(
+    appointment_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin")),
+):
+    """Provider marks an appointment as attended."""
+    from services.appointment_service import mark_appointment_attended
+
+    provider_id = current_user["user_id"]
+    try:
+        updated = mark_appointment_attended(appointment_id=appointment_id, provider_id=provider_id)
+        return updated
+    except ValueError as v_err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(v_err)) from v_err
+
+
+@app.get("/api/admin/providers", tags=["Appointments"])
+def get_admin_providers(current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin"))):
+    """Retrieves synthetic provider directory."""
+    from data_sources.app_store import list_providers
+
+    providers = list_providers()
+    return {"providers": providers}
+
+
+@app.patch("/api/admin/providers/{provider_id}", tags=["Appointments"])
+def update_admin_provider(
+    provider_id: str,
+    req: UpdateProviderAvailabilityRequest,
+    current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin")),
+):
+    """Toggles provider availability on or off."""
+    from data_sources.app_store import get_provider, update_provider_availability
+
+    prov = get_provider(provider_id)
+    if not prov:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Provider {provider_id} not found")
+
+    update_provider_availability(provider_id=provider_id, available=req.available)
+    updated = get_provider(provider_id)
+    return updated
+
+
+@app.get("/api/admin/escalations", tags=["Appointments"])
+def get_admin_escalations(current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin"))):
+    """Lists appointments with admin_flag escalation state."""
+    from data_sources.app_store import list_provider_appointments
+    from services.appointment_service import compute_escalation_state
+
+    raw_list = list_provider_appointments()
+    enhanced = [compute_escalation_state(a) for a in raw_list]
+    escalations = [a for a in enhanced if a.get("escalation_state") == "admin_flag"]
+    return {"escalations": escalations}
+
+
+# ---------------------------------------------------------------------------
+# Notifications & FCM Web Push Endpoints (PR I4-H)
+# ---------------------------------------------------------------------------
+
+class FcmTokenRequest(BaseModel):
+    token: str
+    device_info: Optional[str] = None
+
+
+@app.get("/api/me/notifications", tags=["Notifications"])
+def get_my_notifications(
+    unread_only: bool = False,
+    limit: int = 50,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """
+    Retrieves in-app notifications for the authenticated patient.
+    Checks and generates due daily reminder on the fly when the app opens (N3).
+    """
+    from services.reminder_service import is_patient_reminder_due
+    from services.notification_service import notify_daily_reminder
+    from data_sources.app_store import list_notifications, count_unread_notifications
+    from datetime import datetime, timezone
+
+    user_id = current_user["user_id"]
+
+    # Compute due reminders on open (N3)
+    try:
+        now_utc = datetime.now(timezone.utc)
+        if is_patient_reminder_due(user_id=user_id, now_dt=now_utc):
+            notify_daily_reminder(patient_id=user_id, reminder_date_iso=now_utc.strftime("%Y-%m-%d"))
+    except Exception as e:
+        logger.warning("On-open reminder check failed: %s", e)
+
+    notifs = list_notifications(recipient_id=user_id, role="patient", unread_only=unread_only, limit=limit)
+    unread = count_unread_notifications(recipient_id=user_id, role="patient")
+    return {"notifications": notifs, "unread_count": unread}
+
+
+@app.post("/api/me/notifications/{notification_id}/read", tags=["Notifications"])
+def mark_my_notification_read(
+    notification_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Marks a patient notification as read."""
+    from data_sources.app_store import mark_notification_read, get_notification
+
+    notif = get_notification(notification_id)
+    if not notif or notif.get("recipient_id") != current_user["user_id"]:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+
+    updated = mark_notification_read(notification_id, recipient_id=current_user["user_id"])
+    return updated
+
+
+@app.post("/api/me/notifications/read-all", tags=["Notifications"])
+def mark_all_my_notifications_read(
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
+    """Marks all unread notifications for authenticated patient as read."""
+    from data_sources.app_store import mark_all_notifications_read
+
+    count = mark_all_notifications_read(recipient_id=current_user["user_id"], role="patient")
+    return {"updated": count}
+
+
+@app.post("/api/me/fcm-token", tags=["Notifications"])
+def register_fcm_token(
+    req: FcmTokenRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Registers an FCM web push token for the authenticated user."""
+    from data_sources.app_store import save_fcm_token
+
+    if not req.token or not req.token.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Token cannot be empty")
+
+    res = save_fcm_token(
+        user_id=current_user["user_id"],
+        token=req.token.strip(),
+        device_info=req.device_info,
+    )
+    return res
+
+
+@app.delete("/api/me/fcm-token", tags=["Notifications"])
+def remove_fcm_token(
+    req: FcmTokenRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Unregisters an FCM web push token."""
+    from data_sources.app_store import delete_fcm_token
+
+    delete_fcm_token(user_id=current_user["user_id"], token=req.token.strip())
+    return {"status": "unregistered"}
+
+
+@app.get("/api/provider/notifications", tags=["Notifications"])
+def get_provider_notifications(
+    unread_only: bool = False,
+    limit: int = 50,
+    current_user: Dict[str, Any] = Depends(require_role("doctor", "provider")),
+):
+    """Retrieves notifications for clinical providers (urgent check-ins and 2h re-notifications)."""
+    from data_sources.app_store import list_notifications, count_unread_notifications
+
+    prov_id = current_user.get("user_id") or "prov-demo-gen-1"
+    notifs = list_notifications(role="provider", unread_only=unread_only, limit=limit)
+    matched = [n for n in notifs if n.get("recipient_id") in (prov_id, "prov-demo-gen-1", "prov-demo-cardio", "prov-demo-endo", "prov-demo-im")]
+    unread = count_unread_notifications(role="provider")
+    return {"notifications": matched, "unread_count": unread}
+
+
+@app.post("/api/provider/notifications/{notification_id}/read", tags=["Notifications"])
+def mark_provider_notification_read(
+    notification_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("doctor", "provider")),
+):
+    """Marks a provider notification as read."""
+    from data_sources.app_store import mark_notification_read, get_notification
+
+    notif = get_notification(notification_id)
+    if not notif or notif.get("role") != "provider":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+
+    updated = mark_notification_read(notification_id)
+    return updated
+
+
+@app.get("/api/admin/notifications", tags=["Notifications"])
+def get_admin_notifications(
+    unread_only: bool = False,
+    limit: int = 50,
+    current_user: Dict[str, Any] = Depends(require_role("admin")),
+):
+    """Retrieves administrative escalation notifications (24h admin flags)."""
+    from data_sources.app_store import list_notifications, count_unread_notifications
+
+    notifs = list_notifications(role="admin", unread_only=unread_only, limit=limit)
+    unread = count_unread_notifications(role="admin")
+    return {"notifications": notifs, "unread_count": unread}
+
+
+@app.post("/api/admin/notifications/{notification_id}/read", tags=["Notifications"])
+def mark_admin_notification_read(
+    notification_id: str,
+    current_user: Dict[str, Any] = Depends(require_role("admin")),
+):
+    """Marks an admin notification as read."""
+    from data_sources.app_store import mark_notification_read, get_notification
+
+    notif = get_notification(notification_id)
+    if not notif or notif.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+
+    updated = mark_notification_read(notification_id)
+    return updated
+
 

@@ -382,6 +382,10 @@ export interface AdminConfigStatusResponse {
   };
 }
 
+export interface VoiceStatusResponse {
+  tts_enabled: boolean;
+}
+
 export interface CheckinCompleteResponse {
   emergency: boolean;
   intakes: Array<Record<string, any>>;
@@ -396,6 +400,53 @@ export interface CheckinCompleteResponse {
   triage_colour?: string | null;
   triage_level?: string | null;
   risk_patient?: Array<{ model_key: string; band: string; message_key: string }> | null;
+  appointment?: Appointment | null;
+}
+
+export interface Appointment {
+  id: string;
+  patient_id: string;
+  checkin_id: string;
+  provider_id: string;
+  specialty: 'endocrinology' | 'cardiology_im' | 'internal_medicine' | 'general' | string;
+  urgency: 'routine' | 'urgent';
+  mode: 'in_person' | 'telehealth';
+  status: 'offered' | 'booked' | 'cancelled' | 'attended';
+  slot_date?: string | null;
+  slot?: string | null;
+  reason?: string | null;
+  created_at: string;
+  acknowledged_at?: string | null;
+  admin_flagged_at?: string | null;
+  escalation_state?: 'pending' | 're_notify' | 'admin_flag' | 'acknowledged' | 'none';
+}
+
+export interface ProviderDirectoryEntry {
+  id: string;
+  display_name: string;
+  name?: string;
+  clinic?: string;
+  specialty: string;
+  available: boolean;
+  is_available?: boolean;
+  created_at: string;
+}
+
+export interface InAppNotification {
+  id: string;
+  user_id: string;
+  role: string;
+  type: 'urgent_checkin' | 'escalation_renotify' | 'escalation_admin_flag' | 'daily_reminder' | string;
+  title: string;
+  body: string;
+  reference_id?: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface NotificationListResponse {
+  notifications: InAppNotification[];
+  unread_count: number;
 }
 
 export interface UserCheckinSummaryResponse {
@@ -898,6 +949,46 @@ async function request<T>(
   }
 }
 
+async function requestBlob(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<Blob> {
+  const baseUrl = getBaseUrl();
+  const url = `${baseUrl}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  const defaultHeaders = await getAuthHeaders();
+  delete defaultHeaders["Content-Type"];
+
+  const finalHeaders: Record<string, string> = {
+    ...defaultHeaders,
+    ...(options.headers as Record<string, string> | undefined),
+  };
+
+  const response = await fetch(url, {
+    ...options,
+    headers: finalHeaders,
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      notifyUnauthorized();
+    }
+    let detail = `HTTP ${response.status}`;
+    let data: any = null;
+    try {
+      const errJson = await response.json();
+      data = errJson;
+      if (errJson && errJson.detail) {
+        detail = typeof errJson.detail === "string" ? errJson.detail : JSON.stringify(errJson.detail);
+      }
+    } catch {
+      // response is not JSON
+    }
+    throw new ApiError(response.status, detail, data);
+  }
+
+  return await response.blob();
+}
+
 const inFlightCompleteRequests = new Map<string, Promise<CheckinCompleteResponse>>();
 
 export const api = {
@@ -1147,6 +1238,35 @@ export const api = {
     );
   },
 
+  getCheckinSpeech: async (
+    checkin_id: string
+  ): Promise<Blob> => {
+    return requestBlob(
+      `/api/checkins/${encodeURIComponent(checkin_id)}/speech`,
+      {
+        method: "POST",
+      }
+    );
+  },
+
+  getEmergencySpeech: async (
+    lang?: string
+  ): Promise<Blob> => {
+    const query = lang ? `?lang=${encodeURIComponent(lang)}` : "";
+    return requestBlob(
+      `/api/emergency/speech${query}`,
+      {
+        method: "POST",
+      }
+    );
+  },
+
+  getVoiceStatus: async (): Promise<VoiceStatusResponse> => {
+    return request<VoiceStatusResponse>("/api/voice/status", {
+      method: "GET",
+    });
+  },
+
   getUserCheckins: async (): Promise<UserCheckinSummaryResponse[]> => {
     return request<UserCheckinSummaryResponse[]>("/api/checkins", {
       method: "GET",
@@ -1273,6 +1393,106 @@ export const api = {
       method: "POST",
       headers: isFhir ? { "Content-Type": "application/fhir+json" } : { "Content-Type": "application/json" },
       body: typeof payload === "string" ? payload : JSON.stringify(payload),
+    });
+  },
+
+  // 9. Appointments & Provider Directory (PR D / Proposal Sec 15)
+  getMyAppointments: async (): Promise<{ appointments: Appointment[] }> => {
+    return request<{ appointments: Appointment[] }>("/api/me/appointments");
+  },
+
+  bookAppointment: async (appointmentId: string, slotDate: string, mode: string = "telehealth"): Promise<Appointment> => {
+    return request<Appointment>(`/api/me/appointments/${encodeURIComponent(appointmentId)}/book`, {
+      method: "POST",
+      body: JSON.stringify({ slot_date: slotDate, mode }),
+    });
+  },
+
+  cancelAppointment: async (appointmentId: string): Promise<Appointment> => {
+    return request<Appointment>(`/api/me/appointments/${encodeURIComponent(appointmentId)}/cancel`, {
+      method: "POST",
+    });
+  },
+
+  getProviderAppointments: async (): Promise<{ appointments: Appointment[] }> => {
+    return request<{ appointments: Appointment[] }>("/api/provider/appointments");
+  },
+
+  acknowledgeAppointment: async (appointmentId: string): Promise<Appointment> => {
+    return request<Appointment>(`/api/provider/appointments/${encodeURIComponent(appointmentId)}/acknowledge`, {
+      method: "POST",
+    });
+  },
+
+  markAppointmentAttended: async (appointmentId: string): Promise<Appointment> => {
+    return request<Appointment>(`/api/provider/appointments/${encodeURIComponent(appointmentId)}/attended`, {
+      method: "POST",
+    });
+  },
+
+  getAdminProviders: async (): Promise<{ providers: ProviderDirectoryEntry[] }> => {
+    return request<{ providers: ProviderDirectoryEntry[] }>("/api/admin/providers");
+  },
+
+  updateProviderAvailability: async (providerId: string, available: boolean): Promise<ProviderDirectoryEntry> => {
+    return request<ProviderDirectoryEntry>(`/api/admin/providers/${encodeURIComponent(providerId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ available }),
+    });
+  },
+
+  getAdminEscalations: async (): Promise<{ escalations: Appointment[] }> => {
+    return request<{ escalations: Appointment[] }>("/api/admin/escalations");
+  },
+
+  // 10. In-App Notifications & FCM Web Push (PR H / Proposal Sec 13.2 & 15)
+  getMyNotifications: async (): Promise<NotificationListResponse> => {
+    return request<NotificationListResponse>("/api/me/notifications");
+  },
+
+  markNotificationRead: async (notificationId: string): Promise<InAppNotification> => {
+    return request<InAppNotification>(`/api/me/notifications/${encodeURIComponent(notificationId)}/read`, {
+      method: "POST",
+    });
+  },
+
+  markAllNotificationsRead: async (): Promise<{ updated: number }> => {
+    return request<{ updated: number }>("/api/me/notifications/read-all", {
+      method: "POST",
+    });
+  },
+
+  registerFcmToken: async (token: string, deviceInfo?: string): Promise<{ token: string; status: string }> => {
+    return request<{ token: string; status: string }>("/api/me/fcm-token", {
+      method: "POST",
+      body: JSON.stringify({ token, device_info: deviceInfo }),
+    });
+  },
+
+  deleteFcmToken: async (token: string): Promise<{ deleted: boolean }> => {
+    return request<{ deleted: boolean }>("/api/me/fcm-token", {
+      method: "DELETE",
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  getProviderNotifications: async (): Promise<NotificationListResponse> => {
+    return request<NotificationListResponse>("/api/provider/notifications");
+  },
+
+  markProviderNotificationRead: async (notificationId: string): Promise<InAppNotification> => {
+    return request<InAppNotification>(`/api/provider/notifications/${encodeURIComponent(notificationId)}/read`, {
+      method: "POST",
+    });
+  },
+
+  getAdminNotifications: async (): Promise<NotificationListResponse> => {
+    return request<NotificationListResponse>("/api/admin/notifications");
+  },
+
+  markAdminNotificationRead: async (notificationId: string): Promise<InAppNotification> => {
+    return request<InAppNotification>(`/api/admin/notifications/${encodeURIComponent(notificationId)}/read`, {
+      method: "POST",
     });
   },
 };
