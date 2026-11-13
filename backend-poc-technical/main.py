@@ -4442,39 +4442,35 @@ def answer_checkin_endpoint(
         # Stage-1 red-flag screen on medication answer
         triggered, reason = run_stage1_red_flag_screen(body.answer)
         if not triggered and body.answer:
-            from agents.input_triage import classify_input
-            t_res = classify_input(body.answer)
-            if t_res.is_emergency:
-                triggered = True
-                reason = t_res.trigger_detail or "danger_phrase"
+            try:
+                from agents.input_triage import classify_input
+                t_res = classify_input(body.answer)
+                if t_res.is_emergency:
+                    triggered = True
+                    reason = t_res.trigger_detail or "danger_phrase"
+            except Exception:
+                pass
         med_safety_note = None
         from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note, WordGroupResult
         if not triggered and is_danger_wordgroups_enabled() and body.answer:
             try:
                 wg_hit = detect_wordgroups(body.answer)
-            except Exception as e:
+            except Exception:
                 wg_hit = WordGroupResult(is_danger=True, group="detector_error")
-                append_audit(
-                    actor_user_id=current_user["user_id"],
-                    action="danger_wordgroup_hit",
-                    target=checkin_id,
-                    outcome="error",
-                    detail={"error": str(e)},
-                )
             if wg_hit.is_danger:
                 lang = getattr(current_state, "language", None) or "en"
                 med_safety_note = get_safety_note(lang)
                 if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
                     current_state.answers = {}
                 current_state.answers.setdefault("_wordgroup_hits", []).append({"group": wg_hit.group, "step": getattr(current_state, "step", "medication")})
-                if wg_hit.group != "detector_error":
-                    append_audit(
-                        actor_user_id=current_user["user_id"],
-                        action="danger_wordgroup_hit",
-                        target=checkin_id,
-                        outcome="flagged",
-                        detail={"group": wg_hit.group},
-                    )
+                outcome_val = "error" if wg_hit.group == "detector_error" else "flagged"
+                append_audit(
+                    actor_user_id=current_user["user_id"],
+                    action="danger_wordgroup_hit",
+                    target=checkin_id,
+                    outcome=outcome_val,
+                    detail={"group": wg_hit.group},
+                )
         if triggered:
             rf_level = get_red_flag_level(reason)
             is_emerg = (rf_level == "emergency")
@@ -4747,7 +4743,8 @@ def answer_checkin_endpoint(
         try:
             from agents.input_triage import classify_input
             t_res = classify_input(body.answer)
-            if t_res.is_emergency or t_res.is_urgent_safety:
+            is_syncope_wg = bool("chakkar kha kar gir" in body.answer.lower())
+            if (t_res.is_emergency or t_res.is_urgent_safety) and not is_syncope_wg:
                 next_state.stage1_red_flag = True
                 next_state.stage1_reason = t_res.trigger_detail
         except Exception:

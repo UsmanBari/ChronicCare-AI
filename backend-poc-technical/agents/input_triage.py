@@ -66,6 +66,7 @@ MULTILINGUAL_DANGER_CATEGORIES: Dict[str, List[str]] = {
         "seene mein sakht dard hai", "seene me sakht dard hai",
         "seene mein sakht dard ho raha hai", "seene me sakht dard ho raha hai",
         "seene mein sakht dard", "seene me sakht dard",
+        "seene par sakht dabao aur bojh", "seene par sakht dabao",
         "seene mein tez dard hai", "seene me tez dard hai",
         "seene mein tez dard", "seene me tez dard",
         "seene par shadeed bojh ho raha hai", "seene par bojh ho raha hai",
@@ -126,7 +127,7 @@ MULTILINGUAL_DANGER_CATEGORIES: Dict[str, List[str]] = {
         "سانس بہت پھول رہی ہے", "سانس بہت پھول رہی",
         "سانس پھول رہی ہے", "سانس پھول رہی",
         "سانس اکھڑ رہی ہے", "سانس اکھڑ رہی",
-        "سانس نہیں آ رہی", "سانس نہیں آ رہا",
+        "سانس نہیں آ رہی", "سانس نہیں آ رہا", "سانس بالکل نہیں آ رہی",
         "دم گھٹ رہا", "دم گھٹ رہا ہے", "سانس رک رہی", "سانس رک رہی ہے", "سانس بالکل رک رہی ہے",
     ],
     "confusion_and_stroke": [
@@ -155,8 +156,11 @@ MULTILINGUAL_DANGER_CATEGORIES: Dict[str, List[str]] = {
         "aik taraf ka bazu aur chehra sunn aur kamzor",
         "ek taraf ka bazu aur chehra sunn aur kamzor",
         "bazu aur chehra sunn aur kamzor",
+        "bayein bazu aur chehre par sunn", "zabaan ladkhada rahi hai",
+        "chehra aik taraf latak gaya", "bazu hil nahi raha",
         "chehra terha ho gaya hai", "munh terha ho گیا hai", "munh aik taraf terha ho gaya",
         "zuban ladkhada rahi hai aur samajh nahi aa raha",
+        "zabaan ladkhada rahi hai aur samajh nahi aa raha",
         "awaz ladkhada rahi hai aur samajh nahi aa raha",
         "zuban ladkhada rahi hai", "awaz ladkhada rahi hai",
         "bol nahi pa raha", "bol nahi pa rahi",
@@ -169,6 +173,7 @@ MULTILINGUAL_DANGER_CATEGORIES: Dict[str, List[str]] = {
         "سمجھ نہیں آ رہا میں کہاں ہوں", "کہاں ہوں",
         "ایک طرف کا بازو اور چہرہ سن اور کمزور ہو گیا ہے",
         "ایک طرف کا بازو اور چہرہ سن اور کمزور", "بازو اور چہرہ سن اور کمزور",
+        "بائیں بازو میں حرکت نہیں", "چہرہ اور بازو اچانک سن", "چہرہ اور بازو سن",
         "ایک طرف کا چہرہ ٹیڑھا ہو گیا ہے", "چہرہ ٹیڑھا ہو گیا ہے", "منہ ٹیڑھا ہو گیا ہے",
         "زبان لڑکھڑا رہی ہے اور کچھ سمجھ نہیں آ رہا",
         "آواز لڑکھڑا رہی ہے اور کچھ سمجھ نہیں آ رہا",
@@ -190,16 +195,12 @@ MULTILINGUAL_DANGER_CATEGORIES: Dict[str, List[str]] = {
         "be hosh ho gayi thi", "be hosh ho gaya tha",
         "be hosh ho gayi", "be hosh ho gai",
         "behosh hui thi", "behosh hua tha", "behosh hui", "behosh hua",
-        "chakkar kha kar gir gayi thi", "chakkar kha kar gir gaya tha",
-        "chakkar kha kar gir gayi", "chakkar kha kar gir گیا",
         "ghashi par gayi thi", "ghashi tari ho gayi",
         "بے ہوش ہو گیا", "غشی پڑ گئی", "بے ہوشی", "غشی طاری",
         "آج صبح میں بے ہوش ہو گئی تھی", "آج صبح میں بے ہوش ہو گیا تھا",
         "آج صبح بے ہوش ہو گئی تھی", "آج صبح بے ہوش ہو گیا تھا",
         "میں بے ہوش ہو گئی تھی", "میں بے ہوش ہو گیا تھا",
         "بے ہوش ہو گئی تھی", "بے ہوش ہو گیا تھا", "بے ہوش ہو گئی",
-        "چکر کھا کر گر گئی تھی", "چکر کھا کر گر گیا تھا",
-        "چکر کھا کر گر گئی", "چکر کھا کر گر گیا",
         "غشی پڑ گئی تھی", "غشی طاری ہو گئی",
     ],
     "severe_headache_thunderclap": [
@@ -212,33 +213,6 @@ MULTILINGUAL_DANGER_CATEGORIES: Dict[str, List[str]] = {
         "sudden vision loss", "lost my vision", "went blind", "can't see at all", "cannot see anything",
         "achanak nazar chali gayi", "aankhon ke aage andhera", "nazar achanak chali gayi",
         "اچانک بینائی چلی گئی", "آنکھوں کے آگے اچانک اندھیرا", "آنکھوں کی بینائی چلی گئی",
-    ],
-    "unable_to_keep_fluids": [
-        "cannot keep any fluids down", "can't keep any fluids down",
-        "cannot keep fluids down", "can't keep fluids down", "unable to keep fluids down",
-        "not able to keep fluids down",
-        "cannot keep anything down", "can't keep anything down", "unable to keep anything down",
-        "not able to keep anything down",
-        "can't keep water down", "cannot keep water down", "unable to keep water down",
-        "can't keep medicines down", "cannot keep medicines down", "unable to keep medicines down",
-        "won't stay down", "wont stay down", "throwing up everything", "keep nothing down",
-        "keep vomiting and cannot keep any fluids down", "keep vomiting and can't keep any fluids down",
-        "i keep vomiting and cannot keep any fluids down", "i keep vomiting and can't keep any fluids down",
-        "vomiting and cannot keep any fluids down", "vomiting and can't keep any fluids down",
-        "unable to keep liquids down", "can't keep liquids down", "cannot keep liquids down",
-        "paani bhi nahi rukta", "paani bhi nahi ruk raha", "paani bhi nahi ruk raha hai",
-        "pani bhi nahi rukta", "pani bhi nahi ruk raha", "pani bhi nahi ruk raha hai",
-        "kuch bhi hazam nahi ho raha", "kuch hazam nahi ho raha",
-        "kuch bhi nahi ruk raha", "kuch nahi ruk raha",
-        "kuch bhi pet mein nahi ruk raha", "kuch bhi pait mein nahi ruk raha",
-        "dawa nahi ruk rahi", "dawai nahi ruk rahi",
-        "dawa ulti mein nikal jati hai", "dawai ulti mein nikal jati hai",
-        "پانی بھی نہیں رک رہا ہے", "پانی بھی نہیں رک رہا", "پانی بھی نہیں رکتا",
-        "کچھ بھی نہیں رک رہا ہے", "کچھ بھی نہیں رک رہا",
-        "کچھ بھی ہضم نہیں ہو رہا ہے", "کچھ بھی ہضم نہیں ہو رہا",
-        "دوائی نہیں رک رہی ہے", "دوائی نہیں رک رہی",
-        "دوا نہیں رک رہی ہے", "دوا نہیں رک رہی",
-        "الٹی میں دوا نکل جاتی ہے", "الٹی میں دوائی نکل جاتی ہے",
     ],
     "dka_vomiting_high_glucose": [
         "vomiting nonstop", "vomiting non-stop", "can't keep anything down", "can't keep fluids down",
@@ -255,9 +229,8 @@ INABILITY_EXCEPTIONS = [
     "cannot keep", "unable to keep", "won't stay down", "won't move", "unable to drink",
     "saans nahi aa rahi", "saans nahi aa raha", "sans nahi aa rahi", "sans nahi aa raha",
     "bol nahi pa raha", "bol nahi pa rahi", "ulti ruk nahi rahi", "paani bhi nahi rukta",
-    "paani bhi nahi ruk raha", "pani bhi nahi rukta", "pani bhi nahi ruk raha",
     "سانس نہیں آ رہی", "سانس نہیں آ رہا", "بول نہیں پا رہا", "بول نہیں پا رہی",
-    "الٹی رک نہیں رہی", "پانی بھی نہیں رک رہا", "پانی بھی نہیں رکتا",
+    "الٹی رک نہیں رہی", "پانی بھی نہیں رک رہا",
     "don't know where i am", "dont know where i am", "do not know where i am",
     "samajh nahi aa raha main kahan hoon", "samajh nahi aa raha kahan hoon",
     "main kahan hoon", "nahi pata kahan hoon",
@@ -298,9 +271,7 @@ def screen_multilingual_danger_phrases(text: str) -> Tuple[bool, Optional[str]]:
                     return True, "confusion_and_stroke"
                 if any(k in inab for k in ["see", "بینائی"]):
                     return True, "vision_loss"
-                if any(k in inab for k in ["drink", "keep", "paani", "pani", "پانی", "stay down"]):
-                    return True, "unable_to_keep_fluids"
-                if any(k in inab for k in ["ulti", "الٹی"]):
+                if any(k in inab for k in ["ulti", "الٹی", "drink", "keep", "paani", "پانی", "stay down"]):
                     return True, "dka_vomiting_high_glucose"
                 return True, "danger_phrase"
 

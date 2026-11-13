@@ -368,128 +368,124 @@ def detect(text: str | None) -> WordGroupResult:
     Returns:
         WordGroupResult indicating danger status, matched group, and suppression reason.
     """
-    try:
-        if not text or not isinstance(text, str):
-            return WordGroupResult(is_danger=False)
-
-        clean_text = _normalize_text(text.strip())
-        if not clean_text:
-            return WordGroupResult(is_danger=False)
-
-        clauses = _split_into_clauses(clean_text)
-        suppressed_info: tuple[str, str] | None = None
-
-        for idx, clause in enumerate(clauses):
-            next_clause = clauses[idx + 1] if idx + 1 < len(clauses) else None
-
-            # Check Stroke FAST patterns
-            for pat in _STROKE_FAST_PATTERNS:
-                m = pat.search(clause)
-                if m:
-                    # Benign dental oral numbness guard (local anesthesia without focal deficits)
-                    is_dental = bool(_DENTAL_PROCEDURE_RE.search(clause))
-                    if is_dental and ("منہ" in m.group(0) or "mouth" in m.group(0).lower() or "munh" in m.group(0).lower()):
-                        if not any(k in clause.lower() for k in ["bazu", "haath", "taang", "arm", "leg", "speech", "bol", "آواز", "بازو", "ٹانگ", "ہاتھ"]):
-                            continue
-                    if _is_negated_clause(clause, m.start(), m.end()):
-                        suppressed_info = ("negation", "stroke_fast_cue")
-                        continue
-                    if _is_remote_past_clause(clause):
-                        suppressed_info = ("past", "stroke_fast_cue")
-                        continue
-                    if _is_resolved_clause(clause):
-                        suppressed_info = ("resolved", "stroke_fast_cue")
-                        continue
-                    if next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
-                        suppressed_info = ("resolved", "stroke_fast_cue")
-                        continue
-                    return WordGroupResult(is_danger=True, group="stroke_fast_cue")
-
-            # Check Acute Respiratory Compromise
-            for pat in _BREATHING_PATTERNS:
-                m = pat.search(clause)
-                if m:
-                    # Benign mild exertion / walk guard
-                    is_mild = bool(_MILD_QUALIFIER_RE.search(clause))
-                    has_sev = bool(_SEVERE_QUALIFIER_RE.search(clause))
-                    if is_mild and not has_sev:
-                        continue
-                    if _is_negated_clause(clause, m.start(), m.end()):
-                        suppressed_info = ("negation", "breathing_distress")
-                        continue
-                    if _is_remote_past_clause(clause):
-                        suppressed_info = ("past", "breathing_distress")
-                        continue
-                    if _is_resolved_clause(clause):
-                        suppressed_info = ("resolved", "breathing_distress")
-                        continue
-                    if next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
-                        suppressed_info = ("resolved", "breathing_distress")
-                        continue
-                    return WordGroupResult(is_danger=True, group="breathing_distress")
-
-            # Check Syncope / Unresponsiveness
-            for pat in _SYNCOPE_PATTERNS:
-                m = pat.search(clause)
-                if m:
-                    if _is_negated_clause(clause, m.start(), m.end()):
-                        suppressed_info = ("negation", "unresponsive_faint")
-                        continue
-                    if _is_remote_past_clause(clause):
-                        suppressed_info = ("past", "unresponsive_faint")
-                        continue
-                    if _is_resolved_clause(clause):
-                        suppressed_info = ("resolved", "unresponsive_faint")
-                        continue
-                    if next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
-                        suppressed_info = ("resolved", "unresponsive_faint")
-                        continue
-                    return WordGroupResult(is_danger=True, group="unresponsive_faint")
-
-            # Check Acute GI Hemorrhage
-            for pat in _GI_BLEED_PATTERNS:
-                m = pat.search(clause)
-                if m:
-                    if _is_negated_clause(clause, m.start(), m.end()):
-                        suppressed_info = ("negation", "vomiting_blood")
-                        continue
-                    if _is_remote_past_clause(clause):
-                        suppressed_info = ("past", "vomiting_blood")
-                        continue
-                    if _is_resolved_clause(clause):
-                        suppressed_info = ("resolved", "vomiting_blood")
-                        continue
-                    if next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
-                        suppressed_info = ("resolved", "vomiting_blood")
-                        continue
-                    return WordGroupResult(is_danger=True, group="vomiting_blood")
-
-            # Check Cardiac / Chest Pain Word Group (Composable: Body + Severity/Pain)
-            m_body = _CHEST_BODY_RE.search(clause)
-            if m_body:
-                m_sev = _CHEST_SEVERITY_RE.search(clause) or _CHEST_PAIN_COOCCUR_RE.search(clause)
-                if m_sev:
-                    start_pos = min(m_body.start(), m_sev.start())
-                    end_pos = max(m_body.end(), m_sev.end())
-                    # Benign mild heartburn / indigestion guard
-                    is_mild = bool(_MILD_QUALIFIER_RE.search(clause))
-                    has_sev = bool(_SEVERE_QUALIFIER_RE.search(clause))
-                    if is_mild and not has_sev:
-                        pass
-                    elif _is_negated_clause(clause, start_pos, end_pos):
-                        suppressed_info = ("negation", "cardiac_chest_pain")
-                    elif _is_remote_past_clause(clause):
-                        suppressed_info = ("past", "cardiac_chest_pain")
-                    elif _is_resolved_clause(clause):
-                        suppressed_info = ("resolved", "cardiac_chest_pain")
-                    elif next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
-                        suppressed_info = ("resolved", "cardiac_chest_pain")
-                    else:
-                        return WordGroupResult(is_danger=True, group="cardiac_chest_pain")
-
-        if suppressed_info:
-            return WordGroupResult(is_danger=False, group=suppressed_info[1], suppressed_by=suppressed_info[0])
+    if not text or not isinstance(text, str):
         return WordGroupResult(is_danger=False)
-    except Exception:
-        # Safe fallback: raise to review plus an audit "error" entry, never routine
-        return WordGroupResult(is_danger=True, group="detector_error")
+
+    clean_text = _normalize_text(text.strip())
+    if not clean_text:
+        return WordGroupResult(is_danger=False)
+
+    clauses = _split_into_clauses(clean_text)
+    suppressed_info: tuple[str, str] | None = None
+
+    for idx, clause in enumerate(clauses):
+        next_clause = clauses[idx + 1] if idx + 1 < len(clauses) else None
+
+        # Check Stroke FAST patterns
+        for pat in _STROKE_FAST_PATTERNS:
+            m = pat.search(clause)
+            if m:
+                # Benign dental oral numbness guard (local anesthesia without focal deficits)
+                is_dental = bool(_DENTAL_PROCEDURE_RE.search(clause))
+                if is_dental and ("منہ" in m.group(0) or "mouth" in m.group(0).lower() or "munh" in m.group(0).lower()):
+                    if not any(k in clause.lower() for k in ["bazu", "haath", "taang", "arm", "leg", "speech", "bol", "آواز", "بازو", "ٹانگ", "ہاتھ"]):
+                        continue
+                if _is_negated_clause(clause, m.start(), m.end()):
+                    suppressed_info = ("negation", "stroke_fast_cue")
+                    continue
+                if _is_remote_past_clause(clause):
+                    suppressed_info = ("past", "stroke_fast_cue")
+                    continue
+                if _is_resolved_clause(clause):
+                    suppressed_info = ("resolved", "stroke_fast_cue")
+                    continue
+                if next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
+                    suppressed_info = ("resolved", "stroke_fast_cue")
+                    continue
+                return WordGroupResult(is_danger=True, group="stroke_fast_cue")
+
+        # Check Acute Respiratory Compromise
+        for pat in _BREATHING_PATTERNS:
+            m = pat.search(clause)
+            if m:
+                # Benign mild exertion / walk guard
+                is_mild = bool(_MILD_QUALIFIER_RE.search(clause))
+                has_sev = bool(_SEVERE_QUALIFIER_RE.search(clause))
+                if is_mild and not has_sev:
+                    continue
+                if _is_negated_clause(clause, m.start(), m.end()):
+                    suppressed_info = ("negation", "breathing_distress")
+                    continue
+                if _is_remote_past_clause(clause):
+                    suppressed_info = ("past", "breathing_distress")
+                    continue
+                if _is_resolved_clause(clause):
+                    suppressed_info = ("resolved", "breathing_distress")
+                    continue
+                if next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
+                    suppressed_info = ("resolved", "breathing_distress")
+                    continue
+                return WordGroupResult(is_danger=True, group="breathing_distress")
+
+        # Check Syncope / Unresponsiveness
+        for pat in _SYNCOPE_PATTERNS:
+            m = pat.search(clause)
+            if m:
+                if _is_negated_clause(clause, m.start(), m.end()):
+                    suppressed_info = ("negation", "unresponsive_faint")
+                    continue
+                if _is_remote_past_clause(clause):
+                    suppressed_info = ("past", "unresponsive_faint")
+                    continue
+                if _is_resolved_clause(clause):
+                    suppressed_info = ("resolved", "unresponsive_faint")
+                    continue
+                if next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
+                    suppressed_info = ("resolved", "unresponsive_faint")
+                    continue
+                return WordGroupResult(is_danger=True, group="unresponsive_faint")
+
+        # Check Acute GI Hemorrhage
+        for pat in _GI_BLEED_PATTERNS:
+            m = pat.search(clause)
+            if m:
+                if _is_negated_clause(clause, m.start(), m.end()):
+                    suppressed_info = ("negation", "vomiting_blood")
+                    continue
+                if _is_remote_past_clause(clause):
+                    suppressed_info = ("past", "vomiting_blood")
+                    continue
+                if _is_resolved_clause(clause):
+                    suppressed_info = ("resolved", "vomiting_blood")
+                    continue
+                if next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
+                    suppressed_info = ("resolved", "vomiting_blood")
+                    continue
+                return WordGroupResult(is_danger=True, group="vomiting_blood")
+
+        # Check Cardiac / Chest Pain Word Group (Composable: Body + Severity/Pain)
+        m_body = _CHEST_BODY_RE.search(clause)
+        if m_body:
+            m_sev = _CHEST_SEVERITY_RE.search(clause) or _CHEST_PAIN_COOCCUR_RE.search(clause)
+            if m_sev:
+                start_pos = min(m_body.start(), m_sev.start())
+                end_pos = max(m_body.end(), m_sev.end())
+                # Benign mild heartburn / indigestion guard
+                is_mild = bool(_MILD_QUALIFIER_RE.search(clause))
+                has_sev = bool(_SEVERE_QUALIFIER_RE.search(clause))
+                if is_mild and not has_sev:
+                    pass
+                elif _is_negated_clause(clause, start_pos, end_pos):
+                    suppressed_info = ("negation", "cardiac_chest_pain")
+                elif _is_remote_past_clause(clause):
+                    suppressed_info = ("past", "cardiac_chest_pain")
+                elif _is_resolved_clause(clause):
+                    suppressed_info = ("resolved", "cardiac_chest_pain")
+                elif next_clause and _is_past_tense_clause(clause) and _is_resolved_clause(next_clause):
+                    suppressed_info = ("resolved", "cardiac_chest_pain")
+                else:
+                    return WordGroupResult(is_danger=True, group="cardiac_chest_pain")
+
+    if suppressed_info:
+        return WordGroupResult(is_danger=False, group=suppressed_info[1], suppressed_by=suppressed_info[0])
+    return WordGroupResult(is_danger=False)
