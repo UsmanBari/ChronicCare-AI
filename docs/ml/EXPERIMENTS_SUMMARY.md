@@ -18,6 +18,7 @@ All models were evaluated on the held-out NHANES temporal test set (`test` 2017�
 | `diabetes_ref_age_sex_bmi` | 32,081 / 9,278 / 9,133 | 4.25% | lr ({'C': 1.0}) | 0.7540 | 0.7421 [0.7203–0.7640] | 84.28% / 50.05% / 6.96% | 0.854 / 0.825 | age_band=18-39: 50.98% (n=51) | 0.6582 / 89.47% | Ref Baseline | NOT SHIPPED (gate_1_test_auroc_ge_0_75, gate_4_subgroup_sens_ge_0_60) |
 | `htn_ref_age_sex_bmi` | 25,033 / 7,246 / 7,206 | 30.81% | lr ({'C': 0.1}) | 0.7533 | 0.7150 [0.7030–0.7269] | 80.14% / 53.11% / 43.21% | 1.026 / 0.840 | age_band=18-39: 37.99% (n=558) | 0.5437 / 92.15% | Ref Baseline | NOT SHIPPED (gate_1_test_auroc_ge_0_75, gate_4_subgroup_sens_ge_0_60) |
 | `chd10_framingham` | 2,499 / 833 / 834 | 14.99% | lr ({'C': 0.01}) | 0.7170 | 0.7241 [0.6732–0.7659] | 84.80% / 39.07% / 19.70% | 1.079 / 1.142 | age_band=<50: 60.53% (n=38) | 0.6488 / 100.00% | N/A (Framingham) | SHIP CANDIDATE (all G1-G5 gates passed) |
+| `diabetes_control_nhanes` | 2,322 / 1,302 / 1,469 | 28.11% | lr ({'C': 0.01}) | 0.7235 | 0.7167 [0.6859–0.7462] | 77.48% / 53.50% / 39.46% | 1.568 / 1.439 | on_insulin=0.0: 53.77% (n=199) | 0.7167 / 77.48% | N/A (Diagnosed Diabetes) | NOT SHIPPED (Failed G2 Slope 1.439, Failed G4 Subgroup Sens 53.77%) |
 
 ---
 
@@ -173,3 +174,44 @@ In production, the application displays the 10-year CHD risk estimate card only 
 
 > **Clinical Finding on Senior Patients (60+):** For patients 60 and over the model almost always says Moderate or High; age drives it. Specificity at the 10% cut is 0.0% for 60+ (every participant aged 60+ is categorized as Moderate or High) and 13.5% for 50–59. When moving to the 20% High Risk cutoff, specificity recovers to 28.18% for 60+ and 69.23% for 50–59.
 
+
+
+---
+
+## 8. Diabetes Glycaemic Control Model (`diabetes_control_nhanes`)
+
+### 8.1 Clinical Objective & Population
+- **Objective:** Predict poor glycaemic control ($\text{HbA1c} \ge 8.0\%$ [64 mmol/mol]) among adults with self-reported diagnosed diabetes (`told_diabetes == 1`, DIQ010) using non-invasive check-in inputs.
+- **Dataset:** NHANES Core (`nhanes_temporal_v1` split).
+- **Counts:**
+  - `train_core` (1999–2012, 7 cycles): 2,322 complete cases (660 positives, 28.42% prevalence)
+  - `validation` (2013–2016, 2 cycles): 1,302 complete cases (391 positives, 30.03% prevalence)
+  - `test` (2017–2023, 2 cycles): 1,469 complete cases (413 positives, 28.11% prevalence)
+- **Features (9 App-Available Variables):** `age`, `sex_male`, `bmi`, `waist_cm`, `ever_smoked_100`, `sbp`, `dbp`, `on_insulin`, `on_diabetes_pills`.
+
+### 8.2 Candidate Selection (Decision D10 Parsimony Rule)
+- `lr` (C=0.01): Val AUROC = **0.7235** (val cal slope = 1.568).
+- `lr_balanced` (C=0.01): Val AUROC = 0.7231 (gap vs lr: -0.0004 $< 0.01$).
+- `rf`: Val AUROC = 0.7236 (tree gap vs lr: +0.0001 $< 0.02$).
+- `hgb`: Val AUROC = 0.7097.
+- **Outcome:** Plain `lr` selected under Decision D10 parsimony rule.
+
+### 8.3 Operational Threshold & Risk Bands
+- **Locked Threshold:** `0.2445` (Validation Sensitivity: 80.05%, Specificity: 51.59%).
+- **Risk Bands (Validation Distribution):**
+  - Low Risk: $p < 0.2445$
+  - Moderate Risk: $0.2445 \le p < 0.3823$
+  - High Risk: $p \ge 0.3823$ (top 20% validation cut)
+
+### 8.4 Pre-Registered Test Gates (G1–G5) Audit
+| Gate | Criterion | Target | Actual Test Result | Outcome |
+| :--- | :--- | :--- | :--- | :--- |
+| **G1** | Discrimination | Test AUROC $\ge 0.65$ | **0.7167** [0.6859, 0.7462] | **PASS** |
+| **G2** | Calibration | Calibration Slope $\in [0.80, 1.20]$ | **1.439** (oversteep / probability compression) | **FAIL** |
+| **G3** | Sensitivity | Test Sensitivity @ 0.2445 $\ge 70.0\%$ | **77.48%** (Spec: 53.50%, PPV: 39.46%) | **PASS** |
+| **G4** | Equity | Worst Subgroup Sens $\ge 60.0\%$ ($\ge 30$ pos) | **53.77%** (`on_insulin=0.0`, 199 pos) | **FAIL** |
+| **G5** | Information Value | Brier < Prevalence Brier | **0.1812** vs 0.2021 | **PASS** |
+
+### 8.5 Safe Stop & Non-Shipment Decision
+- **Final Status:** **NOT SHIPPED (BLOCKED)** — Safe stop triggered by failure of pre-registered Gate 2 and Gate 4.
+- **Action:** Production export file `models/diabetes_control_nhanes.json` was deliberately NOT generated. Under ChronicCare-AI safety rules, uncalibrated risk models that exhibit severe subgroup disparities must not be deployed to patient check-in workflows.

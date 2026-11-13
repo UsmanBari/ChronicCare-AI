@@ -262,10 +262,63 @@ The application presents the CHD risk card only to patients with documented hype
 
 ---
 
+## Part 1c: Diabetes Glycaemic Control Model (`diabetes_control_nhanes`)
+
+### 1c.1 Model Overview
+- **Model Name:** `diabetes_control_nhanes`
+- **Model Version:** `1.0.0` (Candidate Evaluation)
+- **Model Type:** Regularized Logistic Regression (`scikit-learn LogisticRegression(C=0.01, penalty='l2')`)
+- **Selection Decision:** Plain `lr` selected under Decision D10 parsimony rule (lr_balanced did not beat plain lr by $\ge 0.01$ validation AUROC [gap: -0.0004]; best tree did not beat LR by $\ge 0.02$ validation AUROC [gap: +0.0001]).
+- **Model Owner:** Saad (Lead ML Engineer)
+- **Deployment Status:** **NOT SHIPPED (BLOCKED)** — Safe stop triggered by failure of pre-registered Gate 2 (calibration slope 1.439 outside $[0.80, 1.20]$) and Gate 4 (subgroup sensitivity on `on_insulin=0` of 53.77% $< 60.0\%$). Export file `models/diabetes_control_nhanes.json` was deliberately NOT created to protect patients from distorted predictions.
+
+### 1c.2 Intended Clinical Role & Target Population
+- **Target Population:** Adults ($\ge 18$ years) with diagnosed type 2 diabetes (`told_diabetes == 1`).
+- **Target Label:** `diabetes_poor_control_80` (Binary indicator: $1 = \text{poor glycaemic control: } \text{HbA1c} \ge 8.0\% \text{ [64 mmol/mol]}$, $0 = \text{adequate control: } \text{HbA1c} < 8.0\%$).
+- **Intended Setting:** Remote, non-invasive digital check-in without requiring immediate laboratory blood draws.
+
+### 1c.3 Data & Temporal Split (NHANES Temporal Split `nhanes_temporal_v1`)
+- **Train Core (1999–2012, 7 cycles):** Initial 3,793 $\to$ dropped 1,471 missing $\to$ **2,322 clean complete cases** (660 positives, prevalence 28.42%). Used for 5-fold CV hyperparameter tuning.
+- **Validation (2013–2016, 2 cycles):** Initial 1,472 $\to$ dropped 170 missing $\to$ **1,302 clean complete cases** (391 positives, prevalence 30.03%). Used for model selection, threshold locking, and band setting.
+- **Test (2017–2023, 2 cycles):** Initial 1,626 $\to$ dropped 157 missing $\to$ **1,469 clean complete cases** (413 positives, prevalence 28.11%). Touched strictly once at evaluation.
+
+### 1c.4 Features & Standardized Odds Ratios
+The model uses 9 features available in the mobile check-in app:
+| Feature | Type / Units | App Source | Coef ($\beta$) | Odds Ratio (per 1 SD) | Clinical Direction |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `on_insulin` | Binary (0/1) | Active Meds List (`DIQ050`) | +0.4291 | **1.536** | UP (+) (marker of advanced beta-cell loss) |
+| `age` | Years ($\ge 18$) | Profile (`RIDAGEYR`) | -0.3438 | **0.709** | DOWN (-) (younger adults worse control in NHANES) |
+| `on_diabetes_pills` | Binary (0/1) | Active Meds List (`DIQ070`) | +0.1515 | **1.164** | UP (+) (pharmacotherapy requirement) |
+| `bmi` | $\text{kg/m}^2$ | Profile / Vitals (`BMXBMI`) | -0.0939 | **0.910** | DOWN (-) (empirical survey artifact) |
+| `sex_male` | Binary (0/1) | Profile (`RIAGENDR`) | +0.0620 | **1.064** | UP (+) |
+| `waist_cm` | $\text{cm}$ | Profile (`BMXWAIST`) | -0.0588 | **0.943** | DOWN (-) |
+| `sbp` | $\text{mmHg}$ | Vitals Check-in (`BPXSY`) | +0.0515 | **1.053** | UP (+) |
+| `dbp` | $\text{mmHg}$ | Vitals Check-in (`BPXDI`) | +0.0421 | **1.043** | UP (+) |
+| `ever_smoked_100` | Binary (0/1) | Profile Screening (`SMQ020`) | -0.0147 | **0.985** | DOWN (-) |
+
+### 1c.5 Pre-Registered Acceptance Gates (G1–G5) Audit
+| Gate | Metric Criterion | Pre-Registered Target | Actual Test Result | Outcome |
+| :--- | :--- | :--- | :--- | :--- |
+| **G1** | Discrimination | Test AUROC $\ge 0.65$ | **0.7167** [0.6859, 0.7462] | **PASS** |
+| **G2** | Calibration | Calibration Slope $\in [0.80, 1.20]$ | **1.439** (Validation slope: 1.568) | **FAIL** |
+| **G3** | Sensitivity | Sensitivity at Locked Threshold (0.2445) $\ge 70\%$ | **77.48%** (Spec: 53.50%, PPV: 39.46%) | **PASS** |
+| **G4** | Equity | Worst Subgroup Sens $\ge 60\%$ ($\ge 30$ pos) | **53.77%** (`on_insulin=0.0`, pos=199) | **FAIL** |
+| **G5** | Information Value | Brier Score < Naive Prevalence Brier | **0.1812** vs 0.2021 | **PASS** |
+
+**Final Recommendation:** **NOT SHIPPED (BLOCKED)** — 2 gates failed. Model is withheld from deployment.
+
+### 1c.6 Limitations & Why It Failed Gates G2 and G4
+1. **Calibration Slope Oversteepening (Gate 2 Failure):** The test calibration slope of 1.439 indicates significant probability compression toward the mean. Predicted probabilities do not accurately reflect true clinical risk without non-linear recalibration.
+2. **Subgroup Inequity on Non-Insulin Patients (Gate 4 Failure):** In observational survey data, insulin prescription is a dominant clinical indicator of severe beta-cell loss. Consequently, the linear classifier relies heavily on insulin status ($\beta = +0.429$, mean \|SHAP\| $= 0.379$). For diabetic patients not taking insulin (`on_insulin=0`), test sensitivity dropped to only 53.77% (46.23% missed cases), violating the 60% equity gate.
+3. **Cross-Sectional Timing:** The model evaluates whether current glycaemic control is poor ($\text{HbA1c} \ge 8.0\%$), not longitudinal trajectory or future complications.
+
+---
+
 ## Part 2: Retired & Non-Shipped Models
 
 | Model Config | Primary Gates Failed | Ship Decision | Reference Document |
 | :--- | :--- | :--- | :--- |
+| **`diabetes_control_nhanes`** | Failed Gate 2 (Test Calibration Slope 1.439 $\notin [0.80, 1.20]$), Failed Gate 4 (Subgroup Sens on `on_insulin=0` is 53.77% $< 60.0\%$). | **NOT SHIPPED (BLOCKED).** Withheld from production JSON export to protect patients from distorted predictions. | [`docs/ml/experiments/diabetes_control_nhanes.md`](file:///c:/Users/Saad/Documents/ChronicCare-AI/docs/ml/experiments/diabetes_control_nhanes.md) |
 | **`diabetes_basic_nhanes`** | Failed Gate 5: FULL model beats BASIC by +0.0075 validation AUROC. | **NOT EXPORTED.** Missing waist size in production yields `not_enough_information` with NO fallback to basic. | [`docs/ml/experiments/diabetes_basic_nhanes.md`](file:///c:/Users/usmanbari/Desktop/Chronicare/docs/ml/experiments/diabetes_basic_nhanes.md) |
 | **`htn_basic_nhanes`** | Failed Gate 1 (val AUROC 0.7540 $< 0.75$), Failed Gate 3 (slope 0.8691 $\notin [0.8, 1.2]$), Card AUROC 0.5442. | **RETIRED (D13).** Poor discrimination on diabetic patients. | [`docs/ml/experiments/htn_basic_nhanes.md`](file:///c:/Users/usmanbari/Desktop/Chronicare/docs/ml/experiments/htn_basic_nhanes.md) |
 | **`htn_full_nhanes`** | Failed Gate 1 (val AUROC 0.7546 $< 0.75$), Failed Gate 3 (slope 0.8582 $\notin [0.8, 1.2]$), Flags 100% of adults 60+ (0% specificity). | **RETIRED (D13).** Near-chance discrimination in target population (0.5317). | [`docs/ml/experiments/htn_full_nhanes.md`](file:///c:/Users/usmanbari/Desktop/Chronicare/docs/ml/experiments/htn_full_nhanes.md) |

@@ -285,3 +285,34 @@ The 10-year coronary heart disease (CHD) risk model (`backend-poc-technical/mode
 - **Provider Banner:** Experimental research model disclaimer in English, Urdu, and Roman Urdu (`needs_native_review: true`).
 - **Pure-Python Parity:** Golden test set (`backend-poc-technical/models/chd10_framingham.golden.json`) verified to within $10^{-9}$ tolerance against pure-Python sigmoid inference.
 
+
+
+---
+
+## 4. Diabetes Glycaemic Control Specification (`diabetes_control_nhanes` — NOT SHIPPED)
+
+Although `diabetes_control_nhanes` is **withheld from production deployment (NOT SHIPPED)** due to failing pre-registered calibration slope (Gate 2) and subgroup equity (Gate 4) gates, its feature acquisition contract and medication extraction interface are pre-specified for research and future FYP-2 iterations:
+
+- **Target Label:** `diabetes_poor_control_80` ($\text{HbA1c} \ge 8.0\%$)
+- **Population:** Adults ($\ge 18$) with diagnosed diabetes (`told_diabetes == 1`, DIQ010)
+- **Status:** Evaluated research model; export file `models/diabetes_control_nhanes.json` is **NOT PRESENT** in production.
+
+### Feature Acquisition Contract (9 Features)
+
+| Feature | Unit | How the App Acquires It | Missing Handling |
+| :--- | :--- | :--- | :--- |
+| `age` | years | Computed from `date_of_birth` in patient profile | `not_enough_information` (model skipped) |
+| `sex_male` | binary (1=male, 0=female) | `sex_at_birth` in patient profile | `not_enough_information` (model skipped) |
+| `bmi` | $\text{kg/m}^2$ | Derived from `weight_kg / ((height_cm/100)^2)` in profile | `not_enough_information` (model skipped) |
+| `waist_cm` | $\text{cm}$ | Self-reported or measured waist circumference | `not_enough_information` (model skipped) |
+| `ever_smoked_100` | binary (1=yes, 0=no) | Profile smoking history: 1 if smoked $\ge 100$ cigarettes in life | `not_enough_information` (model skipped) |
+| `sbp` | $\text{mmHg}$ | Systolic blood pressure reading from check-in vitals or FHIR within 30 days | `not_enough_information` (model skipped) |
+| `dbp` | $\text{mmHg}$ | Diastolic blood pressure reading from check-in vitals or FHIR within 30 days | `not_enough_information` (model skipped) |
+| `on_insulin` | binary (1=yes, 0=no) | Active medications checked for insulin derivatives (`DIABETES_MEDICATION_KEYWORDS`) | Evaluated from active medication scope (0.0 if none) |
+| `on_diabetes_pills` | binary (1=yes, 0=no) | Active medications checked for non-insulin oral agents (`DIABETES_MEDICATION_KEYWORDS`) | Evaluated from active medication scope (0.0 if none) |
+
+### Medication Scope Integration (`medication_scope.py`)
+Medication extraction for `on_insulin` and `on_diabetes_pills` reuses the canonical medication keyword scope defined in `backend-poc-technical/data_sources/medication_scope.py`:
+- **`on_insulin` (1.0):** Active medication string matches `r"\binsulin\b"` (including glargine, aspart, lispro, detemir, degludec, regular, NPH).
+- **`on_diabetes_pills` (1.0):** Active medication string matches non-insulin oral hypoglycaemics: `metformin`, `glimepiride`, `gliclazide`, `glibenclamide`, `glipizide`, `sitagliptin`, `vildagliptin`, `linagliptin`, `empagliflozin`, `dapagliflozin`, `canagliflozin`, `pioglitazone`, `acarbose`.
+- If the patient has no active medications recorded, both features evaluate safely to `0.0`.

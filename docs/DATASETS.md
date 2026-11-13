@@ -18,6 +18,20 @@ No dataset files are stored in this repository.
 - Study variables related to diabetes, hypertension, weight, age, laboratory measurements, and demographics.
 - Help design realistic non-production test cases.
 - Support research into plausible combinations of chronic-disease risk factors.
+- Train and evaluate predictive risk models across continuous temporal survey cycles (1999–2023):
+  - **Screening Models (`diabetes_full_nhanes`):** General adult population screening for undiagnosed diabetes / prediabetes using non-invasive check-in inputs.
+  - **Glycaemic Control Model (`diabetes_control_nhanes`):** Cohort of adults with self-reported diagnosed diabetes (`DIQ010 == 1`) predicting poor glycaemic control ($\text{HbA1c} \ge 8.0\%$).
+
+**NHANES Survey Components Utilized in ML Pipeline:**
+- **Demographics (`DEMO`):** `RIDAGEYR` (Age in years, filtered $\ge 18$), `RIAGENDR` (Gender: 1=Male, 2=Female), `RIDEXPRG` (Pregnancy status at exam, pregnant individuals excluded).
+- **Questionnaires:**
+  - `DIQ` (Diabetes): `DIQ010` (Doctor told you have diabetes: 1=Yes, 2=No, 3=Borderline), `DIQ050` (Taking insulin now: 1=Yes, 2=No), `DIQ070` (Taking diabetic pills to lower blood sugar: 1=Yes, 2=No).
+  - `SMQ` (Smoking): `SMQ020` (Smoked at least 100 cigarettes in life: 1=Yes, 2=No).
+- **Examinations:**
+  - `BMX` (Body Measures): `BMXBMI` (Body Mass Index $\text{kg/m}^2$), `BMXWAIST` (Waist Circumference $\text{cm}$).
+  - `BPX` (Blood Pressure): `BPXSY` (Systolic BP $\text{mmHg}$), `BPXDI` (Diastolic BP $\text{mmHg}$).
+- **Laboratory:**
+  - `GHB` / `LAB10` (Glycohemoglobin): `LBXGH` (HbA1c % measured via high-performance liquid chromatography [HPLC]). Target cutoff: $\text{HbA1c} \ge 8.0\%$ (poor glycaemic control).
 
 **Must NOT be used for:**
 - Making patient-specific diagnoses.

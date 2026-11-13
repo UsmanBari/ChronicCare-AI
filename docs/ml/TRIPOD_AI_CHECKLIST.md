@@ -50,3 +50,26 @@
 | **Transportability Limitations** | US Framingham 1948 cohort; ethnic gap for South Asian/Pakistani adults | [`docs/LIMITATIONS.md`](file:///c:/Users/Saad/Documents/ChronicCare-AI/docs/LIMITATIONS.md) |
 | **Implementation Guardrails** | Pure-Python scorer parity tested to $10^{-9}$; patient note disclaimer | `backend-poc-technical/ml/tests/test_chd10_model.py` |
 
+
+
+---
+
+## 3. TRIPOD+AI Item Coverage for `diabetes_control_nhanes` (NHANES Glycaemic Control)
+
+| TRIPOD+AI Item | Coverage in `diabetes_control_nhanes` | Document / Code Reference |
+| :--- | :--- | :--- |
+| **Pre-Registration** | Fully pre-registered protocol before test evaluation | [`docs/ml/DMCONTROL_PREREGISTRATION.md`](file:///c:/Users/Saad/Documents/ChronicCare-AI/docs/ml/DMCONTROL_PREREGISTRATION.md) |
+| **Source of Data** | Continuous NHANES 1999–2023 (CDC / NCHS) | [`docs/DATASETS.md`](file:///c:/Users/Saad/Documents/ChronicCare-AI/docs/DATASETS.md) |
+| **Participants & Eligibility** | Adults $\ge 18$ with diagnosed diabetes (`told_diabetes == 1`, DIQ010) and valid $\text{HbA1c}$ | `backend-poc-technical/ml/datasets/nhanes.py` |
+| **Outcome** | Poor glycaemic control ($\text{HbA1c} \ge 8.0\%$ [64 mmol/mol]) (`diabetes_poor_control_80`) | `backend-poc-technical/ml/labels.py` |
+| **Predictors** | 9 non-lab features (`age`, `sex_male`, `bmi`, `waist_cm`, `ever_smoked_100`, `sbp`, `dbp`, `on_insulin`, `on_diabetes_pills`) | `backend-poc-technical/ml/experiments/configs/diabetes_control_nhanes.json` |
+| **Sample Size & Splits** | Complete-case $N=5,093$ (train 2,322 / val 1,302 / test 1,469) | `docs/ml/experiments/diabetes_control_nhanes.md` Section 1 |
+| **Missing Data** | Complete case analysis; 1,798 missing dropped across temporal partitions | `docs/ml/experiments/diabetes_control_nhanes.md` Section 1 |
+| **Model Development** | LR, LR balanced, RF, HGB evaluated; 5-fold CV on train core | `docs/ml/experiments/diabetes_control_nhanes.md` Section 2 |
+| **Thresholds & Bands** | Pre-registered $\ge 80\%$ validation sensitivity cutoff (0.2445) and top 20% validation cut (0.3823) | `docs/ml/DMCONTROL_PREREGISTRATION.md` |
+| **Discrimination & Calibration** | Test AUROC: 0.7167 [95% CI: 0.6859–0.7462]; Calibration Slope: 1.439 (Failed G2) | `docs/ml/experiments/diabetes_control_nhanes.md` Section 3 & 4 |
+| **Subgroup & Equity** | Disaggregated by sex, age (<50, 50–64, 65+), and insulin use; `on_insulin=0` sens = 53.77% (Failed G4) | `docs/ml/experiments/diabetes_control_nhanes.md` Section 5 |
+| **Clinical Utility / DCA** | Net benefit evaluated across thresholds $p_t \in [0.15, 0.40]$ | `docs/ml/experiments/diabetes_control_nhanes.md` Section 4.5 |
+| **Explainability (SHAP)** | Global mean \|SHAP\| and local explanations for 3 synthetic patients | `docs/ml/experiments/diabetes_control_nhanes.md` Section 5.3 |
+| **Non-Shipment Audit** | Explicit non-shipment safe stop triggered; export file withheld | [`docs/ML_MODEL_CARDS.md`](file:///c:/Users/Saad/Documents/ChronicCare-AI/docs/ML_MODEL_CARDS.md) |
+| **Hermetic Guardrails** | Unit tests enforce absence of production JSON export | `backend-poc-technical/ml/tests/test_diabetes_control_model.py` |
