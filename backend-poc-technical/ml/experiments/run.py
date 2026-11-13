@@ -52,6 +52,7 @@ from ml.evaluation import (
     write_eval_report,
 )
 from ml.labels import (
+    extract_diabetes_poor_control_80,
     extract_diabetes_undiagnosed,
     extract_hypertension_measured_130_80,
 )
@@ -85,6 +86,11 @@ REFERENCE_POPULATION_COUNTS = {
         "validation": 7299,
         "test": 7268,
     },
+    "adults_with_diagnosed_diabetes": {
+        "train_core": 3793,
+        "validation": 1472,
+        "test": 1626,
+    },
     "hypertension_or_diabetes": {
         "train_core": 2499,
         "validation": 833,
@@ -107,6 +113,11 @@ REFERENCE_CARD_COUNTS = {
         "train_core": 1223,
         "validation": 453,
         "test": 488,
+    },
+    "diagnosed_diabetes": {
+        "train_core": 3793,
+        "validation": 1472,
+        "test": 1626,
     },
     "hypertension_or_diabetes": {
         "train_core": 2499,
@@ -149,10 +160,10 @@ def validate_config(config: dict[str, Any]) -> None:
         raise ValueError(f"Unsupported split: '{config['split']}'.")
 
     if config["dataset"] == "nhanes_core":
-        if config["population"] not in ("adults_without_diabetes", "adults_without_htn_unmedicated"):
+        if config["population"] not in ("adults_without_diabetes", "adults_without_htn_unmedicated", "adults_with_diagnosed_diabetes"):
             raise ValueError(f"Unknown population filter: '{config['population']}'")
 
-        if config["card_population"] not in ("told_high_bp_1", "told_diabetes_1"):
+        if config["card_population"] not in ("told_high_bp_1", "told_diabetes_1", "diagnosed_diabetes"):
             raise ValueError(f"Unknown card population: '{config['card_population']}'")
     elif config["dataset"] == "framingham":
         if config["population"] not in ("hypertension_or_diabetes", "all_eligible"):
@@ -196,6 +207,11 @@ def extract_target_series(df: pd.DataFrame, label_name: str, population_name: st
         pop_mask = pd.Series(True, index=df.index)
         return y_series, pop_mask
 
+    elif label_name == "diabetes_poor_control_80" and population_name == "adults_with_diagnosed_diabetes":
+        y_series = extract_diabetes_poor_control_80(df)
+        pop_mask = (df["told_diabetes"] == 1) & df["hba1c"].notna() & y_series.notna()
+        return y_series, pop_mask
+
     else:
         raise ValueError(f"Unsupported label/population combination: {label_name} / {population_name}")
 
@@ -205,6 +221,8 @@ def extract_card_mask(df: pd.DataFrame, card_pop_name: str, base_pop_mask: pd.Se
     if card_pop_name == "told_high_bp_1":
         return base_pop_mask & (df["told_high_bp"] == 1)
     elif card_pop_name == "told_diabetes_1":
+        return base_pop_mask & (df["told_diabetes"] == 1)
+    elif card_pop_name in ("diagnosed_diabetes", "adults_with_diagnosed_diabetes"):
         return base_pop_mask & (df["told_diabetes"] == 1)
     elif card_pop_name == "hypertension_or_diabetes":
         hyp = (df["prevalent_hyp"] == 1) if "prevalent_hyp" in df.columns else (df.get("prevalentHyp", 0) == 1)
@@ -351,10 +369,22 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     else:
         print("Loading NHANES core dataset...")
         # Load required columns
-        all_needed_cols = list(set(["seqn", "cycle", "age", "sex_male", "race_eth", "told_diabetes", "told_high_bp", "takes_bp_meds", "sbp", "dbp", "hba1c", "fasting_glucose", "waist_cm"] + features))
+        req_cols = set(["seqn", "cycle", "age", "sex_male", "race_eth", "told_diabetes", "told_high_bp", "takes_bp_meds", "sbp", "dbp", "hba1c", "fasting_glucose", "waist_cm"])
+        for f in features:
+            if f == "on_insulin":
+                req_cols.add("takes_insulin")
+            elif f == "on_diabetes_pills":
+                req_cols.add("takes_diabetes_pills")
+            else:
+                req_cols.add(f)
+        all_needed_cols = list(req_cols)
         df = load_nhanes_core(all_needed_cols)
         adults = df[df["age"] >= ADULT_MIN_AGE].copy()
         adults["seqn"] = adults["seqn"].astype(int)
+        if "on_insulin" in features and "takes_insulin" in adults.columns:
+            adults["on_insulin"] = adults["takes_insulin"]
+        if "on_diabetes_pills" in features and "takes_diabetes_pills" in adults.columns:
+            adults["on_diabetes_pills"] = adults["takes_diabetes_pills"]
 
         # Step A2.3: Extract target and population mask
         y_series, pop_mask = extract_target_series(adults, label_name, population_name)
@@ -459,7 +489,7 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
             elif m_type == "rf":
                 pipe = Pipeline([
                     ("scaler", StandardScaler()),
-                    ("clf", RandomForestClassifier(random_state=seed, n_jobs=-1, **p_set)),
+                    ("clf", RandomForestClassifier(random_state=seed, n_jobs=1, **p_set)),
                 ])
             elif m_type == "hgb":
                 pipe = Pipeline([
@@ -581,13 +611,18 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
 
         # Step A2.10: Decision D8 Risk Bands
         print("\n--- DECISION D8 RISK STRATIFICATION BANDS ---")
-        val_90th = float(np.percentile(chosen["val_prob"], 90))
+        if name == "diabetes_control_nhanes":
+            val_cutoff = float(np.percentile(chosen["val_prob"], 80))
+            high_desc = "(Top 20% validation scores)"
+        else:
+            val_cutoff = float(np.percentile(chosen["val_prob"], 90))
+            high_desc = "(Top 10% validation scores)"
         low_max = locked_threshold
-        high_min = val_90th
+        high_min = val_cutoff
         bands = {"low_max": low_max, "high_min": high_min}
         print(f"  LOW Band     : Risk < {low_max:.4f}")
         print(f"  MODERATE Band: {low_max:.4f} <= Risk < {high_min:.4f}")
-        print(f"  HIGH Band    : Risk >= {high_min:.4f} (Top 10% validation scores)")
+        print(f"  HIGH Band    : Risk >= {high_min:.4f} {high_desc}")
 
     # Step A2.11: HELD-OUT TESTING (ONCE for the chosen model)
     print("\n--- HELD-OUT TEST EVALUATION (CHOSEN MODEL ONCE) ---")
@@ -624,8 +659,19 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
             right=False,
         )
         subgroup_groups = ["sex_male", "age_band"]
+        min_sg_pos = 30
+    elif name == "diabetes_control_nhanes":
+        test_clean_df["age_band"] = pd.cut(
+            test_clean_df["age"],
+            bins=[0, 50, 65, 150],
+            labels=["<50", "50-64", "65+"],
+            right=False,
+        )
+        subgroup_groups = ["sex_male", "age_band", "on_insulin"]
+        min_sg_pos = 30
     else:
         subgroup_groups = ["sex_male", "age_band", "race_eth", "cycle"]
+        min_sg_pos = 50
 
     subgroups = subgroup_report(
         test_clean_df,
@@ -633,7 +679,7 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
         p_col="_prob",
         threshold=locked_threshold,
         groups=subgroup_groups,
-        min_n=30 if name == "chd10_framingham" else 50,
+        min_n=min_sg_pos,
     )
 
     # Card Population Evaluation
@@ -693,19 +739,42 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
             print(f"    @ 10% Cut: Sens={m_ab_10['sensitivity']:.2%}, Spec={m_ab_10['specificity']:.2%}, PPV={m_ab_10['ppv']:.2%}")
             print(f"    @ 20% Cut: Sens={m_ab_20['sensitivity']:.2%}, Spec={m_ab_20['specificity']:.2%}, PPV={m_ab_20['ppv']:.2%}")
 
-    # Find worst subgroup sensitivity among evaluated groups with >= 50 positives
+    if name == "diabetes_control_nhanes":
+        app_ci_auroc = bootstrap_ci(y_test, y_test_prob, metric_fn=auroc, n_boot=1000, seed=seed)
+        m_test_high = metrics_at_threshold(y_test, y_test_prob, high_min)
+
+        print("\n=======================================================")
+        print("App population (post-hoc, not a gate): adults with diagnosed diabetes (told_diabetes == 1)")
+        print(f"  n = {len(y_test):,}, positives = {int(y_test.sum()):,}, prevalence = {np.mean(y_test)*100:.2f}%")
+        print(f"  AUROC: {app_ci_auroc.point:.4f} [95% CI: {app_ci_auroc.low:.4f} - {app_ci_auroc.high:.4f}]")
+        print(f"  Locked Threshold ({locked_threshold:.4f}): Sens = {m_test['sensitivity']:.2%}, Spec = {m_test['specificity']:.2%}, PPV = {m_test['ppv']:.2%}")
+        print(f"  High Risk Cutoff ({high_min:.4f}): Sens = {m_test_high['sensitivity']:.2%}, Spec = {m_test_high['specificity']:.2%}, PPV = {m_test_high['ppv']:.2%}")
+        print("\n  --- Breakdown by Insulin Status ---")
+        for ins_val, ins_lbl in [(1, "Taking Insulin (on_insulin == 1)"), (0, "Not Taking Insulin (on_insulin == 0)")]:
+            ins_df = test_clean_df[test_clean_df["on_insulin"] == ins_val]
+            y_ins = ins_df["_target"].to_numpy(dtype=int)
+            p_ins = ins_df["_prob"].to_numpy(dtype=float)
+            m_ins_l = metrics_at_threshold(y_ins, p_ins, locked_threshold)
+            m_ins_h = metrics_at_threshold(y_ins, p_ins, high_min)
+            print(f"  {ins_lbl} (n={len(ins_df):,}, pos={int(y_ins.sum()):,}, prev={np.mean(y_ins)*100:.2f}%):")
+            print(f"    @ Locked ({locked_threshold:.4f}): Sens={m_ins_l['sensitivity']:.2%}, Spec={m_ins_l['specificity']:.2%}, PPV={m_ins_l['ppv']:.2%}")
+            print(f"    @ High Cut ({high_min:.4f}): Sens={m_ins_h['sensitivity']:.2%}, Spec={m_ins_h['specificity']:.2%}, PPV={m_ins_h['ppv']:.2%}")
+        print("=======================================================")
+
+    # Find worst subgroup sensitivity among evaluated groups with >= 30 (or 50) positives
+    min_sg_threshold = 30 if name in ("chd10_framingham", "diabetes_control_nhanes") else 50
     worst_group = None
     worst_sens = 1.0
     worst_pos = 0
     for sg in subgroups:
-        if sg["positives"] >= 50 and sg["sensitivity"] not in (None, "too few"):
+        if sg["positives"] >= min_sg_threshold and sg["sensitivity"] not in (None, "too few"):
             s_val = float(sg["sensitivity"])
             if s_val < worst_sens:
                 worst_sens = s_val
                 worst_group = f"{sg['group_type']}={sg['group_value']}"
                 worst_pos = sg["positives"]
 
-    print(f"\nWorst Subgroup Sensitivity (>= 50 positives): {worst_group} = {worst_sens:.2%} (positives={worst_pos})")
+    print(f"\nWorst Subgroup Sensitivity (>= {min_sg_threshold} positives): {worst_group} = {worst_sens:.2%} (positives={worst_pos})")
 
     # Step A3: Feature Explanation & Clinical Sanity
     print("\n--- FEATURE EXPLANATION & CLINICAL SANITY ---")
@@ -724,13 +793,19 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
                 "coef_standardized": float(c_val),
                 "odds_ratio_per_1_sd": float(or_val),
             })
+            if name == "diabetes_control_nhanes":
+                exp_dir = "EMPIRICAL" if f_name == "age" else "UP (+)"
+                concordant = True if exp_dir == "EMPIRICAL" else bool(c_val > 0)
+            else:
+                exp_dir = "UP (+)" if f_name in ("age", "sbp", "current_smoker", "diabetes", "bp_meds") else "UP (+)"
+                concordant = bool(c_val > 0)
             clinical_sanity.append({
                 "feature": f_name,
                 "coef": float(c_val),
                 "sign": "+" if c_val > 0 else "-",
                 "direction": "UP (+)" if c_val > 0 else "DOWN (-)",
-                "expected": "UP (+)" if f_name in ("age", "sbp", "current_smoker", "diabetes", "bp_meds") else "UP (+)",
-                "concordant": bool(c_val > 0),
+                "expected": exp_dir,
+                "concordant": concordant,
             })
         feature_explanations.sort(key=lambda x: abs(x["coef_standardized"]), reverse=True)
         print("Standardized Logistic Regression Coefficients (Odds Ratio per 1 SD):")
@@ -742,8 +817,8 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
             mark = "✓" if cs["concordant"] else "⚠️ OPPOSITE"
             print(f"  {mark} {cs['feature']:18s}: beta={cs['coef']:+.4f} -> {cs['direction']}")
 
-        # SHAP calculation for chd10_framingham
-        if name == "chd10_framingham":
+        # SHAP calculation for chd10_framingham and diabetes_control_nhanes
+        if name in ("chd10_framingham", "diabetes_control_nhanes"):
             try:
                 import shap
                 print("\n--- COMPUTING SHAP EXPLANATIONS ---")
@@ -755,27 +830,46 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
                     print(f"  {f_name:18s}: mean |SHAP| = {imp:.4f}")
 
                 # 3 Fake Example Patients
-                fake_cases = [
-                    {
-                        "case_id": "Fake Patient 1 (Low Risk Profile)",
-                        "profile": {"age": 42, "sex_male": 0, "current_smoker": 0, "bmi": 22.0, "sbp": 115.0, "dbp": 75.0, "bp_meds": 0, "diabetes": 0, "prevalent_hyp": 0},
-                    },
-                    {
-                        "case_id": "Fake Patient 2 (Moderate Risk Profile)",
-                        "profile": {"age": 54, "sex_male": 1, "current_smoker": 1, "bmi": 27.5, "sbp": 138.0, "dbp": 86.0, "bp_meds": 0, "diabetes": 0, "prevalent_hyp": 1},
-                    },
-                    {
-                        "case_id": "Fake Patient 3 (High Risk Profile)",
-                        "profile": {"age": 66, "sex_male": 1, "current_smoker": 1, "bmi": 31.2, "sbp": 165.0, "dbp": 98.0, "bp_meds": 1, "diabetes": 1, "prevalent_hyp": 1},
-                    },
-                ]
+                if name == "chd10_framingham":
+                    fake_cases = [
+                        {
+                            "case_id": "Fake Patient 1 (Low Risk Profile)",
+                            "profile": {"age": 42, "sex_male": 0, "current_smoker": 0, "bmi": 22.0, "sbp": 115.0, "dbp": 75.0, "bp_meds": 0, "diabetes": 0, "prevalent_hyp": 0},
+                        },
+                        {
+                            "case_id": "Fake Patient 2 (Moderate Risk Profile)",
+                            "profile": {"age": 54, "sex_male": 1, "current_smoker": 1, "bmi": 27.5, "sbp": 138.0, "dbp": 86.0, "bp_meds": 0, "diabetes": 0, "prevalent_hyp": 1},
+                        },
+                        {
+                            "case_id": "Fake Patient 3 (High Risk Profile)",
+                            "profile": {"age": 66, "sex_male": 1, "current_smoker": 1, "bmi": 31.2, "sbp": 165.0, "dbp": 98.0, "bp_meds": 1, "diabetes": 1, "prevalent_hyp": 1},
+                        },
+                    ]
+                else:
+                    fake_cases = [
+                        {
+                            "case_id": "Fake Patient 1 (Low Risk Profile)",
+                            "profile": {"age": 58, "sex_male": 0, "bmi": 24.5, "waist_cm": 82.0, "ever_smoked_100": 0, "sbp": 118.0, "dbp": 74.0, "on_insulin": 0, "on_diabetes_pills": 1},
+                        },
+                        {
+                            "case_id": "Fake Patient 2 (Moderate Risk Profile)",
+                            "profile": {"age": 52, "sex_male": 1, "bmi": 29.0, "waist_cm": 98.0, "ever_smoked_100": 1, "sbp": 136.0, "dbp": 84.0, "on_insulin": 0, "on_diabetes_pills": 1},
+                        },
+                        {
+                            "case_id": "Fake Patient 3 (High Risk Profile)",
+                            "profile": {"age": 46, "sex_male": 1, "bmi": 34.5, "waist_cm": 112.0, "ever_smoked_100": 1, "sbp": 148.0, "dbp": 92.0, "on_insulin": 1, "on_diabetes_pills": 1},
+                        },
+                    ]
                 print("\n--- PER-PATIENT SHAP EXPLANATIONS (3 FAKE PATIENTS) ---")
                 for fc in fake_cases:
                     x_row = np.array([[fc["profile"][f] for f in features]], dtype=float)
                     x_scaled = chosen_pipe.named_steps["scaler"].transform(x_row)
                     prob = float(chosen_pipe.predict_proba(x_row)[0, 1])
                     sv = explainer(x_scaled).values[0]
-                    band_label = "Low (<10%)" if prob < 0.10 else "Moderate (10-20%)" if prob < 0.20 else "High (>=20%)"
+                    if name == "chd10_framingham":
+                        band_label = "Low (<10%)" if prob < 0.10 else "Moderate (10-20%)" if prob < 0.20 else "High (>=20%)"
+                    else:
+                        band_label = f"Low (<{low_max:.4f})" if prob < low_max else f"Moderate ({low_max:.4f}-{high_min:.4f})" if prob < high_min else f"High (>={high_min:.4f})"
                     print(f"\n{fc['case_id']}: Predicted Risk = {prob:.2%} [Band: {band_label}]")
                     contribs = []
                     for f_name, val, phi in zip(features, x_row[0], sv):
@@ -813,7 +907,7 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
     shap_notice = (
         "Linear SHAP (shap.LinearExplainer) was used for logistic regression feature attribution, "
         "providing global mean |SHAP| and exact additive contributions for patient cases."
-        if (name == "chd10_framingham" and shap_global) else
+        if (name in ("chd10_framingham", "diabetes_control_nhanes") and shap_global) else
         "SHAP NOT USED: Standardized odds ratios per 1 SD are used for logistic regression "
         "and validation permutation importance is used for tree models."
     )
@@ -872,6 +966,45 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
         print(f"  Gate 1 (Test AUROC >= 0.68)      : {gate_results['gate_1_test_auroc_ge_0_68']} ({ci_auroc.point:.4f})")
         print(f"  Gate 2 (Test Cal Slope 0.80-1.20): {gate_results['gate_2_calibration_slope_in_0_80_1_20']} ({slope_str})")
         print(f"  Gate 3 (Test Sens @ 10% >= 70%)  : {gate_results['gate_3_sensitivity_10pct_ge_0_70']} ({m_test['sensitivity']:.2%})")
+        print(f"  Gate 4 (Subgroup Sens >= 60%)    : {gate_results['gate_4_subgroup_sens_ge_0_60']} (Worst: {worst_group}={worst_sens:.2%}, pos={worst_pos})")
+        print(f"  Gate 5 (Brier < Prev Brier)      : {gate_results['gate_5_brier_lower_than_prevalence']} ({test_brier:.4f} vs {prev_brier:.4f})")
+        print(f"  Overall Status                   : {ship_status}")
+    elif name == "diabetes_control_nhanes":
+        print("\n--- PRE-REGISTERED GATES AUDIT (G1 - G5) ---")
+        g1 = (ci_auroc.point >= 0.65) if ci_auroc.point is not None else False
+        gate_results["gate_1_test_auroc_ge_0_65"] = "PASS" if g1 else "FAIL"
+
+        test_slope = cal_test["slope"]
+        g2 = (test_slope is not None and 0.80 <= test_slope <= 1.20)
+        gate_results["gate_2_calibration_slope_in_0_80_1_20"] = "PASS" if g2 else "FAIL"
+
+        g3 = (m_test["sensitivity"] >= 0.70) if m_test["sensitivity"] is not None else False
+        gate_results["gate_3_sensitivity_locked_ge_0_70"] = "PASS" if g3 else "FAIL"
+
+        worst_sens = 1.0
+        worst_group = None
+        worst_pos = 0
+        for sg in subgroups:
+            if sg["positives"] >= 30 and sg["sensitivity"] not in (None, "too few"):
+                s_val = float(sg["sensitivity"])
+                if s_val < worst_sens:
+                    worst_sens = s_val
+                    worst_group = f"{sg['group_type']}={sg['group_value']}"
+                    worst_pos = sg["positives"]
+        g4 = (worst_sens >= 0.60)
+        gate_results["gate_4_subgroup_sens_ge_0_60"] = "PASS" if g4 else "FAIL"
+
+        prev_brier = test_prev * (1.0 - test_prev)
+        test_brier = float(cal_test["brier"])
+        g5 = (test_brier < prev_brier)
+        gate_results["gate_5_brier_lower_than_prevalence"] = "PASS" if g5 else "FAIL"
+
+        failed_gates = [k for k, v in gate_results.items() if v.startswith("FAIL")]
+        ship_status = "SHIP CANDIDATE (all G1-G5 gates passed)" if (len(failed_gates) == 0 and calibration_gate_passed) else f"NOT SHIPPED ({', '.join(failed_gates)})"
+        slope_str = f"{test_slope:.3f}" if test_slope is not None else "N/A"
+        print(f"  Gate 1 (Test AUROC >= 0.65)      : {gate_results['gate_1_test_auroc_ge_0_65']} ({ci_auroc.point:.4f})")
+        print(f"  Gate 2 (Test Cal Slope 0.80-1.20): {gate_results['gate_2_calibration_slope_in_0_80_1_20']} ({slope_str})")
+        print(f"  Gate 3 (Test Sens @ locked >= 70%): {gate_results['gate_3_sensitivity_locked_ge_0_70']} ({m_test['sensitivity']:.2%})")
         print(f"  Gate 4 (Subgroup Sens >= 60%)    : {gate_results['gate_4_subgroup_sens_ge_0_60']} (Worst: {worst_group}={worst_sens:.2%}, pos={worst_pos})")
         print(f"  Gate 5 (Brier < Prev Brier)      : {gate_results['gate_5_brier_lower_than_prevalence']} ({test_brier:.4f} vs {prev_brier:.4f})")
         print(f"  Overall Status                   : {ship_status}")
@@ -1162,6 +1295,44 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
             f"- Gate 5 (Brier Score < Naive Prevalence Brier): **{gate_results['gate_5_brier_lower_than_prevalence']}** ({test_brier:.4f} vs {prev_brier:.4f})\n"
             f"- **Overall FYP-1 Status:** **{ship_status}**\n"
         )
+    elif name == "diabetes_control_nhanes":
+        m_test_high = metrics_at_threshold(y_test, y_test_prob, high_min)
+        card_app_md = (
+            f"### App Population (Post-Hoc, Not a Gate: Adults with Diagnosed Diabetes)\n\n"
+            f"- **Cohort Size (n):** {len(y_test):,} (Positives: {int(y_test.sum()):,}, Prevalence: {np.mean(y_test)*100:.2f}%)\n"
+            f"- **AUROC (95% Bootstrap CI):** **{ci_auroc.point:.4f}** [{ci_auroc.low:.4f} - {ci_auroc.high:.4f}]\n"
+            f"- **At Locked Threshold (`{locked_threshold:.4f}`):** Sensitivity = **{m_test['sensitivity']:.2%}**, Specificity = **{m_test['specificity']:.2%}**, PPV = **{m_test['ppv']:.2%}**\n"
+            f"- **At High Risk Cutoff (`{high_min:.4f}`):** Sensitivity = **{m_test_high['sensitivity']:.2%}**, Specificity = **{m_test_high['specificity']:.2%}**, PPV = **{m_test_high['ppv']:.2%}**\n\n"
+        )
+        sec_test = (
+            f"### Held-Out Test Discrimination & Diagnostic Performance (2017-2023)\n\n"
+            f"- **Test AUROC (95% Bootstrap CI):** **{ci_auroc.point:.4f}** [{ci_auroc.low:.4f} - {ci_auroc.high:.4f}]\n"
+            f"- **Test AUPRC (95% Bootstrap CI):** **{ci_auprc.point:.4f}** [{ci_auprc.low:.4f} - {ci_auprc.high:.4f}]\n\n"
+            f"#### Operating Point: Locked Threshold (Low / Moderate Risk Cut)\n"
+            f"- **Threshold:** `{locked_threshold:.4f}`\n"
+            f"- **Sensitivity:** **{m_test['sensitivity']:.2%}**\n"
+            f"- **Specificity:** **{m_test['specificity']:.2%}**\n"
+            f"- **PPV (Precision):** **{m_test['ppv']:.2%}**\n"
+            f"- **NPV:** **{m_test['npv']:.2%}**\n"
+            f"- **F1-Score:** **{m_test['f1']:.4f}**\n"
+            f"- **Confusion Matrix:** TP={m_test['tp']}, FP={m_test['fp']}, TN={m_test['tn']}, FN={m_test['fn']}\n\n"
+            f"#### Operating Point: High Risk Cutoff (Top 20% Validation Scores)\n"
+            f"- **Threshold:** `{high_min:.4f}`\n"
+            f"- **Sensitivity:** **{m_test_high['sensitivity']:.2%}**\n"
+            f"- **Specificity:** **{m_test_high['specificity']:.2%}**\n"
+            f"- **PPV (Precision):** **{m_test_high['ppv']:.2%}**\n"
+            f"- **NPV:** **{m_test_high['npv']:.2%}**\n"
+            f"- **F1-Score:** **{m_test_high['f1']:.4f}**\n"
+            f"- **Confusion Matrix:** TP={m_test_high['tp']}, FP={m_test_high['fp']}, TN={m_test_high['tn']}, FN={m_test_high['fn']}\n\n"
+            f"{card_app_md}"
+            f"### Pre-Registered Acceptance Gates Audit (G1 - G5)\n\n"
+            f"- Gate 1 (Test AUROC >= 0.65): **{gate_results['gate_1_test_auroc_ge_0_65']}** ({ci_auroc.point:.4f})\n"
+            f"- Gate 2 (Test Calibration Slope in [0.80, 1.20]): **{gate_results['gate_2_calibration_slope_in_0_80_1_20']}** ({slope_str})\n"
+            f"- Gate 3 (Test Sensitivity @ locked threshold >= 70%): **{gate_results['gate_3_sensitivity_locked_ge_0_70']}** ({m_test['sensitivity']:.2%})\n"
+            f"- Gate 4 (Subgroup Sens >= 60%): **{gate_results['gate_4_subgroup_sens_ge_0_60']}** (Worst: {worst_group}={worst_sens:.2%})\n"
+            f"- Gate 5 (Brier Score < Naive Prevalence Brier): **{gate_results['gate_5_brier_lower_than_prevalence']}** ({test_brier:.4f} vs {prev_brier:.4f})\n"
+            f"- **Overall FYP-1 Status:** **{ship_status}**\n"
+        )
     else:
         sec_test = (
             f"### Held-Out Test Discrimination & Diagnostic Performance (2017-2023)\n\n"
@@ -1184,7 +1355,7 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
 
     sec_cal = (
         f"### Test Calibration Diagnostics\n\n"
-        f"- **Brier Score:** {cal_test['brier']:.4f} (Naive Prevalence Brier: {prev_brier if name == 'chd10_framingham' else 'N/A'})\n"
+        f"- **Brier Score:** {cal_test['brier']:.4f} (Naive Prevalence Brier: {prev_brier if name in ('chd10_framingham', 'diabetes_control_nhanes') else 'N/A'})\n"
         f"- **Calibration-in-the-large (mean p - mean y):** {cal_test['calibration_in_the_large']:+.4f}\n"
         f"- **Logistic Calibration Slope:** {cal_test['slope']:.3f}\n"
         f"- **Logistic Calibration Intercept:** {cal_test['intercept']:+.3f}\n\n"
@@ -1234,6 +1405,14 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
             f"- **Elderly Specificity Drop:** At the 10% cut, specificity is 0.0% for Age 60+ (every patient aged 60+ is flagged as at least Moderate) and 13.5% for Age 50-59. Age heavily drives predictions; at the 20% cut, specificity recovers to 28.18% for 60+ and 69.23% for 50-59.\n"
             f"- **Intended Use:** Provider decision support with patient-facing risk tier; raw risk percentages are not shown to patients to avoid unnecessary anxiety.\n"
         )
+    elif name == "diabetes_control_nhanes":
+        sec_lim = (
+            f"- **Cross-Sectional Glycemic Control:** Predicts current poor glycemic control (HbA1c >= 8.0%), not future longitudinal trajectory or diabetes incidence.\n"
+            f"- **US Population Source:** Trained on US NHANES data (1999-2023); not calibrated or clinically validated on Pakistani patients or South Asian cohorts.\n"
+            f"- **Remote Non-Lab Check-In Setting:** Relies on self-reported demographics, profile waist circumference, and home BP measurements; venous lab panels (lipids, eGFR) and diagnosis duration are not collected.\n"
+            f"- **Insulin Association:** Insulin therapy strongly associates with poor glycemic control in observational survey data because patients with severe, progressive beta-cell failure are selectively prescribed insulin.\n"
+            f"- **Intended Use:** Clinical decision support for providers with patient-facing risk tier (Low / Moderate / High); raw probability percentages are never exposed directly to patients.\n"
+        )
     else:
         sec_lim = (
             f"- **Temporal Shift:** Evaluated strictly on temporal hold-out cohorts (2017-2023) following historical fitting (1999-2012).\n"
@@ -1249,7 +1428,7 @@ def run_experiment(config: dict[str, Any], project_root: Path | None = None) -> 
         "Calibration": sec_cal,
         "Subgroups": sec_sub,
         "Limitations": sec_lim,
-        "custom_limitations_only": (name == "chd10_framingham"),
+        "custom_limitations_only": (name in ("chd10_framingham", "diabetes_control_nhanes")),
     }
 
     doc_report_path = out_docs_dir / f"{name}.md"

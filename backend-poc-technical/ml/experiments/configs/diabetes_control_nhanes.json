@@ -1,0 +1,52 @@
+{
+  "name": "diabetes_control_nhanes",
+  "dataset": "nhanes_core",
+  "split": "nhanes_temporal_v1",
+  "label": "diabetes_poor_control_80",
+  "population": "adults_with_diagnosed_diabetes",
+  "card_population": "diagnosed_diabetes",
+  "tier": "full",
+  "features": [
+    "age",
+    "sex_male",
+    "bmi",
+    "waist_cm",
+    "ever_smoked_100",
+    "sbp",
+    "dbp",
+    "on_insulin",
+    "on_diabetes_pills"
+  ],
+  "models": [
+    "lr",
+    "lr_balanced",
+    "rf",
+    "hgb"
+  ],
+  "grid": {
+    "lr": {
+      "C": [0.001, 0.01, 0.1, 1.0, 10.0, 100.0]
+    },
+    "lr_balanced": {
+      "C": [0.001, 0.01, 0.1, 1.0, 10.0, 100.0]
+    },
+    "rf": {
+      "n_estimators": [100],
+      "max_depth": [3, 5],
+      "min_samples_leaf": [5, 10]
+    },
+    "hgb": {
+      "learning_rate": [0.01, 0.05],
+      "max_depth": [3, 5],
+      "min_samples_leaf": [10]
+    }
+  },
+  "threshold_policy": {
+    "type": "min_sensitivity",
+    "value": 0.80
+  },
+  "missing": "drop",
+  "seed": 42,
+  "notes": "Among adults with diagnosed diabetes, predicts poor glycemic control (HbA1c >= 8.0%) using 9 non-lab features."
+}
+

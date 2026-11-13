@@ -59,6 +59,21 @@ def extract_diabetes_undiagnosed(df: pd.DataFrame) -> pd.Series:
     return out
 
 
+def extract_diabetes_poor_control_80(df: pd.DataFrame) -> pd.Series:
+    """
+    Extract poor glycaemic control (HbA1c >= 8.0% / 64 mmol/mol)
+    among adults with diagnosed diabetes (told_diabetes == 1).
+    Returns 1.0 for HbA1c >= 8.0%, 0.0 for HbA1c < 8.0%, NaN otherwise.
+    """
+    told = extract_diabetes_told(df)
+    h = df.get("hba1c", pd.Series(np.nan, index=df.index))
+    out = pd.Series(np.nan, index=df.index, dtype=float)
+    evaluable = (told == 1) & h.notna()
+    out[evaluable] = 0.0
+    out[evaluable & (h >= 8.0)] = 1.0
+    return out
+
+
 def extract_diabetes_prediabetes(df: pd.DataFrame) -> pd.Series:
     h = df.get("hba1c", pd.Series(np.nan, index=df.index))
     g = df.get("fasting_glucose", pd.Series(np.nan, index=df.index))
@@ -238,5 +253,14 @@ LABELS: dict[str, LabelInfo] = {
         forbidden_features=["TenYearCHD", "totChol", "total_chol", "glucose", "heartRate", "cigsPerDay", "education", "prevalentStroke"],
         brfss_equivalent=None,
         trade_off="Non-lab 10-year CHD risk model without lipid panel.",
+    ),
+    "diabetes_poor_control_80": LabelInfo(
+        name="diabetes_poor_control_80",
+        disease="diabetes",
+        description="Poor glycaemic control (HbA1c >= 8.0% / 64 mmol/mol) among adults with diagnosed diabetes",
+        extractor=extract_diabetes_poor_control_80,
+        forbidden_features=["hba1c", "fasting_glucose", "glucose", "LBXGH", "LBXGLU"],
+        brfss_equivalent=None,
+        trade_off="Predicts inadequate glycemic control among known diabetic patients without using biochemical blood tests.",
     ),
 }

@@ -46,6 +46,8 @@ NHANES_CORE_COLUMNS = {
     "told_diabetes",
     "takes_insulin",
     "takes_diabetes_pills",
+    "on_insulin",
+    "on_diabetes_pills",
     "told_high_bp",
     "takes_bp_meds",
     "family_hx_diabetes",
