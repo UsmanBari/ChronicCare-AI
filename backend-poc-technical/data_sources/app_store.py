@@ -486,6 +486,13 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                         trigger_text TEXT,
                         escalated_at TEXT,
                         created_at TEXT NOT NULL,
+                        provider_decision TEXT,
+                        provider_level TEXT,
+                        provider_reason TEXT,
+                        patient_message TEXT,
+                        reviewed_by TEXT,
+                        reviewed_at TEXT,
+                        assigned_provider_id TEXT,
                         FOREIGN KEY(checkin_id) REFERENCES checkins(checkin_id)
                     )
                 """)
@@ -494,8 +501,12 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         checkin_id TEXT NOT NULL,
                         provider_user_id TEXT NOT NULL,
-                        action TEXT NOT NULL CHECK(action IN ('acknowledge','resolve','escalate')),
+                        action TEXT NOT NULL CHECK(action IN ('acknowledge','resolve','escalate','approve','adjust')),
                         note TEXT,
+                        system_level TEXT,
+                        provider_level TEXT,
+                        reason TEXT,
+                        patient_message TEXT,
                         ts TEXT NOT NULL,
                         FOREIGN KEY(checkin_id) REFERENCES checkins(checkin_id),
                         FOREIGN KEY(provider_user_id) REFERENCES users(user_id)
@@ -732,6 +743,50 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 cursor.execute(SQLITE_FCM_TOKENS_DDL)
                 cursor.execute(SQLITE_FCM_TOKENS_USER_INDEX)
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (18, ?)", (now,))
+
+            # Defensively ensure review_actions, checkin_results, and checkins have provider review columns if tables exist
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='review_actions'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(review_actions)")
+                cols = [r[1] for r in cursor.fetchall()]
+                if "reason" not in cols:
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS review_actions_v19 (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            checkin_id TEXT NOT NULL,
+                            provider_user_id TEXT NOT NULL,
+                            action TEXT NOT NULL CHECK(action IN ('acknowledge','resolve','escalate','approve','adjust')),
+                            note TEXT,
+                            system_level TEXT,
+                            provider_level TEXT,
+                            reason TEXT,
+                            patient_message TEXT,
+                            ts TEXT NOT NULL,
+                            FOREIGN KEY(checkin_id) REFERENCES checkins(checkin_id),
+                            FOREIGN KEY(provider_user_id) REFERENCES users(user_id)
+                        )
+                    """)
+                    cursor.execute("""
+                        INSERT INTO review_actions_v19 (id, checkin_id, provider_user_id, action, note, ts)
+                        SELECT id, checkin_id, provider_user_id, action, note, ts FROM review_actions
+                    """)
+                    cursor.execute("DROP TABLE review_actions")
+                    cursor.execute("ALTER TABLE review_actions_v19 RENAME TO review_actions")
+
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='checkin_results'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(checkin_results)")
+                cr_cols = [r[1] for r in cursor.fetchall()]
+                for col_name in ("provider_decision", "provider_level", "provider_reason", "patient_message", "reviewed_by", "reviewed_at", "assigned_provider_id"):
+                    if col_name not in cr_cols:
+                        cursor.execute(f"ALTER TABLE checkin_results ADD COLUMN {col_name} TEXT")
+
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='checkins'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(checkins)")
+                c_cols = [r[1] for r in cursor.fetchall()]
+                if "assigned_provider_id" not in c_cols:
+                    cursor.execute("ALTER TABLE checkins ADD COLUMN assigned_provider_id TEXT")
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -842,6 +897,13 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                         trigger_text VARCHAR(500),
                         escalated_at VARCHAR(64),
                         created_at VARCHAR(64) NOT NULL,
+                        provider_decision VARCHAR(32) NULL,
+                        provider_level VARCHAR(32) NULL,
+                        provider_reason VARCHAR(500) NULL,
+                        patient_message VARCHAR(300) NULL,
+                        reviewed_by VARCHAR(128) NULL,
+                        reviewed_at VARCHAR(64) NULL,
+                        assigned_provider_id VARCHAR(128) NULL,
                         INDEX idx_review_status (review_status),
                         FOREIGN KEY (checkin_id) REFERENCES checkins(checkin_id) ON DELETE CASCADE
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -853,6 +915,10 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                         provider_user_id VARCHAR(128) NOT NULL,
                         action VARCHAR(32) NOT NULL,
                         note VARCHAR(500),
+                        system_level VARCHAR(32) NULL,
+                        provider_level VARCHAR(32) NULL,
+                        reason VARCHAR(500) NULL,
+                        patient_message VARCHAR(300) NULL,
                         ts VARCHAR(64) NOT NULL,
                         INDEX idx_checkin_act (checkin_id),
                         FOREIGN KEY (checkin_id) REFERENCES checkins(checkin_id) ON DELETE CASCADE,
@@ -1135,6 +1201,48 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 cursor.execute(MYSQL_NOTIFICATIONS_DDL)
                 cursor.execute(MYSQL_FCM_TOKENS_DDL)
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (18, %s)", (now,))
+
+            cursor.execute("""
+                SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'review_actions'
+            """)
+            if cursor.fetchone():
+                for col_name, col_def in [
+                    ("system_level", "VARCHAR(32) NULL"),
+                    ("provider_level", "VARCHAR(32) NULL"),
+                    ("reason", "VARCHAR(500) NULL"),
+                    ("patient_message", "VARCHAR(300) NULL"),
+                ]:
+                    cursor.execute(f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'review_actions' AND COLUMN_NAME = '{col_name}'")
+                    if not cursor.fetchone():
+                        cursor.execute(f"ALTER TABLE review_actions ADD COLUMN {col_name} {col_def}")
+
+            cursor.execute("""
+                SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkin_results'
+            """)
+            if cursor.fetchone():
+                for col_name, col_def in [
+                    ("provider_decision", "VARCHAR(32) NULL"),
+                    ("provider_level", "VARCHAR(32) NULL"),
+                    ("provider_reason", "VARCHAR(500) NULL"),
+                    ("patient_message", "VARCHAR(300) NULL"),
+                    ("reviewed_by", "VARCHAR(128) NULL"),
+                    ("reviewed_at", "VARCHAR(64) NULL"),
+                    ("assigned_provider_id", "VARCHAR(128) NULL"),
+                ]:
+                    cursor.execute(f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkin_results' AND COLUMN_NAME = '{col_name}'")
+                    if not cursor.fetchone():
+                        cursor.execute(f"ALTER TABLE checkin_results ADD COLUMN {col_name} {col_def}")
+
+            cursor.execute("""
+                SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkins'
+            """)
+            if cursor.fetchone():
+                cursor.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkins' AND COLUMN_NAME = 'assigned_provider_id'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE checkins ADD COLUMN assigned_provider_id VARCHAR(128) NULL")
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
@@ -1903,16 +2011,17 @@ def revoke_ehr_connection(user_id: str, backend: Optional[str] = None, db_path: 
 # =============================================================================
 
 def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: str,
-                   state_dict: Dict[str, Any], status: str = "in_progress",
+                   state_dict: Dict[str, Any] = None, status: str = "in_progress",
                    started_at: Optional[str] = None,
                    med_state_dict: Optional[Dict[str, Any]] = None,
                    protocol_state_dict: Optional[Dict[str, Any]] = None,
                    ehr_system_id: Optional[str] = None,
                    backend: Optional[str] = None, db_path: Optional[str] = None,
-                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None) -> Dict[str, Any]:
+                   mysql_url: Optional[str] = None, ssl_ca: Optional[str] = None,
+                   assigned_provider_id: Optional[str] = None) -> Dict[str, Any]:
     """Creates a new check-in session and marks older in_progress sessions for this user as abandoned."""
     now = started_at or _utc_now_iso()
-    state_str = json.dumps(state_dict)
+    state_str = json.dumps(state_dict or {})
     med_state_str = json.dumps(med_state_dict) if med_state_dict is not None else None
     protocol_state_str = json.dumps(protocol_state_dict) if protocol_state_dict is not None else None
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
@@ -1922,10 +2031,10 @@ def create_checkin(checkin_id: str, user_id: str, mode: str, record_patient_id: 
         )
         cursor.execute(
             f"""
-            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, ehr_system_id, status, state_json, med_state_json, protocol_state_json, version, started_at, completed_at)
-            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph}, NULL)
+            INSERT INTO checkins (checkin_id, user_id, mode, record_patient_id, ehr_system_id, status, state_json, med_state_json, protocol_state_json, version, started_at, completed_at, assigned_provider_id)
+            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 0, {ph}, NULL, {ph})
             """,
-            (checkin_id, user_id, mode, record_patient_id, ehr_system_id, status, state_str, med_state_str, protocol_state_str, now)
+            (checkin_id, user_id, mode, record_patient_id, ehr_system_id, status, state_str, med_state_str, protocol_state_str, now, assigned_provider_id)
         )
     return {
         "checkin_id": checkin_id,
@@ -1948,7 +2057,7 @@ def get_checkin_by_id(checkin_id: str, backend: Optional[str] = None, db_path: O
     """Retrieves check-in row and parsed state dictionary by checkin_id."""
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
-            f"SELECT checkin_id, user_id, mode, record_patient_id, ehr_system_id, status, state_json, med_state_json, protocol_state_json, version, started_at, completed_at FROM checkins WHERE checkin_id = {ph}",
+            f"SELECT checkin_id, user_id, mode, record_patient_id, ehr_system_id, status, state_json, med_state_json, protocol_state_json, version, started_at, completed_at, assigned_provider_id FROM checkins WHERE checkin_id = {ph}",
             (checkin_id,)
         )
         row = cursor.fetchone()
@@ -2099,6 +2208,7 @@ def create_checkin_result(
     db_path: Optional[str] = None,
     mysql_url: Optional[str] = None,
     ssl_ca: Optional[str] = None,
+    assigned_provider_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Stores or updates clinical results for a completed check-in."""
     now = created_at or _utc_now_iso()
@@ -2120,9 +2230,9 @@ def create_checkin_result(
                 INSERT INTO checkin_results (
                     checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                     requires_review, max_severity, review_status, trigger_category, trigger_text,
-                    escalated_at, triage_level, triage_json, risk_json, explanation_json, trace_json, created_at
+                    escalated_at, triage_level, triage_json, risk_json, explanation_json, trace_json, created_at, assigned_provider_id
                 )
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON CONFLICT(checkin_id) DO UPDATE SET
                     emergency = excluded.emergency,
                     intakes_json = excluded.intakes_json,
@@ -2138,9 +2248,10 @@ def create_checkin_result(
                     triage_json = excluded.triage_json,
                     risk_json = excluded.risk_json,
                     explanation_json = excluded.explanation_json,
-                    trace_json = excluded.trace_json
+                    trace_json = excluded.trace_json,
+                    assigned_provider_id = COALESCE(excluded.assigned_provider_id, checkin_results.assigned_provider_id)
                 """,
-                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, risk_str, explanation_str, trace_str, now)
+                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, risk_str, explanation_str, trace_str, now, assigned_provider_id)
             )
         else:
             cursor.execute(
@@ -2148,9 +2259,9 @@ def create_checkin_result(
                 INSERT INTO checkin_results (
                     checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                     requires_review, max_severity, review_status, trigger_category, trigger_text,
-                    escalated_at, triage_level, triage_json, risk_json, explanation_json, trace_json, created_at
+                    escalated_at, triage_level, triage_json, risk_json, explanation_json, trace_json, created_at, assigned_provider_id
                 )
-                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                 ON DUPLICATE KEY UPDATE
                     emergency = VALUES(emergency),
                     intakes_json = VALUES(intakes_json),
@@ -2166,9 +2277,10 @@ def create_checkin_result(
                     triage_json = VALUES(triage_json),
                     risk_json = VALUES(risk_json),
                     explanation_json = VALUES(explanation_json),
-                    trace_json = VALUES(trace_json)
+                    trace_json = VALUES(trace_json),
+                    assigned_provider_id = COALESCE(VALUES(assigned_provider_id), checkin_results.assigned_provider_id)
                 """,
-                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, risk_str, explanation_str, trace_str, now)
+                (checkin_id, emg_val, intakes_str, recon_str, verif_str, req_rev_val, max_severity, review_status, trigger_category, clean_trigger_text, escalated_at, triage_level, triage_str, risk_str, explanation_str, trace_str, now, assigned_provider_id)
             )
     return get_checkin_result(checkin_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
@@ -2181,7 +2293,8 @@ def get_checkin_result(checkin_id: str, backend: Optional[str] = None, db_path: 
             f"""
             SELECT checkin_id, emergency, intakes_json, reconciliation_json, verification_json,
                    requires_review, max_severity, review_status, trigger_category, trigger_text,
-                   escalated_at, triage_level, triage_json, risk_json, explanation_json, trace_json, created_at
+                   escalated_at, triage_level, triage_json, risk_json, explanation_json, trace_json, created_at,
+                   provider_decision, provider_level, provider_reason, patient_message, reviewed_by, reviewed_at, assigned_provider_id
             FROM checkin_results
             WHERE checkin_id = {ph}
             """,
@@ -2427,36 +2540,72 @@ def get_provider_review_queue(review_status: str = "open", backend: Optional[str
 
 
 def append_review_action(checkin_id: str, provider_user_id: str, action: str,
-                         note: Optional[str] = None, backend: Optional[str] = None,
+                         note: Optional[str] = None, system_level: Optional[str] = None,
+                         provider_level: Optional[str] = None, reason: Optional[str] = None,
+                         patient_message: Optional[str] = None, backend: Optional[str] = None,
                          db_path: Optional[str] = None, mysql_url: Optional[str] = None,
                          ssl_ca: Optional[str] = None) -> Dict[str, Any]:
-    """Appends an immutable review action and updates review_status."""
+    """Appends an immutable review action and updates review_status and provider decision."""
     now = _utc_now_iso()
     clean_action = str(action).strip().lower()
     clean_note = str(note).strip()[:500] if note else None
+    clean_reason = str(reason).strip()[:500] if reason else None
+    clean_patient_msg = str(patient_message).strip()[:300] if patient_message else None
 
     status_map = {
         "acknowledge": "acknowledged",
         "resolve": "resolved",
         "escalate": "escalated",
+        "approve": "resolved",
+        "adjust": "resolved",
     }
     new_status = status_map.get(clean_action, "open")
 
+    provider_decision = None
+    if clean_action == "approve":
+        provider_decision = "approved"
+    elif clean_action == "adjust":
+        provider_decision = "adjusted"
+
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
-            f"INSERT INTO review_actions (checkin_id, provider_user_id, action, note, ts) VALUES ({ph}, {ph}, {ph}, {ph}, {ph})",
-            (checkin_id, provider_user_id, clean_action, clean_note, now)
+            f"""
+            INSERT INTO review_actions (
+                checkin_id, provider_user_id, action, note, system_level, provider_level, reason, patient_message, ts
+            ) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+            """,
+            (checkin_id, provider_user_id, clean_action, clean_note, system_level, provider_level, clean_reason, clean_patient_msg, now)
         )
-        cursor.execute(
-            f"UPDATE checkin_results SET review_status = {ph} WHERE checkin_id = {ph}",
-            (new_status, checkin_id)
-        )
+        if provider_decision:
+            cursor.execute(
+                f"""
+                UPDATE checkin_results
+                SET review_status = {ph},
+                    provider_decision = {ph},
+                    provider_level = {ph},
+                    provider_reason = {ph},
+                    patient_message = {ph},
+                    reviewed_by = {ph},
+                    reviewed_at = {ph}
+                WHERE checkin_id = {ph}
+                """,
+                (new_status, provider_decision, provider_level, clean_reason, clean_patient_msg, provider_user_id, now, checkin_id)
+            )
+        else:
+            cursor.execute(
+                f"UPDATE checkin_results SET review_status = {ph} WHERE checkin_id = {ph}",
+                (new_status, checkin_id)
+            )
 
     return {
         "checkin_id": checkin_id,
         "provider_user_id": provider_user_id,
         "action": clean_action,
         "note": clean_note,
+        "system_level": system_level,
+        "provider_level": provider_level,
+        "reason": clean_reason,
+        "patient_message": clean_patient_msg,
         "ts": now,
         "new_review_status": new_status,
     }
@@ -2468,7 +2617,7 @@ def get_review_actions(checkin_id: str, backend: Optional[str] = None, db_path: 
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
         cursor.execute(
             f"""
-            SELECT id, checkin_id, provider_user_id, action, note, ts
+            SELECT id, checkin_id, provider_user_id, action, note, system_level, provider_level, reason, patient_message, ts
             FROM review_actions
             WHERE checkin_id = {ph}
             ORDER BY id ASC
@@ -3148,6 +3297,9 @@ def update_appointment(
         cursor.execute(query, tuple(params))
 
     return get_appointment(appointment_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+
+
+update_appointment_status = update_appointment
 
 
 # ---------------------------------------------------------------------------

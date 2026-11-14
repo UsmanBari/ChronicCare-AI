@@ -197,9 +197,15 @@ def build_soap(
         intake_symps = []
         for it in intakes:
             if isinstance(it, dict) and it.get("symptoms"):
-                for k, v in it["symptoms"].items():
-                    if v and str(v).lower() not in ("skip", "skipped", "null", "none", "not provided", ""):
-                        intake_symps.append(f"{k.replace('_', ' ')}: {v}")
+                symps_val = it["symptoms"]
+                if isinstance(symps_val, dict):
+                    for k, v in symps_val.items():
+                        if v and str(v).lower() not in ("skip", "skipped", "null", "none", "not provided", ""):
+                            intake_symps.append(f"{k.replace('_', ' ')}: {v}")
+                elif isinstance(symps_val, list):
+                    for s in symps_val:
+                        if s and str(s).lower() not in ("skip", "skipped", "null", "none", "not provided", ""):
+                            intake_symps.append(str(s))
         if intake_symps:
             reported_symptoms.append(f"Reported symptoms: {'; '.join(intake_symps)}")
         elif result and (result.get("emergency") or (result.get("triage_level") == "emergency")):
@@ -506,7 +512,28 @@ def build_soap(
     else:
         p_lines.append("Appointment action: Follow-up appointment offered for clinical review")
 
-    # 3. Clinician review required
+    # 3. Clinician review required / Provider decision
+    prov_dec = None
+    try:
+        from data_sources.app_store import get_review_actions
+        actions = get_review_actions(checkin_id)
+        for act in reversed(actions):
+            if act.get("action") in ("approve", "adjust"):
+                prov_dec = act
+                break
+    except Exception:
+        pass
+
+    if prov_dec:
+        act_type = prov_dec["action"]
+        if act_type == "approve":
+            p_lines.append(f"Provider decision: Approved system recommendation ({level.title()})")
+        elif act_type == "adjust":
+            sys_lvl = (prov_dec.get("system_level") or level).title()
+            prov_lvl = (prov_dec.get("provider_level") or prov_dec.get("action")).title()
+            reason = prov_dec.get("reason") or prov_dec.get("note") or "Clinician assessment"
+            p_lines.append(f"Provider decision: Adjusted triage level (System: {sys_lvl} -> Provider: {prov_lvl}) - Reason: {reason}")
+
     if level in ("review", "urgent", "emergency"):
         p_lines.append("Clinician review: clinician review required")
     else:

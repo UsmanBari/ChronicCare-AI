@@ -211,4 +211,32 @@ All 28 entries in `backend-poc-technical/agents/interview_bank/messages.json` ve
 Reviewer correction K3 for PR #134 updated Sentence 2 of the `routine_no_readings` template to avoid misleading phrasing when a patient logs symptoms or check-in answers without quantitative glucose/BP numbers. Hassaan provided native review sign-off ("Urdu OK" on PR #134); `needs_native_review` is set to `false`.
 
 
+---
+
+## 9. Provider Approve or Adjust Strings (F6 / Proposal UC-15, 14 Nov 2026)
+
+**PR:** #161 (`fix/i4-freeze-final`)  
+**Target:** `app/translations/index.ts`  
+**Status:** **MARKED FOR REVIEW** (Clinician workflow & patient communication)  
+**Scope:** Provider review action buttons, adjustment modal, triage chip, and patient notification labels.
+
+### 9.1 Approve / Adjust Strings Marked for Review
+
+| Key | English | Urdu Script | Roman Urdu | Review Status | Notes |
+|---|---|---|---|---|---|
+| `reviewedByCareTeam` | Reviewed by your care team | آپ کی نگہداشت ٹیم نے جائزہ لے لیا ہے | Aap ki care team ne jaiza le liya hai | Marked for review | Patient result card header |
+| `approvedAsRecommended` | Approved as recommended | تجویز کے مطابق منظور شدہ | Tajweez ke mutabiq manzoor shuda | Marked for review | Patient card note when approved |
+| `approveBtnLabel` | Approve | منظور کریں | Approve karein | Marked for review | Provider action button |
+| `adjustBtnLabel` | Adjust | تبدیل کریں | Adjust karein | Marked for review | Provider action button |
+| `adjustModalTitle` | Adjust Triage Level | ٹرائیج کی سطح تبدیل کریں | Triage level tabdeel karein | Marked for review | Provider modal heading |
+| `adjustReasonLabel` | Reason for adjustment (required) | تبدیلی کی وجہ (لازمی) | Tabdeeli ki wajah (lazmi) | Marked for review | Form field label |
+| `adjustMessageLabel` | Message to patient (optional) | مریض کے لیے پیغام (اختیاری) | Mareez ke liye paigham (ikhtiyari) | Marked for review | Form field label |
+| `adjustConfirmBtn` | Confirm Adjustment | تبدیلی کی تصدیق کریں | Tabdeeli ki tasdeeq karein | Marked for review | Modal submit button |
+| `adjustCancelBtn` | Cancel | منسوخ کریں | Mansookh karein | Marked for review | Modal cancel button |
+| `emergencyCannotAdjustTooltip` | Emergencies follow protocol 1122 | ہنگامی صورتحال کے لیے 1122 پروٹوکول پر عمل کریں | Emergencies follow protocol 1122 | Marked for review | Emergency rule safety notice |
+| `reviewHistoryTitle` | Review Actions History | جائزہ کارروائیوں کی تاریخ | Jaiza karwaiyon ki tareekh | Marked for review | History list title |
+
+
+
+
 

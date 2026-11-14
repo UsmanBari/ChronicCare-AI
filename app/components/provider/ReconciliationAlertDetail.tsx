@@ -33,6 +33,7 @@ import { api, ApiError, ReviewDetailResponse, SoapNoteResponse } from "../../lib
 import { DecisionTimeline } from "./DecisionTimeline";
 import { describeSide, describeReviewReason, describeMedicationItem } from "../../lib/presentation";
 import { TriageColourChip } from "../TriageColourChip";
+import { getNormalRangeText, getReadingStatus } from "../../lib/referenceRanges";
 
 export const ReconciliationAlertDetail = () => {
   const {
@@ -60,6 +61,18 @@ export const ReconciliationAlertDetail = () => {
   const [isSoapLoading, setIsSoapLoading] = useState<boolean>(false);
   const [isSoapExpanded, setIsSoapExpanded] = useState<boolean>(true);
   const [copiedSoap, setCopiedSoap] = useState<boolean>(false);
+
+  // Approve & Adjust state (F6 / Proposal UC-15)
+  const [showAdjustModal, setShowAdjustModal] = useState<boolean>(false);
+  const [adjustedLevel, setAdjustedLevel] = useState<"routine" | "review" | "urgent">("routine");
+  const [adjustReason, setAdjustReason] = useState<string>("");
+  const [adjustPatientMessage, setAdjustPatientMessage] = useState<string>("");
+  const [confirmChecked, setConfirmChecked] = useState<boolean>(false);
+
+  const isRedEmergency =
+    Boolean(liveDetail?.emergency) ||
+    (liveDetail?.triage_level || "").toLowerCase() === "emergency" ||
+    (liveDetail?.triage_colour || "").toLowerCase() === "red";
 
   useEffect(() => {
     if (!isLiveMode || selectedPatient === "Ali Khan") {
@@ -382,6 +395,95 @@ export const ReconciliationAlertDetail = () => {
       setToastMessage(null);
       setProviderScreen("review_queue");
     }, 1200);
+  };
+
+  const handleApprove = async () => {
+    setError(null);
+    if (!selectedPatient) return;
+    setIsSubmitting(true);
+    try {
+      if (isLiveMode) {
+        const updated = await api.postProviderReviewAction(
+          selectedPatient,
+          {
+            action: "approve",
+            note: actionNote.trim() || undefined,
+          }
+        );
+        setLiveDetail(updated);
+        resolveCase(selectedPatient);
+        setToastMessage(t.approvedAsRecommended || "Approved system recommendation.");
+        setTimeout(() => {
+          setToastMessage(null);
+          setProviderScreen("review_queue");
+        }, 1200);
+      } else {
+        resolveCase(selectedPatient || "Ali Khan");
+        setToastMessage(t.approvedAsRecommended || "Approved system recommendation.");
+        setTimeout(() => {
+          setToastMessage(null);
+          setProviderScreen("review_queue");
+        }, 1200);
+      }
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        setError(err.getFriendlyMessage(isUrdu));
+      } else {
+        setError(err?.message || "Failed to submit approval");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAdjustSubmit = async () => {
+    setError(null);
+    if (!adjustReason.trim() || adjustReason.trim().length < 5) {
+      setError("Reason for adjustment must be at least 5 characters.");
+      return;
+    }
+    if (!selectedPatient) return;
+    setIsSubmitting(true);
+    try {
+      if (isLiveMode) {
+        const updated = await api.postProviderReviewAction(
+          selectedPatient,
+          {
+            action: "adjust",
+            adjusted_level: adjustedLevel,
+            reason: adjustReason.trim(),
+            patient_message: adjustPatientMessage.trim() || undefined,
+            note: actionNote.trim() || undefined,
+          }
+        );
+        setLiveDetail(updated);
+        resolveCase(selectedPatient);
+        setShowAdjustModal(false);
+        setConfirmChecked(false);
+        setToastMessage(`Triage adjusted to ${adjustedLevel.toUpperCase()}.`);
+        setTimeout(() => {
+          setToastMessage(null);
+          setProviderScreen("review_queue");
+        }, 1200);
+      } else {
+        resolveCase(selectedPatient || "Ali Khan");
+        setShowAdjustModal(false);
+        setConfirmChecked(false);
+        setToastMessage(`Triage adjusted to ${adjustedLevel.toUpperCase()}.`);
+        setTimeout(() => {
+          setToastMessage(null);
+          setProviderScreen("review_queue");
+        }, 1200);
+      }
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        setError(err.getFriendlyMessage(isUrdu));
+      } else {
+        setError(err?.message || "Failed to submit adjustment");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Live comparison resolution
@@ -1406,6 +1508,103 @@ export const ReconciliationAlertDetail = () => {
             </div>
           </div>
 
+          {/* Clinical Review Decision: Approve or Adjust (Proposal UC-15 / F6) */}
+          <div className="space-y-2 pt-3 border-t border-slate-200">
+            <span className="block text-xs font-bold text-navy-800 uppercase tracking-wider">
+              Clinical Review Decision (UC-15)
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Approve Button */}
+              <button
+                type="button"
+                id="review-approve-btn"
+                onClick={handleApprove}
+                disabled={isResolved || isSubmitting}
+                className={`min-h-[48px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+                  isResolved
+                    ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                    : "bg-teal-700 hover:bg-teal-600 active:scale-[0.98] text-white shadow-md"
+                }`}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+                <span>{t.approveBtnLabel}</span>
+              </button>
+
+              {/* Adjust Button */}
+              <div className="relative group">
+                <button
+                  type="button"
+                  id="review-adjust-btn"
+                  onClick={() => setShowAdjustModal(true)}
+                  disabled={isResolved || isSubmitting || isRedEmergency}
+                  title={isRedEmergency ? t.emergencyCannotAdjustTooltip : undefined}
+                  className={`w-full min-h-[48px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+                    isResolved || isRedEmergency
+                      ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                      : "bg-amber-700 hover:bg-amber-600 active:scale-[0.98] text-white shadow-md"
+                  }`}
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span>{t.adjustBtnLabel}</span>
+                </button>
+                {isRedEmergency && (
+                  <div className="hidden group-hover:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 px-2.5 py-1 text-[11px] font-semibold text-white bg-rose-950 rounded-lg shadow-lg whitespace-nowrap z-50 pointer-events-none">
+                    {t.emergencyCannotAdjustTooltip}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Review Actions History */}
+          {liveDetail?.actions && liveDetail.actions.length > 0 && (
+            <div data-testid="review-actions-history" className="space-y-2 pt-3 border-t border-slate-200">
+              <span className="block text-xs font-bold text-navy-800 uppercase tracking-wider">
+                {t.reviewHistoryTitle}
+              </span>
+              <div className="space-y-2">
+                {liveDetail.actions.map((act, idx) => (
+                  <div
+                    key={act.id || idx}
+                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1"
+                  >
+                    <div className="flex items-center justify-between text-slate-500 font-mono text-[11px]">
+                      <span>Reviewed by: {act.provider_user_id}</span>
+                      <span>{new Date(act.ts).toLocaleString()}</span>
+                    </div>
+                    <div className="font-semibold text-navy-900">
+                      Action: <span className="uppercase">{act.action}</span>
+                      {act.system_level && act.provider_level && (
+                        <span className="ml-2 font-normal text-slate-700">
+                          (System: {act.system_level} → Provider: {act.provider_level})
+                        </span>
+                      )}
+                    </div>
+                    {act.reason && (
+                      <p className="text-slate-700">
+                        <span className="font-semibold">Reason:</span> {act.reason}
+                      </p>
+                    )}
+                    {act.patient_message && (
+                      <p className="text-teal-800">
+                        <span className="font-semibold">Patient Note:</span> {act.patient_message}
+                      </p>
+                    )}
+                    {act.note && !act.reason && (
+                      <p className="text-slate-600">
+                        <span className="font-semibold">Note:</span> {act.note}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Action Note Input (Required for Resolve & Escalate) */}
           <div className="space-y-2 pt-2 border-t border-slate-200">
             <label className="block text-xs font-bold text-navy-800 uppercase tracking-wider" htmlFor="action-note-input">
@@ -1508,9 +1707,33 @@ export const ReconciliationAlertDetail = () => {
                     {isLiveMode ? `Trust: ${trustLevelB.toUpperCase()}` : "Lab Record"}
                   </span>
                 </div>
-                <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
-                  {sourceBVal}
+                <div className="flex items-center gap-2 pt-1 flex-wrap">
+                  <div className="text-3xl font-bold text-navy-800 font-mono">
+                    {sourceBVal}
+                  </div>
+                  {(() => {
+                    const bStatus = getReadingStatus(obsComparison?.observation_type || "", obsComparison?.value_b, "en", obsComparison?.unit_b as any);
+                    if (bStatus.status !== "unspecified") {
+                      return (
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${bStatus.badgeClass}`}>
+                          {bStatus.label}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
+                {(() => {
+                  const rangeText = getNormalRangeText(obsComparison?.observation_type || "", "en", obsComparison?.unit_b as any);
+                  if (rangeText) {
+                    return (
+                      <div className="text-[11px] text-slate-500 font-medium">
+                        {rangeText} <span className="text-[10px] text-slate-400 italic">({t.normalRangeDisclaimer})</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 <p className="text-xs text-amber-950 leading-relaxed">
                   {isLiveMode
                     ? "Self-reported telemetry via today's adaptive symptom check-in."
@@ -1625,6 +1848,103 @@ export const ReconciliationAlertDetail = () => {
             </div>
           )}
 
+          {/* Clinical Review Decision: Approve or Adjust (Proposal UC-15 / F6) */}
+          <div className="space-y-2 pt-3 border-t border-slate-200">
+            <span className="block text-xs font-bold text-navy-800 uppercase tracking-wider">
+              Clinical Review Decision (UC-15)
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Approve Button */}
+              <button
+                type="button"
+                id="review-approve-btn"
+                onClick={handleApprove}
+                disabled={isResolved || isSubmitting}
+                className={`min-h-[48px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+                  isResolved
+                    ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                    : "bg-teal-700 hover:bg-teal-600 active:scale-[0.98] text-white shadow-md"
+                }`}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+                <span>{t.approveBtnLabel}</span>
+              </button>
+
+              {/* Adjust Button */}
+              <div className="relative group">
+                <button
+                  type="button"
+                  id="review-adjust-btn"
+                  onClick={() => setShowAdjustModal(true)}
+                  disabled={isResolved || isSubmitting || isRedEmergency}
+                  title={isRedEmergency ? t.emergencyCannotAdjustTooltip : undefined}
+                  className={`w-full min-h-[48px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+                    isResolved || isRedEmergency
+                      ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                      : "bg-amber-700 hover:bg-amber-600 active:scale-[0.98] text-white shadow-md"
+                  }`}
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span>{t.adjustBtnLabel}</span>
+                </button>
+                {isRedEmergency && (
+                  <div className="hidden group-hover:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 px-2.5 py-1 text-[11px] font-semibold text-white bg-rose-950 rounded-lg shadow-lg whitespace-nowrap z-50 pointer-events-none">
+                    {t.emergencyCannotAdjustTooltip}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Review Actions History */}
+          {liveDetail?.actions && liveDetail.actions.length > 0 && (
+            <div data-testid="review-actions-history" className="space-y-2 pt-3 border-t border-slate-200">
+              <span className="block text-xs font-bold text-navy-800 uppercase tracking-wider">
+                {t.reviewHistoryTitle}
+              </span>
+              <div className="space-y-2">
+                {liveDetail.actions.map((act, idx) => (
+                  <div
+                    key={act.id || idx}
+                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1"
+                  >
+                    <div className="flex items-center justify-between text-slate-500 font-mono text-[11px]">
+                      <span>Reviewed by: {act.provider_user_id}</span>
+                      <span>{new Date(act.ts).toLocaleString()}</span>
+                    </div>
+                    <div className="font-semibold text-navy-900">
+                      Action: <span className="uppercase">{act.action}</span>
+                      {act.system_level && act.provider_level && (
+                        <span className="ml-2 font-normal text-slate-700">
+                          (System: {act.system_level} → Provider: {act.provider_level})
+                        </span>
+                      )}
+                    </div>
+                    {act.reason && (
+                      <p className="text-slate-700">
+                        <span className="font-semibold">Reason:</span> {act.reason}
+                      </p>
+                    )}
+                    {act.patient_message && (
+                      <p className="text-teal-800">
+                        <span className="font-semibold">Patient Note:</span> {act.patient_message}
+                      </p>
+                    )}
+                    {act.note && !act.reason && (
+                      <p className="text-slate-600">
+                        <span className="font-semibold">Note:</span> {act.note}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Action Note Input (Required for Resolve & Escalate) */}
           <div className="space-y-2 pt-2 border-t border-slate-200">
             <label className="block text-xs font-bold text-navy-800 uppercase tracking-wider" htmlFor="action-note-input">
@@ -1693,6 +2013,198 @@ export const ReconciliationAlertDetail = () => {
                 </span>
               )}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Adjust Triage Level Modal (F6 / Proposal UC-15) */}
+      {showAdjustModal && (
+        <div
+          data-testid="adjust-triage-modal"
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/60 backdrop-blur-xs animate-fadeIn"
+          dir={isUrdu ? "rtl" : "ltr"}
+        >
+          <div className="w-full max-w-lg bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-7 space-y-5 animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-amber-700" />
+                <h3 className="font-heading text-lg font-bold text-navy-900">
+                  {t.adjustModalTitle}
+                </h3>
+              </div>
+              <button
+                type="button"
+                id="close-adjust-modal-btn"
+                onClick={() => {
+                  setShowAdjustModal(false);
+                  setConfirmChecked(false);
+                }}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Level Selector */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-navy-800 uppercase tracking-wider">
+                New Triage Level
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  id="adjust-level-routine"
+                  onClick={() => setAdjustedLevel("routine")}
+                  className={`py-2.5 px-3 rounded-xl font-bold text-xs border-2 transition-all flex flex-col items-center gap-1 ${
+                    adjustedLevel === "routine"
+                      ? "bg-emerald-50 text-emerald-900 border-emerald-600 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <span>Routine (Green)</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="adjust-level-review"
+                  onClick={() => setAdjustedLevel("review")}
+                  className={`py-2.5 px-3 rounded-xl font-bold text-xs border-2 transition-all flex flex-col items-center gap-1 ${
+                    adjustedLevel === "review"
+                      ? "bg-amber-50 text-amber-900 border-amber-600 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  <span>Review (Yellow)</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="adjust-level-urgent"
+                  onClick={() => setAdjustedLevel("urgent")}
+                  className={`py-2.5 px-3 rounded-xl font-bold text-xs border-2 transition-all flex flex-col items-center gap-1 ${
+                    adjustedLevel === "urgent"
+                      ? "bg-rose-50 text-rose-900 border-rose-600 shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-600" />
+                  <span>Urgent (Orange)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Reason Textarea (Required, min 5 chars, max 500) */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="adjust-reason-input"
+                  className="block text-xs font-bold text-navy-800 uppercase tracking-wider"
+                >
+                  {t.adjustReasonLabel}
+                </label>
+                <span className="text-[11px] font-mono text-slate-400">
+                  {adjustReason.length}/500
+                </span>
+              </div>
+              <textarea
+                id="adjust-reason-input"
+                rows={3}
+                maxLength={500}
+                value={adjustReason}
+                onChange={(e) => setAdjustReason(e.target.value)}
+                placeholder="Explain the clinical basis for overriding system triage..."
+                className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 bg-white p-3 text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-700 resize-none shadow-xs"
+              />
+            </div>
+
+            {/* Optional Patient Message (Max 300) */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="adjust-patient-message-input"
+                  className="block text-xs font-bold text-navy-800 uppercase tracking-wider"
+                >
+                  {t.adjustMessageLabel}
+                </label>
+                <span className="text-[11px] font-mono text-slate-400">
+                  {adjustPatientMessage.length}/300
+                </span>
+              </div>
+              <textarea
+                id="adjust-patient-message-input"
+                rows={2}
+                maxLength={300}
+                value={adjustPatientMessage}
+                onChange={(e) => setAdjustPatientMessage(e.target.value)}
+                placeholder="Optional reassuring note visible to the patient on their result card..."
+                className="w-full text-xs sm:text-sm rounded-xl border border-slate-300 bg-white p-3 text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 resize-none shadow-xs"
+              />
+            </div>
+
+            {/* Confirmation Checkbox */}
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-2.5">
+              <input
+                type="checkbox"
+                id="adjust-confirm-checkbox"
+                checked={confirmChecked}
+                onChange={(e) => setConfirmChecked(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded text-amber-700 border-slate-300 focus:ring-amber-600 cursor-pointer"
+              />
+              <label
+                htmlFor="adjust-confirm-checkbox"
+                className="text-xs text-navy-900 font-medium cursor-pointer"
+              >
+                I confirm this clinical adjustment from{" "}
+                <span className="font-bold">
+                  {(liveDetail?.triage_level || "system").toUpperCase()}
+                </span>{" "}
+                to{" "}
+                <span className="font-bold">{adjustedLevel.toUpperCase()}</span>.
+              </label>
+            </div>
+
+            {/* Modal Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                id="cancel-adjust-btn"
+                onClick={() => {
+                  setShowAdjustModal(false);
+                  setConfirmChecked(false);
+                }}
+                disabled={isSubmitting}
+                className="min-h-[44px] py-2 px-4 rounded-xl font-bold text-xs sm:text-sm text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                {t.adjustCancelBtn}
+              </button>
+              <button
+                type="button"
+                id="confirm-adjust-btn"
+                onClick={handleAdjustSubmit}
+                disabled={
+                  isSubmitting ||
+                  !confirmChecked ||
+                  adjustReason.trim().length < 5
+                }
+                className={`min-h-[44px] py-2 px-5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+                  isSubmitting || !confirmChecked || adjustReason.trim().length < 5
+                    ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                    : "bg-amber-700 hover:bg-amber-600 active:scale-[0.98] text-white shadow-md"
+                }`}
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+                <span>{t.adjustConfirmBtn}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

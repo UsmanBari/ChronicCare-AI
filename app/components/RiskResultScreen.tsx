@@ -23,9 +23,10 @@ import {
 import { describeMedicationItem } from "../lib/presentation";
 import { ExplanationBox } from "./ExplanationBox";
 import { TriageColourChip } from "./TriageColourChip";
+import { getReadingStatus } from "../lib/referenceRanges";
 
 export const RiskResultScreen = () => {
-  const { setScreen, returnToHomeAndClearRun, isLiveMode, liveCheckinResult, liveProfile, demoScenario, t, isUrdu } = useApp();
+  const { setScreen, returnToHomeAndClearRun, isLiveMode, liveCheckinResult, liveProfile, demoScenario, t, isUrdu, language } = useApp();
   const [showWhyPanel, setShowWhyPanel] = useState(false);
 
   // =========================================================================
@@ -113,8 +114,8 @@ export const RiskResultScreen = () => {
           {/* Triage Status Colour Chip (Proposal Section 15 single source of truth) */}
           <div className="flex flex-col items-center justify-center gap-2 pt-1 pb-1">
             <TriageColourChip
-              level={liveCheckinResult?.triage_level || liveCheckinResult?.triage?.level}
-              colour={liveCheckinResult?.triage_colour || liveCheckinResult?.triage?.triage_colour}
+              level={liveCheckinResult?.provider_level || liveCheckinResult?.triage_level || liveCheckinResult?.triage?.level}
+              colour={liveCheckinResult?.provider_level ? undefined : (liveCheckinResult?.triage_colour || liveCheckinResult?.triage?.triage_colour)}
             />
             {liveCheckinResult?.triage?.patient_reason_key === "trend_rising" && (
               <p className="text-xs text-amber-900 bg-amber-100/90 px-3.5 py-1.5 rounded-xl border border-amber-300/80 text-center max-w-sm shadow-xs font-medium">
@@ -125,6 +126,43 @@ export const RiskResultScreen = () => {
         </div>
 
         <div className="p-6 sm:p-7 space-y-5">
+          {/* Provider Review Card (F6 / Proposal UC-15) */}
+          {(liveCheckinResult?.provider_level || liveCheckinResult?.provider_decision) && (
+            <div
+              data-testid="provider-reviewed-card"
+              className="p-4 sm:p-5 rounded-2xl bg-teal-50/90 border-2 border-teal-600/60 shadow-sm space-y-2.5 animate-fadeIn text-left"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-teal-800 shrink-0" />
+                  <span className="text-sm font-bold text-teal-950">
+                    {t.reviewedByCareTeam}
+                  </span>
+                </div>
+                {liveCheckinResult.provider_level && (
+                  <TriageColourChip
+                    level={liveCheckinResult.provider_level}
+                  />
+                )}
+              </div>
+              <p className="text-xs text-teal-900 font-medium">
+                {liveCheckinResult.provider_decision === "approved"
+                  ? t.approvedAsRecommended
+                  : liveCheckinResult.provider_decision === "adjusted" && liveCheckinResult.provider_level
+                  ? `${t.adjustModalTitle}: ${liveCheckinResult.provider_level.toUpperCase()}`
+                  : t.approvedAsRecommended}
+              </p>
+              {liveCheckinResult.patient_message && (
+                <div className="p-3 rounded-xl bg-white/90 border border-teal-200 text-xs text-navy-900 leading-relaxed">
+                  <span className="font-semibold block text-[11px] text-teal-800 uppercase tracking-wider mb-1">
+                    {t.adjustMessageLabel}
+                  </span>
+                  <p>{liveCheckinResult.patient_message}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Low Blood Sugar Safety Advice Banner */}
           {isLowGlucose && (
             <div data-testid="low-glucose-safety-banner" className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-600 text-amber-950 text-sm font-bold flex items-center gap-3 animate-fadeIn shadow-xs text-left">
@@ -244,9 +282,20 @@ export const RiskResultScreen = () => {
                   if (c.status === "agreement" || c.status === "agree") statusDesc = isUrdu ? "پچھلے ریکارڈ کے مطابق ہے" : "Matches saved record";
                   else if (c.status === "source_b_only") statusDesc = isUrdu ? "آج درج کیا گیا (کوئی پچھلا ریکارڈ موجود نہیں)" : "Reported today (no prior record)";
                   else if (c.status === "conflict") statusDesc = isUrdu ? "پچھلے ریکارڈ سے مختلف ہے" : "Differs from saved record";
+                  const readingStatus = getReadingStatus(c.observation_type, c.value_b, language, c.unit_b);
                   return (
-                    <li key={idx} className="flex items-center justify-between py-1.5 border-b border-slate-200/60 last:border-none">
-                      <span className="font-semibold text-slate-800">{type} ({valToday}{recordDesc})</span>
+                    <li key={idx} className="flex items-center justify-between py-1.5 border-b border-slate-200/60 last:border-none flex-wrap gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-800">{type} ({valToday}{recordDesc})</span>
+                        {readingStatus.status !== "unspecified" && (
+                          <span
+                            data-testid={`result-reading-status-${idx}`}
+                            className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${readingStatus.badgeClass}`}
+                          >
+                            {readingStatus.label}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-slate-500 font-medium">{statusDesc}</span>
                     </li>
                   );

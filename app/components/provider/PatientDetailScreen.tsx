@@ -25,6 +25,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  ReferenceArea,
 } from "recharts";
 import { FhirSourceBadge } from "../FhirSourceBadge";
 
@@ -268,8 +269,8 @@ export const PatientDetailScreen = () => {
           <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
             <div className="flex items-center justify-between text-xs font-bold text-navy-800">
               <span>{t.glucoseChartTitle}</span>
-              <span className="text-[10px] text-teal-800 bg-teal-100/60 px-2 py-0.5 rounded font-bold">
-                Target: 90–130 mg/dL
+              <span className="text-[10px] text-teal-800 bg-teal-100/60 px-2 py-0.5 rounded font-bold" data-testid="provider-glucose-range-label">
+                Normal: 70–180 mg/dL
               </span>
             </div>
             <div className="h-44 w-full pt-1">
@@ -283,8 +284,17 @@ export const PatientDetailScreen = () => {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                   <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#64748B" }} />
-                  <YAxis domain={[80, 140]} tick={{ fontSize: 10, fill: "#64748B" }} />
+                  <YAxis domain={[60, 190]} tick={{ fontSize: 10, fill: "#64748B" }} />
                   <Tooltip />
+                  <ReferenceArea
+                    y1={70}
+                    y2={180}
+                    fill="#0B6E70"
+                    fillOpacity={0.08}
+                    strokeDasharray="3 3"
+                    stroke="#0B6E70"
+                    strokeOpacity={0.25}
+                  />
                   <Area type="monotone" dataKey="value" stroke="#0B6E70" strokeWidth={2.5} fill="url(#ahmedGlucGrad)" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -295,15 +305,35 @@ export const PatientDetailScreen = () => {
           <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
             <div className="flex items-center justify-between text-xs font-bold text-navy-800">
               <span>{t.bloodPressureChartTitle}</span>
-              <span className="text-[10px] text-slate-500 font-semibold">Systolic / Diastolic</span>
+              <span className="text-[10px] text-slate-500 font-semibold" data-testid="provider-bp-range-label">
+                Normal: 90–139 / 60–89 mmHg
+              </span>
             </div>
             <div className="h-44 w-full pt-1">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={ahmedBpData} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                   <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#64748B" }} />
-                  <YAxis domain={[60, 140]} tick={{ fontSize: 10, fill: "#64748B" }} />
+                  <YAxis domain={[50, 150]} tick={{ fontSize: 10, fill: "#64748B" }} />
                   <Tooltip />
+                  <ReferenceArea
+                    y1={90}
+                    y2={140}
+                    fill="#16233F"
+                    fillOpacity={0.05}
+                    strokeDasharray="3 3"
+                    stroke="#16233F"
+                    strokeOpacity={0.2}
+                  />
+                  <ReferenceArea
+                    y1={60}
+                    y2={90}
+                    fill="#108B8D"
+                    fillOpacity={0.05}
+                    strokeDasharray="3 3"
+                    stroke="#108B8D"
+                    strokeOpacity={0.2}
+                  />
                   <Line type="monotone" dataKey="systolic" stroke="#16233F" strokeWidth={2.5} dot={false} />
                   <Line type="monotone" dataKey="diastolic" stroke="#108B8D" strokeWidth={2.5} dot={false} />
                 </LineChart>

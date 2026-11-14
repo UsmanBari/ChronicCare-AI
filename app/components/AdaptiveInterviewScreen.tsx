@@ -32,6 +32,7 @@ import {
   OptionItem,
 } from "../lib/api";
 import { useVoiceRecorder } from "../lib/useVoiceRecorder";
+import { getNormalRangeText } from "../lib/referenceRanges";
 
 interface ChatMessage {
   role: "system" | "user";
@@ -52,6 +53,7 @@ export const AdaptiveInterviewScreen = () => {
     setShowSettings,
     t,
     isUrdu,
+    language,
   } = useApp();
 
   // --- LIVE MODE STATE ---
@@ -67,6 +69,14 @@ export const AdaptiveInterviewScreen = () => {
   const [lastFailedAnswer, setLastFailedAnswer] = useState<string | null>(null);
   const [liveOptions, setLiveOptions] = useState<string[] | null>(activeLiveCheckin?.options || null);
   const [liveOptionItems, setLiveOptionItems] = useState<OptionItem[] | null>(activeLiveCheckin?.option_items || null);
+
+  const isBpQuestion = /blood[\s_-]?pressure|systolic|diastolic|بلڈ\s*پریشر|بی\s*پی|bp\b/i.test(liveQuestion || "") || Boolean(currentStep?.includes("bp"));
+  const isGlucoseQuestion = /blood[\s_-]?glucose|blood[\s_-]?sugar|glucose|sugar|شوگر/i.test(liveQuestion || "") || Boolean(currentStep?.includes("glucose") || currentStep?.includes("sugar"));
+  const normalRangeHint = isBpQuestion
+    ? getNormalRangeText("blood_pressure", language, ((liveProfile as any)?.glucose_unit as any) || "mg/dL")
+    : isGlucoseQuestion
+      ? getNormalRangeText("glucose", language, ((liveProfile as any)?.glucose_unit as any) || "mg/dL")
+      : "";
   const [liveWhyText, setLiveWhyText] = useState<string | null>(activeLiveCheckin?.why_text || null);
   const [liveProgressHint, setLiveProgressHint] = useState<string | null>(activeLiveCheckin?.progress_hint || null);
   const [canSkip, setCanSkip] = useState<boolean>(activeLiveCheckin?.can_skip ?? true);
@@ -108,7 +118,7 @@ export const AdaptiveInterviewScreen = () => {
 
   // Scroll to newest question within question list container only (prevent page jump)
   useEffect(() => {
-    if (messagesEndRef.current) {
+    if (messagesEndRef.current && typeof messagesEndRef.current.scrollIntoView === "function") {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
     if (inputRef.current) {
@@ -515,13 +525,12 @@ export const AdaptiveInterviewScreen = () => {
             {conversationHistory.map((msg, idx) => (
               <div
                 key={idx}
-                className={`flex gap-3 animate-fadeIn ${
-                  msg.role === "user"
-                    ? isUrdu
-                      ? "justify-start flex-row-reverse"
-                      : "justify-end"
-                    : "justify-start"
-                }`}
+                className={`flex gap-3 animate-fadeIn ${msg.role === "user"
+                  ? isUrdu
+                    ? "justify-start flex-row-reverse"
+                    : "justify-end"
+                  : "justify-start"
+                  }`}
               >
                 {msg.role === "system" && (
                   <div className="w-8 h-8 rounded-full bg-navy-800 text-teal-300 flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
@@ -529,13 +538,11 @@ export const AdaptiveInterviewScreen = () => {
                   </div>
                 )}
                 <div
-                  className={`p-4 rounded-2xl text-sm max-w-[85%] ${
-                    isUrdu ? "leading-[2.2] font-urdu" : "leading-relaxed"
-                  } ${
-                    msg.role === "user"
+                  className={`p-4 rounded-2xl text-sm max-w-[85%] ${isUrdu ? "leading-[2.2] font-urdu" : "leading-relaxed"
+                    } ${msg.role === "user"
                       ? "bg-teal-700 text-white rounded-br-xs shadow-xs"
                       : "bg-slate-100/90 text-navy-900 border border-slate-200 rounded-bl-xs shadow-xs font-medium"
-                  }`}
+                    }`}
                 >
                   <bdi>{msg.text}</bdi>
                 </div>
@@ -740,18 +747,16 @@ export const AdaptiveInterviewScreen = () => {
                     }}
                     disabled={isSending}
                     placeholder={isUrdu ? "اپنا جواب یہاں لکھیں یا مائیک دبائیں..." : "Type your response or tap mic..."}
-                    className={`w-full h-12 text-sm rounded-xl border ${
-                      transcribedSafetyNotice ? "border-teal-500 ring-2 ring-teal-200 bg-teal-50/20" : "border-slate-300 bg-white"
-                    } ${isUrdu ? "pr-4 pl-12" : "pl-4 pr-12"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 shadow-xs`}
+                    className={`w-full h-12 text-sm rounded-xl border ${transcribedSafetyNotice ? "border-teal-500 ring-2 ring-teal-200 bg-teal-50/20" : "border-slate-300 bg-white"
+                      } ${isUrdu ? "pr-4 pl-12" : "pl-4 pr-12"} text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700 shadow-xs`}
                   />
                   <button
                     type="submit"
                     disabled={!liveAnswerInput.trim() || isSending}
                     id="live-send-answer-btn"
                     aria-label={t.sendBtnLabel}
-                    className={`absolute ${
-                      isUrdu ? "left-1.5" : "right-1.5"
-                    } top-1.5 bottom-1.5 px-3 bg-teal-700 hover:bg-teal-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-all flex items-center justify-center`}
+                    className={`absolute ${isUrdu ? "left-1.5" : "right-1.5"
+                      } top-1.5 bottom-1.5 px-3 bg-teal-700 hover:bg-teal-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-all flex items-center justify-center`}
                   >
                     {isSending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -777,16 +782,22 @@ export const AdaptiveInterviewScreen = () => {
                       ? t.micDisabledLabel
                       : t.micSpeakLabel
                   }
-                  className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 transition-all border shadow-xs ${
-                    liveProfile?.voice_enabled === false
-                      ? "bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200"
-                      : "bg-teal-50 text-teal-800 border-teal-300 hover:bg-teal-100 active:scale-95"
-                  }`}
+                  className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 transition-all border shadow-xs ${liveProfile?.voice_enabled === false
+                    ? "bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200"
+                    : "bg-teal-50 text-teal-800 border-teal-300 hover:bg-teal-100 active:scale-95"
+                    }`}
                 >
                   <Mic className="w-5 h-5" />
                 </button>
               </div>
             )}
+
+            {normalRangeHint ? (
+              <div data-testid="interview-normal-range-hint" className="px-1 flex items-center justify-between text-xs text-slate-500 font-medium">
+                <span>{normalRangeHint}</span>
+                <span className="text-[10px] text-slate-400 italic">({t.normalRangeDisclaimer})</span>
+              </div>
+            ) : null}
 
             {/* Quick-answer buttons for Medication Check Step */}
             {currentStep?.startsWith("medication_check") && (
@@ -907,11 +918,10 @@ export const AdaptiveInterviewScreen = () => {
               type="button"
               id="q1-yes-btn"
               onClick={() => handleQ1Select(true)}
-              className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${
-                q1Thirst === true
-                  ? "bg-teal-700 text-white border-teal-700 shadow-md"
-                  : "bg-white text-navy-800 border-slate-200 hover:border-teal-600 hover:bg-teal-50/50"
-              }`}
+              className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${q1Thirst === true
+                ? "bg-teal-700 text-white border-teal-700 shadow-md"
+                : "bg-white text-navy-800 border-slate-200 hover:border-teal-600 hover:bg-teal-50/50"
+                }`}
             >
               {t.yes}
             </button>
@@ -919,11 +929,10 @@ export const AdaptiveInterviewScreen = () => {
               type="button"
               id="q1-no-btn"
               onClick={() => handleQ1Select(false)}
-              className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${
-                q1Thirst === false
-                  ? "bg-navy-800 text-white border-navy-800 shadow-md"
-                  : "bg-white text-navy-800 border-slate-200 hover:border-slate-400 hover:bg-slate-100/50"
-              }`}
+              className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${q1Thirst === false
+                ? "bg-navy-800 text-white border-navy-800 shadow-md"
+                : "bg-white text-navy-800 border-slate-200 hover:border-slate-400 hover:bg-slate-100/50"
+                }`}
             >
               {t.no}
             </button>
@@ -952,11 +961,10 @@ export const AdaptiveInterviewScreen = () => {
                 type="button"
                 id="q2-yes-btn"
                 onClick={() => handleQ2Select(true)}
-                className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${
-                  q2Urination === true
-                    ? "bg-teal-700 text-white border-teal-700 shadow-md"
-                    : "bg-white text-navy-800 border-teal-200 hover:border-teal-600 hover:bg-teal-100/50"
-                }`}
+                className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${q2Urination === true
+                  ? "bg-teal-700 text-white border-teal-700 shadow-md"
+                  : "bg-white text-navy-800 border-teal-200 hover:border-teal-600 hover:bg-teal-100/50"
+                  }`}
               >
                 {t.yes}
               </button>
@@ -964,11 +972,10 @@ export const AdaptiveInterviewScreen = () => {
                 type="button"
                 id="q2-no-btn"
                 onClick={() => handleQ2Select(false)}
-                className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${
-                  q2Urination === false
-                    ? "bg-navy-800 text-white border-navy-800 shadow-md"
-                    : "bg-white text-navy-800 border-teal-200 hover:border-slate-400 hover:bg-slate-100/50"
-                }`}
+                className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${q2Urination === false
+                  ? "bg-navy-800 text-white border-navy-800 shadow-md"
+                  : "bg-white text-navy-800 border-teal-200 hover:border-slate-400 hover:bg-slate-100/50"
+                  }`}
               >
                 {t.no}
               </button>
@@ -994,11 +1001,10 @@ export const AdaptiveInterviewScreen = () => {
                   type="button"
                   id="q3-yes-btn"
                   onClick={() => handleQ3Select("yes")}
-                  className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${
-                    q3MissedMeds === "yes"
-                      ? "bg-amber-800 text-white border-amber-800 shadow-md"
-                      : "bg-white text-navy-800 border-slate-200 hover:border-amber-800 hover:bg-amber-50/50"
-                  }`}
+                  className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${q3MissedMeds === "yes"
+                    ? "bg-amber-800 text-white border-amber-800 shadow-md"
+                    : "bg-white text-navy-800 border-slate-200 hover:border-amber-800 hover:bg-amber-50/50"
+                    }`}
                 >
                   {t.yes}
                 </button>
@@ -1006,11 +1012,10 @@ export const AdaptiveInterviewScreen = () => {
                   type="button"
                   id="q3-no-btn"
                   onClick={() => handleQ3Select("no")}
-                  className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${
-                    q3MissedMeds === "no"
-                      ? "bg-mutedGreen-800 text-white border-mutedGreen-800 shadow-md"
-                      : "bg-white text-navy-800 border-slate-200 hover:border-mutedGreen-800 hover:bg-mutedGreen-50/50"
-                  }`}
+                  className={`min-h-[48px] py-3 px-4 rounded-xl text-sm font-semibold border-2 transition-all flex items-center justify-center ${q3MissedMeds === "no"
+                    ? "bg-mutedGreen-800 text-white border-mutedGreen-800 shadow-md"
+                    : "bg-white text-navy-800 border-slate-200 hover:border-mutedGreen-800 hover:bg-mutedGreen-50/50"
+                    }`}
                 >
                   {t.no}
                 </button>
@@ -1020,11 +1025,10 @@ export const AdaptiveInterviewScreen = () => {
                 type="button"
                 id="q3-prefer-not-btn"
                 onClick={() => handleQ3Select("prefer_not_to_answer")}
-                className={`w-full min-h-[44px] py-2.5 px-4 rounded-xl text-xs font-semibold border transition-all text-center flex items-center justify-center ${
-                  q3MissedMeds === "prefer_not_to_answer"
-                    ? "bg-slate-700 text-white border-slate-700 shadow-sm"
-                    : "bg-white text-slate-600 border-slate-300 hover:bg-slate-100 hover:text-navy-800"
-                }`}
+                className={`w-full min-h-[44px] py-2.5 px-4 rounded-xl text-xs font-semibold border transition-all text-center flex items-center justify-center ${q3MissedMeds === "prefer_not_to_answer"
+                  ? "bg-slate-700 text-white border-slate-700 shadow-sm"
+                  : "bg-white text-slate-600 border-slate-300 hover:bg-slate-100 hover:text-navy-800"
+                  }`}
               >
                 {t.preferNotToAnswer}
               </button>
@@ -1048,11 +1052,10 @@ export const AdaptiveInterviewScreen = () => {
             type="submit"
             disabled={!canSubmitMock}
             id="submit-checkin-btn"
-            className={`flex-1 min-h-[48px] py-3 px-5 font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${
-              canSubmitMock
-                ? "bg-teal-700 hover:bg-teal-600 active:scale-[0.99] text-white shadow-teal-700/20"
-                : "bg-slate-200 text-slate-400 cursor-not-allowed"
-            }`}
+            className={`flex-1 min-h-[48px] py-3 px-5 font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${canSubmitMock
+              ? "bg-teal-700 hover:bg-teal-600 active:scale-[0.99] text-white shadow-teal-700/20"
+              : "bg-slate-200 text-slate-400 cursor-not-allowed"
+              }`}
           >
             <span>{t.submitCheckInBtn}</span>
             <Send className="w-4 h-4" />
