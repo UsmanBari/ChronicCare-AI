@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import { Plus, Trash2, ArrowRight, Activity, Pill, User, ShieldCheck, ShieldAlert, Loader2, Globe, CheckCircle2 } from "lucide-react";
 import { api, ApiError, ProfileUpdateRequest } from "../lib/api";
@@ -136,6 +136,18 @@ export const HealthProfileScreen = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (error && errorRef.current) {
+      if (typeof errorRef.current.scrollIntoView === "function") {
+        errorRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      if (typeof errorRef.current.focus === "function") {
+        errorRef.current.focus();
+      }
+    }
+  }, [error]);
 
   useEffect(() => {
     if (isLiveMode && liveProfile) {
@@ -529,7 +541,7 @@ export const HealthProfileScreen = () => {
 
       <form onSubmit={handleContinue} noValidate className="p-6 sm:p-7 space-y-6">
         {error && (
-          <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2 animate-fadeIn">
+          <div ref={errorRef} tabIndex={-1} className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2 animate-fadeIn">
             <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
             <span>{error}</span>
           </div>

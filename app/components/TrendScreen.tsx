@@ -158,6 +158,32 @@ export const TrendScreen = () => {
     }
   };
 
+  const formatPointLabel = (iso: string, allValues?: Array<{ at: string }>) => {
+    try {
+      const d = new Date(iso);
+      if (allValues && allValues.length > 1) {
+        const sameDayCount = allValues.filter((v) => {
+          const vd = new Date(v.at);
+          return vd.toDateString() === d.toDateString();
+        }).length;
+        if (sameDayCount > 1) {
+          return d.toLocaleDateString(isUrdu ? "ur-PK" : "en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+        }
+      }
+      return d.toLocaleDateString(isUrdu ? "ur-PK" : "en-US", {
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return iso;
+    }
+  };
+
   const glucoseSeries = liveTrends?.trends?.glucose;
   const systolicSeries = liveTrends?.trends?.blood_pressure_systolic;
   const diastolicSeries = liveTrends?.trends?.blood_pressure_diastolic;
@@ -169,7 +195,7 @@ export const TrendScreen = () => {
     const chartData: Array<{ day: string; value: number }> = isLive
       ? (hasReadings && glucoseSeries
           ? glucoseSeries.values.map((v) => ({
-              day: formatDate(v.at),
+              day: formatPointLabel(v.at, glucoseSeries.values),
               value: v.value,
             }))
           : [])
@@ -238,7 +264,7 @@ export const TrendScreen = () => {
                   }}
                 />
                 <Area
-                  type="monotone"
+                  type="linear"
                   dataKey="value"
                   name={isUrdu ? "بلڈ شوگر" : "Blood Glucose"}
                   stroke="#0B6E70"
@@ -265,20 +291,23 @@ export const TrendScreen = () => {
     if (!isLive) {
       chartData = mockBpData;
     } else if (hasSys || hasDia) {
-      const map = new Map<string, { day: string; systolic?: number; diastolic?: number }>();
-      (systolicSeries?.values || []).forEach((v) => {
-        const d = formatDate(v.at);
-        const cur = map.get(d) || { day: d };
+      const pointsMap = new Map<string, { day: string; systolic?: number; diastolic?: number }>();
+      const allVals = [...(systolicSeries?.values || []), ...(diastolicSeries?.values || [])];
+      (systolicSeries?.values || []).forEach((v, idx) => {
+        const key = v.at ? v.at.slice(0, 16) : `sys-${idx}`;
+        const label = formatPointLabel(v.at, allVals);
+        const cur = pointsMap.get(key) || { day: label };
         cur.systolic = v.value;
-        map.set(d, cur);
+        pointsMap.set(key, cur);
       });
-      (diastolicSeries?.values || []).forEach((v) => {
-        const d = formatDate(v.at);
-        const cur = map.get(d) || { day: d };
+      (diastolicSeries?.values || []).forEach((v, idx) => {
+        const key = v.at ? v.at.slice(0, 16) : `dia-${idx}`;
+        const label = formatPointLabel(v.at, allVals);
+        const cur = pointsMap.get(key) || { day: label };
         cur.diastolic = v.value;
-        map.set(d, cur);
+        pointsMap.set(key, cur);
       });
-      chartData = Array.from(map.values());
+      chartData = Array.from(pointsMap.values());
     }
 
     return (
@@ -356,7 +385,7 @@ export const TrendScreen = () => {
                   }}
                 />
                 <Line
-                  type="monotone"
+                  type="linear"
                   dataKey="systolic"
                   name={t.systolicLabel}
                   stroke="#16233F"
@@ -364,7 +393,7 @@ export const TrendScreen = () => {
                   dot={{ r: 4, fill: "#16233F" }}
                 />
                 <Line
-                  type="monotone"
+                  type="linear"
                   dataKey="diastolic"
                   name={t.diastolicLabel}
                   stroke="#108B8D"
@@ -498,6 +527,15 @@ export const TrendScreen = () => {
           )}
         </>
       )}
+
+      {/* Theil-Sen Robust Regression Explanatory Note */}
+      <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500 leading-relaxed text-center sm:text-left">
+        <p>
+          {isUrdu
+            ? "ٹرینڈ کی سمت کا تعین تھیل-سین (Theil-Sen) ریگریشن کے ذریعے کم از کم ۲ دن کی پیمائشوں کے دورانیے پر کیا جاتا ہے۔"
+            : "Trend direction is computed via Theil-Sen robust linear regression over a minimum span of 2 days between measurements."}
+        </p>
+      </div>
 
       {/* Return to Home (End of Flow) */}
       <div className="pt-2">

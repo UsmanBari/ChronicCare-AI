@@ -133,7 +133,7 @@ export const PortalLandingScreen = () => {
       </nav>
 
       {/* 2. Enterprise Hero Section (Top-aligned, max-w-7xl, tightened top gap) */}
-      <section className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 md:px-12 pt-4 md:pt-6 pb-12 md:pb-16">
+      <section className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 md:px-12 pt-8 md:pt-10 pb-12 md:pb-16">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start text-left" dir={isUrdu ? "rtl" : "ltr"}>
           {/* Hero Left Content */}
           <div className="lg:col-span-7 space-y-5">
@@ -434,7 +434,7 @@ export const PortalLandingScreen = () => {
                     <span>FHIR Endpoint Status</span>
                     <span className="text-mutedGreen-800 font-mono">200 OK</span>
                   </div>
-                  <div className="text-[11px] text-slate-500">126 Tracked Users • 18 Providers</div>
+                  <div className="text-[11px] text-slate-500">Live EHR Sync • HL7® FHIR® R4</div>
                 </div>
               </div>
 

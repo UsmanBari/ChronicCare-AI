@@ -346,16 +346,23 @@ def compute_trends(
         median_recent = statistics.median(recent_vals)
         change = round(median_recent - median_earlier, 2)
 
-        pts_for_slope = [(t, v) for t, v, _ in deduped]
-        slope_per_week = round(_calculate_theil_sen_slope(pts_for_slope), 4)
+        # Q11c: Require minimum time span (>= 2 days between first and last reading) before computing slope
+        span_seconds = (deduped[-1][0] - deduped[0][0]).total_seconds()
+        min_span_seconds = 2 * 86400.0  # 2 days in seconds
+
+        if span_seconds >= min_span_seconds:
+            pts_for_slope = [(t, v) for t, v, _ in deduped]
+            slope_per_week = round(_calculate_theil_sen_slope(pts_for_slope), 4)
+        else:
+            slope_per_week = None
 
         # Dual-Agreement Direction Rule:
-        # Rising only if change >= +threshold AND slope_per_week > 0
-        # Falling only if change <= -threshold AND slope_per_week < 0
+        # Rising only if change >= +threshold AND slope_per_week is not None AND slope_per_week > 0
+        # Falling only if change <= -threshold AND slope_per_week is not None AND slope_per_week < 0
         # Otherwise stable
-        if change >= threshold and slope_per_week > 0:
+        if slope_per_week is not None and change >= threshold and slope_per_week > 0:
             direction = DIRECTION_RISING
-        elif change <= -threshold and slope_per_week < 0:
+        elif slope_per_week is not None and change <= -threshold and slope_per_week < 0:
             direction = DIRECTION_FALLING
         else:
             direction = DIRECTION_STABLE

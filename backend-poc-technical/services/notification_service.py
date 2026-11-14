@@ -120,14 +120,19 @@ def notify_urgent_checkin(
 
     # Retrieve patient display name
     name = patient_name
+    clean_uid = str(patient_id).removeprefix("local-")
     if not name:
-        profile = get_patient_profile(patient_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+        profile = get_patient_profile(clean_uid, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
         if profile and profile.get("display_name"):
             name = profile["display_name"]
+        elif profile and profile.get("name"):
+            name = profile["name"]
         else:
-            usr = get_user_by_id(patient_id, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+            usr = get_user_by_id(clean_uid, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
             if usr and usr.get("display_name"):
                 name = usr["display_name"]
+            elif usr and usr.get("email"):
+                name = usr["email"]
 
     display_name = name or "A patient"
     target_provider = provider_id or "prov-demo-gen-1"

@@ -317,9 +317,15 @@ export const ReviewQueueScreen = () => {
                           </div>
                         </td>
                         <td className="py-4.5 px-5">
-                          <span className="inline-flex items-center gap-1.5 text-amber-800 font-bold text-xs">
-                            <Clock className="w-4 h-4 text-amber-800" /> Pending Review
-                          </span>
+                          {activeTab === "resolved" || (item as any).status === "resolved" ? (
+                            <span className="inline-flex items-center gap-1.5 text-emerald-800 font-bold text-xs">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-700" /> Resolved
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-amber-800 font-bold text-xs">
+                              <Clock className="w-4 h-4 text-amber-800" /> Pending Review
+                            </span>
+                          )}
                         </td>
                         <td className="py-4.5 px-5 text-right">
                           <button

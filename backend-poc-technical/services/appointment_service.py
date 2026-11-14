@@ -59,24 +59,44 @@ def _parse_iso_datetime(dt_str: str) -> datetime:
     return dt
 
 
-def determine_specialty(conditions: Optional[List[str]]) -> str:
+def _extract_condition_tokens(item: Any) -> List[str]:
+    tokens = []
+    if isinstance(item, str):
+        tokens.append(item.lower().strip())
+    elif isinstance(item, dict):
+        for v in item.values():
+            tokens.extend(_extract_condition_tokens(v))
+    elif isinstance(item, (list, tuple, set)):
+        for v in item:
+            tokens.extend(_extract_condition_tokens(v))
+    return tokens
+
+
+def determine_specialty(conditions: Optional[Any]) -> str:
     """
     Determines provider specialty from patient chronic conditions:
     - Hypertension only -> cardiology_im
     - Diabetes only -> endocrinology
     - Both diabetes + hypertension -> internal_medicine (docs/CLINICIAN_RESPONSES.md item 4)
     - Otherwise -> general
+    Maps condition names, SNOMED codes (44054006, 73211009, 38341003), ICD-10 (E11, I10), etc.
     """
-    cond_set = {str(c).strip().lower() for c in (conditions or [])}
+    tokens = []
+    for c in (conditions or []):
+        tokens.extend(_extract_condition_tokens(c))
+
+    dm_indicators = ("diabetes", "t2d", "t1d", "sugar", "diabetic", "44054006", "73211009", "e11", "e10", "e14", "e13")
+    htn_indicators = ("hypertension", "htn", "blood_pressure", "high_bp", "38341003", "59621000", "i10", "i15")
+
     has_diabetes = any(
-        k in c
-        for c in cond_set
-        for k in ("diabetes", "t2d", "sugar", "diabetic")
+        k in tok or tok == k
+        for tok in tokens
+        for k in dm_indicators
     )
     has_hypertension = any(
-        k in c
-        for c in cond_set
-        for k in ("hypertension", "htn", "blood_pressure", "high_bp")
+        k in tok or tok == k
+        for tok in tokens
+        for k in htn_indicators
     )
 
     if has_diabetes and has_hypertension:
@@ -308,6 +328,16 @@ def evaluate_and_create_appointment(
             ssl_ca=ssl_ca,
         )
 
+    clean_pid = patient_id.removeprefix("local-") if isinstance(patient_id, str) and patient_id.startswith("local-") else patient_id
+    if not patient_conditions and clean_pid:
+        try:
+            from data_sources.app_store import get_patient_profile
+            prof = get_patient_profile(clean_pid, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+            if prof and prof.get("conditions"):
+                patient_conditions = prof["conditions"]
+        except Exception:
+            pass
+
     now_str = now_iso or _utc_now_iso()
     today_date = now_str[:10]
     specialty = determine_specialty(patient_conditions)
@@ -335,7 +365,7 @@ def evaluate_and_create_appointment(
 
     appt = create_appointment(
         appointment_id=appt_id,
-        patient_id=patient_id,
+        patient_id=clean_pid,
         checkin_id=checkin_id,
         provider_id=provider_id,
         specialty=specialty,

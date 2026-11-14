@@ -201,7 +201,7 @@ def _seed_ocr_prescription(
 
 
 def reset_demo_data(db_path: Optional[str] = None) -> None:
-    """Removes all demo users, profiles, and associated records for a clean reset."""
+    """Removes all demo users, test users (la.%@demo.care), profiles, and associated records for a clean reset."""
     check_sqlite_local_guard()
     demo_emails = [
         "demo_patient_htn@demo.care",
@@ -219,22 +219,29 @@ def reset_demo_data(db_path: Optional[str] = None) -> None:
 
     with get_db_cursor(backend="sqlite", db_path=db_path) as (cursor, _be, ph):
         placeholders = ", ".join([ph] * len(demo_emails))
-        cursor.execute(f"SELECT user_id FROM users WHERE email IN ({placeholders})", tuple(demo_emails))
+        cursor.execute(
+            f"SELECT user_id FROM users WHERE email IN ({placeholders}) OR email LIKE 'la.%@demo.care'",
+            tuple(demo_emails),
+        )
         user_ids = [r["user_id"] for r in cursor.fetchall()]
 
         if user_ids:
             uid_ph = ", ".join([ph] * len(user_ids))
-            # Delete checkin results and checkins
+            # Delete checkin results, appointments, notifications and checkins
             cursor.execute(f"SELECT checkin_id FROM checkins WHERE user_id IN ({uid_ph})", tuple(user_ids))
             c_ids = [r["checkin_id"] for r in cursor.fetchall()]
             if c_ids:
                 c_ph = ", ".join([ph] * len(c_ids))
                 cursor.execute(f"DELETE FROM checkin_results WHERE checkin_id IN ({c_ph})", tuple(c_ids))
+                cursor.execute(f"DELETE FROM appointments WHERE checkin_id IN ({c_ph})", tuple(c_ids))
+                cursor.execute(f"DELETE FROM notifications WHERE checkin_id IN ({c_ph})", tuple(c_ids))
                 cursor.execute(f"DELETE FROM checkins WHERE checkin_id IN ({c_ph})", tuple(c_ids))
 
             # Delete local observations and medications
             pat_ids = [f"local-{uid}" for uid in user_ids] + user_ids
             pid_ph = ", ".join([ph] * len(pat_ids))
+            cursor.execute(f"DELETE FROM appointments WHERE patient_id IN ({pid_ph})", tuple(pat_ids))
+            cursor.execute(f"DELETE FROM notifications WHERE user_id IN ({uid_ph})", tuple(user_ids))
             cursor.execute(f"DELETE FROM observations WHERE patient_id IN ({pid_ph})", tuple(pat_ids))
             cursor.execute(f"DELETE FROM medications WHERE patient_id IN ({pid_ph})", tuple(pat_ids))
             cursor.execute(f"DELETE FROM allergies WHERE user_id IN ({uid_ph})", tuple(user_ids))

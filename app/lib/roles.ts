@@ -27,7 +27,7 @@ export function getRoleFromEmail(email: string | null | undefined): UserRole | n
   // Fallback demo mapping only when env vars are completely absent
   if (!patientEmail && !providerEmail && !adminEmail) {
     const demoPatients = [
-      "saad@gmail.com",
+      "name@example.com",
       "ali.khan@demo.care",
       "patient@demo.care",
       "audit.patient@demo.care",
@@ -48,7 +48,7 @@ export function getRoleFromEmail(email: string | null | undefined): UserRole | n
     }
 
     const demoProviders = [
-      "hassaan@gmail.com",
+      "name.provider@example.com",
       "dr.sanamalik@citygeneral.org",
       "provider@demo.care",
       "provider.demo@demo.care",

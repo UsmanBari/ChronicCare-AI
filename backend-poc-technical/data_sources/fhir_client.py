@@ -94,7 +94,7 @@ def fhir_get(
     if resolved_base.startswith("sim://"):
         status_code, body = fhir_sim.handle(clean_path, params=params)
         if status_code == 404:
-            raise FHIRError("ehr_patient_not_found", "Patient not found in this EHR", status_code=404)
+            raise FHIRError("ehr_patient_not_found", "No patient with that ID was found in this EHR", status_code=404)
         if status_code == 403:
             raise FHIRError("ehr_forbidden", "Access forbidden by EHR", status_code=403)
         if status_code >= 400:
@@ -237,11 +237,34 @@ def get_fhir_observations(patient_id: str, base_url: Optional[str] = None) -> Li
 
 def get_fhir_medications(patient_id: str, base_url: Optional[str] = None) -> List[Dict[str, Any]]:
     """
-    Retrieves MedicationRequest resources for a given patient ID.
+    Retrieves MedicationRequest resources for a given patient ID, following next links.
     """
+    resources = []
     bundle = fhir_get(base_url, "MedicationRequest", params={"patient": patient_id, "_count": 100})
-    entries = bundle.get("entry", []) if isinstance(bundle, dict) else []
-    return [entry["resource"] for entry in entries if "resource" in entry]
+    seen_urls = set()
+    while isinstance(bundle, dict):
+        entries = bundle.get("entry", [])
+        for entry in entries:
+            if "resource" in entry:
+                resources.append(entry["resource"])
+        next_url = None
+        for link in bundle.get("link", []):
+            if link.get("relation") == "next" and link.get("url"):
+                next_url = link["url"]
+                break
+        if not next_url or next_url in seen_urls:
+            break
+        seen_urls.add(next_url)
+        try:
+            resolved_base = _get_base_url(base_url)
+            if next_url.startswith(resolved_base):
+                rel = next_url[len(resolved_base):].lstrip("/")
+                bundle = fhir_get(base_url, rel, use_cache=False)
+            else:
+                break
+        except Exception:
+            break
+    return resources
 
 
 def get_fhir_conditions(patient_id: str, base_url: Optional[str] = None) -> List[Dict[str, Any]]:

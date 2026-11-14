@@ -264,6 +264,14 @@ export interface EHRAllergyItem {
   trust: "high";
 }
 
+export interface EHRMedicationItem {
+  name: string;
+  dosage?: string | null;
+  status?: string;
+  origin?: string;
+  trust?: string;
+}
+
 export interface EHRConnectionResponse {
   mode: string;
   connection?: EHRConnectionInfo | null;
@@ -284,6 +292,7 @@ export interface EHRConnectionResponse {
   message?: string | null;
   doctor_on_record?: DoctorOnRecord | null;
   ehr_allergies?: EHRAllergyItem[];
+  ehr_medications?: EHRMedicationItem[];
 }
 
 export interface OptionItem {
@@ -1169,11 +1178,12 @@ export const api = {
 
   connectEHR: async (
     ehr_system_id: string,
-    external_patient_id: string
+    external_patient_id: string,
+    confirm_identity_mismatch: boolean = false
   ): Promise<EHRConnectionResponse> => {
     return request<EHRConnectionResponse>("/api/ehr/connect", {
       method: "POST",
-      body: JSON.stringify({ ehr_system_id, external_patient_id }),
+      body: JSON.stringify({ ehr_system_id, external_patient_id, confirm_identity_mismatch }),
     });
   },
 
@@ -1443,6 +1453,21 @@ export const api = {
 
   getAdminEscalations: async (): Promise<{ escalations: Appointment[] }> => {
     return request<{ escalations: Appointment[] }>("/api/admin/escalations");
+  },
+
+  getAdminStats: async (): Promise<{
+    total_users: number;
+    total_patients: number;
+    total_providers: number;
+    total_appointments: number;
+    total_checkins: number;
+    active_escalations: number;
+  }> => {
+    return request("/api/admin/stats");
+  },
+
+  getAdminUsers: async (): Promise<{ users: Array<{ user_id: string; email: string; role: string; created_at: string }> }> => {
+    return request("/api/admin/users");
   },
 
   // 10. In-App Notifications & FCM Web Push (PR H / Proposal Sec 13.2 & 15)

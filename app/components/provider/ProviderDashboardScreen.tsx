@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
+import { api, ReviewQueueItemResponse } from "../../lib/api";
 import {
   Activity,
   AlertTriangle,
@@ -32,14 +33,29 @@ export const ProviderDashboardScreen = () => {
   } = useApp();
 
   const [showNotifications, setShowNotifications] = useState(true);
+  const [liveItems, setLiveItems] = useState<ReviewQueueItemResponse[]>([]);
+
+  useEffect(() => {
+    if (!isLiveMode) return;
+    api
+      .getProviderReviewQueue("pending")
+      .then((res) => {
+        if (Array.isArray(res)) {
+          setLiveItems(res);
+        }
+      })
+      .catch(() => {});
+  }, [isLiveMode]);
 
   // Compute live counters based on demoScenario
   const isAliResolved = resolvedCases.includes("Ali Khan");
   const isSaraResolved = resolvedCases.includes("Sara Ahmed");
 
-  let activeCasesCount = isLiveMode ? 0 : 2; // Baseline: Ahmed + Sara Ahmed (demo only)
+  let activeCasesCount = isLiveMode ? liveItems.length : 2; // Baseline: Ahmed + Sara Ahmed (demo only)
   let activeCasesSubtext = "";
-  let urgentCasesCount = 0;
+  let urgentCasesCount = isLiveMode
+    ? liveItems.filter((it) => it.emergency || it.triage_level === "urgent" || it.triage_level === "emergency").length
+    : 0;
 
   if (!isLiveMode) {
     if (demoScenario === "conflict") {
@@ -58,7 +74,7 @@ export const ProviderDashboardScreen = () => {
 
   // Pending queue items count
   const pendingQueueCount = isLiveMode
-    ? 0
+    ? liveItems.length
     : (isSaraResolved ? 0 : 1) +
       (demoScenario !== "normal" && !isAliResolved ? 1 : 0);
 
