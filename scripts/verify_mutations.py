@@ -288,7 +288,7 @@ MUTATIONS = [
         "id": "M-S4-1",
         "name": "Trend Agent: Median-and-Slope Agreement Required (Dual Agreement)",
         "file": BACKEND_DIR / "agents" / "trend_agent.py",
-        "target": "        if change >= threshold and slope_per_week > 0:\n            direction = DIRECTION_RISING\n        elif change <= -threshold and slope_per_week < 0:\n            direction = DIRECTION_FALLING",
+        "target": "        if slope_per_week is not None and change >= threshold and slope_per_week > 0:\n            direction = DIRECTION_RISING\n        elif slope_per_week is not None and change <= -threshold and slope_per_week < 0:\n            direction = DIRECTION_FALLING",
         "replacement": "        if change >= threshold:\n            direction = DIRECTION_RISING\n        elif change <= -threshold:\n            direction = DIRECTION_FALLING",
         "test_node": "backend-poc-technical/test_trend_agent.py::test_conflict_median_positive_slope_non_positive_yields_stable",
     },
@@ -513,6 +513,23 @@ MUTATIONS = [
         "target": "                        if active_explain_mode == \"background\":\n                            # In background mode, 429 does NOT trip circuit breaker!\n                            if prov_attempt < max_prov_attempts - 1:",
         "replacement": "                        if False and active_explain_mode == \"background\":\n                            # In background mode, 429 does NOT trip circuit breaker!\n                            if prov_attempt < max_prov_attempts - 1:",
         "test_node": "backend-poc-technical/test_explain_background.py::test_o7_429_retry_in_background_mode",
+    },
+    # --- Red Flag Patterns Mutations (M-RF-1 & M-RF-2) ---
+    {
+        "id": "M-RF-1",
+        "name": "Red Flag Patterns: Drop window tolerance from 6 to 1",
+        "file": BACKEND_DIR / "agents" / "red_flag_patterns.py",
+        "target": "MAX_WINDOW_WORDS: int = 6",
+        "replacement": "MAX_WINDOW_WORDS: int = 1",
+        "test_node": "backend-poc-technical/test_red_flag_patterns.py::test_mutation_killed_window_tolerance",
+    },
+    {
+        "id": "M-RF-2",
+        "name": "Red Flag Patterns: Disable symptom negation guard",
+        "file": BACKEND_DIR / "agents" / "red_flag_patterns.py",
+        "target": "    if is_symptom_negated(norm):",
+        "replacement": "    if False and is_symptom_negated(norm):",
+        "test_node": "backend-poc-technical/test_red_flag_patterns.py::test_mutation_killed_negation_guard",
     },
 ]
 
