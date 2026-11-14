@@ -267,6 +267,45 @@ For each clinical question below, please review the current application behavior
 
 ---
 
+### Question 7: Bare "Shortness of Breath" Mentions vs Severe / Inability Presentations
+
+```
++---------------------------------------------------------------------------------------------------+
+| QUESTION 7: BARE "SHORTNESS OF BREATH" -> EMERGENCY (1122) VS URGENT / CLINIC REVIEW?             |
++---------------------------------------------------------------------------------------------------+
+| CLINICAL CONTEXT:                                                                                 |
+| Patients frequently report mild, exertional, or chronic dyspnea using the bare clinical term      |
+| "shortness of breath" (e.g. "I have some shortness of breath when walking"). Acute respiratory    |
+| emergencies ("cannot breathe", "gasping for air", "suffocating", "saans bilkul nahi aa rahi")     |
+| represent immediate life threats requiring 1122 ambulance dispatch.                              |
+|                                                                                                   |
+| CURRENT APP BEHAVIOR:                                                                             |
+| "shortness of breath" is currently retained in `MULTILINGUAL_DANGER_CATEGORIES["breathing"]` in    |
+| `input_triage.py`, unconditionally triggering Red / EMERGENCY (immediate 1122 dispatch).          |
+|                                                                                                   |
+| CLINICAL PROPOSAL:                                                                                |
+| Should bare "shortness of breath" (without qualifiers like "severe", "at rest", or "inability to  |
+| breathe") continue to trigger immediate Emergency (1122), or should bare mentions be classified  |
+| as Urgent / Review (Yellow) unless accompanied by acute inability or chest symptoms?            |
++---------------------------------------------------------------------------------------------------+
+| CLINICIAN DECISION:                                                                               |
+|                                                                                                   |
+|   [ ] KEEP AS EMERGENCY -- Any mention of "shortness of breath" must remain an emergency failsafe. |
+|                                                                                                   |
+|   [ ] DOWNGRADE BARE PHRASE TO URGENT/REVIEW -- Only acute inability ("cannot breathe", "gasping", |
+|       "severe breathlessness at rest") triggers Emergency 1122; bare mild dyspnea routes to Yellow.|
+|                                                                                                   |
+|   [ ] CHANGE IT TO: _____________________________________________________________________________ |
++---------------------------------------------------------------------------------------------------+
+| WHAT CHANGES IN THE APP:                                                                          |
+| - If KEEP AS EMERGENCY: "shortness of breath" remains in `input_triage.py` breathing red flags.   |
+| - If DOWNGRADE: Remove bare "shortness of breath" from `input_triage.py`, relying on               |
+|   `red_flag_patterns.py` for severe/inability breathing distress, routing bare dyspnea to Yellow.    |
++---------------------------------------------------------------------------------------------------+
+```
+
+---
+
 ## Summary of Clinical Rules Governed by this Review
 
 | Rule Ref | Clinical Focus | Current Default | Proposed Review Modification |
@@ -277,5 +316,6 @@ For each clinical question below, please review the current application behavior
 | **Audit** | Edge-case benchmark suite | 51 synthetic personas (0 Category B gaps) | Expandable based on clinician feedback |
 | **Lang-1** | Subjective BP increase ("mere khyal me bp barh gaya") | Routine (Green) | Option to escalate to Review (Yellow) |
 | **Lang-2** | Urdu severe chest pain ("seene me shadeed dard") | Emergency (1122) | Confirmation of emergency failsafe |
+| **Lang-3** | Bare "shortness of breath" | Emergency (1122) | Option to downgrade bare dyspnea to Review |
 
 

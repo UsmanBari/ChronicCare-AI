@@ -4216,7 +4216,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
             conditions=conditions,
             on_insulin_or_sulfonylurea=profile.get("on_insulin_or_sulfonylurea", False),
             is_cold_start=is_cold_start,
-            baseline=baseline,
+            baseline=baseline.to_dict() if hasattr(baseline, "to_dict") else baseline,
             language=profile.get("preferred_language") or profile.get("language") or "en",
         )
         create_checkin(
@@ -4408,7 +4408,7 @@ def answer_checkin_endpoint(
                         triage_dict=res,
                     )
                 except Exception as e:
-                    logger.error(f"Persistence error during answer: {type(e).__name__}")
+                    logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail="Failed to save check-in answer. Please try again.",
@@ -4462,7 +4462,7 @@ def answer_checkin_endpoint(
                         protocol_state_dict=next_protocol_state.to_dict(),
                     )
                 except Exception as e:
-                    logger.error(f"Persistence error during answer: {type(e).__name__}")
+                    logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                         detail="Failed to save check-in answer. Please try again.",
@@ -4501,7 +4501,7 @@ def answer_checkin_endpoint(
                     protocol_state_dict=next_protocol_state.to_dict(),
                 )
             except Exception as e:
-                logger.error(f"Persistence error during answer: {type(e).__name__}")
+                logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to save check-in answer. Please try again.",
@@ -4562,6 +4562,29 @@ def answer_checkin_endpoint(
                     reason = t_res.trigger_detail or "danger_phrase"
             except Exception:
                 pass
+        if not triggered and body.answer:
+            try:
+                from agents.red_flag_patterns import match as match_red_flags
+                rf_hit, rf_cat = match_red_flags(body.answer)
+                if rf_hit and rf_cat:
+                    triggered = True
+                    reason = rf_cat
+            except Exception:
+                pass
+        if triggered and body.answer:
+            try:
+                from agents.red_flag_patterns import is_fainting_recovered_or_benign, match_categories
+                if reason in ("loss_of_consciousness", "fainting"):
+                    if is_fainting_recovered_or_benign(body.answer):
+                        other_cats = [c for c in match_categories(body.answer) if c != "loss_of_consciousness"]
+                        if other_cats:
+                            triggered = True
+                            reason = other_cats[0]
+                        else:
+                            triggered = False
+                            reason = None
+            except Exception:
+                pass
         med_safety_note = None
         from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note, WordGroupResult
         if not triggered and is_danger_wordgroups_enabled() and body.answer:
@@ -4586,7 +4609,7 @@ def answer_checkin_endpoint(
         if triggered:
             rf_level = get_red_flag_level(reason)
             is_emerg = (rf_level == "emergency")
-            status_val = rf_level
+            status_val = "emergency" if is_emerg else "complete"
             last_cond = current_state.active_condition or "general"
             intakes = current_state.intakes if current_state.intakes else [{"condition": last_cond, "emergency": is_emerg, "level": rf_level, "reason": reason}]
             completed_at = _utc_now_iso()
@@ -4605,7 +4628,7 @@ def answer_checkin_endpoint(
                     protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
                 )
             except Exception as e:
-                logger.error(f"Persistence error during answer: {type(e).__name__}")
+                logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to save check-in answer. Please try again.",
@@ -4647,7 +4670,7 @@ def answer_checkin_endpoint(
                 protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
             )
         except Exception as e:
-            logger.error(f"Persistence error during answer: {type(e).__name__}")
+            logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to save check-in answer. Please try again.",
@@ -4702,8 +4725,54 @@ def answer_checkin_endpoint(
         is_emergency = bool(next_state.get("emergency"))
         emergency_reason = next_state.get("emergency_reason")
 
-        if is_emergency:
-            new_status = "emergency"
+        is_urgent_v3 = False
+        if not is_emergency and body.answer:
+            try:
+                from agents.red_flag_patterns import match as match_red_flags
+                rf_hit, rf_cat = match_red_flags(body.answer)
+                if rf_hit and rf_cat:
+                    rf_level = get_red_flag_level(rf_cat)
+                    if rf_level == "emergency":
+                        is_emergency = True
+                        emergency_reason = rf_cat
+                        next_state["emergency"] = True
+                        next_state["emergency_reason"] = rf_cat
+                        next_state["completed"] = True
+                        next_state["step"] = "COMPLETE"
+                        next_state["current_question"] = None
+                    elif rf_level == "urgent":
+                        is_urgent_v3 = True
+                        emergency_reason = rf_cat
+                        next_state["completed"] = True
+                        next_state["step"] = "COMPLETE"
+                        next_state["current_question"] = None
+            except Exception:
+                pass
+
+        if is_emergency and body.answer:
+            try:
+                from agents.red_flag_patterns import is_fainting_recovered_or_benign, match_categories
+                if emergency_reason in ("loss_of_consciousness", "fainting"):
+                    if is_fainting_recovered_or_benign(body.answer):
+                        other_cats = [c for c in match_categories(body.answer) if c != "loss_of_consciousness"]
+                        if other_cats:
+                            is_emergency = True
+                            emergency_reason = other_cats[0]
+                            next_state["emergency"] = True
+                            next_state["emergency_reason"] = other_cats[0]
+                        else:
+                            is_emergency = False
+                            emergency_reason = None
+                            next_state["emergency"] = False
+                            next_state["emergency_reason"] = None
+            except Exception:
+                pass
+
+        if is_emergency or is_urgent_v3:
+            if is_emergency and not next_state.get("safety_note"):
+                from agents.danger_wordgroups import get_safety_note
+                next_state["safety_note"] = get_safety_note(lang)
+            new_status = "emergency" if is_emergency else "complete"
             completed_at = _utc_now_iso()
             is_complete = True
             next_step_str = next_state.get("step", "COMPLETE")
@@ -4778,7 +4847,7 @@ def answer_checkin_endpoint(
                 protocol_state_dict=new_protocol_state_dict,
             )
         except Exception as e:
-            logger.error(f"Persistence error during answer: {type(e).__name__}")
+            logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to save check-in answer. Please try again.",
@@ -4855,10 +4924,34 @@ def answer_checkin_endpoint(
         try:
             from agents.input_triage import classify_input
             t_res = classify_input(body.answer)
-            is_syncope_wg = bool("chakkar kha kar gir" in body.answer.lower())
-            if (t_res.is_emergency or t_res.is_urgent_safety) and not is_syncope_wg:
+            if t_res.is_emergency or t_res.is_urgent_safety:
                 next_state.stage1_red_flag = True
                 next_state.stage1_reason = t_res.trigger_detail
+        except Exception:
+            pass
+
+    if not next_state.stage1_red_flag and body.answer:
+        try:
+            from agents.red_flag_patterns import match as match_red_flags
+            rf_hit, rf_cat = match_red_flags(body.answer)
+            if rf_hit and rf_cat:
+                next_state.stage1_red_flag = True
+                next_state.stage1_reason = rf_cat
+        except Exception:
+            pass
+
+    if next_state.stage1_red_flag and body.answer:
+        try:
+            from agents.red_flag_patterns import is_fainting_recovered_or_benign, match_categories
+            if next_state.stage1_reason in ("loss_of_consciousness", "fainting"):
+                if is_fainting_recovered_or_benign(body.answer):
+                    other_cats = [c for c in match_categories(body.answer) if c != "loss_of_consciousness"]
+                    if other_cats:
+                        next_state.stage1_red_flag = True
+                        next_state.stage1_reason = other_cats[0]
+                    else:
+                        next_state.stage1_red_flag = False
+                        next_state.stage1_reason = None
         except Exception:
             pass
 
@@ -4900,7 +4993,7 @@ def answer_checkin_endpoint(
     is_urgent_stage1 = bool(next_state.stage1_red_flag and rf_level == "urgent")
 
     if is_emergency or is_urgent_stage1:
-        new_status = "emergency" if is_emergency else "urgent"
+        new_status = "emergency" if is_emergency else "complete"
         completed_at = _utc_now_iso()
         is_complete = True
         next_step_str = next_state.step
@@ -4979,7 +5072,7 @@ def answer_checkin_endpoint(
             protocol_state_dict=new_protocol_state_dict,
         )
     except Exception as e:
-        logger.error(f"Persistence error during answer: {type(e).__name__}")
+        logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save check-in answer. Please try again.",

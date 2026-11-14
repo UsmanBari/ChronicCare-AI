@@ -386,7 +386,7 @@ def test_c5_flag_off_invariant_behavior_identical_to_baseline(monkeypatch, rsa_k
     answer_resp = client.post(
         f"/api/checkins/{checkin_id}/answer",
         headers=headers,
-        json={"answer": "seenay mein shadeed dabao aur dard hai"},
+        json={"answer": "kala pakhana aa raha hai"},
     )
     assert answer_resp.status_code == 200
     assert answer_resp.json().get("safety_note") is None

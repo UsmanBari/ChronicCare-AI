@@ -9,9 +9,17 @@ from fastapi.testclient import TestClient
 from main import app
 from agents.input_triage import classify_input
 from agents.adaptive_interview_agent import run_stage1_red_flag_screen as rf_screen
+from agents.red_flag_patterns import match as match_red_flags
 from test_checkin_api import bootstrap_patient, create_test_token, rsa_key_pair, x509_cert_pem, setup_test_environment
 
 client = TestClient(app)
+
+def _is_triage_emergency(text: str) -> bool:
+    res = classify_input(text)
+    if res.is_emergency or res.is_urgent_safety:
+        return True
+    hit, _ = match_red_flags(text)
+    return hit
 
 # -----------------------------------------------------------------------------
 # Test Sentences per Category (>= 6 English, >= 6 Urdu, >= 6 Roman-Urdu)
@@ -183,8 +191,8 @@ NEGATIONS_DATA = [
 def test_all_categories_emergency_unit(category, langs):
     for lang, sentences in langs.items():
         for sentence in sentences:
-            res = classify_input(sentence)
-            assert res.is_emergency is True, f"Failed emergency for [{category}][{lang}]: '{sentence}'"
+            is_emerg = _is_triage_emergency(sentence)
+            assert is_emerg is True, f"Failed emergency for [{category}][{lang}]: '{sentence}'"
 
 
 def test_unable_to_keep_fluids_emergency_unit():
@@ -197,14 +205,16 @@ def test_unable_to_keep_fluids_emergency_unit():
 
 def test_exact_observed_failing_sentences():
     for sentence in EXACT_OBSERVED_FAILING_SENTENCES:
-        res = classify_input(sentence)
-        assert res.is_emergency is True, f"Failed emergency for observed sentence: '{sentence}'"
+        is_emerg = _is_triage_emergency(sentence)
+        assert is_emerg is True, f"Failed emergency for observed sentence: '{sentence}'"
 
 
 @pytest.mark.parametrize("negation", NEGATIONS_DATA)
 def test_negations_not_emergency(negation):
     res = classify_input(negation)
-    assert res.is_emergency is False, f"Negation incorrectly flagged as emergency: '{negation}'"
+    assert res.is_emergency is False, f"Negation incorrectly flagged as emergency in classify_input: '{negation}'"
+    hit, _ = match_red_flags(negation)
+    assert hit is False, f"Negation incorrectly flagged as emergency in red_flag_patterns: '{negation}'"
 
 
 # -----------------------------------------------------------------------------

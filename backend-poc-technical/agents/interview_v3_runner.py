@@ -233,14 +233,14 @@ def start_v3_session(
         "conditions": patient_conditions,
         "on_insulin_or_sulfonylurea": on_insulin_or_sulfonylurea,
         "is_cold_start": is_cold_start,
-        "baseline": baseline or {},
+        "baseline": baseline.to_dict() if hasattr(baseline, "to_dict") else (baseline or {}),
     }
 
     known_slots: Dict[str, Any] = {}
     asked_slots: List[str] = []
     findings: List[Dict[str, Any]] = []
     contradictions: List[Dict[str, Any]] = []
-    recent_checkins = baseline.get("recent_history", []) if baseline else []
+    recent_checkins = (baseline.get("recent_history", []) if isinstance(baseline, dict) else getattr(baseline, "recent_history", [])) if baseline else []
 
     # Get first question from planner
     decision: PlanDecision = plan_next_step(
