@@ -1,29 +1,28 @@
 """
-Reference Ranges Module (Doctor Decision D5 / Nov 2026).
+Reference Ranges Module (Doctor Decisions D5 & D6 / Nov 2026).
 
-One single source of truth for normal / routine physiological reference ranges used by Chronicare.
-All thresholds are derived from the application's existing triage rules and clinical references.
+One single source of truth for target reference ranges used by Chronicare.
+All thresholds are derived from the application's clinical rules and doctor-approved guidance.
 
 Sources:
-- Systolic Blood Pressure: 90.0 to < 140.0 mmHg
+- Systolic Blood Pressure: 90.0 to < 140.0 mmHg (Target: 90–139 mmHg)
     CLINICAL_RULES.md Section 2 Priority 1 (Stage 2 threshold >= 140 mmHg) &
     Section 2 Priority 4 (Low BP threshold < 90 mmHg); Section 8 Table
     (BP_LOW_SYSTOLIC_MMHG = 90, BP_STAGE2_SYSTOLIC_MMHG = 140).
     Guideline: 2025 AHA/ACC Guideline.
-- Diastolic Blood Pressure: 60.0 to < 90.0 mmHg
+- Diastolic Blood Pressure: 60.0 to < 90.0 mmHg (Target: 60–89 mmHg)
     CLINICAL_RULES.md Section 2 Priority 1 (Stage 2 threshold >= 90 mmHg) &
     Section 2 Priority 4 (Low BP threshold < 60 mmHg); Section 8 Table
     (BP_LOW_DIASTOLIC_MMHG = 60, BP_STAGE2_DIASTOLIC_MMHG = 90).
     Guideline: 2025 AHA/ACC Guideline.
-- Fasting Blood Glucose: 70.0 to 130.0 mg/dL (3.9 to 7.2 mmol/L)
-    CLINICAL_RULES.md Section 2 Priority 3 (GLUCOSE_LOW_MG_DL = 70);
-    Section 8 Table & INTERVIEW_V2_3_DESIGN.md (fasting target < 130 mg/dL).
-    Guideline: ADA Standards of Care.
-- Post-Meal / General Blood Glucose: 70.0 to 180.0 mg/dL (3.9 to 10.0 mmol/L)
-    CLINICAL_RULES.md Section 2 Priority 3 (GLUCOSE_LOW_MG_DL = 70);
-    Section 8 Table & final_triage.py TARGET_THRESHOLDS['glucose'] = 180.0
-    (postprandial / general target < 180 mg/dL).
-    Guideline: ADA Standards of Care.
+- Fasting Blood Glucose: 90.0 to 125.0 mg/dL (5.0 to 6.9 mmol/L)
+    Doctor Decision D6 (Nov 2026): fasting target 90–125 mg/dL. Values < 90 mg/dL
+    pose dizziness risk and are below target; values > 125 mg/dL are above target.
+- Post-Meal Blood Glucose: 125.0 to 200.0 mg/dL (6.9 to 11.1 mmol/L)
+    Doctor Decision D6 (Nov 2026): after meals target 125–200 mg/dL.
+    Values 90–124 post-meal are accepted as In target and auto-resolve under D5.
+- Random / General Blood Glucose: 90.0 to 200.0 mg/dL (5.0 to 11.1 mmol/L)
+    Doctor Decision D6 (Nov 2026): overall target band 90–200 mg/dL.
 
 Unspecified / Undefined Vitals:
 - Weight, Heart Rate, HbA1c: Routine / normal ranges are NOT defined in CLINICAL_RULES.md.
@@ -54,7 +53,7 @@ class ReferenceRange:
         return asdict(self)
 
 
-# Physiological reference ranges defined strictly from CLINICAL_RULES.md and triage protocols
+# Target reference ranges defined strictly from CLINICAL_RULES.md and Doctor Decision D6
 REFERENCE_RANGES: Dict[str, ReferenceRange] = {
     "blood_pressure_systolic": ReferenceRange(
         key="blood_pressure_systolic",
@@ -78,19 +77,28 @@ REFERENCE_RANGES: Dict[str, ReferenceRange] = {
         key="glucose_fasting",
         label="Fasting Blood Glucose",
         unit="mg/dL",
-        low=70.0,
-        high=130.0,
-        clinical_rules_section="Section 2 Priority 3 (GLUCOSE_LOW_MG_DL=70); Section 8 Table; INTERVIEW_V2_3_DESIGN.md",
-        source_label="ADA Standards of Care",
+        low=90.0,
+        high=125.0,
+        clinical_rules_section="Doctor Decision D6 (Nov 2026): fasting target 90–125 mg/dL; <90 dizziness risk",
+        source_label="Approved by the doctor on record (Nov 2026)",
     ),
     "glucose_post_meal": ReferenceRange(
         key="glucose_post_meal",
-        label="Post-Meal / General Blood Glucose",
+        label="Post-Meal Blood Glucose",
         unit="mg/dL",
-        low=70.0,
-        high=180.0,
-        clinical_rules_section="Section 2 Priority 3 (GLUCOSE_LOW_MG_DL=70); Section 8 Table (TARGET_THRESHOLDS['glucose']=180.0)",
-        source_label="ADA Standards of Care",
+        low=125.0,
+        high=200.0,
+        clinical_rules_section="Doctor Decision D6 (Nov 2026): after meals target 125–200 mg/dL; 90–124 accepted as in-target",
+        source_label="Approved by the doctor on record (Nov 2026)",
+    ),
+    "glucose_random": ReferenceRange(
+        key="glucose_random",
+        label="Random Blood Glucose",
+        unit="mg/dL",
+        low=90.0,
+        high=200.0,
+        clinical_rules_section="Doctor Decision D6 (Nov 2026): random / general target 90–200 mg/dL",
+        source_label="Approved by the doctor on record (Nov 2026)",
     ),
 }
 
@@ -120,7 +128,7 @@ def is_reading_in_normal_range(
     context: Optional[str] = None,
 ) -> bool:
     """
-    Check if a self-reported reading is within the normal reference range.
+    Check if a self-reported reading is within the target reference range (Doctor Decision D6).
 
     Parameters
     ----------
@@ -134,7 +142,7 @@ def is_reading_in_normal_range(
     Returns
     -------
     bool
-        True if the reading is within the normal range, False otherwise.
+        True if the reading is within the target range, False otherwise.
     """
     if value is None:
         return False
@@ -155,17 +163,62 @@ def is_reading_in_normal_range(
         return ref.low <= val_float < ref.high
 
     if norm_type == "glucose":
+        # Below 90 mg/dL in any context is below target (dizziness risk per D6)
+        # D5 does NOT auto-resolve it -> self-reported value below 90 goes to review
+        if val_float < 90.0:
+            return False
+
         ctx = (context or "").strip().lower()
         if ctx in ("fasting", "before_breakfast", "before_meal"):
             ref = REFERENCE_RANGES["glucose_fasting"]
             return ref.low <= val_float <= ref.high
+        elif ctx in ("after_meal", "post_meal", "postprandial", "after_breakfast", "after_lunch", "after_dinner"):
+            # Post-meal target is 125–200 mg/dL.
+            # Decision to record: 90–124 post-meal is accepted as In target and does NOT review under D5
+            # Values > 200 are above target and do NOT auto-resolve
+            return 90.0 <= val_float <= 200.0
         else:
-            # Default / post-meal / random: 70.0 to 180.0 mg/dL target
-            ref = REFERENCE_RANGES["glucose_post_meal"]
-            return ref.low <= val_float <= ref.high
+            # Random / unspecified context target: 90.0 to 200.0 mg/dL
+            return 90.0 <= val_float <= 200.0
 
     # Other observation types are blocked from normal auto-resolution
     return False
+
+
+is_reading_in_target_range = is_reading_in_normal_range
+
+
+def get_all_reference_ranges(preferred_unit: str = "mg/dL") -> List[Dict[str, Any]]:
+    """
+    Return all defined reference ranges for the API / UI.
+    If preferred_unit is mmol/L, converts glucose thresholds.
+    """
+    is_mmol = preferred_unit.strip().lower() in ("mmol/l", "mmol")
+    results = []
+
+    for key, ref in REFERENCE_RANGES.items():
+        item = {
+            "key": ref.key,
+            "label": ref.label,
+            "unit": ref.unit,
+            "low": ref.low,
+            "high": ref.high,
+            "clinical_rules_section": ref.clinical_rules_section,
+            "source_label": ref.source_label,
+        }
+        if "glucose" in key and is_mmol:
+            item["unit"] = "mmol/L"
+            item["low"] = round(ref.low / MMOL_CONVERSION_FACTOR, 1)
+            item["high"] = round(ref.high / MMOL_CONVERSION_FACTOR, 1)
+            item["low_mg_dl"] = ref.low
+            item["high_mg_dl"] = ref.high
+        elif "glucose" in key:
+            item["low_mmol_l"] = round(ref.low / MMOL_CONVERSION_FACTOR, 1)
+            item["high_mmol_l"] = round(ref.high / MMOL_CONVERSION_FACTOR, 1)
+
+        results.append(item)
+
+    return results
 
 
 def get_all_reference_ranges(preferred_unit: str = "mg/dL") -> List[Dict[str, Any]]:

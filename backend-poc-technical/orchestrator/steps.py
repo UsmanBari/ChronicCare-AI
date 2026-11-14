@@ -330,6 +330,17 @@ def step_parse_and_validate_intake(
             state.findings = list(raw_state["findings"])
         if raw_state.get("answers"):
             state.answers.update(raw_state["answers"])
+        if raw_state.get("raw_answers"):
+            state.answers.update(raw_state["raw_answers"])
+        if raw_state.get("known_slots"):
+            state.answers.update(raw_state["known_slots"])
+        if raw_state.get("patient_notes"):
+            for idx, pn in enumerate(raw_state["patient_notes"]):
+                state.answers[f"patient_note_{idx}"] = pn
+        if raw_state.get("patient_questions"):
+            for idx, pq in enumerate(raw_state["patient_questions"]):
+                text = pq.get("text") if isinstance(pq, dict) else str(pq)
+                state.answers[f"patient_question_{idx}"] = text
         readings_map = {}
         for intake_item in intakes:
             for r_item in intake_item.get("readings", []):
@@ -834,8 +845,9 @@ def step_risk(
     risk_enabled = os.environ.get("RISK_ENABLED", "").strip().lower() == "true"
     trend_can_raise = os.environ.get("TREND_CAN_RAISE", "").strip().lower() == "true"
     no_reading_raise = os.environ.get("NO_READING_SYMPTOM_RAISE", "").strip().lower() == "true"
+    symptom_finding_raise = os.environ.get("SYMPTOM_FINDING_RAISE", "true").strip().lower() in ("true", "1", "yes")
 
-    if not risk_enabled and not trend_can_raise and not no_reading_raise:
+    if not risk_enabled and not trend_can_raise and not no_reading_raise and not symptom_finding_raise:
         return None
 
     if get_patient_profile_fn is None:
@@ -924,6 +936,7 @@ def step_risk(
             "RISK_CAN_RAISE": os.environ.get("RISK_CAN_RAISE", "").strip().lower() == "true",
             "TREND_CAN_RAISE": trend_can_raise,
             "NO_READING_SYMPTOM_RAISE": no_reading_raise,
+            "SYMPTOM_FINDING_RAISE": os.environ.get("SYMPTOM_FINDING_RAISE", "true").strip().lower() in ("true", "1", "yes"),
         }
         has_readings = bool(current_readings)
 

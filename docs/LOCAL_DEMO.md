@@ -77,7 +77,7 @@ Other local demo settings:
 - `GROQ_API_KEY=<copy from Render>`
 - `GROQ_MODEL=<copy from Render>` (copy the exact model configured on Render).
 - `DEMO_ROLE_MAP=<copy from Render>` (format: `provider.demo@demo.care:provider,admin.demo@demo.care:admin`).
-- Feature flags: `RISK_ENABLED=true`, `RISK_PATIENT_VISIBLE=true`, `RISK_CAN_RAISE=true`, `RISK_RAISE_COOLDOWN_DAYS=30`, `TREND_CAN_RAISE=true`, `OCR_ENABLED=true`, `TTS_ENABLED=true`, `DANGER_WORDGROUPS_ENABLED=true`, `EXPLAIN_ENABLED=true`, `ESCALATION_TIMEOUT_MINUTES=5`, `NO_READING_SYMPTOM_RAISE=true` (approved by the doctor on record), `EXPLAIN_MODE=background`, `RETRIEVER=bm25` (or `hybrid`), `ORCHESTRATOR=graph`, `INTERVIEW_ENGINE=v3`.
+- Feature flags: `RISK_ENABLED=true`, `RISK_PATIENT_VISIBLE=true`, `RISK_CAN_RAISE=true`, `RISK_RAISE_COOLDOWN_DAYS=30`, `TREND_CAN_RAISE=true`, `OCR_ENABLED=true`, `TTS_ENABLED=true`, `DANGER_WORDGROUPS_ENABLED=true`, `EXPLAIN_ENABLED=true`, `ESCALATION_TIMEOUT_MINUTES=5`, `NO_READING_SYMPTOM_RAISE=true` (approved by the doctor on record), `SYMPTOM_FINDING_RAISE=true` (approved by the doctor on record), `EXPLAIN_MODE=background`, `RETRIEVER=bm25` (or `hybrid`), `ORCHESTRATOR=graph`, `INTERVIEW_ENGINE=v3`.
 - Optional acceptance keys (for unattended runs): `FIREBASE_WEB_API_KEY`, `LOCAL_PROVIDER_EMAIL`, `LOCAL_PROVIDER_PASSWORD`, `LOCAL_ADMIN_EMAIL`, `LOCAL_ADMIN_PASSWORD`.
 
 *Note: `backend-poc-technical/.env.localdemo` is git-ignored (verified by `git check-ignore -v`). Never commit it.*
@@ -93,6 +93,7 @@ Three key clinical protocol questions were reviewed and decided by the doctor on
 1. **Decision D1 (No-Reading Symptom Escalation):** `NO_READING_SYMPTOM_RAISE=true` is approved by the doctor on record. A check-in where the patient reports feeling unwell with no vital reading entered escalates safely from Routine to Review (Yellow).
 2. **Decision D2 (Heart Risk Triage Elevation):** *"Just having heart risk doesn't need a review unless associated with any symptoms."* An asymptomatic patient with high cardiometabolic risk remains Routine (Green). If the patient reports any symptoms during the check-in alongside High risk, triage escalates to Review (Yellow).
 3. **Decision D3 (Risk Raise Cooldown Period):** `RISK_RAISE_COOLDOWN_DAYS=30`. Once a patient has been escalated to Review by the risk model, a 30-day cooldown applies before risk alone can raise them again, preventing clinician alert fatigue.
+4. **Decision D7 (Clinical Symptom Finding Escalation):** `SYMPTOM_FINDING_RAISE=true` is approved by the doctor on record. Positive clinical symptom findings (foot problems, recent hypo events, sick day flags, associated symptoms, orthostatic dizziness, medication dose change requests, or low mood/distress) escalate Routine check-ins to Review (Yellow).
 
 ### Step 9: Verify Environment Keys (Zero-Leak Check)
 Run this one-liner to verify all critical environment variable names are populated without printing any secrets:

@@ -565,6 +565,14 @@ MUTATIONS = [
         "replacement": '        elif status == "missing_in_a":',
         "test_node": "backend-poc-technical/test_doctor_decision_d5.py::test_d5_abnormal_self_reported_vitals_require_review",
     },
+    {
+        "id": "M-SYM-1",
+        "name": "Doctor Decision D7: Symptom raise ignores flag",
+        "file": BACKEND_DIR / "agents" / "final_triage.py",
+        "target": "    if symptom_finding_enabled and (state is not None or symptoms is not None):",
+        "replacement": "    if True and (state is not None or symptoms is not None):",
+        "test_node": "backend-poc-technical/test_symptom_finding_raise.py::test_flag_off_preserves_routine",
+    },
 ]
 
 

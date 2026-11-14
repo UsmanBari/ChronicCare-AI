@@ -198,7 +198,7 @@ _CURRENT_PATTERNS = [
 ]
 
 _EXERTION_PATTERNS = [
-    r"\b(?:walking\s+fast|running|jogging|exercise|exercising|climbing\s+stairs|walking\s+upstairs|on\s+exertion)\b",
+    r"\b(?:walking\s+fast|running|jogging|exercise|exercising|climbing\s+stairs|walking\s+upstairs|walk\s+up\s+(?:the\s+)?stairs|walking\s+up\s+(?:the\s+)?stairs|on\s+exertion)\b",
     r"\b(?:tez\s+chalne|bhagne|kasrat|warjish|seedhiyan\s+chadhne)\b",
     r"\b(?:تیز\s*چلنے|بھاگنے|ورزش|سیڑھیاں\s*چڑھنے)\b",
 ]
@@ -355,15 +355,80 @@ def _is_chest_symptom_negated(norm: str) -> bool:
         return False
 
     # 2. General negation patterns
-    if re.search(r"\b(?:no|not|without|denies|denied|free\s+of)\s+(?:\w+\s+){0,3}(?:chest\s+pain|pain|pressure|tightness|heaviness|discomfort|hurts|ache)\b", norm):
+    if re.search(
+        r"\b(?:no|not|without|denies|denied|never|free\s+of|zero|"
+        r"i\s+do\s*n\s*['’]?\s*t\s+have|i\s+did\s*n\s*['’]?\s*t\s+have|"
+        r"i\s+have\s+no|there\s+is\s+no|not\s+feeling\s+any|no\s+sign\s+of|"
+        r"i\s*['’]?\s*m\s+not\s+having)\s+(?:\w+\s+){0,3}"
+        r"(?:chest\s+pain|chest\s+trouble|chest\s+problem|chest\s+issue|chest\s+discomfort|pain|pressure|tightness|heaviness|discomfort|hurts|ache|trouble|problem|masla|takleef)\b",
+        norm
+    ):
         return True
-    if re.search(r"\b(?:dard|dabao|bojh|takleef)\s+(?:to\s+|bhi\s+|bilkul\s+|hai\s+|ho\s+)?nahi\b", norm):
+    if re.search(r"\b(?:chest|seena|seenay|seene|chhati)\s+(?:is\s+)?(?:completely\s+)?(?:fine|normal|ok|okay|good|unremarkable|theek|sahi)\b", norm):
         return True
-    if re.search(r"\bkoi\s+(?:bhi\s+)?(?:dard|dabao|bojh|takleef)\s+(?:bhi\s+)?nahi\b", norm):
+    if re.search(r"\b(?:seena|seenay|seene|chhati)\s+(?:me\s+)?(?:koi\s+)?(?:dard|dabao|bojh|takleef|masla)\s+(?:bhi\s+)?nahi\b", norm):
         return True
-    if re.search(r"(?:درد|دباؤ|بوجھ|تکلیف)\s*(?:تو|بھی|بالکل|ہے)?\s*نہیں", norm):
+    if re.search(r"\b(?:dard|dabao|bojh|takleef|masla)\s+(?:to\s+|bhi\s+|bilkul\s+|hai\s+|ho\s+)?nahi(?:\s+hai)?\b", norm):
         return True
-    if re.search(r"کوئی\s*(?:بھی\s*)?(?:درد|دباؤ|بوجھ|تکلیف)\s*(?:بھی\s*)?نہیں", norm):
+    if re.search(r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:dard|dabao|bojh|takleef|masla|seene\s+me\s+dard)\s+(?:bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
+        return True
+    if re.search(r"\bkoi\s+(?:bhi\s+)?(?:\w+\s+){0,2}(?:dard|dabao|bojh|takleef|masla)\s+(?:bhi\s+)?nahi\b", norm):
+        return True
+    if re.search(r"(?:مجھے\s+کوئی|کوئی\s+بھی)\s*(?:\S+\s*){0,3}(?:درد|دباؤ|بوجھ|تکلیف|مسئلہ)\s*(?:بھی\s*)?(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
+        return True
+    if re.search(r"(?:سینہ|سینے|چھاتی)\s*(?:میں\s*)?(?:کوئی\s*)?(?:درد|دباؤ|بوجھ|تکلیف|مسئلہ)\s*(?:بھی\s*)?نہیں", norm):
+        return True
+    if re.search(r"(?:درد|دباؤ|بوجھ|تکلیف|مسئلہ)\s*(?:تو|بھی|بالکل|ہے)?\s*نہیں(?:\s*ہے)?", norm):
+        return True
+    if re.search(r"کوئی\s*(?:بھی\s*)?(?:درد|دباؤ|بوجھ|تکلیف|مسئلہ)\s*(?:بھی\s*)?نہیں", norm):
+        return True
+    if re.search(r"بغیر\s*(?:کسی\s*)?(?:درد|تکلیف|مسئلے)", norm):
+        return True
+    return False
+
+
+def _is_benign_food_jalan(norm: str) -> bool:
+    """
+    Detects benign gastrointestinal heartburn / jalan triggered by spicy food/meals
+    without acute cardiac red flags (pressure, radiation, sweating, breathlessness, severe pain).
+    """
+    has_jalan = bool(re.search(r"\b(?:jalan|burning|heartburn|acid(?:ity)?|tezabiyat)\b|جلن|تیزابیت", norm))
+    if not has_jalan:
+        return False
+
+    # Check for food / meal / spicy trigger
+    has_food_trigger = bool(re.search(
+        r"\b(?:khana|khanay|khana\s+kha\s+kar|khane\s+ke\s+baad|khane\s+par|tez\s+mirch|mirch\w*|masalay?|spicy|food|meal|after\s+eating|eating|fried|chilli)\b|"
+        r"کھانا|کھانے|مرچ|تیز\s*مرچ|کھانے\s*کے\s*بعد|کھا\s*کر",
+        norm
+    ))
+    if not has_food_trigger:
+        return False
+
+    # Cardiac red flags that override benign food trigger
+    has_pressure = bool(re.search(
+        r"\b(?:dabao|dbao|dabaw|pressure|bojh|jakran|crushing|squeezing|vice|elephant|bhaari|bhari)\b|دباؤ|بوجھ|جکڑن",
+        norm
+    ))
+    has_radiation = bool(re.search(
+        r"\b(?:left\s+arm|bayein\s+bazu|bayan\s+bazu|left\s+jaw|bayein\s+jabra|bayan\s+jabra|radiat)\b|بائیں\s*بازو|بائیں\s*جبڑا",
+        norm
+    ))
+    has_sweating = bool(re.search(
+        r"\b(?:paseena|sweat|sweating|perspiration)\b|پسینہ",
+        norm
+    ))
+    has_breathless = bool(re.search(
+        r"\b(?:breathless|shortness\s+of\s+breath|cant\s+breathe|sans\s+phool|sans\s+nahi|dam\s+ghut)\b|سانس|دم\s*گھٹ",
+        norm
+    ))
+    has_explicit_pain = bool(re.search(
+        r"\b(?:tez\s+dard|shadeed\s+dard|severe\s+pain|sharp\s+pain|crushing\s+pain)\b|تیز\s*درد|شدید\s*درد",
+        norm
+    ))
+
+    # If NO acute cardiac features, it is benign gastrointestinal heartburn
+    if not (has_pressure or has_radiation or has_sweating or has_breathless or has_explicit_pain):
         return True
     return False
 
@@ -384,6 +449,10 @@ def _match_chest_pain(norm: str) -> bool:
 
     # If symptom is explicitly negated, reject (architectural invariant for M-RF-2)
     if is_symptom_negated(norm):
+        return False
+
+    # Benign food-triggered heartburn / jalan without cardiac red flags
+    if _is_benign_food_jalan(norm):
         return False
 
     # 2. Metaphors & heaviness comparisons
@@ -524,17 +593,31 @@ _BREATHING_INABILITY_PATTERNS = [
 ]
 
 _BREATHING_NEGATIONS = [
-    r"\b(?:no|without|never\s+had)\s+(?:shortness\s+of\s+breath|difficulty\s+breathing|trouble\s+breathing|breathlessness)\b",
-    r"\bnever\s+(?:\w+\s+){0,3}(?:difficulty\s+breathing|trouble\s+breathing|shortness\s+of\s+breath)\b",
+    r"\b(?:no|not|without|never\s+had|never|denies|denied|zero)\s+(?:\w+\s+){0,3}(?:shortness\s+of\s+breath|difficulty\s+breathing|trouble\s+breathing|breathing\s+trouble|breathing\s+difficulty|breathing\s+problem|breathing\s+issue|breath\s+trouble|breath\s+problem|breath\s+difficulty|breath\s+issue|breathlessness|breath\s+shortness)\b",
+    r"\b(?:i\s+do\s*n\s*['’]?\s*t\s+have|i\s+did\s*n\s*['’]?\s*t\s+have|i\s+have\s+no|there\s+is\s+no|not\s+feeling\s+any|no\s+sign\s+of|i\s*['’]?\s*m\s+not\s+having|free\s+of)\s+(?:\w+\s+){0,3}(?:shortness\s+of\s+breath|difficulty\s+breathing|trouble\s+breathing|breathing\s+trouble|breathing\s+difficulty|breathing\s+problem|breathing\s+issue|breath\s+trouble|breath\s+problem|breath\s+difficulty|breath\s+issue|breathlessness|breath\s+shortness|breathing|breath)\b",
+    r"\b(?:no|not|without|never)\s+(?:trouble|difficulty|problem|issue)\s+(?:in\s+|with\s+)?(?:breathing|breath)\b",
+    r"\b(?:no|not|without|never)\s+(?:breathing|breath)\s+(?:trouble|difficulty|problem|issue|complaint)\b",
+    r"\bnever\s+(?:\w+\s+){0,3}(?:difficulty\s+breathing|trouble\s+breathing|breathing\s+trouble|shortness\s+of\s+breath)\b",
     r"\bnot\s+breathless\b",
     r"\bwithout\s+(?:shortness\s+of\s+breath|breathlessness)\b",
-    r"\bbreathing\s+(?:is\s+)?(?:completely\s+)?(?:fine|normal|ok|good)\b",
+    r"\bbreathing\s+(?:is\s+)?(?:completely\s+)?(?:fine|normal|ok|okay|good|unremarkable)\b",
     r"\bwithout\s+(?:any\s+)?(?:trouble|difficulty|shortness|problem|breathlessness)\b",
-    r"\bsans\s+(?:\w+\s+){0,3}(?:bilkul\s+theek|theek)\b",
+    r"\bsans\s+(?:\w+\s+){0,3}(?:bilkul\s+theek|theek|sahi|behtar)\b",
+    r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:sans|saans|dam)\s+(?:\w+\s+){0,2}(?:masla|takleef|dushwari|mushkil|tangi|kharabi)\s+(?:bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b",
+    r"\b(?:sans|saans|dam)\s+(?:ki\s+)?(?:takleef|masla|tangi|dushwari)\s+(?:to\s+|bhi\s+)?bilkul\s+nahi(?:\s+hai)?\b",
+    r"\b(?:sans|saans|dam)\s+(?:ki\s+)?(?:takleef|masla|tangi|dushwari)\s+nahi\s+hai\b",
+    r"\bkoi\s+(?:\w+\s+){0,3}(?:sans|saans)\s+(?:\w+\s+){0,2}(?:masla|takleef|dushwari|mushkil|tangi|kharabi)\s+(?:\w+\s+){0,2}nahi\b",
     r"\bkoi\s+(?:\w+\s+){0,3}(?:masla|takleef|dushwari|mushkil|tangi)\s+(?:\w+\s+){0,2}nahi\b",
-    r"سانس\s*(?:\S+\s*){0,3}(?:بالکل\s*ٹھیک|ٹھیک)",
+    r"\bsans\s+(?:me\s+|lene\s+me\s+)?(?:koi\s+)?(?:masla|takleef|dushwari|mushkil|tangi)\s+nahi\b",
+    r"(?:مجھے\s+کوئی|کوئی\s+بھی)\s*(?:\S+\s*){0,3}(?:سانس\s*)?(?:\S+\s*){0,2}(?:مسئلہ|تکلیف|دشواری|مشکل|تنگی)\s*(?:بھی\s*)?(?:بالکل\s*)?نہیں(?:\s*ہے)?",
+    r"سانس\s*(?:کی\s*|میں\s*)?(?:تکلیف|تنگی|مسئلہ|دشواری)\s*(?:تو|بھی)?\s*بالکل\s*نہیں(?:\s*ہے)?",
+    r"سانس\s*(?:کی\s*|میں\s*)?(?:تکلیف|تنگی|مسئلہ|دشواری)\s*نہیں\s*ہے",
+    r"سانس\s*(?:\S+\s*){0,3}(?:بالکل\s*ٹھیک|ٹھیک|بہتر|صحیح)",
+    r"کوئی\s*(?:\S+\s*){0,3}(?:سانس\s*)?(?:\S+\s*){0,2}(?:مسئلہ|تکلیف|دشواری|مشکل|تنگی)\s*(?:\S+\s*){0,2}نہیں",
     r"کوئی\s*(?:\S+\s*){0,3}(?:مسئلہ|تکلیف|دشواری|مشکل|تنگی)\s*(?:\S+\s*){0,2}نہیں",
     r"سانس\s*(?:کی\s*)?(?:تنگی|دشواری|مشکل)\s*(?:\S+\s*){0,2}نہیں",
+    r"بغیر\s*(?:کسی\s*)?(?:سانس\s*)?(?:\S+\s*){0,2}(?:تکلیف|دشواری|تنگی|مسئلے)",
+    r"بغیر\s*سانس\s*(?:کی\s*)?تکلیف",
 ]
 
 
@@ -559,28 +642,67 @@ _REST_POSITION_TOKENS = {
 }
 
 
+def _has_cyanosis(norm: str) -> bool:
+    """
+    Detects acute central or peripheral cyanosis (blue lips / hont neelay)
+    which represents severe respiratory distress / hypoxemia and triggers breathing-Red alone.
+    """
+    if re.search(r"\b(?:no|not|without|never|denies|denied)\s+(?:\w+\s+){0,2}(?:blue|bluish|neelay|neela|neeli)\b", norm):
+        return False
+    if re.search(r"\b(?:lips?\s+(?:are\s+)?(?:turning\s+|turned\s+)?(?:blue|bluish)|(?:blue|bluish)\s+lips?)\b", norm):
+        return True
+    if re.search(r"\b(?:hon?th?|hont)\s+(?:\w+\s+){0,2}(?:neelay|neela|neeli)\b|\b(?:neelay|neela|neeli)\s+(?:hon?th?|hont)\b", norm):
+        return True
+    if re.search(r"نیلے\s*ہونٹ|ہونٹ\s*(?:\S+\s*){0,2}نیلے", norm):
+        return True
+    return False
+
+
 def _match_breathing(norm: str) -> bool:
     if re.search(r"sans\s+ke\s+siwa|سانس\s*کے\s*سوا", norm):
         return False
+
+    if _has_cyanosis(norm):
+        return True
 
     if _has_any(norm, _BREATHING_METAPHORS):
         return True
 
     # 1. Check negated breathing first
     if _has_any(norm, _BREATHING_NEGATIONS):
-        # Exclude acute respiratory failure phrases from negation
-        has_failure = bool(re.search(
+        # Exclude acute respiratory failure phrases from negation ONLY when failure verb itself is present
+        # e.g., "sans nahi aa rahi" (air isn't coming) vs "koi sans ki takleef nahi" (no breathing trouble)
+        has_failure_verb = bool(re.search(
             r"\bhawa\s+(?:andar\s+)?nahi\s+(?:jaa?ti|jaa?te|jaa?ta|jaa?\s*rahi|jaa?\s*raha|aati|aata|mil\s*rahi|mil\s*raha)\b|"
             r"\bair\s+(?:is\s+)?(?:not\s+going\s+in|wont\s+go\s+in|not\s+getting\s+in|cant\s+get\s+in)\b|"
             r"\b(?:sans|saans)\s+(?:bilkul\s+)?ukhri\s+hui\b|"
-            r"ہوا\s*(?:اندر\s*)?نہیں\s*(?:جاتی|جا\s*رہی|آتی|مل\s*رہی)",
+            r"\bsans\s+(?:\w+\s+){0,2}nahi\s+aa\s+rah[iyea]\b|"
+            r"ہوا\s*(?:اندر\s*)?نہیں\s*(?:جاتی|جا\s*رہی|آتی|مل\s*رہی)|"
+            r"سانس\s*(?:\S+\s*){0,2}نہیں\s*آ\s*رہی",
             norm
         ))
-        if not has_failure:
-            return False
+        has_preceding_negator = bool(re.search(
+            r"\b(?:no|not|without|never|denies|zero)\s+(?:\w+\s+){0,3}(?:breathing|breath|shortness)\b|"
+            r"\bkoi\s+(?:\w+\s+){0,3}(?:sans|saans|masla|takleef)\b|"
+            r"کوئی\s*(?:\S+\s*){0,3}(?:سانس|تکلیف|مسئلہ)|"
+            r"بغیر\s*(?:\S+\s*){0,2}(?:سانس|تکلیف)",
+            norm
+        ))
+        if has_failure_verb and not has_preceding_negator:
+            pass  # It's an acute failure verb!
+        else:
+            return False  # Suppressed by negation!
 
-    # 2. Chronic conditions (asthma for years)
+    # 2. Chronic conditions (asthma for years) or stable exertional dyspnea without rest/acute failure
     if _has_any(norm, _CHRONIC_PATTERNS) and not re.search(r"\b(?:cannot|cant|gasping|suffocating)\b", norm):
+        return False
+
+    has_exertion = _has_any(norm, _EXERTION_PATTERNS)
+    has_acute_inability = bool(re.search(
+        r"\b(?:cant|cannot|unable\s+to|gasp\w*|suffocat\w*|at\s+rest|sitting|lying|dam\s+ghut|ruk\s+rah|ukhri)\b|دم\s*گھٹ|اکھڑ",
+        norm
+    ))
+    if has_exertion and not has_acute_inability:
         return False
 
     # 3. Acute inability & failure phrases
@@ -698,11 +820,28 @@ _STROKE_FAST_PATTERNS = [
     r"\b(?:bol\w*|awaz|baat|samajh|speech|words?|speak\w*|understand\w*)\b.*?\b(?:chehra|munh|face|mouth)\s+(?:\w+\s+){0,3}(?:latk\w*|latak\w*|jhuk\w*|tedh\w*|terh\w*|droop\w*|crooked)\b",
     r"(?:چہرہ|منہ)\s*(?:\S+\s*){0,3}(?:لٹک|جھک|ٹیڑھا).*?(?:بول|آواز|بات|سمجھ|الفاظ)",
     r"(?:بول|آواز|بات|سمجھ|الفاظ).*?(?:چہرہ|منہ)\s*(?:\S+\s*){0,3}(?:لٹک|جھک|ٹیڑھا)",
+    # Unilateral side numb (daayan/baayan hissa sunn)
+    r"\b(?:daaya?n|baaya?n|daye?n|baye?n|seedha|ulta)\s+(?:hissa|jism|tarf|side)\s+(?:\w+\s+){0,2}(?:sunn?|sun)\b",
+    r"(?:دایاں|بایاں|دائیں|بائیں|سیدھا|الٹا)\s*(?:حصہ|جسم|طرف)\s*(?:\S+\s*){0,2}(?:سن)",
+    # Sudden drooling / munh se raal
+    r"\b(?:munh|muh|mouth)\s+(?:se\s+)?raal\b.*?\b(?:achanak|sudden\w*|foran|yakdam)\b",
+    r"\b(?:achanak|sudden\w*|foran|yakdam)\b.*?\b(?:munh|muh|mouth)\s+(?:se\s+)?raal\b",
+    r"\b(?:drool\w*)\b.*?\b(?:sudden\w*|abrupt\w*)\b",
+    r"\b(?:sudden\w*|abrupt\w*)\b.*?\b(?:drool\w*)\b",
+    r"(?:منہ\s*سے\s*رال|رال).*?(?:اچانک|فورا|یکدم)",
+    r"(?:اچانک|فورا|یکدم).*?(?:منہ\s*سے\s*رال|رال)",
+    # Hand/arm is useless
+    r"\b(?:hand|arm|leg|foot|limb|bazu|hath|haath|tang|taang)\s+(?:is\s+)?(?:completely\s+|bilkul\s+)?(?:useless|dead|limp|paralyzed|paralysed|be\s*jaan|bekaar)\b",
+    r"(?:ہاتھ|بازو|ٹانگ|پاؤں)\s*(?:بالکل\s*)?(?:بے\s*جان|بیکار|شل)",
+    # Speech went weird/strange suddenly
+    r"\b(?:speech|voice|talking)\s+(?:\w+\s+){0,3}(?:went|became|turned|got)\s+(?:\w+\s+){0,2}(?:weird|strange|slurred|garbled|unclear|incoherent)\s+(?:suddenly|all\s+of\s+a\s+sudden)\b",
+    r"\b(?:suddenly|all\s+of\s+a\s+sudden)\s+(?:\w+\s+){0,2}(?:speech|voice|talking)\s+(?:\w+\s+){0,3}(?:went|became|turned|got)\s+(?:\w+\s+){0,2}(?:weird|strange|slurred|garbled|unclear|incoherent)\b",
+    r"\b(?:awaaz|bolna|baat)\s+(?:\w+\s+){0,3}(?:achanak|achanak\s+se)\s+(?:\w+\s+){0,2}(?:ajeeb|ladkhada\w*|tut\w*|garbar)\b",
 ]
 
 
 def _is_stroke_negated(norm: str) -> bool:
-    # Exclude acute stroke failure phrases from negation
+    # Exclude acute stroke failure phrases from negation ONLY when failure verb itself is present
     has_failure = bool(re.search(
         r"\b(?:haath|hath|bazu|pair|tang|taang)\s+(?:\w+\s+){0,3}(?:hila\s+)?nahi\s+(?:pa\s+rah|sak|rah)|"
         r"\b(?:haath|hath|bazu|pair|tang|taang)\s+(?:\w+\s+){0,2}(?:uth|hil)\s+nahi\s+rah|"
@@ -718,24 +857,90 @@ def _is_stroke_negated(norm: str) -> bool:
         r"بات\s*(?:\S+\s*){0,2}سمجھ\s*نہیں\s*(?:آ\s*رہ|پا\s*رہ|سک)",
         norm
     ))
-    if has_failure:
+    has_preceding_negator = bool(re.search(
+        r"\b(?:no|not|without|never|denies|denied|zero)\s+(?:\w+\s+){0,3}(?:weakness|numbness|slurr\w*|droop\w*|stroke|paralysis|speech|difficulty|trouble|problem|masla|takleef)\b|"
+        r"\bkoi\s+(?:\w+\s+){0,2}(?:kamzori|sunn|ladkhada\w*|falij|masla|takleef)\b|"
+        r"کوئی\s*(?:\S+\s*){0,2}(?:کمزوری|سن|لڑکھڑاہٹ|فالج|مسئلہ|تکلیف)|"
+        r"بغیر\s*(?:\S+\s*){0,2}(?:کمزوری|فالج)",
+        norm
+    ))
+    if has_failure and not has_preceding_negator:
         return False
 
-    if re.search(r"\b(?:no|not|denies|denied|without)\s+(?:\w+\s+){0,3}(?:slurr\w*|speech|droop\w*|weakness|numbness|facial)\b", norm):
+    if re.search(
+        r"\b(?:no|not|denies|denied|without|never|"
+        r"i\s+do\s*n\s*['’]?\s*t\s+have|i\s+did\s*n\s*['’]?\s*t\s+have|"
+        r"i\s+have\s+no|there\s+is\s+no|not\s+feeling\s+any|no\s+sign\s+of|"
+        r"i\s*['’]?\s*m\s+not\s+having|free\s+of)\s+(?:\w+\s+){0,3}"
+        r"(?:slurr\w*|speech|droop\w*|weakness|numbness|facial|stroke|paralysis|trouble|problem|masla|takleef)\b",
+        norm
+    ):
         return True
-    if re.search(r"\b(?:speech|face|arm|hand|leg|side)\s+(?:is\s+)?(?:completely\s+)?(?:normal|fine|ok|okay)\b", norm):
+    if re.search(r"\b(?:speech|face|arm|hand|leg|side|haath|bazu|pair|tang|chehra)\s+(?:is\s+)?(?:completely\s+)?(?:normal|fine|ok|okay|theek|thik|sahi)\b", norm):
         return True
-    if re.search(r"\b(?:chehra|zaban|awaz|bazu|hath|tang)\s+(?:theek|thik|sahi)\s+hai\b", norm):
+    if re.search(r"\b(?:chehra|zaban|awaz|bazu|hath|haath|tang|pair)\s+(?:theek|thik|sahi)\s+hai\b", norm):
         return True
-    if re.search(r"\b(?:kamzori|sunn|ladkhada\w*)\s+(?:\w+\s+){0,2}nahi\b", norm):
+    if re.search(r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:kamzori|sunn|ladkhada\w*|falij|masla|takleef)\s+(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
         return True
-    if re.search(r"\bkoi\s+(?:\w+\s+){0,2}(?:ladkhada\w*|falij|kamzori|sunn)\s+nahi\b", norm):
+    if re.search(r"\b(?:kamzori|sunn|ladkhada\w*|falij)\s+(?:\w+\s+){0,2}(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
         return True
-    if re.search(r"(?:کمزوری|سن|لڑکھڑا|فالج)\s*(?:\S+\s*){0,2}نہیں", norm):
+    if re.search(r"\bkoi\s+(?:\w+\s+){0,2}(?:ladkhada\w*|falij|kamzori|sunn|masla|takleef)\s+nahi\b", norm):
         return True
-    if re.search(r"کوئی\s*(?:\S+\s*){0,2}(?:کمزوری|سن|لڑکھڑاہٹ|فالج)\s*(?:\S+\s*){0,2}نہیں", norm):
+    if re.search(r"(?:مجھے\s+کوئی|کوئی\s+بھی)\s*(?:\S+\s*){0,3}(?:کمزوری|سن|لڑکھڑاہٹ|فالج|مسئلہ|تکلیف)\s*(?:بھی\s*)?(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
+        return True
+    if re.search(r"(?:کمزوری|سن|لڑکھڑا|فالج)\s*(?:\S+\s*){0,2}(?:تو|بھی)?\s*(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
+        return True
+    if re.search(r"کوئی\s*(?:\S+\s*){0,2}(?:کمزوری|سن|لڑکھڑاہٹ|فالج|مسئلہ|تکلیف)\s*(?:\S+\s*){0,2}نہیں", norm):
         return True
     return False
+
+
+def _is_benign_postural_or_chronic_numbness(norm: str, words: List[str]) -> bool:
+    """
+    Detects benign postural, ergonomic, or chronic intermittent limb numbness/tingling
+    (e.g., sleeping on arm, sitting long, typing/using mobile, comes and goes for months)
+    with NO sudden onset and NO second focal neurological deficit (speech/facial droop/paralysis).
+    """
+    # 1. Must have a limb numbness / tingling cue
+    has_numbness = bool(re.search(
+        r"\b(?:numb\w*|tingl\w*|pins\s+and\s+needles|sunn|soya|soi|soye|jhanjhanahat)\b|سن|سویا|سوئی|جھنجھناہٹ",
+        norm
+    ))
+    if not has_numbness:
+        return False
+
+    # 2. Must have a clear benign trigger or chronic intermittent pattern
+    has_benign_trigger = bool(re.search(
+        r"\b(?:jab|when|after)\s+(?:\w+\s+){0,5}(?:mobile|phone|typing|type|computer|screen|chalata|chalatay|chalati|baithta|baithtay|baithti|sota|sotay|soti|sleep\w*|sitting)\b|"
+        r"\b(?:when\s+i\s+sleep\s+on\s+it|slept\s+on\s+(?:my\s+)?(?:arm|hand)|sleeping\s+on\s+it|after\s+typing|using\s+(?:the\s+)?phone|using\s+mobile|holding\s+(?:the\s+)?phone)\b|"
+        r"\b(?:der\s+tak\s+(?:mobile|phone|baith|computer)|zyada\s+der\s+(?:baith|mobile)|cross\s+legged)\b|"
+        r"\b(?:comes\s+and\s+goes(?:\s+for\s+(?:months|years|weeks))?|off\s+and\s+on\s+for\s+(?:months|years|weeks)|for\s+(?:months|years))\b|"
+        r"\b(?:mahino\s+se|kai\s+mahine|hafto\s+se|ata\s+jata\s+hai|aata\s+jaata\s+hai|kabhi\s+kabhi\s+hota\s+hai)\b|"
+        r"جب\s*(?:\S+\s*){0,4}(?:موبائل|فون|بیٹھ|سو|کمپیوٹر)|مہینوں\s*سے|کبھی\s*کبھی",
+        norm
+    ))
+    if not has_benign_trigger:
+        return False
+
+    # 3. Check for sudden onset (precludes benign posture)
+    has_sudden_onset = bool(re.search(
+        r"\b(?:sudden|suddenly|all\s+of\s+a\s+sudden|abrupt|abruptly|achanak|yakdam|aik\s*dam|achanak\s+se)\b|اچانک|ایک\s*دم",
+        norm
+    ))
+    if has_sudden_onset:
+        return False
+
+    # 4. Check for second focal neurological deficit (FAST)
+    has_face = _has_proximity(words, _STROKE_FACE_TOKENS, _STROKE_DROOP_TOKENS, MAX_WINDOW_WORDS)
+    has_speech = _has_proximity(words, _STROKE_SPEECH_TOKENS, _STROKE_SPEECH_DEFICIT_TOKENS, MAX_WINDOW_WORDS)
+    has_paralysis = bool(re.search(
+        r"\b(?:cant\s+move|unable\s+to\s+move|wont\s+move|cannot\s+move|paraly\w*|falij|hila\s+nahi|uth\s+nahi|kaam\s+nahi\s+kar)\b|کام\s*نہیں\s*کر|ہلا\s*نہیں|فالج",
+        norm
+    ))
+    if has_face or has_speech or has_paralysis:
+        return False
+
+    return True
 
 
 _STROKE_FACE_TOKENS = {
@@ -783,8 +988,13 @@ def _match_confusion_and_stroke(norm: str) -> bool:
         if not re.search(r"\b(?:face|chehra|speech|zaban|bol|one\s+side|aik\s+taraf)\b", norm):
             return False
 
-    # Concept-based FAST proximity matching
     words = norm.split()
+
+    # Suppress benign postural or chronic intermittent limb numbness
+    if _is_benign_postural_or_chronic_numbness(norm, words):
+        return False
+
+    # Concept-based FAST proximity matching
     if _has_proximity(words, _STROKE_FACE_TOKENS, _STROKE_DROOP_TOKENS, MAX_WINDOW_WORDS):
         return True
     if _has_proximity(words, _STROKE_SPEECH_TOKENS, _STROKE_SPEECH_DEFICIT_TOKENS, MAX_WINDOW_WORDS):
@@ -872,13 +1082,24 @@ _SYNCOPE_KEYWORDS = [
 
 
 def _is_syncope_negated(norm: str) -> bool:
-    if re.search(r"\b(?:did\s+not|didn\s*t|not|never|no|denies)\s+(?:\w+\s+){0,3}(?:faint|pass\s+out|black\s+out|collapse|collapsed|unconscious)\b", norm):
+    if re.search(
+        r"\b(?:did\s+not|didn\s*t|not|never|no|denies|"
+        r"i\s+do\s*n\s*['’]?\s*t\s+have|i\s+did\s*n\s*['’]?\s*t\s+have|"
+        r"i\s+have\s+no|there\s+is\s+no|not\s+feeling\s+any|no\s+sign\s+of|"
+        r"i\s*['’]?\s*m\s+not\s+having|free\s+of)\s+(?:\w+\s+){0,3}"
+        r"(?:faint\w*|pass\w*\s+out|black\w*\s+out|collaps\w*|unconscious\w*|chakkar|dizziness)\b",
+        norm
+    ):
         return True
-    if re.search(r"\b(?:be\s*hosh|ghashi|chakkar)\s+(?:\w+\s+){0,2}nahi\b", norm):
+    if re.search(r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:be\s*hosh|ghashi|chakkar)\s+(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
+        return True
+    if re.search(r"\b(?:be\s*hosh|ghashi|chakkar)\s+(?:\w+\s+){0,2}(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
         return True
     if re.search(r"\bnahi\s+(?:\w+\s+){0,2}(?:be\s*hosh|chakkar)\b", norm):
         return True
-    if re.search(r"(?:بے\s*ہوش|غشی|چکر)\s*(?:\S+\s*){0,2}نہیں", norm):
+    if re.search(r"(?:مجھے\s+کوئی|کوئی\s+بھی)\s*(?:\S+\s*){0,3}(?:بے\s*ہوش|غشی|چکر)\s*(?:بھی\s*)?(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
+        return True
+    if re.search(r"(?:بے\s*ہوش|غشی|چکر)\s*(?:\S+\s*){0,2}(?:تو|بھی)?\s*(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
         return True
     if re.search(r"نہیں\s*(?:\S+\s*){0,2}(?:بے\s*ہوش|غشی|چکر)", norm):
         return True
@@ -954,18 +1175,21 @@ def _match_loss_of_consciousness(norm: str) -> bool:
 _FLUIDS_DKA_PATTERNS = [
     # Fluid inability (English)
     r"\b(?:cant|cannot|unable\s+to|wont)\s+(?:keep|hold)\s+(?:\w+\s+){0,4}down\b",
+    r"\bnothing\s+(?:is\s+)?stay(?:s|ing)?\s+down\b",
     r"\b(?:even\s+)?(?:a\s+sip\s+of\s+)?(?:water|fluid|fluids|liquid|liquids|food)\s+(?:comes?\s+(?:right\s+)?back\s+up|wont\s+stay\s+down)\b",
-    r"\b(?:water|fluid|fluids|liquid|liquids)\s+comes?\s+(?:right\s+)?back\s+up\b",
+    r"\b(?:water|fluid|fluids|liquid|liquids|food|everything)\s+(?:comes?|keeps?\s+coming)\s+(?:right\s+)?back\s+up\b",
     r"\bthrowing\s+up\s+(?:everything|non-?stop|all\s+day)\b",
     r"\bkeep\s+nothing\s+down\b",
     r"\bvomiting\s+(?:non-?stop|continuously|all\s+day)\b",
     r"\b(?:vomiting|throwing\s+up|fluids?\s+come\s+back\s+up|liquids\s+come\s+(?:right\s+)?back\s+up)\s+(?:with\s+)?(?:very\s+)?high\s+(?:sugar|glucose)\b",
     r"\b(?:liquids|fluids)\s+down\s+with\s+(?:very\s+)?high\s+(?:sugar|glucose)\b",
     # Roman Urdu fluid inability & intractable vomiting
-    r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik)\s+rah[iyea]\b",
-    r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?(?:rukta|tikta)\s+nahi\b",
+    r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik|rehta|rahta)\s+rah[iyea]\b",
+    r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?(?:rukta|tikta|rehta|rahta)\s+nahi\b",
+    r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:rukta|tikta|rehta|rahta|ruk|tik|rehta|rahta)\b",
+    r"\b(?:kuch\s+bhi\s+)?andar\s+nahi\s+(?:rehta|rahta|rukta|tikta)\b",
     r"\b(?:ek\s+)?ghoont\s+(?:bhi\s+)?(?:wapis|wapas|nikal|ulti)\b",
-    r"\b(?:ek\s+)?ghoont\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik)\b",
+    r"\b(?:ek\s+)?ghoont\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik|rehta|rahta|rukta|tikta)\b",
     r"\bjo\s+(?:bhi\s+)?(?:peeta|peeti|khata|khati)\s+(?:hoon|hun)\s+(?:\w+\s+){0,2}(?:nikal|wapas|wapis|ulti)\b",
     r"\bpani\s+(?:\w+\s+){0,3}(?:wapas|wapis)\b",
     r"\b(?:kuch\s+)?(?:bhi\s+)?hazam\s+nahi\s+ho\s+raha\b",
@@ -978,12 +1202,12 @@ _FLUIDS_DKA_PATTERNS = [
     r"الٹی\s*رک\s*نہیں\s*رہی",
     r"الٹیاں\s*بند\s*نہیں\s*ہو\s*رہ",
     r"پانی\s*(?:بھی\s*)?(?:اندر\s*)?نہیں\s*(?:رکتا|ٹکتا|رہتا|رک\s*رہا|ٹک\s*رہا)",
-    r"ایک\s*گھونٹ\s*(?:بھی\s*)?(?:واپس|نہیں\s*(?:رکتا|ٹکتا))",
+    r"ایک\s*گھونٹ\s*(?:بھی\s*)?(?:واپس|نہیں\s*(?:رکتا|ٹکتا|رہتا))",
     r"جو\s*(?:بھی\s*)?(?:پیتا|کھاتا)\s*ہوں\s*(?:\S+\s*){0,2}(?:نکل|واپس|الٹی)",
     r"پانی\s*بھی\s*واپس",
     r"مسلسل\s*الٹیاں",
     r"شدید\s*قے",
-    r"کچھ\s*بھی\s*(?:پیٹ\s*میں\s*)?نہیں\s*(?:ٹھہر|رک|ٹک)",
+    r"کچھ\s*بھی\s*(?:پیٹ\s*میں\s*)?نہیں\s*(?:ٹھہر|رک|ٹک|رہ)",
     r"ہر\s*چیز\s*(?:کی\s*)?الٹی",
     r"شوگر\s*(?:\S+\s*){0,3}الٹیاں",
 ]
@@ -991,7 +1215,14 @@ _FLUIDS_DKA_PATTERNS = [
 
 def _is_vomiting_negated(norm: str) -> bool:
     # English negations
-    if re.search(r"\b(?:no|not|without|denies|never)\s+(?:\w+\s+){0,3}(?:vomit\w*|throwing\s+up|puk\w*|nausea)\b", norm):
+    if re.search(
+        r"\b(?:no|not|without|denies|never|"
+        r"i\s+do\s*n\s*['’]?\s*t\s+have|i\s+did\s*n\s*['’]?\s*t\s+have|"
+        r"i\s+have\s+no|there\s+is\s+no|not\s+feeling\s+any|no\s+sign\s+of|"
+        r"i\s*['’]?\s*m\s+not\s+having|free\s+of)\s+(?:\w+\s+){0,3}"
+        r"(?:vomit\w*|throwing\s+up|puk\w*|nausea)\b",
+        norm
+    ):
         return True
     if re.search(r"\b(?:able\s+to\s+keep|keeping)\s+(?:\w+\s+){0,3}(?:food|fluids?|water|liquids?)\s+down\s+(?:fine|well|normally)\b", norm):
         return True
@@ -1002,7 +1233,9 @@ def _is_vomiting_negated(norm: str) -> bool:
     if re.search(r"\bno\s+vomiting\s+or\s+inability\b", norm):
         return True
     # Roman Urdu negations
-    if re.search(r"\b(?:koi\s+)?(?:ulti|ultiyan|qay|matli)\s+(?:bilkul\s+)?nahi\s+(?:hai|aayi|hui)\b", norm):
+    if re.search(r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:ulti|ultiyan|qay|matli)\s+(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
+        return True
+    if re.search(r"\b(?:koi\s+)?(?:ulti|ultiyan|qay|matli)\s+(?:bilkul\s+)?nahi\s+(?:hai|aayi|hui)?\b", norm):
         return True
     if re.search(r"\bulti\s+bilkul\s+nahi\b", norm):
         return True
@@ -1013,7 +1246,9 @@ def _is_vomiting_negated(norm: str) -> bool:
     if re.search(r"\bkhana\s+hazam\s+ho\s+raha\b", norm):
         return True
     # Urdu script negations
-    if re.search(r"(?:الٹی|الٹیاں|قے|متلی)\s*(?:بالکل\s*)?نہیں\s*(?:ہے|آئی|ہوئی)", norm):
+    if re.search(r"(?:مجھے\s+کوئی|کوئی\s+بھی)\s*(?:\S+\s*){0,3}(?:الٹی|الٹیاں|قے|متلی)\s*(?:بھی\s*)?(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
+        return True
+    if re.search(r"(?:الٹی|الٹیاں|قے|متلی)\s*(?:بالکل\s*)?نہیں\s*(?:ہے|آئی|ہوئی)?", norm):
         return True
     if re.search(r"الٹی\s*بالکل\s*نہیں", norm):
         return True
@@ -1072,9 +1307,13 @@ def _match_dka_vomiting_fluids(norm: str) -> bool:
     ))
     has_fluid_inability = bool(re.search(
         r"\b(?:cant|cannot|unable\s+to|wont)\s+(?:keep|hold)\s+(?:\w+\s+){0,4}down|"
-        r"pani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik)\s*rah|"
+        r"nothing\s+(?:is\s+)?staying?\s+down|"
+        r"keeps?\s+coming\s+(?:right\s+)?back\s+up|"
+        r"pani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik|rehta|rahta)|"
+        r"pani\s+(?:bhi\s+)?(?:andar\s+)?(?:rukta|tikta|rehta|rahta)\s+nahi|"
+        r"andar\s+nahi\s+(?:rehta|rahta|rukta|tikta)|"
         r"ghoont\s+(?:bhi\s+)?(?:wapas|nikal|ulti)|"
-        r"پانی\s*(?:بھی\s*)?(?:اندر\s*)?نہیں\s*(?:رک|ٹک)|"
+        r"پانی\s*(?:بھی\s*)?(?:اندر\s*)?نہیں\s*(?:رک|ٹک|رہ)|"
         r"ایک\s*گھونٹ\s*(?:بھی\s*)?واپس\b",
         norm
     ))
