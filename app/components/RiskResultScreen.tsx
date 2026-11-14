@@ -23,9 +23,10 @@ import {
 import { describeMedicationItem } from "../lib/presentation";
 import { ExplanationBox } from "./ExplanationBox";
 import { TriageColourChip } from "./TriageColourChip";
+import { getReadingStatus } from "../lib/referenceRanges";
 
 export const RiskResultScreen = () => {
-  const { setScreen, returnToHomeAndClearRun, isLiveMode, liveCheckinResult, liveProfile, demoScenario, t, isUrdu } = useApp();
+  const { setScreen, returnToHomeAndClearRun, isLiveMode, liveCheckinResult, liveProfile, demoScenario, t, isUrdu, language } = useApp();
   const [showWhyPanel, setShowWhyPanel] = useState(false);
 
   // =========================================================================
@@ -244,9 +245,20 @@ export const RiskResultScreen = () => {
                   if (c.status === "agreement" || c.status === "agree") statusDesc = isUrdu ? "پچھلے ریکارڈ کے مطابق ہے" : "Matches saved record";
                   else if (c.status === "source_b_only") statusDesc = isUrdu ? "آج درج کیا گیا (کوئی پچھلا ریکارڈ موجود نہیں)" : "Reported today (no prior record)";
                   else if (c.status === "conflict") statusDesc = isUrdu ? "پچھلے ریکارڈ سے مختلف ہے" : "Differs from saved record";
+                  const readingStatus = getReadingStatus(c.observation_type, c.value_b, language, c.unit_b);
                   return (
-                    <li key={idx} className="flex items-center justify-between py-1.5 border-b border-slate-200/60 last:border-none">
-                      <span className="font-semibold text-slate-800">{type} ({valToday}{recordDesc})</span>
+                    <li key={idx} className="flex items-center justify-between py-1.5 border-b border-slate-200/60 last:border-none flex-wrap gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-800">{type} ({valToday}{recordDesc})</span>
+                        {readingStatus.status !== "unspecified" && (
+                          <span
+                            data-testid={`result-reading-status-${idx}`}
+                            className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${readingStatus.badgeClass}`}
+                          >
+                            {readingStatus.label}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-slate-500 font-medium">{statusDesc}</span>
                     </li>
                   );

@@ -33,6 +33,7 @@ import { api, ApiError, ReviewDetailResponse, SoapNoteResponse } from "../../lib
 import { DecisionTimeline } from "./DecisionTimeline";
 import { describeSide, describeReviewReason, describeMedicationItem } from "../../lib/presentation";
 import { TriageColourChip } from "../TriageColourChip";
+import { getNormalRangeText, getReadingStatus } from "../../lib/referenceRanges";
 
 export const ReconciliationAlertDetail = () => {
   const {
@@ -1508,9 +1509,33 @@ export const ReconciliationAlertDetail = () => {
                     {isLiveMode ? `Trust: ${trustLevelB.toUpperCase()}` : "Lab Record"}
                   </span>
                 </div>
-                <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
-                  {sourceBVal}
+                <div className="flex items-center gap-2 pt-1 flex-wrap">
+                  <div className="text-3xl font-bold text-navy-800 font-mono">
+                    {sourceBVal}
+                  </div>
+                  {(() => {
+                    const bStatus = getReadingStatus(obsComparison?.observation_type || "", obsComparison?.value_b, "en", obsComparison?.unit_b as any);
+                    if (bStatus.status !== "unspecified") {
+                      return (
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${bStatus.badgeClass}`}>
+                          {bStatus.label}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
+                {(() => {
+                  const rangeText = getNormalRangeText(obsComparison?.observation_type || "", "en", obsComparison?.unit_b as any);
+                  if (rangeText) {
+                    return (
+                      <div className="text-[11px] text-slate-500 font-medium">
+                        {rangeText} <span className="text-[10px] text-slate-400 italic">({t.normalRangeDisclaimer})</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 <p className="text-xs text-amber-950 leading-relaxed">
                   {isLiveMode
                     ? "Self-reported telemetry via today's adaptive symptom check-in."

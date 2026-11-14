@@ -38,9 +38,10 @@ import {
 } from "../lib/api";
 import { mapApiError, convertGlucoseMmolToMgDl } from "../lib/presentation";
 import { getConditionFlags } from "../lib/conditions";
+import { getNormalRangeText, getReadingStatus } from "../lib/referenceRanges";
 
 export const HealthRecordScreen = () => {
-  const { setScreen, setStagedOcrUpload, profile, liveProfile, liveEhrConnection, isLiveMode, t, isUrdu } = useApp();
+  const { setScreen, setStagedOcrUpload, profile, liveProfile, liveEhrConnection, isLiveMode, t, isUrdu, language } = useApp();
 
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
   const [recordMode, setRecordMode] = useState<string>("isolated");
@@ -1227,16 +1228,26 @@ export const HealthRecordScreen = () => {
           </div>
         ) : (
           <div className="space-y-2">
-            {observations.map((obs) => (
+            {observations.map((obs) => {
+              const readingStatus = getReadingStatus(obs.observation_type, obs.value, language, obs.unit as any);
+              return (
               <div
                 key={obs.id}
                 className="p-3.5 rounded-2xl bg-white border border-slate-200 flex items-center justify-between text-xs"
               >
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-navy-900 capitalize">
                       {obs.observation_type.replace(/_/g, " ")}: {obs.value} {obs.unit}
                     </span>
+                    {readingStatus.status !== "unspecified" && (
+                      <span
+                        data-testid={`obs-status-tag-${obs.id}`}
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${readingStatus.badgeClass}`}
+                      >
+                        {readingStatus.label}
+                      </span>
+                    )}
                     {obs.origin === "ocr" && (
                       <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-200">
                         {t.ocrBadge}
@@ -1277,7 +1288,8 @@ export const HealthRecordScreen = () => {
                   </button>
                 </div>
               </div>
-            ))}
+            );
+          })}
           </div>
         )}
 
@@ -1380,6 +1392,16 @@ export const HealthRecordScreen = () => {
                 }
                 className="w-full text-xs rounded-xl border border-slate-300 bg-white p-2.5 text-navy-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700"
               />
+              {getNormalRangeText(obsType, language, glucoseUnit) ? (
+                <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                  <span data-testid="obs-normal-range-text">
+                    {getNormalRangeText(obsType, language, glucoseUnit)}
+                  </span>
+                  <span className="text-[10px] text-slate-400 italic">
+                    ({t.normalRangeDisclaimer})
+                  </span>
+                </div>
+              ) : null}
             </div>
 
             <div>

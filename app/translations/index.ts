@@ -644,6 +644,15 @@ export interface Translations {
   soapCopied: string;
   soapPrintNote: string;
   soapLoading: string;
+  normalRangeDisclaimer: string;
+  normalRangeLabel: string;
+  aboveNormalLabel: string;
+  belowNormalLabel: string;
+  normalRangeSystolic: string;
+  normalRangeDiastolic: string;
+  normalRangeGlucoseMgDl: string;
+  normalRangeGlucoseMmol: string;
+  normalRangeBP: string;
 }
 
 const enTranslations: Translations = {
@@ -1281,6 +1290,15 @@ const enTranslations: Translations = {
     soapCopied: "Copied!",
     soapPrintNote: "Print Note",
     soapLoading: "Generating SOAP note...",
+    normalRangeDisclaimer: "Normal range used by this app",
+    normalRangeLabel: "Normal",
+    aboveNormalLabel: "Above normal",
+    belowNormalLabel: "Below normal",
+    normalRangeSystolic: "Normal: 90–139 mmHg",
+    normalRangeDiastolic: "Normal: 60–89 mmHg",
+    normalRangeGlucoseMgDl: "Normal: 70–130 fasting / 70–180 post-meal mg/dL",
+    normalRangeGlucoseMmol: "Normal: 3.9–7.2 fasting / 3.9–10.0 post-meal mmol/L",
+    normalRangeBP: "Normal: 90–139 / 60–89 mmHg",
 };
 
 const urTranslations: Translations = {
@@ -1920,10 +1938,28 @@ const urTranslations: Translations = {
     soapCopied: "کاپی ہو گیا!",
     soapPrintNote: "نوٹ پرنٹ کریں",
     soapLoading: "طبی خلاصہ تیار ہو رہا ہے...",
+    normalRangeDisclaimer: "اس ایپ میں استعمال ہونے والی نارمل رینج",
+    normalRangeLabel: "نارمل",
+    aboveNormalLabel: "نارمل سے زیادہ",
+    belowNormalLabel: "نارمل سے کم",
+    normalRangeSystolic: "نارمل: 90–139 ملی میٹر ایچ جی",
+    normalRangeDiastolic: "نارمل: 60–89 ملی میٹر ایچ جی",
+    normalRangeGlucoseMgDl: "نارمل: 70–130 نہار منہ / 70–180 کھانے کے بعد mg/dL",
+    normalRangeGlucoseMmol: "نارمل: 3.9–7.2 نہار منہ / 3.9–10.0 کھانے کے بعد mmol/L",
+    normalRangeBP: "نارمل: 90–139 / 60–89 ملی میٹر ایچ جی",
 };
 
 const romanUrTranslations: Translations = {
   ...enTranslations,
+  normalRangeDisclaimer: "Is app mein istemal hone wali normal range",
+  normalRangeLabel: "Normal",
+  aboveNormalLabel: "Normal se zyada",
+  belowNormalLabel: "Normal se kam",
+  normalRangeSystolic: "Normal: 90–139 mmHg",
+  normalRangeDiastolic: "Normal: 60–89 mmHg",
+  normalRangeGlucoseMgDl: "Normal: 70–130 nihar munh / 70–180 khaney ke baad mg/dL",
+  normalRangeGlucoseMmol: "Normal: 3.9–7.2 nihar munh / 3.9–10.0 khaney ke baad mmol/L",
+  normalRangeBP: "Normal: 90–139 / 60–89 mmHg",
   continue: "Aagay barhein",
   back: "Wapas",
   submit: "Jama karein",

@@ -211,4 +211,29 @@ All 28 entries in `backend-poc-technical/agents/interview_bank/messages.json` ve
 Reviewer correction K3 for PR #134 updated Sentence 2 of the `routine_no_readings` template to avoid misleading phrasing when a patient logs symptoms or check-in answers without quantitative glucose/BP numbers. Hassaan provided native review sign-off ("Urdu OK" on PR #134); `needs_native_review` is set to `false`.
 
 
+---
+
+## 8. Physiological Reference Ranges Strings (F2 / Doctor Decision D5, 14 Nov 2026)
+
+**PR:** #161 (`fix/i4-freeze-final`)  
+**Target:** `app/translations/index.ts`  
+**Status:** **MARKED FOR REVIEW** (Doctor-approved clinical parameters; non-diagnostic UI labels)  
+**Scope:** Physiological reference range helpers, tags, and disclaimers for self-reported vitals.
+
+### 8.1 Reference Range Strings Marked for Review
+
+| Key | English | Urdu Script | Roman Urdu | Review Status | Notes |
+|---|---|---|---|---|---|
+| `normalRangeDisclaimer` | Normal range used by this app | اس ایپ میں استعمال ہونے والی نارمل حدود | Is app mein istemal hone wali normal hudood | Marked for review | Strictly non-diagnostic wording per doctor directive |
+| `normalRangeLabel` | Normal | نارمل | Normal | Marked for review | Status tag for readings within routine range |
+| `aboveNormalLabel` | Above normal | نارمل سے زیادہ | Normal se zyada | Marked for review | Status tag for elevated readings |
+| `belowNormalLabel` | Below normal | نارمل سے کم | Normal se kam | Marked for review | Status tag for low readings |
+| `normalRangeSystolic` | Normal: 90–139 mmHg | نارمل: 90–139 ملی میٹر ایچ جی | Normal: 90–139 mmHg | Marked for review | 2025 AHA/ACC guideline routine band |
+| `normalRangeDiastolic` | Normal: 60–89 mmHg | نارمل: 60–89 ملی میٹر ایچ جی | Normal: 60–89 mmHg | Marked for review | 2025 AHA/ACC guideline routine band |
+| `normalRangeGlucoseMgDl` | Normal: 70–130 fasting / 70–180 post-meal mg/dL | نارمل: 70–130 نہار منہ / 70–180 کھانے کے بعد mg/dL | Normal: 70–130 nihar munh / 70–180 khaney ke baad mg/dL | Marked for review | ADA Standards of Care routine target band |
+| `normalRangeGlucoseMmol` | Normal: 3.9–7.2 fasting / 3.9–10.0 post-meal mmol/L | نارمل: 3.9–7.2 نہار منہ / 3.9–10.0 کھانے کے بعد mmol/L | Normal: 3.9–7.2 nihar munh / 3.9–10.0 khaney ke baad mmol/L | Marked for review | ADA Standards of Care routine target band (converted) |
+| `normalRangeBP` | Normal: 90–139 / 60–89 mmHg | نارمل: 90–139 / 60–89 ملی میٹر ایچ جی | Normal: 90–139 / 60–89 mmHg | Marked for review | Combined blood pressure helper label |
+
+
+
 

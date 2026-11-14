@@ -12,6 +12,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  ReferenceArea,
 } from "recharts";
 import {
   TrendingUp,
@@ -27,6 +28,7 @@ import {
 } from "lucide-react";
 import { api, TrendsResponse, TrendSeries } from "../lib/api";
 import { getConditionFlags } from "../lib/conditions";
+import { getNormalRangeText } from "../lib/referenceRanges";
 
 // Fixed seeded sample data points across 8 check-in days for mock / demo mode
 const mockGlucoseData = [
@@ -117,12 +119,13 @@ export const TrendDirectionBadge: React.FC<TrendBadgeProps> = ({
 };
 
 export const TrendScreen = () => {
-  const { returnToHomeAndClearRun, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
+  const { returnToHomeAndClearRun, profile, liveProfile, isLiveMode, t, isUrdu, language } = useApp();
   const [liveTrends, setLiveTrends] = useState<TrendsResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(isLiveMode);
   const [error, setError] = useState<string | null>(null);
 
   const conditionFlags = getConditionFlags(isLiveMode ? liveProfile?.conditions : profile.conditions);
+  const isGlucoseMmol = ((isLiveMode ? (liveProfile as any)?.glucose_unit : (profile as any)?.glucose_unit) || "mg/dL") === "mmol/L";
 
   const fetchTrends = useCallback(() => {
     if (!isLiveMode) return;
@@ -263,6 +266,15 @@ export const TrendScreen = () => {
                     border: "none",
                   }}
                 />
+                <ReferenceArea
+                  y1={isGlucoseMmol ? 3.9 : 70}
+                  y2={isGlucoseMmol ? 10.0 : 180}
+                  fill="#0B6E70"
+                  fillOpacity={0.08}
+                  strokeDasharray="3 3"
+                  stroke="#0B6E70"
+                  strokeOpacity={0.25}
+                />
                 <Area
                   type="linear"
                   dataKey="value"
@@ -275,6 +287,10 @@ export const TrendScreen = () => {
                 />
               </AreaChart>
             </ResponsiveContainer>
+            <div data-testid="glucose-normal-range-note" className="flex items-center justify-between text-[11px] text-slate-500 pt-1.5 px-1">
+              <span>{getNormalRangeText("glucose", language, isGlucoseMmol ? "mmol/L" : "mg/dL")}</span>
+              <span className="text-[10px] text-slate-400 italic">({t.normalRangeDisclaimer})</span>
+            </div>
           </div>
         )}
       </div>
@@ -384,6 +400,24 @@ export const TrendScreen = () => {
                     border: "none",
                   }}
                 />
+                <ReferenceArea
+                  y1={90}
+                  y2={140}
+                  fill="#16233F"
+                  fillOpacity={0.05}
+                  strokeDasharray="3 3"
+                  stroke="#16233F"
+                  strokeOpacity={0.2}
+                />
+                <ReferenceArea
+                  y1={60}
+                  y2={90}
+                  fill="#108B8D"
+                  fillOpacity={0.05}
+                  strokeDasharray="3 3"
+                  stroke="#108B8D"
+                  strokeOpacity={0.2}
+                />
                 <Line
                   type="linear"
                   dataKey="systolic"
@@ -402,6 +436,10 @@ export const TrendScreen = () => {
                 />
               </LineChart>
             </ResponsiveContainer>
+            <div data-testid="bp-normal-range-note" className="flex items-center justify-between text-[11px] text-slate-500 pt-1.5 px-1">
+              <span>{getNormalRangeText("blood_pressure", language)}</span>
+              <span className="text-[10px] text-slate-400 italic">({t.normalRangeDisclaimer})</span>
+            </div>
           </div>
         )}
       </div>

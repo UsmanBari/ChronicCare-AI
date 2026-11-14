@@ -5432,6 +5432,34 @@ def get_my_trends_endpoint(
     return TrendsResponse(**result)
 
 
+# =============================================================================
+# REFERENCE RANGES ENDPOINT (F2 / Doctor Decision D5)
+# =============================================================================
+
+@app.get("/api/reference-ranges", tags=["Clinical"])
+def get_reference_ranges_endpoint(
+    unit: Optional[str] = Query(None, description="Preferred unit for glucose ('mg/dL' or 'mmol/L')"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Returns physiological reference ranges used by ChronicCare AI (Doctor Decision D5 / Nov 2026).
+    Accessible to any authenticated user (patient or provider).
+    Wording disclaimer: 'Normal range used by this app' (non-diagnostic).
+    """
+    from agents.reference_ranges import get_all_reference_ranges
+    pref_unit = unit
+    if not pref_unit:
+        prof = current_user.get("patient_profile") or {}
+        pref_unit = prof.get("glucose_unit") or "mg/dL"
+    ranges = get_all_reference_ranges(preferred_unit=pref_unit)
+    return {
+        "ranges": ranges,
+        "preferred_unit": pref_unit,
+        "disclaimer": "Normal range used by this app",
+    }
+
+
+
 # PROVIDER REVIEW QUEUE & ACTION ENDPOINTS
 # =============================================================================
 

@@ -32,6 +32,7 @@ import {
   OptionItem,
 } from "../lib/api";
 import { useVoiceRecorder } from "../lib/useVoiceRecorder";
+import { getNormalRangeText } from "../lib/referenceRanges";
 
 interface ChatMessage {
   role: "system" | "user";
@@ -52,6 +53,7 @@ export const AdaptiveInterviewScreen = () => {
     setShowSettings,
     t,
     isUrdu,
+    language,
   } = useApp();
 
   // --- LIVE MODE STATE ---
@@ -67,6 +69,14 @@ export const AdaptiveInterviewScreen = () => {
   const [lastFailedAnswer, setLastFailedAnswer] = useState<string | null>(null);
   const [liveOptions, setLiveOptions] = useState<string[] | null>(activeLiveCheckin?.options || null);
   const [liveOptionItems, setLiveOptionItems] = useState<OptionItem[] | null>(activeLiveCheckin?.option_items || null);
+
+  const isBpQuestion = /blood[\s_-]?pressure|systolic|diastolic|بلڈ\s*پریشر|بی\s*پی|bp\b/i.test(liveQuestion || "") || Boolean(currentStep?.includes("bp"));
+  const isGlucoseQuestion = /blood[\s_-]?glucose|blood[\s_-]?sugar|glucose|sugar|شوگر/i.test(liveQuestion || "") || Boolean(currentStep?.includes("glucose") || currentStep?.includes("sugar"));
+  const normalRangeHint = isBpQuestion
+    ? getNormalRangeText("blood_pressure", language, ((liveProfile as any)?.glucose_unit as any) || "mg/dL")
+    : isGlucoseQuestion
+    ? getNormalRangeText("glucose", language, ((liveProfile as any)?.glucose_unit as any) || "mg/dL")
+    : "";
   const [liveWhyText, setLiveWhyText] = useState<string | null>(activeLiveCheckin?.why_text || null);
   const [liveProgressHint, setLiveProgressHint] = useState<string | null>(activeLiveCheckin?.progress_hint || null);
   const [canSkip, setCanSkip] = useState<boolean>(activeLiveCheckin?.can_skip ?? true);
@@ -108,7 +118,7 @@ export const AdaptiveInterviewScreen = () => {
 
   // Scroll to newest question within question list container only (prevent page jump)
   useEffect(() => {
-    if (messagesEndRef.current) {
+    if (messagesEndRef.current && typeof messagesEndRef.current.scrollIntoView === "function") {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
     if (inputRef.current) {
@@ -787,6 +797,13 @@ export const AdaptiveInterviewScreen = () => {
                 </button>
               </div>
             )}
+
+            {normalRangeHint ? (
+              <div data-testid="interview-normal-range-hint" className="px-1 flex items-center justify-between text-xs text-slate-500 font-medium">
+                <span>{normalRangeHint}</span>
+                <span className="text-[10px] text-slate-400 italic">({t.normalRangeDisclaimer})</span>
+              </div>
+            ) : null}
 
             {/* Quick-answer buttons for Medication Check Step */}
             {currentStep?.startsWith("medication_check") && (
