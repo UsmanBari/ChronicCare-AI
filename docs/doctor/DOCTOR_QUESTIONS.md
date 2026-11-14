@@ -431,6 +431,49 @@ For each clinical question below, please review the current application behavior
 
 ---
 
+### Question 11: Base Screen Remote-Past and Exertion Over-Triggering
+
+```
++---------------------------------------------------------------------------------------------------+
+| QUESTION 11: BASE SCREEN OVER-TRIGGERS ON CLEARLY PAST OR EXERTIONAL EVENTS;                       |
+| MAY WE ADD REMOTE-PAST / EXERTION GUARDS TO INPUT_TRIAGE.PY?                                      |
++---------------------------------------------------------------------------------------------------+
+| CLINICAL CONTEXT:                                                                                 |
+| In the protected base input screener (`agents/input_triage.py`), keyword matching triggers Red    |
+| (Emergency failsafe) on utterances describing historical past events or chronic exertional events  |
+| that do not represent active, acute medical emergencies.                                           |
+|                                                                                                   |
+| EXAMPLES OBSERVED:                                                                                |
+| 1. "I fainted once at a wedding in 2019" (past remote event, years ago)                           |
+| 2. "I had chest pain last month, doctor said muscular, fine now" (resolved past event)             |
+| 3. "shortness of breath when climbing stairs, same as always" (stable exertional symptom)         |
+|                                                                                                   |
+| CURRENT APP BEHAVIOR:                                                                             |
+| Because `input_triage.py` does not inspect remote years ("2019") or past months ("last month") or  |
+| chronic exertional baselines ("climbing stairs, same as always"), all three trigger immediate Red.|
+| (Note: `agents/red_flag_patterns.py` correctly handles these, but `input_triage.py` runs first).    |
+|                                                                                                   |
+| CLINICAL PROPOSAL:                                                                                |
+| May we update `input_triage.py` with remote-past and exertional baseline guards to avoid false     |
+| ambulance dispatches on historical or stable exertional descriptions?                             |
++---------------------------------------------------------------------------------------------------+
+| CLINICIAN DECISION:                                                                               |
+|                                                                                                   |
+|   [ ] PERMIT GUARDS -- Add remote-past ("2019", "last month") and exertional baseline ("climbing  |
+|       stairs, same as always") guards to `input_triage.py`.                                        |
+|                                                                                                   |
+|   [ ] KEEP CURRENT BEHAVIOR -- Preserve protected strict keyword matching in `input_triage.py`.    |
+|                                                                                                   |
+|   [ ] CHANGE IT TO: _____________________________________________________________________________ |
++---------------------------------------------------------------------------------------------------+
+| WHAT CHANGES IN THE APP:                                                                          |
+| - If PERMIT GUARDS: Add targeted remote-past and exertion filters in `input_triage.py`.           |
+| - If KEEP CURRENT: Keep `input_triage.py` byte-identical to dev as protected baseline failsafe.   |
++---------------------------------------------------------------------------------------------------+
+```
+
+---
+
 ## Summary of Clinical Rules Governed by this Review
 
 | Rule Ref | Clinical Focus | Current Default | Proposed Review Modification |
@@ -445,5 +488,7 @@ For each clinical question below, please review the current application behavior
 | **Lang-4** | Emotional "dil mein dard" | Suppressed from Red unless physical cardiac cues present | Question for the doctor on record (Nov 2026) |
 | **Lang-5** | Chronic neuropathy ("feet numb for years") | Suppressed from acute FAST stroke | Question for the doctor on record (Nov 2026) |
 | **Lang-6** | Exertional dyspnea relieved by rest | Suppressed from Red, routed to Review | Question for the doctor on record (Nov 2026) |
+| **Lang-7** | Base screen over-triggering on past/exertion | Emergency (1122) in `input_triage.py` | Question for the doctor on record: allow remote-past/exertion guards (Nov 2026) |
+
 
 
