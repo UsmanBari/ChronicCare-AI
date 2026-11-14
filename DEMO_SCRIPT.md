@@ -29,7 +29,7 @@ The evaluation demo runs locally on pure SQLite with full pipeline flags active.
 | `RISK_CAN_RAISE` | `"true"` | Sec 15 | Stage-2 Final Triage: High risk band raises routine to review (Yellow). |
 | `RISK_PATIENT_VISIBLE`| `"true"` | Sec 15 | Patient sees plain-language categorical band sentence only; raw scores/SHAP strictly hidden. |
 | `TREND_CAN_RAISE` | `"true"` | Sec 16 | Longitudinal trend escalation: 5+ worsening points above target raises to Yellow. |
-| `NO_READING_SYMPTOM_RAISE` | `"false"` | Sec 15 | Stays false (doctor sign-off pending; conservative routine monitoring maintained). |
+| `NO_READING_SYMPTOM_RAISE` | `"true"` | Sec 15 | Symptomatic check-in without vital readings escalates safely to review. |
 | `DANGER_WORDGROUPS_ENABLED`| `"true"` | Sec 13.1 Agent 1 | Vernacular Urdu composable danger word groups detector. |
 | `EXPLAIN_ENABLED` | `"true"` | Sec 13.2 | Asynchronous background explainer citing WHO 2021 & ISH 2020 guidelines. |
 | `EXPLAIN_MODE` | `"background"` | Sec 13.2 | Non-blocking /complete response; polls up to 90s, instant template fallback. |

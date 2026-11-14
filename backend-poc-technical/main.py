@@ -6089,19 +6089,24 @@ def get_admin_stats(current_user: Dict[str, Any] = Depends(require_role("admin")
 
     with get_db_cursor() as (cursor, be, ph):
         cursor.execute("SELECT COUNT(*) as count FROM users")
-        total_users = (cursor.fetchone() or {}).get("count", 0)
+        row = cursor.fetchone()
+        total_users = row["count"] if row else 0
 
         cursor.execute(f"SELECT COUNT(*) as count FROM users WHERE role = {ph}", ("patient",))
-        total_patients = (cursor.fetchone() or {}).get("count", 0)
+        row = cursor.fetchone()
+        total_patients = row["count"] if row else 0
 
         cursor.execute(f"SELECT COUNT(*) as count FROM users WHERE role IN ({ph}, {ph})", ("doctor", "provider"))
-        total_providers = (cursor.fetchone() or {}).get("count", 0)
+        row = cursor.fetchone()
+        total_providers = row["count"] if row else 0
 
         cursor.execute("SELECT COUNT(*) as count FROM appointments")
-        total_appointments = (cursor.fetchone() or {}).get("count", 0)
+        row = cursor.fetchone()
+        total_appointments = row["count"] if row else 0
 
         cursor.execute("SELECT COUNT(*) as count FROM checkins")
-        total_checkins = (cursor.fetchone() or {}).get("count", 0)
+        row = cursor.fetchone()
+        total_checkins = row["count"] if row else 0
 
     raw_list = list_provider_appointments()
     enhanced = [compute_escalation_state(a) for a in raw_list]

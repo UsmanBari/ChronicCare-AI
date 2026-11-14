@@ -131,18 +131,17 @@ def _interpret(text: str, record_dosage: str):
             return "unclear", record_dosage, False
         return "stopped", record_dosage, False
     stripped = _LEADING_YES.sub("", text.strip()).strip() or text.strip()
-    clean_dose = stripped[:MAX_DOSAGE_CHARS]
     record_norm, answer_norm = _norm(record_dosage), _norm(text)
     states_dose = bool(_DOSE_HINT.search(lowered))
     same_dose = bool(record_norm) and record_norm in answer_norm
     if verdict is True:
         if states_dose and not same_dose:
-            return "active", clean_dose, True
+            return "active", stripped[:MAX_DOSAGE_CHARS], True
         return "active", record_dosage, False
     if states_dose:
         if same_dose:
             return "active", record_dosage, False
-        return "active", clean_dose, True
+        return "active", stripped[:MAX_DOSAGE_CHARS], True
     return "unclear", record_dosage, False
 
 
