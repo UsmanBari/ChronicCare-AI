@@ -5478,7 +5478,7 @@ def get_reference_ranges_endpoint(
     return {
         "ranges": ranges,
         "preferred_unit": pref_unit,
-        "disclaimer": "Normal range used by this app",
+        "disclaimer": "Target range used by this app",
     }
 
 

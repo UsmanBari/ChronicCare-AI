@@ -224,7 +224,7 @@ export const TrendScreen = () => {
             )}
           </div>
           <span className="text-xs font-bold px-3 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200 self-start sm:self-auto">
-            {t.targetRangeLabel}: <bdi>90–130 mg/dL</bdi>
+            {t.targetRangeLabel}: <bdi>90–125 mg/dL</bdi>
           </span>
         </div>
 
@@ -291,6 +291,9 @@ export const TrendScreen = () => {
               <span>{getNormalRangeText("glucose", language, isGlucoseMmol ? "mmol/L" : "mg/dL")}</span>
               <span className="text-[10px] text-slate-400 italic">({t.normalRangeDisclaimer})</span>
             </div>
+            <p className="text-[10px] text-slate-400 mt-1 px-1">
+              {t.chartTargetsDisclaimer}
+            </p>
           </div>
         )}
       </div>
@@ -440,6 +443,9 @@ export const TrendScreen = () => {
               <span>{getNormalRangeText("blood_pressure", language)}</span>
               <span className="text-[10px] text-slate-400 italic">({t.normalRangeDisclaimer})</span>
             </div>
+            <p className="text-[10px] text-slate-400 mt-1 px-1">
+              {t.chartTargetsDisclaimer}
+            </p>
           </div>
         )}
       </div>

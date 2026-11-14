@@ -568,6 +568,42 @@ For each clinical question below, please review the current application behavior
 
 ---
 
+### Question 15: Confirm Target Ranges Shown in App & Post-Meal 90–124 mg/dL Handling
+
+```
++---------------------------------------------------------------------------------------------------+
+| QUESTION 15: CONFIRM TARGET RANGES SHOWN (BP & GLUCOSE)                                           |
++---------------------------------------------------------------------------------------------------+
+| CLINICAL CONTEXT:                                                                                 |
+| Per Doctor Decision D6, glucose target parameters are set to 90–125 mg/dL (fasting) and           |
+| 125–200 mg/dL (after meals). Values below 90 mg/dL in any context escalate to Review (Yellow)     |
+| due to dizziness risk.                                                                            |
+|                                                                                                   |
+| PENDING CONFIRMATION 1 (Blood Pressure):                                                          |
+| Target range used: Systolic 90–139 mmHg, Diastolic 60–89 mmHg (based on 2025 AHA/ACC guidance).   |
+| Please confirm if these BP target bounds are approved for chronic hypertensive patients.         |
+|                                                                                                   |
+| PENDING CONFIRMATION 2 (Post-Meal 90–124 mg/dL):                                                  |
+| For an after-meal reading between 90 and 124 mg/dL: the app marks it as "In target" and does NOT  |
+| escalate to Review under D5 (as it is above the 90 mg/dL fasting floor and below the 200 mg/dL   |
+| ceiling, avoiding false alarms for well-controlled patients). Please confirm this policy.         |
++---------------------------------------------------------------------------------------------------+
+| CLINICIAN DECISION:                                                                               |
+|                                                                                                   |
+|   [ ] CONFIRMED -- Both BP targets and post-meal 90–124 mg/dL handling approved as implemented.   |
+|                                                                                                   |
+|   [ ] CHANGE BP TARGETS TO: _____________________________________________________________________ |
+|                                                                                                   |
+|   [ ] CHANGE POST-MEAL 90–124 HANDLING TO: ______________________________________________________ |
++---------------------------------------------------------------------------------------------------+
+| WHAT CHANGES IN THE APP:                                                                          |
+| - If confirmed: Existing implementation in `agents/reference_ranges.py` and UI is retained.       |
+| - If changed: BP constants or post-meal lower bounds in `reference_ranges.py` will be updated.     |
++---------------------------------------------------------------------------------------------------+
+```
+
+---
+
 ## Summary of Clinical Rules Governed by this Review
 
 | Rule Ref | Clinical Focus | Current Default | Proposed Review Modification |
