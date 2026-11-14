@@ -507,6 +507,67 @@ For each clinical question below, please review the current application behavior
 
 ---
 
+### Question 13 (Decision D6): Target Glucose Parameters for Type-2 Diabetes
+
+```
++---------------------------------------------------------------------------------------------------+
+| QUESTION 13 (DECISION D6): TARGET GLUCOSE PARAMETERS FOR TYPE-2 DIABETES                          |
++---------------------------------------------------------------------------------------------------+
+| CLINICAL INQUIRY:                                                                                 |
+| What target glucose ranges should be used in the app to avoid confusion between fasting,          |
+| post-prandial, and borderline low readings?                                                       |
++---------------------------------------------------------------------------------------------------+
+| CLINICIAN DECISION:                                                                               |
+|                                                                                                   |
+|   [X] ANSWER: "fasting waise to 90 to 125 honi chahiye, 90 se neeche thode patient ko chakkar       |
+|       aane lag jaate hain. Aur after meals jo hai woh 125 se 200 ke darmiyan honi chahiye.        |
+|       Aur agar upar wale symptoms aate hain to woh phir yellow mein jayega review mein."          |
+|       (the doctor on record, Nov 2026).                                                           |
+|                                                                                                   |
+|       Ruling:                                                                                     |
+|       - Fasting target range: 90–125 mg/dL (5.0–6.9 mmol/L). Readings below 90 mg/dL warrant     |
+|         review due to dizziness/hypoglycemia risk.                                                |
+|       - After-meals target range: 125–200 mg/dL (6.9–11.1 mmol/L).                                |
+|       - Values 90–124 post-meal are in target and do not escalate under D5.                       |
+|       - Random / unspecified context target: 90–200 mg/dL.                                        |
++---------------------------------------------------------------------------------------------------+
+| WHAT CHANGES IN THE APP:                                                                          |
+| - Fasting target set to 90–125 mg/dL, post-meal to 125–200 mg/dL in `agents/reference_ranges.py`.  |
+| - Readings below 90 mg/dL escalate to Review (Yellow) rather than auto-resolving under D5.        |
++---------------------------------------------------------------------------------------------------+
+```
+
+---
+
+### Question 14 (Decision D7): Clinical Symptom Finding Escalation to Review (Yellow)
+
+```
++---------------------------------------------------------------------------------------------------+
+| QUESTION 14 (DECISION D7): CLINICAL SYMPTOM FINDINGS ESCALATION                                   |
++---------------------------------------------------------------------------------------------------+
+| CLINICAL INQUIRY:                                                                                 |
+| Should check-ins where patients report non-emergency clinical symptoms, medication concerns, or   |
+| distress escalate from Routine (Green) to Review (Yellow)?                                        |
++---------------------------------------------------------------------------------------------------+
+| CLINICIAN DECISION:                                                                               |
+|                                                                                                   |
+|   [X] ANSWER: "Aur agar upar wale symptoms aate hain to woh phir yellow mein jayega review mein." |
+|       (the doctor on record, Nov 2026).                                                           |
+|                                                                                                   |
+|       Ruling: Yes. Positive report of: foot problems (ulcers/wounds), hypo events past week,      |
+|       sick day flags, associated symptoms, orthostatic dizziness, medication dose change requests,|
+|       or low mood/diabetes distress escalates triage from Routine (Green) to Review (Yellow).      |
+|       Controlled by feature flag `SYMPTOM_FINDING_RAISE` with default TRUE.                       |
++---------------------------------------------------------------------------------------------------+
+| WHAT CHANGES IN THE APP:                                                                          |
+| - Stage-2 Final Triage adds Rule R-S2-5 in `agents/final_triage.py`.                              |
+| - `SYMPTOM_FINDING_RAISE` default set to `True` (doctor-approved).                                 |
+| - Patient-facing reason key: `symptom_reported_needs_review` provided in EN, Urdu, Roman Urdu.    |
++---------------------------------------------------------------------------------------------------+
+```
+
+---
+
 ## Summary of Clinical Rules Governed by this Review
 
 | Rule Ref | Clinical Focus | Current Default | Proposed Review Modification |
@@ -515,6 +576,8 @@ For each clinical question below, please review the current application behavior
 | **Stage 2** | CVD High-Risk Alert Cooldown | 30 days suppression window | Approved by the doctor on record: high risk requires symptoms to escalate; 30d cooldown retained (Nov 2026) |
 | **Stage 2** | Uncontrolled Diabetes (HbA1c >= 8%) | Informational model score | Approved by the doctor on record if future model passes gates; not shipped in FYP-1 (Nov 2026) |
 | **D5** | Normal self-reported readings with no hospital record | Raised to Review (Yellow) | Approved by the doctor on record: stay Green (Routine), normal parameters added to app (Nov 2026) |
+| **D6** | Glucose target ranges | Fasting 70-130, Post-meal 70-180 | Approved by the doctor on record: Fasting 90-125, Post-meal 125-200 mg/dL (Nov 2026) |
+| **D7** | Clinical symptom finding raise | Flag off | Approved by the doctor on record: SYMPTOM_FINDING_RAISE=true default, escalate to Review (Nov 2026) |
 | **Audit** | Edge-case benchmark suite | 51 synthetic personas (0 Category B gaps) | Expandable based on clinician feedback |
 | **Lang-1** | Subjective BP increase ("mere khyal me bp barh gaya") | Routine (Green) | Option to escalate to Review (Yellow) |
 | **Lang-2** | Urdu severe chest pain ("seene me shadeed dard") | Emergency (1122) | Confirmation of emergency failsafe |

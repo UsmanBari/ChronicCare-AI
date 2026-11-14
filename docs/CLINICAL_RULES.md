@@ -373,6 +373,8 @@ Answering "yes" to `hypo_events_past_week`, `sick_day_flags`, `associated_sympto
 - D2: High cardiovascular risk escalates routine to review only when accompanied by at least one reported symptom in the check-in; asymptomatic high risk remains routine with risk band documented.
 - D3: High diabetes-control risk estimate approved to escalate routine to review once a future model satisfies all pre-registered validation gates.
 - D5: Normal self-reported readings with no record value do not raise to review; trust label and provider note kept.
+- D6: Target glucose ranges are 90–125 mg/dL fasting, 125–200 mg/dL after meals (90–200 random/overall target); below 90 mg/dL warrants clinical review for dizziness risk.
+- D7: Clinical symptom findings (foot ulcer/wound, recent hypo events, sick day flags, associated symptoms, orthostatic dizziness, dose change requests, low mood/distress) escalate routine to review (`SYMPTOM_FINDING_RAISE=true`, default true).
 
 
 

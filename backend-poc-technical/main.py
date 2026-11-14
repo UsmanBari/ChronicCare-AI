@@ -4052,6 +4052,7 @@ def get_config_status_endpoint(current_user: Dict[str, Any] = Depends(require_ro
         "TREND_CAN_RAISE": os.environ.get("TREND_CAN_RAISE", "").strip().lower() == "true",
         "RISK_PATIENT_VISIBLE": os.environ.get("RISK_PATIENT_VISIBLE", "").strip().lower() == "true",
         "NO_READING_SYMPTOM_RAISE": os.environ.get("NO_READING_SYMPTOM_RAISE", "").strip().lower() == "true",
+        "SYMPTOM_FINDING_RAISE": os.environ.get("SYMPTOM_FINDING_RAISE", "true").strip().lower() in ("true", "1", "yes"),
         "RISK_RAISE_COOLDOWN_DAYS": int(os.environ.get("RISK_RAISE_COOLDOWN_DAYS", "0") or 0),
         "RETRIEVER": os.environ.get("RETRIEVER", "bm25").strip().lower(),
         "TTS_ENABLED": os.environ.get("TTS_ENABLED", "").strip().lower() == "true",
