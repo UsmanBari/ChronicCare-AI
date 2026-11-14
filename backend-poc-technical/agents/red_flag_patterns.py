@@ -355,19 +355,30 @@ def _is_chest_symptom_negated(norm: str) -> bool:
         return False
 
     # 2. General negation patterns
-    if re.search(r"\b(?:no|not|without|denies|denied|never|free\s+of|zero)\s+(?:\w+\s+){0,3}(?:chest\s+pain|chest\s+trouble|chest\s+problem|chest\s+issue|chest\s+discomfort|pain|pressure|tightness|heaviness|discomfort|hurts|ache|trouble|problem|masla|takleef)\b", norm):
+    if re.search(
+        r"\b(?:no|not|without|denies|denied|never|free\s+of|zero|"
+        r"i\s+do\s*n\s*['’]?\s*t\s+have|i\s+did\s*n\s*['’]?\s*t\s+have|"
+        r"i\s+have\s+no|there\s+is\s+no|not\s+feeling\s+any|no\s+sign\s+of|"
+        r"i\s*['’]?\s*m\s+not\s+having)\s+(?:\w+\s+){0,3}"
+        r"(?:chest\s+pain|chest\s+trouble|chest\s+problem|chest\s+issue|chest\s+discomfort|pain|pressure|tightness|heaviness|discomfort|hurts|ache|trouble|problem|masla|takleef)\b",
+        norm
+    ):
         return True
     if re.search(r"\b(?:chest|seena|seenay|seene|chhati)\s+(?:is\s+)?(?:completely\s+)?(?:fine|normal|ok|okay|good|unremarkable|theek|sahi)\b", norm):
         return True
     if re.search(r"\b(?:seena|seenay|seene|chhati)\s+(?:me\s+)?(?:koi\s+)?(?:dard|dabao|bojh|takleef|masla)\s+(?:bhi\s+)?nahi\b", norm):
         return True
-    if re.search(r"\b(?:dard|dabao|bojh|takleef|masla)\s+(?:to\s+|bhi\s+|bilkul\s+|hai\s+|ho\s+)?nahi\b", norm):
+    if re.search(r"\b(?:dard|dabao|bojh|takleef|masla)\s+(?:to\s+|bhi\s+|bilkul\s+|hai\s+|ho\s+)?nahi(?:\s+hai)?\b", norm):
+        return True
+    if re.search(r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:dard|dabao|bojh|takleef|masla|seene\s+me\s+dard)\s+(?:bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
         return True
     if re.search(r"\bkoi\s+(?:bhi\s+)?(?:\w+\s+){0,2}(?:dard|dabao|bojh|takleef|masla)\s+(?:bhi\s+)?nahi\b", norm):
         return True
+    if re.search(r"(?:مجھے\s+کوئی|کوئی\s+بھی)\s*(?:\S+\s*){0,3}(?:درد|دباؤ|بوجھ|تکلیف|مسئلہ)\s*(?:بھی\s*)?(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
+        return True
     if re.search(r"(?:سینہ|سینے|چھاتی)\s*(?:میں\s*)?(?:کوئی\s*)?(?:درد|دباؤ|بوجھ|تکلیف|مسئلہ)\s*(?:بھی\s*)?نہیں", norm):
         return True
-    if re.search(r"(?:درد|دباؤ|بوجھ|تکلیف|مسئلہ)\s*(?:تو|بھی|بالکل|ہے)?\s*نہیں", norm):
+    if re.search(r"(?:درد|دباؤ|بوجھ|تکلیف|مسئلہ)\s*(?:تو|بھی|بالکل|ہے)?\s*نہیں(?:\s*ہے)?", norm):
         return True
     if re.search(r"کوئی\s*(?:بھی\s*)?(?:درد|دباؤ|بوجھ|تکلیف|مسئلہ)\s*(?:بھی\s*)?نہیں", norm):
         return True
@@ -583,6 +594,7 @@ _BREATHING_INABILITY_PATTERNS = [
 
 _BREATHING_NEGATIONS = [
     r"\b(?:no|not|without|never\s+had|never|denies|denied|zero)\s+(?:\w+\s+){0,3}(?:shortness\s+of\s+breath|difficulty\s+breathing|trouble\s+breathing|breathing\s+trouble|breathing\s+difficulty|breathing\s+problem|breathing\s+issue|breath\s+trouble|breath\s+problem|breath\s+difficulty|breath\s+issue|breathlessness|breath\s+shortness)\b",
+    r"\b(?:i\s+do\s*n\s*['’]?\s*t\s+have|i\s+did\s*n\s*['’]?\s*t\s+have|i\s+have\s+no|there\s+is\s+no|not\s+feeling\s+any|no\s+sign\s+of|i\s*['’]?\s*m\s+not\s+having|free\s+of)\s+(?:\w+\s+){0,3}(?:shortness\s+of\s+breath|difficulty\s+breathing|trouble\s+breathing|breathing\s+trouble|breathing\s+difficulty|breathing\s+problem|breathing\s+issue|breath\s+trouble|breath\s+problem|breath\s+difficulty|breath\s+issue|breathlessness|breath\s+shortness|breathing|breath)\b",
     r"\b(?:no|not|without|never)\s+(?:trouble|difficulty|problem|issue)\s+(?:in\s+|with\s+)?(?:breathing|breath)\b",
     r"\b(?:no|not|without|never)\s+(?:breathing|breath)\s+(?:trouble|difficulty|problem|issue|complaint)\b",
     r"\bnever\s+(?:\w+\s+){0,3}(?:difficulty\s+breathing|trouble\s+breathing|breathing\s+trouble|shortness\s+of\s+breath)\b",
@@ -591,9 +603,15 @@ _BREATHING_NEGATIONS = [
     r"\bbreathing\s+(?:is\s+)?(?:completely\s+)?(?:fine|normal|ok|okay|good|unremarkable)\b",
     r"\bwithout\s+(?:any\s+)?(?:trouble|difficulty|shortness|problem|breathlessness)\b",
     r"\bsans\s+(?:\w+\s+){0,3}(?:bilkul\s+theek|theek|sahi|behtar)\b",
+    r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:sans|saans|dam)\s+(?:\w+\s+){0,2}(?:masla|takleef|dushwari|mushkil|tangi|kharabi)\s+(?:bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b",
+    r"\b(?:sans|saans|dam)\s+(?:ki\s+)?(?:takleef|masla|tangi|dushwari)\s+(?:to\s+|bhi\s+)?bilkul\s+nahi(?:\s+hai)?\b",
+    r"\b(?:sans|saans|dam)\s+(?:ki\s+)?(?:takleef|masla|tangi|dushwari)\s+nahi\s+hai\b",
     r"\bkoi\s+(?:\w+\s+){0,3}(?:sans|saans)\s+(?:\w+\s+){0,2}(?:masla|takleef|dushwari|mushkil|tangi|kharabi)\s+(?:\w+\s+){0,2}nahi\b",
     r"\bkoi\s+(?:\w+\s+){0,3}(?:masla|takleef|dushwari|mushkil|tangi)\s+(?:\w+\s+){0,2}nahi\b",
     r"\bsans\s+(?:me\s+|lene\s+me\s+)?(?:koi\s+)?(?:masla|takleef|dushwari|mushkil|tangi)\s+nahi\b",
+    r"(?:مجھے\s+کوئی|کوئی\s+بھی)\s*(?:\S+\s*){0,3}(?:سانس\s*)?(?:\S+\s*){0,2}(?:مسئلہ|تکلیف|دشواری|مشکل|تنگی)\s*(?:بھی\s*)?(?:بالکل\s*)?نہیں(?:\s*ہے)?",
+    r"سانس\s*(?:کی\s*|میں\s*)?(?:تکلیف|تنگی|مسئلہ|دشواری)\s*(?:تو|بھی)?\s*بالکل\s*نہیں(?:\s*ہے)?",
+    r"سانس\s*(?:کی\s*|میں\s*)?(?:تکلیف|تنگی|مسئلہ|دشواری)\s*نہیں\s*ہے",
     r"سانس\s*(?:\S+\s*){0,3}(?:بالکل\s*ٹھیک|ٹھیک|بہتر|صحیح)",
     r"کوئی\s*(?:\S+\s*){0,3}(?:سانس\s*)?(?:\S+\s*){0,2}(?:مسئلہ|تکلیف|دشواری|مشکل|تنگی)\s*(?:\S+\s*){0,2}نہیں",
     r"کوئی\s*(?:\S+\s*){0,3}(?:مسئلہ|تکلیف|دشواری|مشکل|تنگی)\s*(?:\S+\s*){0,2}نہیں",
@@ -624,9 +642,28 @@ _REST_POSITION_TOKENS = {
 }
 
 
+def _has_cyanosis(norm: str) -> bool:
+    """
+    Detects acute central or peripheral cyanosis (blue lips / hont neelay)
+    which represents severe respiratory distress / hypoxemia and triggers breathing-Red alone.
+    """
+    if re.search(r"\b(?:no|not|without|never|denies|denied)\s+(?:\w+\s+){0,2}(?:blue|bluish|neelay|neela|neeli)\b", norm):
+        return False
+    if re.search(r"\b(?:lips?\s+(?:are\s+)?(?:turning\s+|turned\s+)?(?:blue|bluish)|(?:blue|bluish)\s+lips?)\b", norm):
+        return True
+    if re.search(r"\b(?:hon?th?|hont)\s+(?:\w+\s+){0,2}(?:neelay|neela|neeli)\b|\b(?:neelay|neela|neeli)\s+(?:hon?th?|hont)\b", norm):
+        return True
+    if re.search(r"نیلے\s*ہونٹ|ہونٹ\s*(?:\S+\s*){0,2}نیلے", norm):
+        return True
+    return False
+
+
 def _match_breathing(norm: str) -> bool:
     if re.search(r"sans\s+ke\s+siwa|سانس\s*کے\s*سوا", norm):
         return False
+
+    if _has_cyanosis(norm):
+        return True
 
     if _has_any(norm, _BREATHING_METAPHORS):
         return True
@@ -783,6 +820,23 @@ _STROKE_FAST_PATTERNS = [
     r"\b(?:bol\w*|awaz|baat|samajh|speech|words?|speak\w*|understand\w*)\b.*?\b(?:chehra|munh|face|mouth)\s+(?:\w+\s+){0,3}(?:latk\w*|latak\w*|jhuk\w*|tedh\w*|terh\w*|droop\w*|crooked)\b",
     r"(?:چہرہ|منہ)\s*(?:\S+\s*){0,3}(?:لٹک|جھک|ٹیڑھا).*?(?:بول|آواز|بات|سمجھ|الفاظ)",
     r"(?:بول|آواز|بات|سمجھ|الفاظ).*?(?:چہرہ|منہ)\s*(?:\S+\s*){0,3}(?:لٹک|جھک|ٹیڑھا)",
+    # Unilateral side numb (daayan/baayan hissa sunn)
+    r"\b(?:daaya?n|baaya?n|daye?n|baye?n|seedha|ulta)\s+(?:hissa|jism|tarf|side)\s+(?:\w+\s+){0,2}(?:sunn?|sun)\b",
+    r"(?:دایاں|بایاں|دائیں|بائیں|سیدھا|الٹا)\s*(?:حصہ|جسم|طرف)\s*(?:\S+\s*){0,2}(?:سن)",
+    # Sudden drooling / munh se raal
+    r"\b(?:munh|muh|mouth)\s+(?:se\s+)?raal\b.*?\b(?:achanak|sudden\w*|foran|yakdam)\b",
+    r"\b(?:achanak|sudden\w*|foran|yakdam)\b.*?\b(?:munh|muh|mouth)\s+(?:se\s+)?raal\b",
+    r"\b(?:drool\w*)\b.*?\b(?:sudden\w*|abrupt\w*)\b",
+    r"\b(?:sudden\w*|abrupt\w*)\b.*?\b(?:drool\w*)\b",
+    r"(?:منہ\s*سے\s*رال|رال).*?(?:اچانک|فورا|یکدم)",
+    r"(?:اچانک|فورا|یکدم).*?(?:منہ\s*سے\s*رال|رال)",
+    # Hand/arm is useless
+    r"\b(?:hand|arm|leg|foot|limb|bazu|hath|haath|tang|taang)\s+(?:is\s+)?(?:completely\s+|bilkul\s+)?(?:useless|dead|limp|paralyzed|paralysed|be\s*jaan|bekaar)\b",
+    r"(?:ہاتھ|بازو|ٹانگ|پاؤں)\s*(?:بالکل\s*)?(?:بے\s*جان|بیکار|شل)",
+    # Speech went weird/strange suddenly
+    r"\b(?:speech|voice|talking)\s+(?:\w+\s+){0,3}(?:went|became|turned|got)\s+(?:\w+\s+){0,2}(?:weird|strange|slurred|garbled|unclear|incoherent)\s+(?:suddenly|all\s+of\s+a\s+sudden)\b",
+    r"\b(?:suddenly|all\s+of\s+a\s+sudden)\s+(?:\w+\s+){0,2}(?:speech|voice|talking)\s+(?:\w+\s+){0,3}(?:went|became|turned|got)\s+(?:\w+\s+){0,2}(?:weird|strange|slurred|garbled|unclear|incoherent)\b",
+    r"\b(?:awaaz|bolna|baat)\s+(?:\w+\s+){0,3}(?:achanak|achanak\s+se)\s+(?:\w+\s+){0,2}(?:ajeeb|ladkhada\w*|tut\w*|garbar)\b",
 ]
 
 
@@ -813,17 +867,28 @@ def _is_stroke_negated(norm: str) -> bool:
     if has_failure and not has_preceding_negator:
         return False
 
-    if re.search(r"\b(?:no|not|denies|denied|without|never)\s+(?:\w+\s+){0,3}(?:slurr\w*|speech|droop\w*|weakness|numbness|facial|stroke|paralysis|trouble|problem)\b", norm):
+    if re.search(
+        r"\b(?:no|not|denies|denied|without|never|"
+        r"i\s+do\s*n\s*['’]?\s*t\s+have|i\s+did\s*n\s*['’]?\s*t\s+have|"
+        r"i\s+have\s+no|there\s+is\s+no|not\s+feeling\s+any|no\s+sign\s+of|"
+        r"i\s*['’]?\s*m\s+not\s+having|free\s+of)\s+(?:\w+\s+){0,3}"
+        r"(?:slurr\w*|speech|droop\w*|weakness|numbness|facial|stroke|paralysis|trouble|problem|masla|takleef)\b",
+        norm
+    ):
         return True
     if re.search(r"\b(?:speech|face|arm|hand|leg|side|haath|bazu|pair|tang|chehra)\s+(?:is\s+)?(?:completely\s+)?(?:normal|fine|ok|okay|theek|thik|sahi)\b", norm):
         return True
     if re.search(r"\b(?:chehra|zaban|awaz|bazu|hath|haath|tang|pair)\s+(?:theek|thik|sahi)\s+hai\b", norm):
         return True
-    if re.search(r"\b(?:kamzori|sunn|ladkhada\w*|falij)\s+(?:\w+\s+){0,2}nahi\b", norm):
+    if re.search(r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:kamzori|sunn|ladkhada\w*|falij|masla|takleef)\s+(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
+        return True
+    if re.search(r"\b(?:kamzori|sunn|ladkhada\w*|falij)\s+(?:\w+\s+){0,2}(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
         return True
     if re.search(r"\bkoi\s+(?:\w+\s+){0,2}(?:ladkhada\w*|falij|kamzori|sunn|masla|takleef)\s+nahi\b", norm):
         return True
-    if re.search(r"(?:کمزوری|سن|لڑکھڑا|فالج)\s*(?:\S+\s*){0,2}نہیں", norm):
+    if re.search(r"(?:مجھے\s+کوئی|کوئی\s+بھی)\s*(?:\S+\s*){0,3}(?:کمزوری|سن|لڑکھڑاہٹ|فالج|مسئلہ|تکلیف)\s*(?:بھی\s*)?(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
+        return True
+    if re.search(r"(?:کمزوری|سن|لڑکھڑا|فالج)\s*(?:\S+\s*){0,2}(?:تو|بھی)?\s*(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
         return True
     if re.search(r"کوئی\s*(?:\S+\s*){0,2}(?:کمزوری|سن|لڑکھڑاہٹ|فالج|مسئلہ|تکلیف)\s*(?:\S+\s*){0,2}نہیں", norm):
         return True
@@ -1017,13 +1082,24 @@ _SYNCOPE_KEYWORDS = [
 
 
 def _is_syncope_negated(norm: str) -> bool:
-    if re.search(r"\b(?:did\s+not|didn\s*t|not|never|no|denies)\s+(?:\w+\s+){0,3}(?:faint|pass\s+out|black\s+out|collapse|collapsed|unconscious)\b", norm):
+    if re.search(
+        r"\b(?:did\s+not|didn\s*t|not|never|no|denies|"
+        r"i\s+do\s*n\s*['’]?\s*t\s+have|i\s+did\s*n\s*['’]?\s*t\s+have|"
+        r"i\s+have\s+no|there\s+is\s+no|not\s+feeling\s+any|no\s+sign\s+of|"
+        r"i\s*['’]?\s*m\s+not\s+having|free\s+of)\s+(?:\w+\s+){0,3}"
+        r"(?:faint\w*|pass\w*\s+out|black\w*\s+out|collaps\w*|unconscious\w*|chakkar|dizziness)\b",
+        norm
+    ):
         return True
-    if re.search(r"\b(?:be\s*hosh|ghashi|chakkar)\s+(?:\w+\s+){0,2}nahi\b", norm):
+    if re.search(r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:be\s*hosh|ghashi|chakkar)\s+(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
+        return True
+    if re.search(r"\b(?:be\s*hosh|ghashi|chakkar)\s+(?:\w+\s+){0,2}(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
         return True
     if re.search(r"\bnahi\s+(?:\w+\s+){0,2}(?:be\s*hosh|chakkar)\b", norm):
         return True
-    if re.search(r"(?:بے\s*ہوش|غشی|چکر)\s*(?:\S+\s*){0,2}نہیں", norm):
+    if re.search(r"(?:مجھے\s+کوئی|کوئی\s+بھی)\s*(?:\S+\s*){0,3}(?:بے\s*ہوش|غشی|چکر)\s*(?:بھی\s*)?(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
+        return True
+    if re.search(r"(?:بے\s*ہوش|غشی|چکر)\s*(?:\S+\s*){0,2}(?:تو|بھی)?\s*(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
         return True
     if re.search(r"نہیں\s*(?:\S+\s*){0,2}(?:بے\s*ہوش|غشی|چکر)", norm):
         return True
@@ -1099,18 +1175,21 @@ def _match_loss_of_consciousness(norm: str) -> bool:
 _FLUIDS_DKA_PATTERNS = [
     # Fluid inability (English)
     r"\b(?:cant|cannot|unable\s+to|wont)\s+(?:keep|hold)\s+(?:\w+\s+){0,4}down\b",
+    r"\bnothing\s+(?:is\s+)?stay(?:s|ing)?\s+down\b",
     r"\b(?:even\s+)?(?:a\s+sip\s+of\s+)?(?:water|fluid|fluids|liquid|liquids|food)\s+(?:comes?\s+(?:right\s+)?back\s+up|wont\s+stay\s+down)\b",
-    r"\b(?:water|fluid|fluids|liquid|liquids)\s+comes?\s+(?:right\s+)?back\s+up\b",
+    r"\b(?:water|fluid|fluids|liquid|liquids|food|everything)\s+(?:comes?|keeps?\s+coming)\s+(?:right\s+)?back\s+up\b",
     r"\bthrowing\s+up\s+(?:everything|non-?stop|all\s+day)\b",
     r"\bkeep\s+nothing\s+down\b",
     r"\bvomiting\s+(?:non-?stop|continuously|all\s+day)\b",
     r"\b(?:vomiting|throwing\s+up|fluids?\s+come\s+back\s+up|liquids\s+come\s+(?:right\s+)?back\s+up)\s+(?:with\s+)?(?:very\s+)?high\s+(?:sugar|glucose)\b",
     r"\b(?:liquids|fluids)\s+down\s+with\s+(?:very\s+)?high\s+(?:sugar|glucose)\b",
     # Roman Urdu fluid inability & intractable vomiting
-    r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik)\s+rah[iyea]\b",
-    r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?(?:rukta|tikta)\s+nahi\b",
+    r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik|rehta|rahta)\s+rah[iyea]\b",
+    r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?(?:rukta|tikta|rehta|rahta)\s+nahi\b",
+    r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:rukta|tikta|rehta|rahta|ruk|tik|rehta|rahta)\b",
+    r"\b(?:kuch\s+bhi\s+)?andar\s+nahi\s+(?:rehta|rahta|rukta|tikta)\b",
     r"\b(?:ek\s+)?ghoont\s+(?:bhi\s+)?(?:wapis|wapas|nikal|ulti)\b",
-    r"\b(?:ek\s+)?ghoont\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik)\b",
+    r"\b(?:ek\s+)?ghoont\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik|rehta|rahta|rukta|tikta)\b",
     r"\bjo\s+(?:bhi\s+)?(?:peeta|peeti|khata|khati)\s+(?:hoon|hun)\s+(?:\w+\s+){0,2}(?:nikal|wapas|wapis|ulti)\b",
     r"\bpani\s+(?:\w+\s+){0,3}(?:wapas|wapis)\b",
     r"\b(?:kuch\s+)?(?:bhi\s+)?hazam\s+nahi\s+ho\s+raha\b",
@@ -1123,12 +1202,12 @@ _FLUIDS_DKA_PATTERNS = [
     r"الٹی\s*رک\s*نہیں\s*رہی",
     r"الٹیاں\s*بند\s*نہیں\s*ہو\s*رہ",
     r"پانی\s*(?:بھی\s*)?(?:اندر\s*)?نہیں\s*(?:رکتا|ٹکتا|رہتا|رک\s*رہا|ٹک\s*رہا)",
-    r"ایک\s*گھونٹ\s*(?:بھی\s*)?(?:واپس|نہیں\s*(?:رکتا|ٹکتا))",
+    r"ایک\s*گھونٹ\s*(?:بھی\s*)?(?:واپس|نہیں\s*(?:رکتا|ٹکتا|رہتا))",
     r"جو\s*(?:بھی\s*)?(?:پیتا|کھاتا)\s*ہوں\s*(?:\S+\s*){0,2}(?:نکل|واپس|الٹی)",
     r"پانی\s*بھی\s*واپس",
     r"مسلسل\s*الٹیاں",
     r"شدید\s*قے",
-    r"کچھ\s*بھی\s*(?:پیٹ\s*میں\s*)?نہیں\s*(?:ٹھہر|رک|ٹک)",
+    r"کچھ\s*بھی\s*(?:پیٹ\s*میں\s*)?نہیں\s*(?:ٹھہر|رک|ٹک|رہ)",
     r"ہر\s*چیز\s*(?:کی\s*)?الٹی",
     r"شوگر\s*(?:\S+\s*){0,3}الٹیاں",
 ]
@@ -1136,7 +1215,14 @@ _FLUIDS_DKA_PATTERNS = [
 
 def _is_vomiting_negated(norm: str) -> bool:
     # English negations
-    if re.search(r"\b(?:no|not|without|denies|never)\s+(?:\w+\s+){0,3}(?:vomit\w*|throwing\s+up|puk\w*|nausea)\b", norm):
+    if re.search(
+        r"\b(?:no|not|without|denies|never|"
+        r"i\s+do\s*n\s*['’]?\s*t\s+have|i\s+did\s*n\s*['’]?\s*t\s+have|"
+        r"i\s+have\s+no|there\s+is\s+no|not\s+feeling\s+any|no\s+sign\s+of|"
+        r"i\s*['’]?\s*m\s+not\s+having|free\s+of)\s+(?:\w+\s+){0,3}"
+        r"(?:vomit\w*|throwing\s+up|puk\w*|nausea)\b",
+        norm
+    ):
         return True
     if re.search(r"\b(?:able\s+to\s+keep|keeping)\s+(?:\w+\s+){0,3}(?:food|fluids?|water|liquids?)\s+down\s+(?:fine|well|normally)\b", norm):
         return True
@@ -1147,7 +1233,9 @@ def _is_vomiting_negated(norm: str) -> bool:
     if re.search(r"\bno\s+vomiting\s+or\s+inability\b", norm):
         return True
     # Roman Urdu negations
-    if re.search(r"\b(?:koi\s+)?(?:ulti|ultiyan|qay|matli)\s+(?:bilkul\s+)?nahi\s+(?:hai|aayi|hui)\b", norm):
+    if re.search(r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:ulti|ultiyan|qay|matli)\s+(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
+        return True
+    if re.search(r"\b(?:koi\s+)?(?:ulti|ultiyan|qay|matli)\s+(?:bilkul\s+)?nahi\s+(?:hai|aayi|hui)?\b", norm):
         return True
     if re.search(r"\bulti\s+bilkul\s+nahi\b", norm):
         return True
@@ -1158,7 +1246,9 @@ def _is_vomiting_negated(norm: str) -> bool:
     if re.search(r"\bkhana\s+hazam\s+ho\s+raha\b", norm):
         return True
     # Urdu script negations
-    if re.search(r"(?:الٹی|الٹیاں|قے|متلی)\s*(?:بالکل\s*)?نہیں\s*(?:ہے|آئی|ہوئی)", norm):
+    if re.search(r"(?:مجھے\s+کوئی|کوئی\s+بھی)\s*(?:\S+\s*){0,3}(?:الٹی|الٹیاں|قے|متلی)\s*(?:بھی\s*)?(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
+        return True
+    if re.search(r"(?:الٹی|الٹیاں|قے|متلی)\s*(?:بالکل\s*)?نہیں\s*(?:ہے|آئی|ہوئی)?", norm):
         return True
     if re.search(r"الٹی\s*بالکل\s*نہیں", norm):
         return True
@@ -1217,9 +1307,13 @@ def _match_dka_vomiting_fluids(norm: str) -> bool:
     ))
     has_fluid_inability = bool(re.search(
         r"\b(?:cant|cannot|unable\s+to|wont)\s+(?:keep|hold)\s+(?:\w+\s+){0,4}down|"
-        r"pani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik)\s*rah|"
+        r"nothing\s+(?:is\s+)?staying?\s+down|"
+        r"keeps?\s+coming\s+(?:right\s+)?back\s+up|"
+        r"pani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik|rehta|rahta)|"
+        r"pani\s+(?:bhi\s+)?(?:andar\s+)?(?:rukta|tikta|rehta|rahta)\s+nahi|"
+        r"andar\s+nahi\s+(?:rehta|rahta|rukta|tikta)|"
         r"ghoont\s+(?:bhi\s+)?(?:wapas|nikal|ulti)|"
-        r"پانی\s*(?:بھی\s*)?(?:اندر\s*)?نہیں\s*(?:رک|ٹک)|"
+        r"پانی\s*(?:بھی\s*)?(?:اندر\s*)?نہیں\s*(?:رک|ٹک|رہ)|"
         r"ایک\s*گھونٹ\s*(?:بھی\s*)?واپس\b",
         norm
     ))
