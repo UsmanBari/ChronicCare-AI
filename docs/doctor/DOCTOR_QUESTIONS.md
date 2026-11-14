@@ -311,6 +311,126 @@ For each clinical question below, please review the current application behavior
 
 ---
 
+### Question 8: Poetic and Emotional "dil mein dard" vs Physical Cardiac Pain
+
+```
++---------------------------------------------------------------------------------------------------+
+| QUESTION 8: EMOTIONAL "DIL MEIN DARD" -> SUPPRESS FROM EMERGENCY (1122) UNLESS PHYSICAL CUES?    |
++---------------------------------------------------------------------------------------------------+
+| CLINICAL CONTEXT:                                                                                 |
+| In Urdu and Roman Urdu cultural expressions, patients frequently use "dil mein dard" or           |
+| "دل میں درد" metaphorically to express emotional grief, missing a loved one, heartbreak, or       |
+| sorrow (e.g. "dil mein dard hai uski yaad mein", "dil bohot dukhta hai jab wo yaad aata hai").    |
+| True acute coronary syndrome presentations typically involve physical radiation (left arm, jaw),  |
+| diaphoresis (sweating), crushing pressure, or dyspnea.                                            |
+|                                                                                                   |
+| CURRENT APP BEHAVIOR:                                                                             |
+| The pattern matcher suppresses "dil" mentions from Red (Emergency) when accompanied by emotional  |
+| tokens ("yaad", "udas", "gham", "ro raha", "sad", "miss", "heartbroken") unless explicit physical |
+| cardiac markers (radiating to left arm/jaw, diaphoresis, severe crushing pressure) are affirmed.  |
+|                                                                                                   |
+| CLINICAL PROPOSAL:                                                                                |
+| Confirm whether metaphorical/emotional "dil" expressions should be suppressed from immediate 1122 |
+| emergency failsafe unless coupled with objective physical cardiac features?                       |
++---------------------------------------------------------------------------------------------------+
+| CLINICIAN DECISION:                                                                               |
+|                                                                                                   |
+|   [ ] CONFIRM SUPPRESSION -- Emotional "dil mein dard" without physical cardiac cues must not      |
+|       trigger 1122 ambulance dispatch; route to standard interview or supportive follow-up.       |
+|                                                                                                   |
+|   [ ] TRIGGER EMERGENCY ON ANY "DIL DARD" -- Any mention of "dil mein dard" regardless of context  |
+|       must immediately halt the check-in and dispatch 1122.                                       |
+|                                                                                                   |
+|   [ ] CHANGE IT TO: _____________________________________________________________________________ |
++---------------------------------------------------------------------------------------------------+
+| WHAT CHANGES IN THE APP:                                                                          |
+| - If CONFIRM: The emotional contextual exclusion filter in `agents/red_flag_patterns.py` is       |
+|   formally ratified for Stage-1 red-flag screening.                                               |
+| - If TRIGGER EMERGENCY: Emotional exclusion is removed, causing any "dil ... dard" phrase to     |
+|   unconditionally escalate to Red (Emergency).                                                    |
++---------------------------------------------------------------------------------------------------+
+```
+
+---
+
+### Question 9: Chronic Neuropathy and Long-Standing Weakness vs Acute FAST Stroke
+
+```
++---------------------------------------------------------------------------------------------------+
+| QUESTION 9: CHRONIC NEUROPATHY ("FEET NUMB FOR YEARS") -> SUPPRESS FROM ACUTE STROKE RED FLAG?   |
++---------------------------------------------------------------------------------------------------+
+| CLINICAL CONTEXT:                                                                                 |
+| Diabetic peripheral neuropathy commonly causes long-standing bilateral numbness or weakness in the|
+| lower extremities (e.g. "my feet have been numb and weak for years", "pairon mein saalon se      |
+| sunnpan hai"). In contrast, acute stroke (FAST protocol) presents with acute, sudden, unilateral  |
+| focal neurological deficits (facial droop, arm weakness, slurred speech, acute hemiparesis).      |
+|                                                                                                   |
+| CURRENT APP BEHAVIOR:                                                                             |
+| The pattern matcher suppresses chronic duration phrases ("for years", "saalon se", "purana",      |
+| "chronic") and bilateral foot numbness from triggering Red (Emergency FAST stroke), routing them |
+| to routine/review assessment unless acute unilateral or facial/speech deficits are reported.      |
+|                                                                                                   |
+| CLINICAL PROPOSAL:                                                                                |
+| Confirm whether chronic long-standing bilateral numbness/weakness should remain suppressed from   |
+| acute 1122 stroke dispatch?                                                                       |
++---------------------------------------------------------------------------------------------------+
+| CLINICIAN DECISION:                                                                               |
+|                                                                                                   |
+|   [ ] CONFIRM SUPPRESSION -- Chronic diabetic neuropathy ("feet numb for years") is not an acute  |
+|       stroke and should not dispatch emergency 1122; assess in routine clinic review.             |
+|                                                                                                   |
+|   [ ] TRIGGER EMERGENCY ON ANY NUMBNESS/WEAKNESS -- Any mention of numbness or weakness must      |
+|       trigger immediate 1122 emergency failsafe regardless of chronicity.                         |
+|                                                                                                   |
+|   [ ] CHANGE IT TO: _____________________________________________________________________________ |
++---------------------------------------------------------------------------------------------------+
+| WHAT CHANGES IN THE APP:                                                                          |
+| - If CONFIRM: Chronic duration filters in `agents/red_flag_patterns.py` are clinically ratified.  |
+| - If TRIGGER EMERGENCY: Chronic duration suppression is removed from stroke screening.           |
++---------------------------------------------------------------------------------------------------+
+```
+
+---
+
+### Question 10: Exertional Dyspnea Relieved by Rest vs Acute Rest Dyspnea
+
+```
++---------------------------------------------------------------------------------------------------+
+| QUESTION 10: EXERTIONAL DYSPNEA RELIEVED BY REST -> ROUTE TO REVIEW (YELLOW) VS EMERGENCY (RED)?  |
++---------------------------------------------------------------------------------------------------+
+| CLINICAL CONTEXT:                                                                                 |
+| Patients with stable chronic lung disease or deconditioning often report dyspnea strictly during   |
+| physical exertion that resolves with rest (e.g. "I get breathless only when walking fast and feel |
+| better after resting", "tez chalne se sans phoolti hai aaram karne se theek ho jati hai").        |
+| Acute respiratory emergencies (acute pulmonary edema, severe bronchospasm, PE) present with acute |
+| resting dyspnea, gasping, inability to speak, or suffocating sensations.                          |
+|                                                                                                   |
+| CURRENT APP BEHAVIOR:                                                                             |
+| Exertion coupled with rest relief ("walking fast ... better after rest") is suppressed from Red   |
+| (Emergency 1122 dispatch) and evaluated on the clinical review / outpatient follow-up path.        |
+|                                                                                                   |
+| CLINICAL PROPOSAL:                                                                                |
+| Confirm whether exertional dyspnea that readily resolves with rest should be routed to clinical   |
+| review (Yellow) rather than immediate 1122 emergency ambulance dispatch?                          |
++---------------------------------------------------------------------------------------------------+
+| CLINICIAN DECISION:                                                                               |
+|                                                                                                   |
+|   [ ] ROUTE TO REVIEW (YELLOW) -- Exertional dyspnea relieved by rest warrants outpatient review,  |
+|       not emergency 1122 dispatch.                                                                |
+|                                                                                                   |
+|   [ ] TRIGGER EMERGENCY (1122) -- Any breathlessness on walking must trigger immediate 1122.      |
+|                                                                                                   |
+|   [ ] CHANGE IT TO: _____________________________________________________________________________ |
++---------------------------------------------------------------------------------------------------+
+| WHAT CHANGES IN THE APP:                                                                          |
+| - If ROUTE TO REVIEW: The exertion+rest suppression rule in `agents/red_flag_patterns.py` is      |
+|   clinically ratified, preventing unnecessary ambulance dispatches for exertional shortness.      |
+| - If TRIGGER EMERGENCY: Exertion+rest relief suppression is disabled.                             |
++---------------------------------------------------------------------------------------------------+
+```
+
+---
+
 ## Summary of Clinical Rules Governed by this Review
 
 | Rule Ref | Clinical Focus | Current Default | Proposed Review Modification |
@@ -322,5 +442,8 @@ For each clinical question below, please review the current application behavior
 | **Lang-1** | Subjective BP increase ("mere khyal me bp barh gaya") | Routine (Green) | Option to escalate to Review (Yellow) |
 | **Lang-2** | Urdu severe chest pain ("seene me shadeed dard") | Emergency (1122) | Confirmation of emergency failsafe |
 | **Lang-3** | Bare "shortness of breath" | Emergency (1122) | Option to downgrade bare dyspnea to Review |
+| **Lang-4** | Emotional "dil mein dard" | Suppressed from Red unless physical cardiac cues present | Question for the doctor on record (Nov 2026) |
+| **Lang-5** | Chronic neuropathy ("feet numb for years") | Suppressed from acute FAST stroke | Question for the doctor on record (Nov 2026) |
+| **Lang-6** | Exertional dyspnea relieved by rest | Suppressed from Red, routed to Review | Question for the doctor on record (Nov 2026) |
 
 

@@ -49,6 +49,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "Vise around my chest making it impossible to lie down",
             "Sharp chest pain radiating to the left shoulder and left arm",
             "Terrible heaviness inside chest with cold sweating",
+            "Experiencing heavy weight on my chest with sweating",
+            "Constant squeezing ache in the breastbone radiating outwards",
         ],
         "roman_ur": [
             "mere abbu ke seene mein shadeed dard aur dabao ho raha hai",
@@ -59,6 +61,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "chhati me achanak sakht dard utha hai abhi",
             "ammi bol rahi hain seene mein bojh aur shadeed jakran hai",
             "seenay me tez dard aur bayen baazu me takleef hai",
+            "seene mein kal raat se shadeed dard uth raha hai",
+            "chhati par bohot sakht jakran aur khichao mehsus ho raha hai",
         ],
         "ur": [
             "میرے والد کے سینے میں شدید درد اور دباؤ ہو رہا ہے",
@@ -69,6 +73,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "سینے میں شدید دباؤ کے ساتھ بائیں بازو میں درد جا رہا ہے",
             "امی کے سینے میں سخت درد اور گھٹن ہے",
             "سینے میں اچانک شدید بوجھ محسوس ہو رہا ہے",
+            "سینے پر بہت سخت جکڑن اور کھچاؤ ہو رہا ہے",
+            "چھاتی میں شدید دکھتا ہوا دباؤ محسوس ہوتا ہے",
         ],
     },
     "breathing": {
@@ -81,6 +87,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "Difficulty breathing so bad that I am choking",
             "My father cannot breathe properly and gasping",
             "Hard to breathe and struggling to breathe at rest",
+            "Severe breathlessness while sitting flat in bed",
+            "Struggling for air and suffocating feeling in throat",
         ],
         "roman_ur": [
             "saans bilkul nahi aa rahi dum ghut raha hai",
@@ -91,6 +99,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "sans lene me bohot zyada mushkil ho rahi hai abhi",
             "sans bilkul ruk rahi hai aur gasping ho rahi hai",
             "is waqt sans nahi aa rahi bohot takleef hai",
+            "sans lene mein shadeed mushkil hai gale mein ghutan ho rahi hai",
+            "baithe hue bhi sans phool rahi hai aur dam ghut raha hai",
         ],
         "ur": [
             "سانس لینا بہت مشکل ہو گیا ہے دم گھٹ رہا ہے",
@@ -101,6 +111,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "شدید گھٹن ہے اور سانس نہیں آ رہی",
             "اچانک سانس لینے میں شدید دشواری ہو گئی ہے",
             "سانس بالکل اکھڑ چکی ہے اور ہوا نہیں مل رہی",
+            "لیٹے ہوئے بھی سانس پھول رہی ہے اور دم گھٹ رہا ہے",
+            "سانس لینا انتہائی مشکل ہو گیا ہے اور ہوا نہیں مل رہی",
         ],
     },
     "confusion_and_stroke": {
@@ -113,6 +125,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "His mouth became crooked and slurring words",
             "Lost my speech suddenly this morning",
             "Suddenly got paralyzed on right side of face and arm",
+            "Mouth became crooked and my words are completely jumbled",
+            "Left arm is completely weak and won't lift up",
         ],
         "roman_ur": [
             "ammi ka munh aik taraf tedha ho gaya hai",
@@ -123,6 +137,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "kuch samajh nahi aa raha kahan hoon bohot disoriented hoon",
             "bhai ki bolti band ho gayi hai aur munh terha ho gaya",
             "achanak adha jism kamzor ho gaya hai aur khada nahi hua ja raha",
+            "chehra achanak aik taraf terha ho gaya hai",
+            "bazu bilkul sunn aur kamzor hai hil nahi raha",
         ],
         "ur": [
             "امی کا چہرہ ایک طرف کو لٹک گیا ہے",
@@ -133,6 +149,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "دایاں بازو ہل نہیں رہا فالج کا اثر ہو گیا ہے",
             "اچانک زبان لڑکھڑانے لگی اور بولنا بند ہو گیا",
             "آدھا جسم سن اور بے جان ہو گیا ہے",
+            "چہرہ اچانک ٹیڑھا ہو گیا ہے اور بولا نہیں جا رہا",
+            "بایاں بازو بالکل سن اور کمزور ہو گیا ہے اٹھ نہیں رہا",
         ],
     },
     "loss_of_consciousness": {
@@ -145,6 +163,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "Fainted 10 minutes ago and still not waking up",
             "Patient passed out and is totally unresponsive to voice",
             "Fell unconscious on the ground and cannot wake her",
+            "Patient collapsed on the ground and is completely unresponsive",
+            "My mother passed out and is not waking up",
         ],
         "roman_ur": [
             "hosh mein nahi aa rahe aur be hosh pade hain",
@@ -155,6 +175,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "be hosh ho kar gir gaye aur abhi tak hosh nahi aaya",
             "bhai behosh hai aur hosh me nahi aa raha",
             "achanak gir pade aur bilkul unresponsive hain",
+            "abbu behosh pade hain aur awaz dene par jawab nahi de rahe",
+            "farsh par behosh gir gaye aur hosh mein nahi aa rahe",
         ],
         "ur": [
             "ہوش میں نہیں آ رہے اور بے ہوش پڑے ہیں",
@@ -165,6 +187,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "بے ہوش ہو گئے ہیں اور ابھی تک ہوش نہیں آیا",
             "اچانک گر پڑے اور بالکل بے سدھ ہیں اٹھ نہیں رہے",
             "بے ہوش پڑے ہیں اور سانس کے سوا کوئی ہوش نہیں",
+            "زمین پر بے ہوش پڑے ہیں اور پکارنے پر کوئی جواب نہیں دے رہے",
+            "والد صاحب بے ہوش ہیں اور اٹھ نہیں رہے ہیں",
         ],
     },
     "dka_vomiting_high_glucose": {
@@ -177,6 +201,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "Throwing up non-stop and keep nothing down",
             "My daughter is unable to keep any fluids down",
             "Vomiting non-stop and even sips of water come back up",
+            "Cannot hold down even a sip of water throwing up non stop",
+            "Liquids come right back up with very high blood sugar",
         ],
         "roman_ur": [
             "pani bhi nahi ruk raha aur ulti ruk nahi rahi",
@@ -187,6 +213,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "subah se ulti ruk nahi rahi aur pani bhi nahi rukta",
             "sugar high hai aur pani bhi nahi ruk raha ultiyan hain",
             "har cheez ulti ho rahi hai aur shadeed qay aa rahi hai",
+            "pani ka aik ghoont bhi andar nahi ruk raha wapis nikal raha hai",
+            "musalsal ultiyan ho rahi hain aur pani bhi nahi ruk raha",
         ],
         "ur": [
             "پانی بھی نہیں رک رہا اور الٹی رک نہیں رہی",
@@ -197,6 +225,8 @@ POSITIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "صبح سے الٹی رک نہیں رہی ہے اور شدید قے ہے",
             "شوگر بہت تیز ہے اور الٹیاں بند نہیں ہو رہیں",
             "ہر چیز الٹی ہو رہی ہے پانی کا ایک گھونٹ بھی نہیں رکتا",
+            "پانی کا ایک گھونٹ بھی واپس نکل رہا ہے اور مسلسل الٹیاں ہیں",
+            "کچھ بھی پیٹ میں نہیں ٹھہر رہا ہر چیز کی الٹی آ رہی ہے",
         ],
     },
 }
@@ -216,6 +246,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "Doctor confirmed no chest tightness last month",
             "Mild chest discomfort when running fast which goes away with rest",
             "Pain in right foot and denies any chest pain",
+            "No chest discomfort reported during regular checkup",
+            "Mild chest ache only when walking fast but better with resting",
         ],
         "roman_ur": [
             "seene mein koi dard ya dabao bilkul nahi hai",
@@ -226,6 +258,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "seene me takleef nahi hai fasting sugar 110 hai",
             "bhagne par chhati par dabao aata hai lekin aaram se behtar ho jata hai",
             "dukh aur gham ki wajah se dil mein dard mehsoos ho raha hai",
+            "purani chot ki wajah se seene ki pasli mein dard rehta hai",
+            "dil mein dard hai dost ki judai mein",
         ],
         "ur": [
             "سینے میں کوئی درد یا دباؤ بالکل نہیں ہے",
@@ -236,6 +270,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "سینے میں تکلیف نہیں ہے شوگر نارمل ہے",
             "سیڑھیاں چڑھنے سے چھاتی پر بوجھ بنتا ہے لیکن آرام سے بہتر ہو جاتا ہے",
             "غم اور دکھ سے دل میں درد ہو رہا ہے",
+            "سالوں سے سینے کی پرانی ہڈی میں ہلکا درد رہتا ہے",
+            "سینے میں کوئی تکلیف یا دباؤ نہیں ہے",
         ],
     },
     "breathing": {
@@ -248,6 +284,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "Slightly out of breath after jogging but relieved by rest",
             "Never had difficulty breathing in my life",
             "Old breathing problem for many years under control",
+            "Breathing is totally normal with no shortness of breath",
+            "Out of breath only after running up stairs and better after rest",
         ],
         "roman_ur": [
             "saans bilkul theek aa rahi hai koi dushwari nahi hai",
@@ -258,6 +296,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "tez chalne par sans chadhti hai lekin aaram se behtar ho jati hai",
             "bachpan me sans rukti thi ab bilkul theek hoon",
             "bina kisi sans ki takleef ke theek mehsoos kar raha hoon",
+            "sans bilkul theek aa rahi hai koi dushwari nahi",
+            "tez bhagne se sans phoolti hai lekin aaram karne se theek ho jati hai",
         ],
         "ur": [
             "سانس بالکل ٹھیک ہے کوئی دشواری یا مسئلہ نہیں ہے",
@@ -268,6 +308,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "سیڑھیاں چڑھنے پر سانس چڑھتی ہے لیکن آرام سے بہتر ہو جاتی ہے",
             "بچپن میں سانس کی تکلیف تھی اب کچھ نہیں ہے",
             "سانس میں کوئی تکلیف یا رکاوٹ نہیں ہے",
+            "سانس بالکل ٹھیک ہے کوئی مسئلہ نہیں ہے",
+            "تیز چلنے سے سانس پھولتی ہے لیکن بیٹھنے سے ٹھیک ہو جاتی ہے",
         ],
     },
     "confusion_and_stroke": {
@@ -280,6 +322,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "Chronic tingling in toes for many years",
             "Mild confusion last week when fever was high, normal now",
             "Speech is normal without any slurring",
+            "No facial droop or weakness in arms",
+            "Both feet numb and weak for years due to neuropathy",
         ],
         "roman_ur": [
             "chehra bilkul theek hai koi kamzori ya sunn pan nahi",
@@ -290,6 +334,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "chalte hue thakan hoti hai lekin koi falij ka asar nahi",
             "kafi arsay se pairo me halki jalan aur be hissi rehti hai",
             "hath pairo me koi kamzori nahi hai",
+            "pairon mein saalon se sunnpan rehta hai",
+            "zaban par koi ladkhadahat nahi hai awaz theek hai",
         ],
         "ur": [
             "چہرہ بالکل ٹھیک ہے کوئی کمزوری یا سن پن نہیں ہے",
@@ -300,6 +346,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "ہاتھوں پیروں میں کوئی کمزوری یا بے حسی نہیں ہے",
             "کافی عرصے سے ٹانگوں میں معمولی تھکن رہتی ہے",
             "چہرے یا بازو میں کوئی لٹکاؤ یا کمزوری نہیں ہے",
+            "سالوں سے دونوں پاؤں سن اور کمزور رہتے ہیں",
+            "چہرے یا بازو میں کوئی کمزوری نہیں ہے",
         ],
     },
     "loss_of_consciousness": {
@@ -312,6 +360,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "Never collapsed or blacked out in my life",
             "Got dizzy and sat down, completely fine now",
             "History of syncope in childhood, no episodes now",
+            "Fainted earlier this morning but woke up and feeling completely fine now",
+            "Denies any loss of consciousness or fainting spells",
         ],
         "roman_ur": [
             "chakkar kha kar gir gaya phir theek ho gaya",
@@ -322,6 +372,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "pichle saal ghashi padi thi ab theek hoon",
             "ammi ko chakkar aya tha thodi dair baad theek ho gayi",
             "kabhi behosh nahi hua koi chakkar nahi aaye",
+            "chakkar kha kar gir gaya tha lekin ab bilkul theek hoon",
+            "hosh bilkul theek hai koi behoshi nahi hui",
         ],
         "ur": [
             "گر گیا تھا پھر ٹھیک ہو گیا اب بالکل ٹھیک ہوں",
@@ -332,6 +384,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "امی کو چکر آیا تھا بیٹھنے سے ٹھیک ہو گئیں",
             "کبھی بے ہوش نہیں ہوا اور نہ غشی پڑی",
             "اب بالکل ہوش میں ہوں اور ٹھیک محسوس کر رہا ہوں",
+            "چکر آ کر گر گیا تھا لیکن اب ہوش میں ہوں اور بالکل ٹھیک ہوں",
+            "بے ہوشی بالکل نہیں ہوئی سب ٹھیک ہے",
         ],
     },
     "dka_vomiting_high_glucose": {
@@ -344,6 +398,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "Felt nauseous last week, eating normally now",
             "Able to drink water and eat soup without vomiting",
             "Stomach feels slightly upset but keeping all fluids down",
+            "Had one vomit episode yesterday but now drinking water normally",
+            "No vomiting or inability to keep fluids down",
         ],
         "roman_ur": [
             "ulti bilkul nahi hai aur khana peena theek ruk raha hai",
@@ -354,6 +410,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "pichle hafte ulti thi ab bilkul theek khana kha raha hoon",
             "khana hazam ho raha hai koi ulti nahi hai",
             "halka sa sar ghoom raha hai lekin ulti nahi aayi",
+            "subah aik dafa ulti hui thi ab pani theek se pee raha hoon",
+            "pet mein koi ulti ya qay nahi hai khana hazam ho raha hai",
         ],
         "ur": [
             "الٹی بالکل نہیں ہے اور کھانا پینا ٹھیک رک رہا ہے",
@@ -364,6 +422,8 @@ NEGATIVES_DATA: Dict[str, Dict[str, List[str]]] = {
             "پچھلے ہفتے الٹی تھی اب کھانا ہضم ہو رہا ہے",
             "متلی نہیں ہے اور پانی آرام سے پی رہا ہوں",
             "پیٹ میں کوئی خرابی نہیں ہے سب ٹھیک ہے",
+            "ایک دفعہ الٹی آئی تھی اب پانی ٹھیک پی رہا ہوں",
+            "الٹی بالکل نہیں ہے اور کھانا پینا ٹھیک ہو رہا ہے",
         ],
     },
 }
