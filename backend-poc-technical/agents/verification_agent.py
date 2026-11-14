@@ -60,6 +60,7 @@ from agents.reconciliation_agent import (
     MedicationComparison,
     OBSERVATION_CONFLICT_THRESHOLDS
 )
+from agents.reference_ranges import is_reading_in_normal_range
 
 # Trust Level configuration dictionary
 TRUST_LEVELS = {
@@ -195,6 +196,10 @@ def _verify_observation(
             severity = "low"
             requires_review = False
             reason = f"Record missing in one source ({status}); present side is high-trust (auto-resolved)"
+        elif status == "missing_in_a" and is_reading_in_normal_range(obs_type, comp.value_b):
+            severity = "low"
+            requires_review = False
+            reason = f"Record missing in one source ({status}); self-reported value within normal reference range (auto-resolved)"
         else:
             severity = "moderate"
             requires_review = True

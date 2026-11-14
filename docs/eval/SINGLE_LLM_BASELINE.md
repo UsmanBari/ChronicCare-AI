@@ -35,19 +35,20 @@ The proposal committed to a system-level comparative evaluation (Section 36) con
 
 All metrics below are computed directly from the automated execution log across 51 evaluable scenarios (0 incomplete, 1 excluded by design):
 
-| Evaluation Metric | Full Pipeline | Single-LLM Baseline (`qwen/qwen3.8-27b`) | Notes / Comparison |
-| :--- | :---: | :---: | :--- |
-| **Under-Triage Total (Dangerous: predicted < expected)** | **2.0%** (1/51) | **7.2%** (11/153) | Pipeline under-triage is lower overall |
-| ↳ *Expected Emergency Missed* | **0/3** (0.0%) | **8/9** (88.9%) | Baseline missed 8/9 emergency evaluations |
-| ↳ *Expected Urgent Missed* | **0/1** (0.0%) | **3/3** (100.0%) | Baseline missed all 3 urgent evaluations |
-| ↳ *Expected Review Missed* | **1/16** (6.3%) | **0/48** (0.0%) | Baseline escalated sub-acute review cases |
-| **Emergency Recall** | **100.0%** (3/3) | **11.1%** (1/9) | Baseline failed on severe danger scenarios |
-| **Exact-Match Accuracy** | **47.1%** (24/51) | **49.0%** (75/153) | Parity on exact match (within 1.9%) |
-| **Over-Triage Rate** | **51.0%** (26/51) | **43.8%** (67/153) | Conservative clinic escalation rate |
-| **Invented Numbers (Hallucinations)** | **0** (0.0%) | **2** (1.3%) | Rule verification prevents fabricated readings |
-| **Consistency across 3 Runs** | **100.0%** (Deterministic) | **88.2%** (45/51) | Baseline fluctuated in 6 scenarios |
-| **Incomplete Interviews** | **0** (Target: 0) | **0** | All 51 evaluable interviews completed |
-| **Excluded (Pregnancy Exit)** | **1** (By design) | **1** | `p31_reports_pregnant_exit` exits 403 safely |
+| Evaluation Metric | Full Pipeline (Post-D5) | Full Pipeline (Pre-D5 Baseline) | Single-LLM Baseline (`qwen/qwen3.8-27b`) | Notes / Comparison |
+| :--- | :---: | :---: | :---: | :--- |
+| **Exact-Match Accuracy** | **84.3%** (43/51) | **47.1%** (24/51) | **49.0%** (75/153) | Post-D5 exact match increased +37.2% |
+| **Emergency Recall** | **100.0%** (3/3) | **100.0%** (3/3) | **11.1%** (1/9) | Zero missed emergencies in pipeline |
+| **Urgent Recall** | **100.0%** (1/1) | **100.0%** (1/1) | **0.0%** (0/3) | Acute hypoglycemia always triaged urgent |
+| **Over-Triage Rate** | **5.9%** (3/51) | **51.0%** (26/51) | **43.8%** (67/153) | Over-triage dropped from 51.0% to 5.9% |
+| **Under-Triage Total** | **9.8%** (5/51) | **2.0%** (1/51) | **7.2%** (11/153) | 5 non-acute narrative review cases; zero acute misses |
+| ↳ *Expected Emergency Missed* | **0/3** (0.0%) | **0/3** (0.0%) | **8/9** (88.9%) | Baseline missed 8/9 emergency evaluations |
+| ↳ *Expected Urgent Missed* | **0/1** (0.0%) | **0/1** (0.0%) | **3/3** (100.0%) | Baseline missed all 3 urgent evaluations |
+| ↳ *Expected Review Missed* | **5/16** (31.2%) | **1/16** (6.3%) | **0/48** (0.0%) | Vitals normal, narrative/lifestyle review cases |
+| **Invented Numbers (Hallucinations)** | **0** (0.0%) | **0** (0.0%) | **2** (1.3%) | Rule verification prevents fabricated readings |
+| **Consistency across 3 Runs** | **100.0%** (Deterministic) | **100.0%** (Deterministic) | **88.2%** (45/51) | Baseline fluctuated in 6 scenarios |
+| **Incomplete Interviews** | **0** (Target: 0) | **0** (Target: 0) | **0** | All 51 evaluable interviews completed |
+| **Excluded (Pregnancy Exit)** | **1** (By design) | **1** (By design) | **1** | `p31_reports_pregnant_exit` exits 403 safely |
 
 ---
 

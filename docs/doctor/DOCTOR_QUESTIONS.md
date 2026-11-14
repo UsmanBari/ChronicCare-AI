@@ -474,6 +474,39 @@ For each clinical question below, please review the current application behavior
 
 ---
 
+### Question 12 (Decision D5): Normal Self-Reported Readings with No Hospital Record to Compare
+
+```
++---------------------------------------------------------------------------------------------------+
+| QUESTION 12 (DECISION D5): NORMAL SELF-REPORTED READINGS WITH NO HOSPITAL RECORD                  |
++---------------------------------------------------------------------------------------------------+
+| CLINICAL INQUIRY:                                                                                 |
+| When a patient types in a normal reading and there is no hospital reading to compare, may the    |
+| check-in stay Green?                                                                              |
+|                                                                                                   |
+| PREVIOUS APP BEHAVIOR:                                                                            |
+| Verification Agent Rule 3 flagged any self-reported vital missing from the hospital record        |
+| (missing_in_a) as requiring human review, raising normal vitals (e.g. BP 120/80, glucose 100) to   |
+| Yellow (Review) even when fully within routine reference ranges.                                  |
++---------------------------------------------------------------------------------------------------+
+| CLINICIAN DECISION:                                                                               |
+|                                                                                                   |
+|   [X] ANSWER: "No don't review the normal stuff, normal parameters should also be added to the    |
+|       app to avoid confusion" (the doctor on record, Nov 2026).                                   |
+|                                                                                                   |
+|       Ruling: Normal self-reported readings with no record value auto-resolve and stay Green       |
+|       (Routine); low-trust label ("self-reported, not in record") and provenance preserved.       |
+|       Abnormal self-reported readings and conflicts continue to escalate to Review (Yellow).      |
++---------------------------------------------------------------------------------------------------+
+| WHAT CHANGES IN THE APP:                                                                          |
+| - Verification Agent Rule 3 skips review escalation when self-reported readings fall within normal|
+|   reference ranges (systolic 90-139, diastolic 60-89, glucose fasting 70-130, post-meal 70-180).  |
+| - Reference ranges added to `agents/reference_ranges.py` and exposed via API and UI.              |
++---------------------------------------------------------------------------------------------------+
+```
+
+---
+
 ## Summary of Clinical Rules Governed by this Review
 
 | Rule Ref | Clinical Focus | Current Default | Proposed Review Modification |
@@ -481,6 +514,7 @@ For each clinical question below, please review the current application behavior
 | **R8** | Missing vitals with subjective malaise | Routine (Green) with warning | Approved by the doctor on record: escalate to Review (Yellow) (Nov 2026) |
 | **Stage 2** | CVD High-Risk Alert Cooldown | 30 days suppression window | Approved by the doctor on record: high risk requires symptoms to escalate; 30d cooldown retained (Nov 2026) |
 | **Stage 2** | Uncontrolled Diabetes (HbA1c >= 8%) | Informational model score | Approved by the doctor on record if future model passes gates; not shipped in FYP-1 (Nov 2026) |
+| **D5** | Normal self-reported readings with no hospital record | Raised to Review (Yellow) | Approved by the doctor on record: stay Green (Routine), normal parameters added to app (Nov 2026) |
 | **Audit** | Edge-case benchmark suite | 51 synthetic personas (0 Category B gaps) | Expandable based on clinician feedback |
 | **Lang-1** | Subjective BP increase ("mere khyal me bp barh gaya") | Routine (Green) | Option to escalate to Review (Yellow) |
 | **Lang-2** | Urdu severe chest pain ("seene me shadeed dard") | Emergency (1122) | Confirmation of emergency failsafe |

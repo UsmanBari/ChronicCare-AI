@@ -372,6 +372,7 @@ Answering "yes" to `hypo_events_past_week`, `sick_day_flags`, `associated_sympto
 - D1: Feeling unwell with no reading entered is approved to escalate routine to review (NO_READING_SYMPTOM_RAISE=true).
 - D2: High cardiovascular risk escalates routine to review only when accompanied by at least one reported symptom in the check-in; asymptomatic high risk remains routine with risk band documented.
 - D3: High diabetes-control risk estimate approved to escalate routine to review once a future model satisfies all pre-registered validation gates.
+- D5: Normal self-reported readings with no record value do not raise to review; trust label and provider note kept.
 
 
 

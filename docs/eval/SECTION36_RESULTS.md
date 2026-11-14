@@ -41,6 +41,28 @@
 
 Evaluated across 51 completed check-ins (1 excluded: `p31_reports_pregnant_exit` safely stopped with HTTP 403).
 
+#### Impact of Doctor Decision D5 (Nov 2026): Normal Self-Reported Readings
+Before D5, Verification Agent Rule 3 escalated all unverified self-reported vitals to Review (Yellow), resulting in 26 over-triages and 47.1% exact-match accuracy. Following D5 signoff ("No don't review the normal stuff, normal parameters should also be added to the app to avoid confusion"), normal self-reported readings stay Green (Routine).
+
+**Post-D5 Confusion Matrix (Current):**
+
+| True Class \ Predicted Class | Routine (Green) | Review (Yellow) | Urgent (Orange) | Emergency (Red) | Total |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Routine** | **28** | 0 | 0 | 3 | 31 |
+| **Review** | 5 | **11** | 0 | 0 | 16 |
+| **Urgent** | 0 | 0 | **1** | 0 | 1 |
+| **Emergency** | 0 | 0 | 0 | **3** | 3 |
+| **Total Predicted** | 33 | 11 | 1 | 6 | 51 |
+
+**Before vs After Doctor Decision D5:**
+- **Exact-Match Accuracy:** 47.1% (24/51) $\rightarrow$ **84.3% (43/51)** (+37.2%)
+- **Over-Triage Rate:** 51.0% (26/51) $\rightarrow$ **5.9% (3/51)** (-45.1%)
+- **Emergency Safety Recall:** **100.0% (3/3)** $\rightarrow$ **100.0% (3/3)** (Unchanged, 0 missed emergencies)
+- **Urgent Safety Recall:** **100.0% (1/1)** $\rightarrow$ **100.0% (1/1)** (Unchanged, 0 missed urgents)
+- **Incomplete Interviews:** **0** $\rightarrow$ **0** (Unchanged)
+
+#### Pre-D5 Baseline Confusion Matrix (Historical):
+
 | True Class \ Predicted Class | Routine (Green) | Review (Yellow) | Urgent (Orange) | Emergency (Red) | Total |
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Routine** | **5** | 26 | 0 | 0 | 31 |

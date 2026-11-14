@@ -557,6 +557,14 @@ MUTATIONS = [
         "replacement": "        if True:",
         "test_node": "backend-poc-technical/test_doctor_decisions_d2.py::test_d2_high_risk_asymptomatic_gives_green",
     },
+    {
+        "id": "M-D5-1",
+        "name": "D5 normal-range skip applied to abnormal values",
+        "file": BACKEND_DIR / "agents" / "verification_agent.py",
+        "target": '        elif status == "missing_in_a" and is_reading_in_normal_range(obs_type, comp.value_b):',
+        "replacement": '        elif status == "missing_in_a":',
+        "test_node": "backend-poc-technical/test_doctor_decision_d5.py::test_d5_abnormal_self_reported_vitals_require_review",
+    },
 ]
 
 
