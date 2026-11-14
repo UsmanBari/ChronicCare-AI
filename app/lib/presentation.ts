@@ -107,14 +107,20 @@ export function describeMedicationItem(
 
   // 1. Record Text (Side A)
   let recordDetails = "";
-  if (dosageA) {
+  let recordText = "";
+  if (compStatus === "missing_in_a" || compStatus === "source_b_only") {
+    recordText = isUrdu ? "ریکارڈ: ہسپتال کے ریکارڈ میں موجود نہیں" : "Record: Not found in hospital record";
+  } else if (dosageA) {
     recordDetails = `${dosageA} (${statusA})`;
+    recordText = isUrdu
+      ? `ریکارڈ: ${medName}، ${recordDetails}`
+      : `Record: ${medName}, ${recordDetails}`;
   } else {
     recordDetails = `(${statusA})`;
+    recordText = isUrdu
+      ? `ریکارڈ: ${medName}، ${recordDetails}`
+      : `Record: ${medName}, ${recordDetails}`;
   }
-  const recordText = isUrdu
-    ? `ریکارڈ: ${medName}، ${recordDetails}`
-    : `Record: ${medName}, ${recordDetails}`;
 
   // 2. Today's Text (Side B)
   let todayText = isUrdu ? "آج نہیں بتایا گیا" : "Not reported today";
@@ -156,6 +162,8 @@ export function describeMedicationItem(
         ? "ریکارڈ کے مطابق آپ یہ دوا لیتے ہیں؛ آپ نے بتایا کہ آپ نے بند کر دی ہے۔"
         : "The record says you take this medication; you said you stopped it.";
     }
+  } else if (compStatus === "missing_in_a" || compStatus === "source_b_only") {
+    reason = isUrdu ? "ریکارڈ میں موجود نہیں، جائزے کی ضرورت ہے" : "missing in record, needs review";
   } else if (compStatus === "missing_in_b") {
     reason = isUrdu ? "آج نہیں بتایا گیا۔" : "Not reported today.";
   } else if (verification?.review_reason && verification.review_reason.trim()) {
@@ -304,7 +312,7 @@ export function mapEhrError(code?: string | null): string {
     case "ehr_unreachable":
       return "The EHR server is unreachable or timed out. Please check your connection or test the server.";
     case "ehr_patient_not_found":
-      return "Patient record was not found in this EHR system. Please verify the Patient ID.";
+      return "No patient with that ID was found in this EHR (Patient record was not found in this EHR system. Please verify the Patient ID).";
     case "ehr_forbidden":
       return "Access was forbidden by the EHR server.";
     case "ehr_bad_response":
@@ -440,7 +448,7 @@ export function mapApiError(status?: number | null, detail?: string | null): str
 
   if (status === 502) {
     if (normDetail.includes("ehr_patient_not_found")) {
-      return "Patient record was not found in this EHR system.";
+      return "No patient with that ID was found in this EHR (Patient record was not found in this EHR system).";
     }
     if (normDetail.includes("ehr_unreachable")) {
       return "The EHR server is unreachable or timed out. Please try again in a moment.";

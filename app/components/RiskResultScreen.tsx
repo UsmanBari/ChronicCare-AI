@@ -16,6 +16,7 @@ import {
   FileCheck,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Pill,
   Calendar,
 } from "lucide-react";
@@ -40,6 +41,24 @@ export const RiskResultScreen = () => {
 
     const comparisons = liveCheckinResult?.reconciliation?.observation_comparisons || [];
     const medComparisons = liveCheckinResult?.reconciliation?.medication_comparisons || [];
+    const hasRiskExplanation = Boolean(liveCheckinResult?.explanation);
+
+    const reportedComparisons = comparisons.filter(
+      (c: any) => c && c.value_b !== null && c.value_b !== undefined
+    );
+
+    const deduplicatedMeds = (() => {
+      const seen = new Set<string>();
+      const out: any[] = [];
+      for (const m of medComparisons) {
+        const nameKey = (m.medication_name || "").toLowerCase().trim();
+        if (!nameKey || !seen.has(nameKey)) {
+          seen.add(nameKey);
+          out.push(m);
+        }
+      }
+      return out;
+    })();
 
     const readingsFromIntakes = (liveCheckinResult?.intakes || []).reduce((acc: number, it: any) => {
       const r = it?.readings;
@@ -51,13 +70,25 @@ export const RiskResultScreen = () => {
       }
       return acc;
     }, 0);
-    const readingsFromComparisons = comparisons.filter(
-      (c: any) => c && c.value_b !== null && c.value_b !== undefined
-    ).length;
+    const readingsFromComparisons = reportedComparisons.length;
     const totalReadingsEntered = Math.max(readingsFromIntakes, readingsFromComparisons);
     const hasNoReadings = totalReadingsEntered === 0;
 
     const activeLang = liveProfile?.language || (isUrdu ? "ur" : "en");
+    const isRomanUrdu = (activeLang as string) === "roman_ur";
+    const isLowGlucose = (() => {
+      if (!liveCheckinResult) return false;
+      const intakes = liveCheckinResult.intakes || [];
+      for (const it of intakes) {
+        const g = it?.extracted_data?.glucose ?? it?.readings?.glucose;
+        if (typeof g === "number" && g < 70) return true;
+        if (it?.extracted_data?.safety_guidance || it?.extracted_data?.rule_severe_low) return true;
+      }
+      for (const c of reportedComparisons) {
+        if (c.observation_type === "blood_glucose" && typeof c.value_b === "number" && c.value_b < 70) return true;
+      }
+      return false;
+    })();
     const noReadingsText = activeLang === "ur"
       ? "آج کوئی ریڈنگ درج نہیں کی گئی"
       : activeLang === "roman_ur"
@@ -94,6 +125,20 @@ export const RiskResultScreen = () => {
         </div>
 
         <div className="p-6 sm:p-7 space-y-5">
+          {/* Low Blood Sugar Safety Advice Banner */}
+          {isLowGlucose && (
+            <div data-testid="low-glucose-safety-banner" className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-600 text-amber-950 text-sm font-bold flex items-center gap-3 animate-fadeIn shadow-xs text-left">
+              <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0" />
+              <span dir="auto">
+                {isUrdu
+                  ? "فوراً جلدی اثر کرنے والی میٹھی چیز لیں، جیسے پھلوں کا جوس یا گلوکوز، اور اگر علامات برقرار رہیں تو فوراً طبی مدد حاصل کریں۔"
+                  : isRomanUrdu
+                  ? "Foran jaldi asar karne wali meethi cheez lein, jaise phalon ka juice ya glucose, aur agar alamaat barqarar rahein to foran doctor se rabta karein."
+                  : "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."}
+              </span>
+            </div>
+          )}
+
           {/* Summary Metric Cards */}
           {hasNoReadings ? (
             <div
@@ -181,27 +226,32 @@ export const RiskResultScreen = () => {
           )}
 
           {/* Plain words comparison details */}
-          {(comparisons.length > 0 || medComparisons.length > 0) && (
+          {(reportedComparisons.length > 0 || deduplicatedMeds.length > 0) && (
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-3">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
                 {isUrdu ? "موازنہ کی گئی پیمائشیں اور ادویات:" : "Compared Readings & Medications:"}
               </span>
               <ul className="space-y-2 text-xs text-slate-600">
-                {comparisons.map((c: any, idx: number) => {
+                {reportedComparisons.map((c: any, idx: number) => {
                   const type = c.observation_type ? c.observation_type.replace(/_/g, " ").replace(/\b\w/g, (ch: string) => ch.toUpperCase()) : "Observation";
-                  const val = c.value_b !== null && c.value_b !== undefined ? `${c.value_b} ${c.unit_b || ""}`.trim() : "Reported";
+                  const valToday = `${c.value_b} ${c.unit_b || ""}`.trim();
+                  let recordDesc = "";
+                  if (c.value_a !== null && c.value_a !== undefined) {
+                    const dateStr = c.date_a ? ` (${new Date(c.date_a).toLocaleDateString()})` : "";
+                    recordDesc = ` • Record: ${c.value_a} ${c.unit_a || ""}${dateStr}`;
+                  }
                   let statusDesc = "Verified against baseline";
                   if (c.status === "agreement" || c.status === "agree") statusDesc = isUrdu ? "پچھلے ریکارڈ کے مطابق ہے" : "Matches saved record";
                   else if (c.status === "source_b_only") statusDesc = isUrdu ? "آج درج کیا گیا (کوئی پچھلا ریکارڈ موجود نہیں)" : "Reported today (no prior record)";
                   else if (c.status === "conflict") statusDesc = isUrdu ? "پچھلے ریکارڈ سے مختلف ہے" : "Differs from saved record";
                   return (
                     <li key={idx} className="flex items-center justify-between py-1.5 border-b border-slate-200/60 last:border-none">
-                      <span className="font-semibold text-slate-800">{type} ({val})</span>
+                      <span className="font-semibold text-slate-800">{type} ({valToday}{recordDesc})</span>
                       <span className="text-slate-500 font-medium">{statusDesc}</span>
                     </li>
                   );
                 })}
-                {medComparisons.map((m: any, idx: number) => {
+                {deduplicatedMeds.map((m: any, idx: number) => {
                   const medVerifs = liveCheckinResult?.verification?.medication_verifications || [];
                   const v = medVerifs.find((ver: any) => ver.medication_name === m.medication_name);
                   const medItem = describeMedicationItem(m, v);
@@ -309,11 +359,13 @@ export const RiskResultScreen = () => {
             return null;
           })()}
 
-          {/* Mandatory Release Scope Note */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 flex items-start gap-3 text-xs text-slate-600 leading-relaxed">
-            <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-            <span>{t.riskScoringOmittedNote}</span>
-          </div>
+          {/* Release scope notice when automated risk scoring is omitted/disabled */}
+          {!hasRiskExplanation && (
+            <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/70 flex items-start gap-3 text-xs text-amber-900">
+              <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <p className="leading-relaxed">{t.riskScoringOmittedNote}</p>
+            </div>
+          )}
 
           {/* Navigation to Trends and Return Home */}
           <div className="pt-2 space-y-2.5">

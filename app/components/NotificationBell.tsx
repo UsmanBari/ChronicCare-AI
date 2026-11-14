@@ -19,7 +19,7 @@ interface NotificationBellProps {
 }
 
 export const NotificationBell: React.FC<NotificationBellProps> = ({ role }) => {
-  const { isUrdu, t, portal, isLiveMode } = useApp();
+  const { isUrdu, t, portal, isLiveMode, setProviderScreen } = useApp();
   const effectiveRole = role || (portal === "provider" ? "provider" : portal === "admin" ? "admin" : "patient");
 
   const [isOpen, setIsOpen] = useState(false);
@@ -108,6 +108,16 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ role }) => {
       setUnreadCount((c) => Math.max(0, c - 1));
     } catch {
       // Graceful fallback
+    }
+  };
+
+  const handleItemClick = (n: InAppNotification) => {
+    if (!n.is_read) {
+      handleMarkRead(n.id);
+    }
+    setIsOpen(false);
+    if (effectiveRole === "provider") {
+      setProviderScreen("review_queue");
     }
   };
 
@@ -249,7 +259,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ role }) => {
                 <div
                   key={n.id}
                   data-testid={`notification-item-${n.id}`}
-                  className={`p-3.5 flex items-start gap-3 transition-colors hover:bg-slate-50 ${
+                  onClick={() => handleItemClick(n)}
+                  className={`p-3.5 flex items-start gap-3 transition-colors hover:bg-slate-50 cursor-pointer ${
                     !n.is_read ? "bg-teal-50/40 font-medium" : "bg-white"
                   }`}
                 >

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useApp } from "../context/AppContext";
 import {
   Hospital,
@@ -12,6 +12,7 @@ import {
   HardDrive,
   Unlink,
   AlertCircle,
+  AlertTriangle,
   Link as LinkIcon,
   ShieldAlert,
   Activity,
@@ -43,6 +44,20 @@ export const ConnectionScreen = () => {
   const [selectedSystemId, setSelectedSystemId] = useState<string>("");
   const [patientIdInput, setPatientIdInput] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [mismatchWarning, setMismatchWarning] = useState<string | null>(null);
+  const [confirmMismatch, setConfirmMismatch] = useState(false);
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (error && errorRef.current) {
+      if (typeof errorRef.current.scrollIntoView === "function") {
+        errorRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      if (typeof errorRef.current.focus === "function") {
+        errorRef.current.focus();
+      }
+    }
+  }, [error]);
 
   // Connection testing state
   const [testingSystemId, setTestingSystemId] = useState<string | null>(null);
@@ -128,7 +143,9 @@ export const ConnectionScreen = () => {
 
       setConnectingFhir(true);
       try {
-        await api.connectEHR(selectedSystemId, cleanPatientId);
+        await api.connectEHR(selectedSystemId, cleanPatientId, confirmMismatch);
+        setMismatchWarning(null);
+        setConfirmMismatch(false);
         const fullConn = await api.getEHRConnection(true);
         setLiveEhrConnection(fullConn);
         setConnectionMode("fhir");
@@ -137,10 +154,15 @@ export const ConnectionScreen = () => {
           setScreen("home");
         }, 1200);
       } catch (err: any) {
-        if (err instanceof ApiError) {
+        if (err instanceof ApiError && err.status === 409 && (err.data?.mismatch || (err.detail && err.detail.toLowerCase().includes("mismatch")))) {
+          setMismatchWarning(err.detail || "Demographic mismatch detected between your profile and this hospital record.");
+          setError(null);
+        } else if (err instanceof ApiError) {
           setError(err.getFriendlyMessage(isUrdu));
+          setMismatchWarning(null);
         } else {
           setError(mapApiError(err?.status, err?.message || "ehr_unreachable"));
+          setMismatchWarning(null);
         }
       } finally {
         setConnectingFhir(false);
@@ -221,9 +243,28 @@ export const ConnectionScreen = () => {
       </div>
 
       {error && (
-        <div className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2 animate-fadeIn">
+        <div ref={errorRef} tabIndex={-1} className="p-3.5 text-sm bg-amber-50 border border-amber-800/30 text-amber-900 rounded-xl flex items-center gap-2 animate-fadeIn">
           <ShieldAlert className="w-4 h-4 text-amber-800 shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {mismatchWarning && (
+        <div data-testid="ehr-mismatch-confirmation-banner" className="p-4 text-xs bg-amber-50 border-2 border-amber-500 text-amber-950 rounded-2xl space-y-3 animate-fadeIn">
+          <div className="flex items-center gap-2 font-bold text-amber-900">
+            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+            <span>Demographic Identity Verification</span>
+          </div>
+          <p>{mismatchWarning}</p>
+          <label className="flex items-center gap-2 font-semibold text-slate-800 cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              checked={confirmMismatch}
+              onChange={(e) => setConfirmMismatch(e.target.checked)}
+              className="w-4 h-4 text-teal-700 rounded border-slate-300 focus:ring-teal-700"
+            />
+            <span>I confirm this hospital record belongs to me (audit logged).</span>
+          </label>
         </div>
       )}
 
@@ -382,6 +423,11 @@ export const ConnectionScreen = () => {
               <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                 {t.fhirCardDesc}
               </p>
+
+              <div className="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-center gap-2 leading-relaxed">
+                <Info className="w-4 h-4 text-slate-400 shrink-0" />
+                <span>Sandbox linking by patient ID; SMART on FHIR OAuth is planned (FYP-2).</span>
+              </div>
 
               {/* In Live Mode: Enhanced Systems, Testing & Patient Selectors */}
               {isLiveMode && !isConnectedToFhir && (

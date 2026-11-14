@@ -14,7 +14,7 @@ To start the complete local evaluation environment (schema migration, demo seed,
 Set-Location "c:\Users\usmanbari\Desktop\Chronicare"
 .\scripts\start_local_demo.ps1 -Seed
 ```
-This launcher automatically verifies your Python virtual environment, strictly refuses MySQL if configured, initializes the SQLite database, seeds all 17 Nov demo personas, launches backend and frontend in separate console windows, polls `/health` until ready, and prints the evaluation dashboard URLs.
+This launcher automatically verifies your Python virtual environment, strictly refuses MySQL if configured, initializes the SQLite database, seeds all 17 Nov demo personas, launches backend and frontend in separate console windows, polls `/api/health` until ready, and prints the evaluation dashboard URLs.
 
 ---
 
@@ -77,7 +77,7 @@ Other local demo settings:
 - `GROQ_API_KEY=<copy from Render>`
 - `GROQ_MODEL=<copy from Render>` (copy the exact model configured on Render).
 - `DEMO_ROLE_MAP=<copy from Render>` (format: `provider.demo@demo.care:provider,admin.demo@demo.care:admin`).
-- Feature flags: `RISK_ENABLED=true`, `RISK_CAN_RAISE=true`, `RISK_PATIENT_VISIBLE=true`, `TREND_CAN_RAISE=true`, `EXPLAIN_ENABLED=true`, `EXPLAIN_MODE=background`, `RETRIEVER=bm25` (or `hybrid`), `OCR_ENABLED=true`, `DANGER_WORDGROUPS_ENABLED=true`, `ORCHESTRATOR=graph`, `INTERVIEW_ENGINE=v2`.
+- Feature flags: `RISK_ENABLED=true`, `RISK_PATIENT_VISIBLE=true`, `RISK_CAN_RAISE=true`, `RISK_RAISE_COOLDOWN_DAYS=30`, `TREND_CAN_RAISE=true`, `OCR_ENABLED=true`, `TTS_ENABLED=true`, `DANGER_WORDGROUPS_ENABLED=true`, `EXPLAIN_ENABLED=true`, `ESCALATION_TIMEOUT_MINUTES=5`, `NO_READING_SYMPTOM_RAISE=false` (doctor sign-off pending), `EXPLAIN_MODE=background`, `RETRIEVER=bm25` (or `hybrid`), `ORCHESTRATOR=graph`, `INTERVIEW_ENGINE=v2`.
 - Optional acceptance keys (for unattended runs): `FIREBASE_WEB_API_KEY`, `LOCAL_PROVIDER_EMAIL`, `LOCAL_PROVIDER_PASSWORD`, `LOCAL_ADMIN_EMAIL`, `LOCAL_ADMIN_PASSWORD`.
 
 *Note: `backend-poc-technical/.env.localdemo` is git-ignored (verified by `git check-ignore -v`). Never commit it.*

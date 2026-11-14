@@ -22,6 +22,7 @@ import {
   ShieldAlert,
   FileText,
   Hospital,
+  PhoneCall,
 } from "lucide-react";
 import { FhirSourceBadge } from "./FhirSourceBadge";
 import { api, ApiError, UserCheckinSummaryResponse, PatientRecordResponse } from "../lib/api";
@@ -45,6 +46,7 @@ export const HomeScreen = () => {
     setDemoScenario,
     resetDemo,
     appointment,
+    checkIn,
     setActiveLiveCheckin,
     setShowSettings,
   } = useApp();
@@ -88,6 +90,7 @@ export const HomeScreen = () => {
       : profile?.medications || [];
 
   const handleStartCheckIn = async () => {
+    if (isStarting) return;
     setBlockedAction(null);
     if (isLiveMode) {
       setIsStarting(true);
@@ -111,6 +114,20 @@ export const HomeScreen = () => {
 
     setScreen("checkin_entry");
   };
+
+  const isTodayComplete = (() => {
+    if (!isLiveMode) {
+      return Boolean(checkIn?.submittedAt);
+    }
+    if (!latestCheckin?.completed_at) return false;
+    const completedDate = new Date(latestCheckin.completed_at);
+    const today = new Date();
+    return (
+      completedDate.getFullYear() === today.getFullYear() &&
+      completedDate.getMonth() === today.getMonth() &&
+      completedDate.getDate() === today.getDate()
+    );
+  })();
 
   const conditionFlags = getConditionFlags(isLiveMode ? liveProfile?.conditions : profile.conditions);
 
@@ -266,7 +283,11 @@ export const HomeScreen = () => {
             {isUrdu ? "روزانہ صحت کا جائزہ" : "Daily Care Companion"}
           </span>
           <h1 className="font-heading text-2xl sm:text-3xl font-bold text-navy-800 tracking-tight">
-            {isLiveMode ? `Good day, ${titleCaseName(userIdentifier)}` : t.homeGreeting}
+            {isLiveMode
+              ? isUrdu
+                ? `خوش آمدید، ${titleCaseName(userIdentifier)}`
+                : `Good day, ${titleCaseName(userIdentifier)}`
+              : t.homeGreeting}
           </h1>
           <p className="text-sm text-slate-600 mt-1 max-w-lg">
             {t.homeSubtitle}
@@ -301,11 +322,17 @@ export const HomeScreen = () => {
             </div>
 
             <h2 className="font-heading text-xl sm:text-2xl font-bold text-white leading-snug">
-              {t.reminderTitle}
+              {isTodayComplete
+                ? (isUrdu ? "آج کا معائنہ مکمل ہو گیا" : "Check-in Complete for Today")
+                : t.reminderTitle}
             </h2>
 
             <p className="text-sm sm:text-base text-slate-200 leading-relaxed max-w-xl">
-              {conditionFlags.isHypertensionOnly
+              {isTodayComplete
+                ? (isUrdu
+                    ? "آپ نے آج کا معائنہ کامیابی سے مکمل کر لیا ہے۔ اگر آپ نئی علامات یا ادویات کی تفصیل درج کرنا چاہیں تو دوبارہ چیک ان کر سکتے ہیں۔"
+                    : "You have completed your check-in for today. If you have new symptoms or readings to record, you may start another check-in.")
+                : conditionFlags.isHypertensionOnly
                 ? t.reminderDescHypertension
                 : conditionFlags.hasBoth
                 ? t.reminderDescBoth
@@ -327,7 +354,11 @@ export const HomeScreen = () => {
                   </>
                 ) : (
                   <>
-                    <span>{t.startCheckInBtn}</span>
+                    <span>
+                      {isTodayComplete
+                        ? (isUrdu ? "نیا معائنہ شروع کریں" : "Start Another Check-In")
+                        : t.startCheckInBtn}
+                    </span>
                     <ArrowRight className={`w-5 h-5 ${isUrdu ? "rotate-180" : ""}`} />
                   </>
                 )}
@@ -386,6 +417,15 @@ export const HomeScreen = () => {
             </div>
 
             <div className="space-y-2.5 pt-1">
+              <a
+                href="tel:1122"
+                id="urgent-guidance-call-1122-btn"
+                className="w-full min-h-[48px] py-3.5 px-4 bg-emergencyRed-800 hover:bg-emergencyRed-900 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+              >
+                <PhoneCall className="w-4 h-4" />
+                <span>{isUrdu ? "1122 پر فوری کال کریں" : "Call 1122 Immediately"}</span>
+              </a>
+
               <button
                 type="button"
                 onClick={() => {
@@ -432,7 +472,7 @@ export const HomeScreen = () => {
               </button>
             )}
             <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-700">
-              {isManaged ? "FHIR Live Synced" : "Local Mode"}
+              {isManaged ? (isUrdu ? "فائر لائیو منسلک" : "FHIR Live Synced") : (isUrdu ? "لوکل موڈ" : "Local Mode")}
             </span>
           </div>
         </div>
@@ -495,14 +535,31 @@ export const HomeScreen = () => {
             </span>
             {isLiveMode ? (
               isManaged ? (
-                <div className="space-y-1.5">
-                  <div className="font-medium text-slate-600 text-xs sm:text-sm italic py-1">
-                    {t.hospitalRecordMedsManagedLine}
+                (liveEhrConnection?.ehr_medications && liveEhrConnection.ehr_medications.length > 0) ? (
+                  <div className="font-medium text-navy-800 space-y-1.5">
+                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                      {isUrdu ? "آپ کے ہسپتال کے ریکارڈ سے" : "From your hospital record"}
+                    </div>
+                    {liveEhrConnection.ehr_medications.map((med, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs sm:text-sm">
+                        <span className="truncate font-semibold">• {med.name}</span>
+                        {med.dosage && <span className="text-slate-500 text-xs font-mono">{med.dosage}</span>}
+                      </div>
+                    ))}
+                    <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-200/60">
+                      <span className="italic">{t.somethingDifferent}</span>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-200/60">
-                    <span className="italic">{t.somethingDifferent}</span>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="font-medium text-slate-600 text-xs sm:text-sm italic py-1">
+                      {t.hospitalRecordMedsManagedLine}
+                    </div>
+                    <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-200/60">
+                      <span className="italic">{t.somethingDifferent}</span>
+                    </div>
                   </div>
-                </div>
+                )
               ) : (liveRecord?.medications && liveRecord.medications.filter((m) => m.status === "active").length > 0) ? (
                 <div className="font-medium text-navy-800 space-y-1.5">
                   {liveRecord.medications

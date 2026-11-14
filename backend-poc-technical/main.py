@@ -803,6 +803,7 @@ class EHRConnectRequest(BaseModel):
     model_config = {"extra": "forbid"}
     ehr_system_id: str
     external_patient_id: str
+    confirm_identity_mismatch: bool = False
 
     @field_validator("external_patient_id")
     @classmethod
@@ -834,6 +835,14 @@ class EHRAllergyItem(BaseModel):
     trust: Literal["high"] = "high"
 
 
+class EHRMedicationItem(BaseModel):
+    name: str
+    dosage: Optional[str] = None
+    status: str = "active"
+    origin: Literal["ehr"] = "ehr"
+    trust: Literal["high"] = "high"
+
+
 class EHRConnectionResponse(BaseModel):
     mode: str
     connection: Optional[EHRConnectionInfo] = None
@@ -845,6 +854,7 @@ class EHRConnectionResponse(BaseModel):
     warning: Optional[str] = None
     doctor_on_record: Optional[DoctorOnRecord] = None
     ehr_allergies: List[EHRAllergyItem] = Field(default_factory=list)
+    ehr_medications: List[EHRMedicationItem] = Field(default_factory=list)
 
 
 class ConfigItem(BaseModel):
@@ -2316,6 +2326,26 @@ def export_patient_record_endpoint(
             }
         })
 
+    # 5. Condition resources (e.g. chronic conditions like diabetes, hypertension)
+    conds = profile.get("conditions") or []
+    for idx, c_item in enumerate(conds):
+        c_str = str(c_item).strip()
+        snomed = "73211009" if "diabetes" in c_str.lower() else ("38341003" if "hypertension" in c_str.lower() else "unknown")
+        bundle_entries.append({
+            "resource": {
+                "resourceType": "Condition",
+                "id": f"cond-{user_id}-{idx}",
+                "clinicalStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/condition-clinical", "code": "active"}]},
+                "verificationStatus": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/condition-ver-status", "code": "confirmed"}]},
+                "code": {
+                    "coding": [{"system": "http://snomed.info/sct", "code": snomed, "display": c_str}],
+                    "text": c_str,
+                },
+                "subject": {"reference": f"Patient/{user_id}"},
+                "meta": {"tag": [{"system": "https://chroniccare.ai/origin", "code": "self_reported"}]},
+            }
+        })
+
     fhir_bundle = {
         "resourceType": "Bundle",
         "type": "collection",
@@ -3731,6 +3761,52 @@ def connect_ehr_endpoint(
                 detail="This record belongs to a patient under 18. ChronicCare AI is for adults (18 and over) in this release. (ehr_patient_not_adult)",
             )
 
+    # 4d. Identity comparison (DOB and Gender against patient profile)
+    user_dob = profile.get("date_of_birth") if profile else None
+    user_gender = (profile.get("gender") or profile.get("sex_at_birth")) if profile else None
+    ehr_dob = patient_res.get("birthDate") if isinstance(patient_res, dict) else None
+    ehr_gender = patient_res.get("gender") if isinstance(patient_res, dict) else None
+
+    has_mismatch = False
+    mismatch_details = []
+    if user_dob and ehr_dob and user_dob != ehr_dob:
+        try:
+            y1 = int(user_dob[:4])
+            y2 = int(ehr_dob[:4])
+            if abs(y1 - y2) >= 2:
+                has_mismatch = True
+                mismatch_details.append(f"DOB: {ehr_dob} vs profile {user_dob}")
+        except Exception:
+            has_mismatch = True
+            mismatch_details.append(f"DOB: {ehr_dob} vs profile {user_dob}")
+    if user_gender and ehr_gender and str(user_gender).lower() != str(ehr_gender).lower():
+        has_mismatch = True
+        mismatch_details.append(f"Sex: {ehr_gender} vs profile {user_gender}")
+
+    is_simulated_ehr = ehr_system.get("kind") == "simulated"
+    if has_mismatch:
+        if body.confirm_identity_mismatch:
+            append_audit(
+                actor_user_id=user_id,
+                action="ehr_identity_mismatch_confirmed",
+                target=body.ehr_system_id,
+                outcome="ok",
+                detail={"ehr_system_id": body.ehr_system_id, "masked_patient_id": masked_id, "mismatches": mismatch_details},
+            )
+        elif not is_simulated_ehr:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"EHR demographic mismatch ({', '.join(mismatch_details)}). Confirmation required to link record.",
+            )
+        else:
+            append_audit(
+                actor_user_id=user_id,
+                action="ehr_demographic_mismatch",
+                target=body.ehr_system_id,
+                outcome="warning",
+                detail={"ehr_system_id": body.ehr_system_id, "masked_patient_id": masked_id, "mismatches": mismatch_details},
+            )
+
     # Fetch bundle for summary counts
     try:
         bundle = get_patient_bundle(body.external_patient_id, mode="connected", base_url=base_url)
@@ -3802,6 +3878,7 @@ def get_ehr_connection_endpoint(
 
     doctor_on_record: Optional[DoctorOnRecord] = None
     ehr_allergies: List[EHRAllergyItem] = []
+    ehr_medications: List[EHRMedicationItem] = []
     warning = None
 
     if include_details:
@@ -3843,6 +3920,35 @@ def get_ehr_connection_endpoint(
             allergy_warn = "Could not load hospital allergies right now."
             warning = f"{warning}; {allergy_warn}" if warning else allergy_warn
 
+        # 3. EHR active medications (3s timeout, cached, deduplicated, never 5xx)
+        try:
+            raw_meds = fhir_client.get_fhir_medications(patient_id=ext_pid, base_url=base_url, timeout=3.0)
+            norm_meds = fhir_adapter.fhir_to_normalized_medications(raw_meds, patient_id=ext_pid)
+            seen_med_names = set()
+            for m in norm_meds:
+                status_val = getattr(m, "status", None) or (m.get("status") if isinstance(m, dict) else None)
+                if status_val in ("active", "intended", "prescribed", None):
+                    name = getattr(m, "name", None) or (m.get("name") if isinstance(m, dict) else None) or "Medication"
+                    dosage = getattr(m, "dosage", None) or (m.get("dosage") if isinstance(m, dict) else None)
+                    if name not in seen_med_names:
+                        seen_med_names.add(name)
+                        ehr_medications.append(
+                            EHRMedicationItem(
+                                name=name,
+                                dosage=dosage,
+                                status=status_val or "active",
+                                origin="ehr",
+                                trust="high",
+                            )
+                        )
+        except Exception as e:
+            ehr_medications = []
+            logger.warning("Failed to retrieve hospital medications: %s", type(e).__name__)
+
+    summary = None
+    if ehr_medications:
+        summary = EHRConnectionSummary(recent_observations=0, active_medications=len(ehr_medications))
+
     return EHRConnectionResponse(
         mode="connected",
         connection=EHRConnectionInfo(
@@ -3858,6 +3964,8 @@ def get_ehr_connection_endpoint(
         warning=warning,
         doctor_on_record=doctor_on_record,
         ehr_allergies=ehr_allergies,
+        ehr_medications=ehr_medications,
+        summary=summary,
     )
 
 
@@ -4140,12 +4248,15 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
         )
 
     # 7. Initialize InterviewState and run first node (v2 default)
+    patient_lang = (profile.get("preferred_language") or profile.get("language") or "en") if profile else "en"
     state = InterviewState(
         patient_id=record_patient_id,
         conditions_on_file=conditions,
-        on_insulin_or_sulfonylurea=profile.get("on_insulin_or_sulfonylurea", False),
+        on_insulin_or_sulfonylurea=profile.get("on_insulin_or_sulfonylurea", False) if profile else False,
         is_cold_start=is_cold_start,
     )
+    state.language = patient_lang
+    state.answers["language"] = patient_lang
     initial_state = adaptive_interview_node(state, patient_response=None)
 
     # 8. Persist session
@@ -5868,12 +5979,34 @@ def cancel_my_appointment(
 
 @app.get("/api/provider/appointments", tags=["Appointments"])
 def get_provider_appointments(current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin"))):
-    """Retrieves prioritized clinical appointments with computed escalation state."""
-    from data_sources.app_store import list_provider_appointments
+    """Retrieves prioritized clinical appointments with computed escalation state and patient labels."""
+    from data_sources.app_store import list_provider_appointments, get_patient_profile, get_user_by_id
     from services.appointment_service import compute_escalation_state
 
     raw_list = list_provider_appointments()
     enhanced = [compute_escalation_state(a) for a in raw_list]
+    for a in enhanced:
+        pid = a.get("patient_id", "")
+        clean_pid = str(pid).removeprefix("local-")
+        label = None
+        try:
+            prof = get_patient_profile(clean_pid)
+            if prof and prof.get("display_name"):
+                label = prof["display_name"]
+            elif prof and prof.get("name"):
+                label = prof["name"]
+        except Exception:
+            pass
+        if not label:
+            try:
+                usr = get_user_by_id(clean_pid)
+                if usr and usr.get("display_name"):
+                    label = usr["display_name"]
+                elif usr and usr.get("email"):
+                    label = usr["email"]
+            except Exception:
+                pass
+        a["patient_label"] = label or clean_pid
     return {"appointments": enhanced}
 
 
@@ -5938,14 +6071,66 @@ def update_admin_provider(
 
 @app.get("/api/admin/escalations", tags=["Appointments"])
 def get_admin_escalations(current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin"))):
-    """Lists appointments with admin_flag escalation state."""
+    """Lists appointments with admin_flag or re_notify escalation state."""
     from data_sources.app_store import list_provider_appointments
     from services.appointment_service import compute_escalation_state
 
     raw_list = list_provider_appointments()
     enhanced = [compute_escalation_state(a) for a in raw_list]
-    escalations = [a for a in enhanced if a.get("escalation_state") == "admin_flag"]
+    escalations = [a for a in enhanced if a.get("escalation_state") in ("admin_flag", "re_notify")]
     return {"escalations": escalations}
+
+
+@app.get("/api/admin/stats", tags=["Admin"])
+def get_admin_stats(current_user: Dict[str, Any] = Depends(require_role("admin"))):
+    """Returns database telemetry counts for the admin dashboard."""
+    from data_sources.app_store import get_db_cursor, list_providers, list_provider_appointments
+    from services.appointment_service import compute_escalation_state
+
+    with get_db_cursor() as (cursor, be, ph):
+        cursor.execute("SELECT COUNT(*) as count FROM users")
+        row = cursor.fetchone()
+        total_users = row["count"] if row else 0
+
+        cursor.execute(f"SELECT COUNT(*) as count FROM users WHERE role = {ph}", ("patient",))
+        row = cursor.fetchone()
+        total_patients = row["count"] if row else 0
+
+        cursor.execute(f"SELECT COUNT(*) as count FROM users WHERE role IN ({ph}, {ph})", ("doctor", "provider"))
+        row = cursor.fetchone()
+        total_providers = row["count"] if row else 0
+
+        cursor.execute("SELECT COUNT(*) as count FROM appointments")
+        row = cursor.fetchone()
+        total_appointments = row["count"] if row else 0
+
+        cursor.execute("SELECT COUNT(*) as count FROM checkins")
+        row = cursor.fetchone()
+        total_checkins = row["count"] if row else 0
+
+    raw_list = list_provider_appointments()
+    enhanced = [compute_escalation_state(a) for a in raw_list]
+    active_escalations = sum(1 for a in enhanced if a.get("escalation_state") in ("admin_flag", "re_notify"))
+
+    return {
+        "total_users": total_users,
+        "total_patients": total_patients,
+        "total_providers": total_providers or len(list_providers()),
+        "total_appointments": total_appointments,
+        "total_checkins": total_checkins,
+        "active_escalations": active_escalations,
+    }
+
+
+@app.get("/api/admin/users", tags=["Admin"])
+def get_admin_users(current_user: Dict[str, Any] = Depends(require_role("admin"))):
+    """Lists registered users for admin telemetry."""
+    from data_sources.app_store import get_db_cursor
+
+    with get_db_cursor() as (cursor, be, ph):
+        cursor.execute("SELECT user_id, email, role, display_name, created_at FROM users ORDER BY created_at DESC")
+        rows = cursor.fetchall() or []
+        return {"users": [dict(r) for r in rows]}
 
 
 # ---------------------------------------------------------------------------

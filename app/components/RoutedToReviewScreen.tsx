@@ -2,13 +2,51 @@
 
 import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
-import { AlertCircle, UserCheck, Home, ArrowLeft, Clock, ShieldCheck, Calendar, CheckCircle2, Pill, AlertTriangle, ShieldAlert } from "lucide-react";
+import { AlertCircle, UserCheck, Home, ArrowLeft, Clock, ShieldCheck, Calendar, CheckCircle2, Pill, AlertTriangle, ShieldAlert, XCircle, Loader2 } from "lucide-react";
 import { describeMedicationItem } from "../lib/presentation";
+import { api } from "../lib/api";
 import { ExplanationBox } from "./ExplanationBox";
+import { TriageColourChip } from "./TriageColourChip";
 
 export const RoutedToReviewScreen = () => {
-  const { returnToHomeAndClearRun, appointment, setAppointment, isLiveMode, liveCheckinResult, checkIn, t, isUrdu } = useApp();
+  const { returnToHomeAndClearRun, appointment, setAppointment, isLiveMode, liveCheckinResult, checkIn, t, isUrdu, language } = useApp();
   const [requestedLocal, setRequestedLocal] = useState(appointment.status === "Requested");
+
+  const liveApt = liveCheckinResult?.appointment;
+  const [aptStatus, setAptStatus] = useState<string | null>(liveApt?.status || null);
+  const [aptLoading, setAptLoading] = useState(false);
+  const [aptMessage, setAptMessage] = useState<string | null>(null);
+
+  const handleLiveBookApt = async () => {
+    const aptId = liveApt?.id || (liveApt as any)?.appointment_id;
+    if (!aptId) return;
+    setAptLoading(true);
+    try {
+      const slot = liveApt?.slot_date || new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 16).replace("T", " ");
+      await api.bookAppointment(aptId, slot);
+      setAptStatus("booked");
+      setAptMessage(isUrdu ? "ملاقات کامیابی سے طے ہو گئی ہے۔" : "Appointment successfully booked.");
+    } catch (e: any) {
+      setAptMessage(e?.message || "Failed to book appointment");
+    } finally {
+      setAptLoading(false);
+    }
+  };
+
+  const handleLiveCancelApt = async () => {
+    const aptId = liveApt?.id || (liveApt as any)?.appointment_id;
+    if (!aptId) return;
+    setAptLoading(true);
+    try {
+      await api.cancelAppointment(aptId);
+      setAptStatus("cancelled");
+      setAptMessage(isUrdu ? "ملاقات منسوخ کر دی گئی ہے۔" : "Appointment cancelled.");
+    } catch (e: any) {
+      setAptMessage(e?.message || "Failed to cancel appointment");
+    } finally {
+      setAptLoading(false);
+    }
+  };
 
   const handleRequestFollowUp = () => {
     setAppointment({
@@ -47,6 +85,22 @@ export const RoutedToReviewScreen = () => {
       })
     : [];
 
+  const isRomanUrdu = (language as string) === "roman_ur";
+  const isLowGlucose = (() => {
+    if (!liveCheckinResult) return false;
+    const intakes = liveCheckinResult.intakes || [];
+    for (const it of intakes) {
+      const g = it?.extracted_data?.glucose ?? it?.readings?.glucose;
+      if (typeof g === "number" && g < 70) return true;
+      if (it?.extracted_data?.safety_guidance || it?.extracted_data?.rule_severe_low) return true;
+    }
+    const comps = liveCheckinResult.reconciliation?.observation_comparisons || [];
+    for (const c of comps) {
+      if (c.observation_type === "blood_glucose" && typeof c.value_b === "number" && c.value_b < 70) return true;
+    }
+    return false;
+  })();
+
   const flaggedMeds = allMeds.filter((m) => !m.desc.isConfirmed);
   const confirmedMeds = allMeds.filter((m) => m.desc.isConfirmed);
 
@@ -72,6 +126,20 @@ export const RoutedToReviewScreen = () => {
 
       {/* Details Box */}
       <div className="p-6 sm:p-7 space-y-5">
+        {/* Low Blood Sugar Safety Advice Banner */}
+        {isLowGlucose && (
+          <div data-testid="low-glucose-safety-banner" className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-600 text-amber-950 text-sm font-bold flex items-center gap-3 animate-fadeIn shadow-xs text-left">
+            <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0" />
+            <span dir="auto">
+              {isUrdu
+                ? "فوراً جلدی اثر کرنے والی میٹھی چیز لیں، جیسے پھلوں کا جوس یا گلوکوز، اور اگر علامات برقرار رہیں تو فوراً طبی مدد حاصل کریں۔"
+                : isRomanUrdu
+                ? "Foran jaldi asar karne wali meethi cheez lein, jaise phalon ka juice ya glucose, aur agar alamaat barqarar rahein to foran doctor se rabta karein."
+                : "Take quick sugar such as fruit juice or glucose, and seek immediate medical attention if symptoms persist."}
+            </span>
+          </div>
+        )}
+
         {/* Danger Wordgroup Emergency Advisory Banner */}
         {liveCheckinResult?.safety_note && (
           <div data-testid="danger-wordgroup-review-banner" className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-600 text-amber-950 text-sm font-bold flex items-center gap-3 animate-fadeIn shadow-xs text-left">
@@ -184,12 +252,84 @@ export const RoutedToReviewScreen = () => {
           <span className="flex items-center gap-2 font-medium">
             <Clock className="w-4 h-4 text-amber-800" />
             <span>Triage Status</span>
+            <span className="sr-only">Pending Provider Review</span>
           </span>
-          <span className="font-bold">Pending Provider Review</span>
+          <TriageColourChip
+            level={liveCheckinResult?.triage_level || liveCheckinResult?.triage?.level || "review"}
+            colour={liveCheckinResult?.triage_colour || liveCheckinResult?.triage?.triage_colour || "yellow"}
+          />
         </div>
 
         {/* Guideline Explanation Box (flags on) */}
         <ExplanationBox />
+
+        {/* Live Offered Appointment Card */}
+        {isLiveMode && liveApt && (
+          <div className="p-4 rounded-2xl bg-amber-50/90 border-2 border-amber-300 text-left space-y-2.5 animate-fadeIn" data-testid="triage-appointment-card">
+            <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+              <Calendar className="w-5 h-5 text-amber-700" />
+              <span>{isUrdu ? "تجویز کردہ ملاقات" : "Offered Appointment"}</span>
+            </div>
+            <p className="text-xs text-amber-800 leading-relaxed">
+              {isUrdu
+                ? "آپ کے معائنے کے نتائج کی بنیاد پر فالو اپ ملاقات تجویز کی گئی ہے۔"
+                : "Based on your check-in review, a follow-up consultation has been offered."}
+            </p>
+            {liveApt?.specialty && (
+              <div className="text-xs text-slate-700 bg-white/80 p-2.5 rounded-xl border border-amber-200 flex items-center justify-between">
+                <span className="font-semibold">{t.appointmentSpecialty}:</span>
+                <span className="font-bold text-navy-800">
+                  {liveApt.specialty === "endocrinology"
+                    ? t.specialtyEndocrinology
+                    : liveApt.specialty === "cardiology_im"
+                    ? t.specialtyCardiology
+                    : liveApt.specialty === "internal_medicine"
+                    ? t.specialtyInternalMedicine
+                    : t.specialtyGeneral}
+                </span>
+              </div>
+            )}
+            {aptMessage && (
+              <div className="p-2.5 rounded-xl bg-white/90 text-xs font-semibold text-navy-800 border border-amber-200">
+                {aptMessage}
+              </div>
+            )}
+            {aptStatus === "offered" ? (
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleLiveBookApt}
+                  disabled={aptLoading}
+                  id="book-offered-appointment-btn"
+                  className="flex-1 min-h-[40px] py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5"
+                >
+                  {aptLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  <span>{t.bookAppointmentBtn}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLiveCancelApt}
+                  disabled={aptLoading}
+                  id="cancel-offered-appointment-btn"
+                  className="flex-1 min-h-[40px] py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5"
+                >
+                  {aptLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                  <span>{t.cancelAppointmentBtn}</span>
+                </button>
+              </div>
+            ) : aptStatus === "booked" ? (
+              <div className="p-3 rounded-xl bg-emerald-100 text-emerald-900 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                <span>{isUrdu ? "ملاقات کامیابی سے طے ہو گئی ہے۔" : "Appointment confirmed with your clinic."}</span>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-2">
+                <XCircle className="w-4 h-4 text-slate-500" />
+                <span>{isUrdu ? "ملاقات منسوخ کر دی گئی ہے۔" : "Appointment was declined or cancelled."}</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Request Follow-Up Appointment CTA - Mock Mode Only */}
         {!isLiveMode && (

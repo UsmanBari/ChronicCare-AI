@@ -274,7 +274,7 @@ export const Header = () => {
             className="h-11 flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 transition-colors shadow-xs min-h-[44px]"
           >
             <HelpCircle className="w-4 h-4 text-teal-700" />
-            <span>Guide</span>
+            <span>{isUrdu ? "رہنما" : "Guide"}</span>
           </button>
 
           {/* Language Toggle */}
@@ -426,7 +426,7 @@ export const Header = () => {
                   className="min-h-[48px] px-3 py-2.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-900 font-semibold text-xs flex items-center justify-center gap-2"
                 >
                   <HelpCircle className="w-4 h-4 text-teal-700" />
-                  <span>Evaluator Guide</span>
+                  <span>{isUrdu ? "رہنمائی گائیڈ" : "Evaluator Guide"}</span>
                 </button>
 
                 {/* Language Toggle */}

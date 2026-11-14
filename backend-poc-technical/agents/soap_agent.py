@@ -202,6 +202,13 @@ def build_soap(
                         intake_symps.append(f"{k.replace('_', ' ')}: {v}")
         if intake_symps:
             reported_symptoms.append(f"Reported symptoms: {'; '.join(intake_symps)}")
+        elif result and (result.get("emergency") or (result.get("triage_level") == "emergency")):
+            trig_cat = (result.get("trigger_category") or state.get("stage1_reason") or "Emergency Red-Flag").replace("_", " ").title()
+            trig_txt = result.get("trigger_text") or answers.get("greeting_response") or ""
+            if trig_txt:
+                reported_symptoms.append(f"Reported symptoms: Emergency red-flag ({trig_cat}), quoted: \"{trig_txt}\"")
+            else:
+                reported_symptoms.append(f"Reported symptoms: Emergency red-flag ({trig_cat})")
         elif not reported_symptoms:
             reported_symptoms.append("Reported symptoms: not answered")
 
@@ -228,6 +235,9 @@ def build_soap(
         for h in (state.get("answers", {}) or {}).get("_wordgroup_hits", []) or []:
             if isinstance(h, dict) and h.get("group"):
                 wordgroups.add(h["group"])
+    if result and (result.get("emergency") or (result.get("triage_level") == "emergency")):
+        trig_cat = result.get("trigger_category") or state.get("stage1_reason") or "emergency_red_flag"
+        wordgroups.add(str(trig_cat).lower())
     if wordgroups:
         s_lines.append(f"Danger words detected: {', '.join(sorted(wordgroups))}")
     else:
@@ -268,9 +278,9 @@ def build_soap(
             obs_type = r.get("observation_type") or r.get("type") or "reading"
             val = r.get("value")
             unit = r.get("unit") or ""
-            source = r.get("source") or ("fhir" if mode == "connected" else "patient-reported")
+            source = (r.get("source") or "").lower()
 
-            if source == "fhir" or mode == "connected":
+            if source == "fhir":
                 trust = "High"
                 source_label = "FHIR"
             elif source == "ocr":
@@ -278,7 +288,7 @@ def build_soap(
                 source_label = "OCR"
             else:
                 trust = "Low"
-                source_label = "Patient-reported"
+                source_label = "Self-Report"
 
             unit_str = f" {unit}" if unit else ""
             o_lines.append(f"Reading - {obs_type}: {val}{unit_str} [Source: {source_label}, Trust: {trust}]")
@@ -364,7 +374,8 @@ def build_soap(
         elif triage_obj.get("summary"):
             reasons.append(triage_obj["summary"])
     if not reasons and result and result.get("trigger_text"):
-        reasons.append(result["trigger_text"])
+        cat = (result.get("trigger_category") or state.get("stage1_reason") or "Emergency Red-Flag").replace("_", " ").title()
+        reasons.append(f"Emergency Red-Flag: {cat} (patient stated: \"{result['trigger_text']}\")")
     if not reasons:
         reasons.append("Routine check-in protocol completed within expected bounds")
 
@@ -477,7 +488,23 @@ def build_soap(
         p_lines.append(f"Patient guidance provided: {guidance}")
 
     # 2. Appointment action
-    p_lines.append("Appointment action: appointment workflow: not available in this build")
+    appt = None
+    try:
+        from data_sources.app_store import get_appointment_by_checkin
+        appt = get_appointment_by_checkin(checkin_id)
+    except Exception:
+        pass
+
+    if appt:
+        spec = appt.get("specialty", "general").replace("_", " ").title()
+        urg = appt.get("urgency", "routine").title()
+        st = appt.get("status", "offered").title()
+        prov = appt.get("provider_id", "unassigned")
+        p_lines.append(f"Appointment action: {urg} appointment ({st}) - Specialty: {spec}, Provider: {prov}")
+    elif level == "routine":
+        p_lines.append("Appointment action: Routine monitoring, no follow-up appointment required")
+    else:
+        p_lines.append("Appointment action: Follow-up appointment offered for clinical review")
 
     # 3. Clinician review required
     if level in ("review", "urgent", "emergency"):
@@ -504,7 +531,19 @@ def build_soap(
     # =========================================================================
     data_sources: List[str] = []
     if mode == "connected":
-        data_sources.append("FHIR R4 in-process simulator (sim://demo)")
+        conn_name = "FHIR R4 in-process simulator (sim://demo)"
+        try:
+            from data_sources.app_store import get_ehr_connection
+            uid = checkin.get("user_id") or patient_id
+            clean_uid = str(uid).removeprefix("local-")
+            conn = get_ehr_connection(clean_uid)
+            if conn and conn.get("system_name"):
+                conn_name = f"Connected EHR: {conn['system_name']}"
+                if conn.get("fhir_base_url"):
+                    conn_name += f" ({conn['fhir_base_url']})"
+        except Exception:
+            pass
+        data_sources.append(conn_name)
     else:
         data_sources.append("Local store (isolated mode)")
     data_sources.append("Check-in interview responses")

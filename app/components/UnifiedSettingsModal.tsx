@@ -169,30 +169,42 @@ export const UnifiedSettingsModal = () => {
               <Globe className="w-4 h-4 text-teal-700" />
               <span>{t.languageSettingLabel}</span>
             </label>
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="grid grid-cols-3 gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setLanguage("en")}
                 id="settings-lang-en-btn"
-                className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all ${
+                className={`py-2 px-2 rounded-lg text-xs font-semibold border transition-all ${
                   language === "en"
                     ? "bg-teal-700 text-white border-teal-700 shadow-sm"
                     : "bg-white text-navy-800 border-slate-300 hover:bg-slate-100"
                 }`}
               >
-                English (Default)
+                English
               </button>
               <button
                 type="button"
                 onClick={() => setLanguage("ur")}
                 id="settings-lang-ur-btn"
-                className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all ${
+                className={`py-2 px-2 rounded-lg text-xs font-semibold border transition-all ${
                   language === "ur"
                     ? "bg-teal-700 text-white border-teal-700 shadow-sm font-urdu"
                     : "bg-white text-navy-800 border-slate-300 hover:bg-slate-100 font-urdu"
                 }`}
               >
                 اردو (Urdu)
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage("roman_ur")}
+                id="settings-lang-roman-ur-btn"
+                className={`py-2 px-2 rounded-lg text-xs font-semibold border transition-all ${
+                  language === "roman_ur"
+                    ? "bg-teal-700 text-white border-teal-700 shadow-sm"
+                    : "bg-white text-navy-800 border-slate-300 hover:bg-slate-100"
+                }`}
+              >
+                Roman Urdu
               </button>
             </div>
           </div>
@@ -300,7 +312,7 @@ export const UnifiedSettingsModal = () => {
               {isEhrManaged(isLiveMode, connectionMode, liveEhrConnection) ? (
                 <div className="flex items-center gap-2 text-mutedGreen-800 font-semibold">
                   <ShieldCheck className="w-4 h-4 text-mutedGreen-800 shrink-0" />
-                  <span>{t.connectedHospital}</span>
+                  <span>{liveEhrConnection?.connection?.display_name || liveEhrConnection?.record_source_label || t.connectedHospital}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 text-amber-800 font-semibold">

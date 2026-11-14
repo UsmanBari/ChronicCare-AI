@@ -25,6 +25,24 @@ Write-Host "====================================================================
 Write-Host "CHRONICCARE AI — ONE-COMMAND LOCAL DEMO LAUNCHER (17 NOV EVALUATION)" -ForegroundColor Cyan
 Write-Host "================================================================================" -ForegroundColor Cyan
 
+# Check if ports 3000 or 8000 are already in use
+$busyPorts = @()
+foreach ($p in @(3000, 8000)) {
+    $conns = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
+    if ($conns) {
+        $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
+        foreach ($pidItem in $pids) {
+            $proc = Get-Process -Id $pidItem -ErrorAction SilentlyContinue
+            $procName = if ($proc) { $proc.ProcessName } else { "Unknown" }
+            $busyPorts += "Port $p is in use by PID $pidItem ($procName)"
+        }
+    }
+}
+if ($busyPorts.Count -gt 0) {
+    Write-Error ("REFUSING TO START: Ports 3000/8000 in use:`n" + ($busyPorts -join "`n") + "`nPlease stop existing processes before starting.")
+    exit 1
+}
+
 # 2. Strict SQLite Guard — Refuse execution if MySQL is configured
 $dbBackend = $env:DB_BACKEND
 $mysqlUrl = $env:MYSQL_URL
@@ -75,6 +93,15 @@ if ($Seed) {
 
 # 6. Launch Backend API Server in new window
 Write-Host "`n[4/5] Starting FastAPI backend API server on port 8000 (new window)..."
+$localDemoArg = ""
+$cand1 = Join-Path $repoRoot "backend-poc-technical\.env.localdemo"
+$cand2 = Join-Path $repoRoot ".env.localdemo"
+if (Test-Path $cand1) {
+    $localDemoArg = "--env-file .env.localdemo"
+} elseif (Test-Path $cand2) {
+    $localDemoArg = "--env-file '$cand2'"
+}
+
 $backendCmd = @"
 `$env:PYTHONIOENCODING = 'utf-8'
 `$env:DB_BACKEND = 'sqlite'
@@ -82,7 +109,7 @@ Remove-Item Env:MYSQL_URL -ErrorAction SilentlyContinue
 Remove-Item Env:MYSQL_SSL_CA -ErrorAction SilentlyContinue
 Set-Location '$repoRoot\backend-poc-technical'
 Write-Host 'Starting ChronicCare AI FastAPI Backend (Local SQLite)...' -ForegroundColor Green
-& '$venvPython' -m uvicorn main:app --port 8000 --log-level info
+& '$venvPython' -m uvicorn main:app --port 8000 $localDemoArg --log-level info
 "@
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd
 
@@ -98,11 +125,11 @@ npm run dev
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $frontendCmd
 
 # 8. Health check polling
-Write-Host "`nWaiting for backend health check at http://127.0.0.1:8000/health..."
+Write-Host "`nWaiting for backend health check at http://127.0.0.1:8000/api/health..."
 $healthy = $false
 for ($i = 0; $i -lt 30; $i++) {
     try {
-        $resp = Invoke-RestMethod -Uri "http://127.0.0.1:8000/health" -Method Get -TimeoutSec 2 -ErrorAction Stop
+        $resp = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/health" -Method Get -TimeoutSec 2 -ErrorAction Stop
         if ($resp.status -eq "ok" -or $resp.database -eq "ok") {
             $healthy = $true
             break

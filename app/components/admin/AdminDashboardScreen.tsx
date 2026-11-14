@@ -36,6 +36,14 @@ export const AdminDashboardScreen = () => {
   const [liveAuditLogs, setLiveAuditLogs] = useState<any[]>([]);
   const [liveProviders, setLiveProviders] = useState<ProviderDirectoryEntry[]>([]);
   const [liveEscalations, setLiveEscalations] = useState<Appointment[]>([]);
+  const [adminStats, setAdminStats] = useState<{
+    total_users: number;
+    total_patients: number;
+    total_providers: number;
+    total_appointments: number;
+    total_checkins: number;
+    active_escalations: number;
+  } | null>(null);
 
   const fetchDirectoryAndEscalations = () => {
     api
@@ -48,6 +56,12 @@ export const AdminDashboardScreen = () => {
       .getAdminEscalations()
       .then((res) => {
         if (res.escalations) setLiveEscalations(res.escalations);
+      })
+      .catch(() => {});
+    api
+      .getAdminStats()
+      .then((res) => {
+        if (res) setAdminStats(res);
       })
       .catch(() => {});
   };
@@ -280,7 +294,9 @@ export const AdminDashboardScreen = () => {
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
             {t.statUsers}
           </span>
-          <div className="text-3xl font-bold text-navy-800 font-sans mt-1">{isLiveMode ? "—" : 126}</div>
+          <div className="text-3xl font-bold text-navy-800 font-sans mt-1">
+            {isLiveMode ? (adminStats ? adminStats.total_users : "...") : 126}
+          </div>
         </div>
 
         {/* Stat 2: Providers */}
@@ -288,7 +304,9 @@ export const AdminDashboardScreen = () => {
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
             {t.statProviders}
           </span>
-          <div className="text-3xl font-bold text-teal-700 font-sans mt-1">{isLiveMode ? "—" : doctors.length}</div>
+          <div className="text-3xl font-bold text-teal-700 font-sans mt-1">
+            {isLiveMode ? (adminStats ? adminStats.total_providers : "...") : doctors.length}
+          </div>
         </div>
 
         {/* Stat 3: Patients */}
@@ -296,38 +314,47 @@ export const AdminDashboardScreen = () => {
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
             {t.statPatients}
           </span>
-          <div className="text-3xl font-bold text-navy-800 font-sans mt-1">{isLiveMode ? "—" : patients.length + 105}</div>
+          <div className="text-3xl font-bold text-navy-800 font-sans mt-1">
+            {isLiveMode ? (adminStats ? adminStats.total_patients : "...") : patients.length + 105}
+          </div>
         </div>
 
         {/* Stat 4: Active Alerts */}
-        <div
-          key={`admin-alert-${activeAlertsCount}`}
-          className={`rounded-2xl border p-5 text-center shadow-xs transition-all duration-500 animate-fadeIn ${
-            activeAlertsCount > 0
-              ? "bg-emergencyRed-800/90 border-emergencyRed-700 text-white ring-2 ring-emergencyRed-800/40 shadow-lg shadow-red-700/30"
-              : "glass-resting text-navy-800"
-          }`}
-        >
-          <span className={`text-xs font-bold uppercase tracking-wider block ${
-            activeAlertsCount > 0 ? "text-red-100" : "text-slate-500"
-          }`}>
-            {t.statActiveAlerts}
-          </span>
-          <div
-            className={`text-2xl font-bold font-sans mt-1 flex items-center justify-center gap-1.5 ${
-              activeAlertsCount > 0 ? "text-white animate-pulse" : "text-slate-700"
-            }`}
-          >
-            {activeAlertsCount > 0 ? (
-              <>
-                <AlertOctagon className="w-5 h-5 text-red-200" />
-                <span>{activeAlertsCount} Urgent</span>
-              </>
-            ) : (
-              <span>0</span>
-            )}
-          </div>
-        </div>
+        {(() => {
+          const effectiveAlerts = isLiveMode
+            ? (adminStats ? adminStats.active_escalations : liveEscalations.length)
+            : activeAlertsCount;
+          return (
+            <div
+              key={`admin-alert-${effectiveAlerts}`}
+              className={`rounded-2xl border p-5 text-center shadow-xs transition-all duration-500 animate-fadeIn ${
+                effectiveAlerts > 0
+                  ? "bg-emergencyRed-800/90 border-emergencyRed-700 text-white ring-2 ring-emergencyRed-800/40 shadow-lg shadow-red-700/30"
+                  : "glass-resting text-navy-800"
+              }`}
+            >
+              <span className={`text-xs font-bold uppercase tracking-wider block ${
+                effectiveAlerts > 0 ? "text-red-100" : "text-slate-500"
+              }`}>
+                {t.statActiveAlerts}
+              </span>
+              <div
+                className={`text-2xl font-bold font-sans mt-1 flex items-center justify-center gap-1.5 ${
+                  effectiveAlerts > 0 ? "text-white animate-pulse" : "text-slate-700"
+                }`}
+              >
+                {effectiveAlerts > 0 ? (
+                  <>
+                    <AlertOctagon className="w-5 h-5 text-red-200" />
+                    <span>{effectiveAlerts} Escalations</span>
+                  </>
+                ) : (
+                  <span>0</span>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Clinic Management Banner (Item 7 & Fix 1) */}

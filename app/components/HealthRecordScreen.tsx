@@ -10,6 +10,7 @@ import {
   Plus,
   Trash2,
   CheckCircle2,
+  AlertCircle,
   AlertTriangle,
   Camera,
   ArrowRight,
@@ -134,9 +135,11 @@ export const HealthRecordScreen = () => {
     return flags.isHypertensionOnly ? "blood_pressure_systolic" : "glucose";
   });
   const [obsValue, setObsValue] = useState<string>("");
-  const [obsMeasuredAt, setObsMeasuredAt] = useState<string>(
-    new Date().toISOString().slice(0, 16)
-  );
+  const [obsMeasuredAt, setObsMeasuredAt] = useState<string>(() => {
+    const d = new Date();
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+  });
   const [isAddingObs, setIsAddingObs] = useState(false);
   const [glucoseUnit, setGlucoseUnit] = useState<"mg/dL" | "mmol/L">("mg/dL");
   const isGlucoseMmol = obsType === "glucose" && glucoseUnit === "mmol/L";
@@ -1111,9 +1114,13 @@ export const HealthRecordScreen = () => {
                         ? alg.substance
                         : (isUrdu ? "کوئی مادہ درج نہیں ہے" : "No substance entered")}
                     </span>
-                    {alg.confirmed && (
+                    {alg.confirmed ? (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-100 text-teal-900 inline-flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" /> Confirmed
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 inline-flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 text-amber-700" /> Unconfirmed
                       </span>
                     )}
                   </div>
@@ -1203,8 +1210,8 @@ export const HealthRecordScreen = () => {
               </h2>
               <p className="text-xs text-slate-500">
                 {isUrdu
-                  ? "پیمائش کا موازنہ ۴۸ گھنٹوں کے اندر کیے گئے چیک ان سے کیا جاتا ہے۔"
-                  : "A reading is compared with a check-in taken within 48 hours. Older readings are kept as history for the trend feature in a later version."}
+                  ? "پیمائش کا موازنہ ۴۸ گھنٹوں کے اندر کیے گئے چیک ان سے کیا جاتا ہے۔ پرانی پیمائشیں ٹرینڈ ویو کے لیے محفوظ رکھی جاتی ہیں۔"
+                  : "A reading is compared with a check-in taken within 48 hours. Older readings are kept as history for the trend view."}
               </p>
             </div>
           </div>

@@ -1,4 +1,4 @@
-export type Language = 'en' | 'ur';
+export type Language = 'en' | 'ur' | 'roman_ur';
 
 export interface Translations {
   // Common / Navigation
@@ -646,8 +646,7 @@ export interface Translations {
   soapLoading: string;
 }
 
-export const translations: Record<Language, Translations> = {
-  en: {
+const enTranslations: Translations = {
     appName: "ChronicCare AI",
     demoWatermark: "DEMO — DATA NOT REAL",
     disclaimerScope: "This prototype represents the interface and interaction layer; the underlying computational functionality will be implemented in subsequent milestones.",
@@ -1034,7 +1033,7 @@ export const translations: Record<Language, Translations> = {
     consentBulletWithdrawConsent: "You can withdraw consent at any time in your settings.",
     consentBulletNotForEmergencies: "This prototype is not for emergencies.",
     routedToReviewHeadline: "Sent for clinician review",
-    routedToReviewExplanation: "A clinician will see this in their review queue. This version of the app does not send notifications.",
+    routedToReviewExplanation: "A clinician will see this in their review queue.",
     confidenceLowChip: "Confidence: Low (a reading was missing)",
     medicationsNoneRecorded: "Medications: none recorded yet",
     noCheckinsYet: "No check-ins yet",
@@ -1282,8 +1281,9 @@ export const translations: Record<Language, Translations> = {
     soapCopied: "Copied!",
     soapPrintNote: "Print Note",
     soapLoading: "Generating SOAP note...",
-  },
-  ur: {
+};
+
+const urTranslations: Translations = {
     appName: "کرونک کیئر اے آئی (ChronicCare AI)",
     demoWatermark: "ڈیمو — ڈیٹا حقیقی نہیں ہے",
     disclaimerScope: "This prototype represents the interface and interaction layer; the underlying computational functionality will be implemented in subsequent milestones.",
@@ -1672,7 +1672,7 @@ export const translations: Record<Language, Translations> = {
     consentBulletWithdrawConsent: "آپ اپنی ترتیبات میں کسی بھی وقت رضامندی واپس لے سکتے ہیں۔",
     consentBulletNotForEmergencies: "یہ پروٹوٹائپ ہنگامی حالات کے لیے نہیں ہے۔",
     routedToReviewHeadline: "طبی معالج کے جائزے کے لیے بھیج دیا گیا",
-    routedToReviewExplanation: "طبی معالج اسے اپنی جائزہ قطار میں دیکھیں گے۔ ایپ کا یہ ورژن اطلاعات نہیں بھیجتا ہے۔",
+    routedToReviewExplanation: "طبی معالج اسے اپنی جائزہ قطار میں دیکھیں گے۔",
     confidenceLowChip: "اعتماد: کم (کوئی ریڈنگ موجود نہیں تھی)",
     medicationsNoneRecorded: "ادویات: ابھی تک کوئی درج نہیں ہیں",
     noCheckinsYet: "ابھی تک کوئی چیک ان نہیں ہوا",
@@ -1920,5 +1920,36 @@ export const translations: Record<Language, Translations> = {
     soapCopied: "کاپی ہو گیا!",
     soapPrintNote: "نوٹ پرنٹ کریں",
     soapLoading: "طبی خلاصہ تیار ہو رہا ہے...",
-  }
+};
+
+const romanUrTranslations: Translations = {
+  ...enTranslations,
+  continue: "Aagay barhein",
+  back: "Wapas",
+  submit: "Jama karein",
+  saving: "Mehfooz ho raha hai...",
+  loading: "Loading...",
+  yes: "Haan",
+  no: "Nahi",
+  preferNotToAnswer: "Jawab nahi dena chahte",
+  skip: "Chhor dein",
+  close: "Band karein",
+  settings: "Settings",
+  patientPortal: "Mareez Portal",
+  providerPortal: "Doctor Portal",
+  adminPortal: "Admin Portal",
+  logoutBtn: "Sign Out",
+  checkInEntryTitle: "Rozana Check-in",
+  startCheckInBtn: "Check-in Shuru Karein",
+  reminderTitle: "Aapke rozana check-in ka waqt hai",
+  homeGreeting: "Khush Aamdeed",
+  routedToReviewTitle: "Doctor ke Jaize ke Liye Bheja Gaya",
+  routedToReviewHeadline: "Doctor ke Jaize ke Liye Bheja Gaya",
+  routedToReviewExplanation: "Doctor ise apni jaiza qataar mein dekhein ge.",
+};
+
+export const translations: Record<Language, Translations> = {
+  en: enTranslations,
+  ur: urTranslations,
+  roman_ur: romanUrTranslations,
 };

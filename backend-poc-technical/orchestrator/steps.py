@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import logging
 import os
+import uuid
 from typing import Dict, Any, Optional, Tuple, List
 from fastapi import HTTPException, status
 from pydantic import BaseModel
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 from data_sources.app_store import (
+    get_checkin_by_id,
     get_checkin_result,
     create_checkin_result,
     update_checkin_state,
@@ -579,11 +581,14 @@ def step_persist_local_observations(
     """
     Step 7: Local Store Write (isolated mode).
     Saves check-in observations tagged self_reported into local SQLite store.
+    Uses unique record IDs to prevent collisions between readings in the same minute.
     """
     if mode == "isolated":
         for obs in checkin_bundle.get("observations", []):
+            base_id = getattr(obs, "source_record_id", None) or f"obs-{getattr(obs, 'observation_type', 'val')}"
+            unique_id = f"{base_id}-{uuid.uuid4().hex[:8]}"
             add_local_observation(
-                id=obs.source_record_id,
+                id=unique_id,
                 patient_id=record_patient_id,
                 observation_type=obs.observation_type,
                 value=obs.value,
@@ -1080,24 +1085,42 @@ def step_explain(
         if store is not None:
             retriever = get_or_build_retriever(store)
             if retriever is not None:
-                exclude_prefixes = (
+                exclude_prefixes = list(
                     ()
                     if is_patient_diabetic(patient_conditions=patient_conditions, condition=active_cond)
                     else DIABETES_ONLY_SOURCE_PREFIXES
                 )
+                # Q9: Exclude women-specific guidelines for male patients
+                p_sex = ""
+                pid = getattr(state, "patient_id", None) or getattr(state, "user_id", None)
+                if pid:
+                    clean_pid = str(pid).removeprefix("local-")
+                    try:
+                        from data_sources.app_store import get_patient_profile
+                        prof = get_patient_profile(clean_pid)
+                        if prof:
+                            p_sex = prof.get("gender") or prof.get("sex") or prof.get("sex_at_birth") or ""
+                    except Exception:
+                        pass
+                if str(p_sex).lower() in ("male", "m"):
+                    exclude_prefixes.extend(["pk_htn_women", "women_"])
+
+                # Exclude pregnancy-specific guidelines for all patients (pregnancy excluded by inclusion)
+                exclude_prefixes.extend(["pregnancy", "preeclampsia", "gestational"])
+
                 candidate_chunks = retriever.retrieve(
                     query=query_mapping.query_text,
                     top_k=3,
                     condition=query_mapping.condition,
                     min_priority=query_mapping.min_priority,
-                    exclude_source_prefixes=exclude_prefixes,
+                    exclude_source_prefixes=tuple(exclude_prefixes),
                 )
                 if len(candidate_chunks) < 2:
                     candidate_chunks = retriever.retrieve(
                         query=query_mapping.query_text,
                         top_k=3,
                         min_priority=query_mapping.min_priority,
-                        exclude_source_prefixes=exclude_prefixes,
+                        exclude_source_prefixes=tuple(exclude_prefixes),
                     )
 
         # F6: For a patient without diabetes, drop any diabetes-only guideline chunks before LLM call and from sources
@@ -1109,6 +1132,35 @@ def step_explain(
                     for p in DIABETES_ONLY_SOURCE_PREFIXES
                 )
             ]
+
+        # Q9: Guarantee male patient chunks do not contain women-specific sources
+        if str(p_sex).lower() in ("male", "m"):
+            candidate_chunks = [
+                c for c in candidate_chunks
+                if not any(
+                    str(c.get("source_id") or c.get("id") or c.get("chunk_id") or "").lower().startswith(p)
+                    for p in ("pk_htn_women", "women_")
+                )
+            ]
+
+        # Q9: Guarantee no pregnancy chunks for any patient
+        candidate_chunks = [
+            c for c in candidate_chunks
+            if not any(
+                p in str(c.get("source_id") or c.get("id") or c.get("chunk_id") or c.get("title") or "").lower()
+                for p in ("pregnancy", "preeclampsia", "gestational")
+            )
+        ]
+
+        # Deduplicate candidate chunks by source title and section path
+        deduped_chunks = []
+        seen_keys = set()
+        for c in candidate_chunks:
+            k = f"{c.get('source_id')}-{c.get('section_path')}-{c.get('title')}"
+            if k not in seen_keys:
+                seen_keys.add(k)
+                deduped_chunks.append(c)
+        candidate_chunks = deduped_chunks
 
         # B: When check-in has no readings: use routine_no_readings template and make NO LLM call
         if trigger_category == "routine_no_readings":
@@ -1330,7 +1382,29 @@ def step_persist_and_respond(
             p_conds = state.patient_profile.get("conditions")
         if not p_conds and hasattr(state, "patient_conditions"):
             p_conds = state.patient_conditions
-        p_id = getattr(state, "patient_id", None) or getattr(state, "user_id", None) or "anonymous"
+
+        # Resolve clean app user_id for appointments (strip local- prefix if isolated, or fetch from checkin)
+        chk = get_checkin_by_id(checkin_id)
+        app_uid = chk.get("user_id") if chk else None
+        if not app_uid:
+            app_uid = getattr(state, "user_id", None)
+        if not app_uid and job_params:
+            app_uid = job_params.get("user_id")
+        if not app_uid:
+            raw_p = getattr(state, "patient_id", None) or "anonymous"
+            app_uid = raw_p[6:] if str(raw_p).startswith("local-") else raw_p
+
+        p_id = app_uid
+
+        if not p_conds and p_id:
+            try:
+                from data_sources.app_store import get_patient_profile
+                prof = get_patient_profile(p_id)
+                if prof:
+                    p_conds = prof.get("conditions")
+            except Exception:
+                pass
+
         appt_record = evaluate_and_create_appointment(
             checkin_id=checkin_id,
             patient_id=p_id,

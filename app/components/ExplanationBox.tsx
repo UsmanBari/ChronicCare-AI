@@ -197,7 +197,19 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
   };
 
   const sentences = explanation.sentences || [];
-  const sources = explanation.sources || [];
+  const rawSources = explanation.sources || [];
+  const sources = (() => {
+    const seen = new Set<string>();
+    const out: typeof rawSources = [];
+    for (const src of rawSources) {
+      const key = (src.full_citation || `${src.title || ""}-${src.section_path || ""}-${src.edition || ""}`).trim();
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(src);
+      }
+    }
+    return out;
+  })();
 
   return (
     <div

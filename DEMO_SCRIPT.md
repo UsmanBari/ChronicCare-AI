@@ -183,13 +183,14 @@ flowchart LR
 ## 3. Unmerged Features & Future Roadmap (Honest Status)
 
 The following features were developed in dedicated feature branches and are scheduled for post-evaluation integration:
-1. **Saad's Diabetes Control Model (PR #142 / PR F)**:
-   - Evaluates glycemic control risk specifically for diagnosed diabetic patients using NHANES Glycohemoglobin.
-   - Stacked PR `feat/i4-wire-dm-control` wires this into the provider risk panel upon PR F merge.
-2. **Hybrid BM25 + BGE Dense Retrieval (PR G / #146)**:
+1. **Saad's Diabetes Control Model (PR #142 / PR F — NOT SHIPPED)**:
+   - Trained and evaluated against pre-registered gates G1–G5 on NHANES Glycohemoglobin data.
+   - Pre-registered evaluation results: G1 AUROC 0.7167 PASS, G2 calibration slope 1.439 FAIL (> 1.20), G3 sensitivity 77.48% PASS, G4 worst subgroup 53.77% on non-insulin FAIL (< 65%), G5 Brier 0.1812 PASS.
+   - Per pre-registered protocol, the model was **NOT SHIPPED** to production/demo; no model weights were exported. Documented in `docs/ml/experiments/diabetes_control_nhanes.md`, LA-27, and `docs/PROMISE_TRACKER.md`.
+2. **Hybrid BM25 + BGE Dense Retrieval (PR #148)**:
    - Self-hosted BGE embeddings and ChromaDB vector store tested locally for evaluation.
-   - Week 2 retained BM25 on cloud production due to Render free-tier 512 MB RAM limit.
-3. **Single-LLM Baseline Benchmark Suite (PR #144 / PR J)**:
+   - Retained BM25 on cloud production due to Render free-tier 512 MB RAM limit.
+3. **Single-LLM Baseline Benchmark Suite (PR #144)**:
    - Benchmark across 52 clinical scenarios comparing Full Pipeline against raw Single-LLM baseline (`qwen/qwen3.8-27b`).
    - Results: Full Pipeline achieves 100% emergency recall (0 missed emergencies) vs Single-LLM 11.1% recall (8 missed emergencies).
 

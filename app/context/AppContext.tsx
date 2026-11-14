@@ -470,7 +470,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     try {
       const prof = await api.getProfile();
       setLiveProfile(prof);
-      if (prof.language && (prof.language === "en" || prof.language === "ur")) {
+      if (prof.language && (prof.language === "en" || prof.language === "ur" || prof.language === "roman_ur")) {
         setLanguage(prof.language as Language);
       }
     } catch {
@@ -478,7 +478,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      const conn = await api.getEHRConnection();
+      const conn = await api.getEHRConnection(true);
       setLiveEhrConnection(conn);
       if (conn.mode === "fhir" || conn.mode === "isolated") {
         setConnectionMode(conn.mode === "fhir" ? "fhir" : "offline");
@@ -516,7 +516,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           setUserRole(role);
 
           // Role gating against the active portal:
-          if (portal === "patient") {
+          let targetPortal = portal;
+          if (targetPortal === "landing" && role) {
+            targetPortal = role === "admin" ? "admin" : role === "provider" ? "provider" : "patient";
+            setPortalState(targetPortal);
+          }
+
+          if (targetPortal === "patient") {
             if (role !== "patient") {
               await signOut(auth);
               setUserRole(null);
@@ -528,6 +534,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             try {
               const prof = await api.getProfile();
               setLiveProfile(prof);
+              if (prof.language && (prof.language === "en" || prof.language === "ur" || prof.language === "roman_ur")) {
+                setLanguage(prof.language as Language);
+              }
               setProfile((prev) => ({
                 ...prev,
                 conditions: prof.conditions || [],
@@ -538,7 +547,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               }));
               let conn: EHRConnectionResponse | null = null;
               try {
-                conn = await api.getEHRConnection();
+                conn = await api.getEHRConnection(true);
                 setLiveEhrConnection(conn);
               } catch {}
               const nextScreen = computeNextPatientScreen(prof, conn);
@@ -546,7 +555,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             } catch {
               setScreenState("consent");
             }
-          } else if (portal === "provider") {
+          } else if (targetPortal === "provider") {
             if (role !== "provider" && role !== "admin") {
               await signOut(auth);
               setUserRole(null);
@@ -556,7 +565,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             const name = session?.display_name || user.displayName || null;
             setProviderIdentifier(email);
             setProviderDisplayName(name);
-          } else if (portal === "admin") {
+          } else if (targetPortal === "admin") {
             if (role !== "admin") {
               await signOut(auth);
               setUserRole(null);

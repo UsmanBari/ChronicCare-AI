@@ -8,7 +8,7 @@ import { api, ApiError } from "../lib/api";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
 
 export const LoginScreen = () => {
-  const { setScreen, setUserIdentifier, setUserRole, setLiveProfile, setProfile, sessionNotice, setSessionNotice, t, isUrdu } = useApp();
+  const { setScreen, setUserIdentifier, setUserRole, setLiveProfile, setProfile, sessionNotice, setSessionNotice, t, isUrdu, isLiveMode } = useApp();
   const [isSignUp, setIsSignUp] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -360,9 +360,11 @@ export const LoginScreen = () => {
         </div>
 
         {/* Note */}
-        <div className="pt-1 text-center text-xs text-slate-400">
-          {t.loginHelpText}
-        </div>
+        {!isLiveMode && (
+          <div className="pt-1 text-center text-xs text-slate-400">
+            {t.loginHelpText}
+          </div>
+        )}
       </form>
     </div>
   );

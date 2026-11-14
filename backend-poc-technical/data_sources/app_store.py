@@ -3043,19 +3043,45 @@ def list_patient_appointments(
     mysql_url: Optional[str] = None,
     ssl_ca: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Lists appointments for a specific patient, newest first."""
+    """Lists appointments for a specific patient, newest first. Matches candidate IDs and user check-ins."""
+    clean_id = patient_id.removeprefix("local-") if isinstance(patient_id, str) and patient_id.startswith("local-") else patient_id
+    local_id = f"local-{clean_id}"
+
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        candidate_ids = {patient_id, clean_id, local_id}
+        try:
+            cursor.execute(
+                f"SELECT external_patient_id FROM ehr_connections WHERE user_id = {ph} AND status = 'active'",
+                (clean_id,)
+            )
+            row = cursor.fetchone()
+            if row and row["external_patient_id"]:
+                candidate_ids.add(row["external_patient_id"])
+        except Exception:
+            pass
+
+        cands = list(candidate_ids)
+        c_placeholders = ", ".join([ph] * len(cands))
         cursor.execute(
             f"""
             SELECT id, patient_id, checkin_id, provider_id, specialty, urgency, mode, status,
                    slot_date, created_at, acknowledged_at, admin_flagged_at
-            FROM appointments WHERE patient_id = {ph}
+            FROM appointments
+            WHERE patient_id IN ({c_placeholders})
+               OR checkin_id IN (SELECT checkin_id FROM checkins WHERE user_id IN ({c_placeholders}))
             ORDER BY created_at DESC
             """,
-            (patient_id,),
+            tuple(cands) + tuple(cands),
         )
         rows = cursor.fetchall() or []
-        return [dict(r) for r in rows]
+        seen = set()
+        deduped = []
+        for r in rows:
+            d = dict(r)
+            if d["id"] not in seen:
+                seen.add(d["id"])
+                deduped.append(d)
+        return deduped
 
 
 def list_provider_appointments(

@@ -134,17 +134,19 @@ export const AppointmentSchedulingScreen = () => {
           >
             {isUrdu ? "ملاقاتوں کی فہرست" : "Appointments Queue"} ({liveAppointments.length})
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("manual")}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              activeTab === "manual"
-                ? "bg-teal-600 text-white shadow-xs"
-                : "bg-navy-700 text-slate-300 hover:text-white"
-            }`}
-          >
-            {isUrdu ? "مینوئل بکنگ" : "Schedule Follow-up"}
-          </button>
+          {!isLiveMode && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("manual")}
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                activeTab === "manual"
+                  ? "bg-teal-600 text-white shadow-xs"
+                  : "bg-navy-700 text-slate-300 hover:text-white"
+              }`}
+            >
+              {isUrdu ? "مینوئل بکنگ" : "Schedule Follow-up"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -202,7 +204,7 @@ export const AppointmentSchedulingScreen = () => {
                             {apt.urgency === "urgent" ? t.urgencyUrgent : t.urgencyRoutine}
                           </span>
                           <span className="text-xs font-bold text-navy-800">
-                            Patient: {apt.patient_id}
+                            Patient: {(apt as any).patient_label || (apt as any).patient_name || apt.patient_id}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5">

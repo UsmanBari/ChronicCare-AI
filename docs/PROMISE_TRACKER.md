@@ -12,7 +12,7 @@
 | Promise | Proposal Section | Built Where (File) | Local Check ID | Status Today | Owner | Target Date |
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
 | Multi-agent, dual-mode reconciliation pipeline with clinically structured adaptive interview | Objective 1 | `backend-poc-technical/agents/reconciliation_agent.py` | LA-02, LA-09 | **PASS** | Usman | Done (PR #80, #135) |
-| Two explainable risk classifiers (diabetes full NHANES, hypertension/heart) with SHAP | Objective 2 | `backend-poc-technical/agents/risk_agent.py` | LA-13, LA-24, LA-27 | **PASS** (NHANES & Framingham CHD10 merged; Diabetes Control in PR #142 draft) | Usman / Saad | 13 Nov 2026 |
+| Two explainable risk classifiers (diabetes full NHANES, hypertension/heart) with SHAP | Objective 2 | `backend-poc-technical/agents/risk_agent.py` | LA-13, LA-24, LA-27 | **PASS** (NHANES & Framingham CHD10 merged; Diabetes Control: Trained and evaluated; not shipped (G2 calibration, G4 subgroup sensitivity)) | Usman / Saad | 13 Nov 2026 |
 | Verification step checking outputs against explicit ground truth | Objective 3 | `backend-poc-technical/agents/verification_agent.py` | LA-09, LA-12 | **PASS** | Usman | Done (PR #80, #128) |
 | Plain-language explanations in English and Urdu with guideline citations | Objective 4 | `backend-poc-technical/rag/explain_jobs.py` | LA-10, LA-11, LA-12 | **PASS** | Usman | Done (PR #128) |
 | Multi-tier validation: scenarios, mutation proofs, single-LLM baseline | Objective 5 | `scripts/verify_mutations.py` & `scripts/eval/single_llm_baseline.py` | LA-18, LA-31 | **PASS** | Usman | Done (PR #144) |
