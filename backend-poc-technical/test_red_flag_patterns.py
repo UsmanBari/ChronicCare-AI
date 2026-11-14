@@ -499,7 +499,7 @@ def test_mutation_killed_window_tolerance():
     """
     phrase = "crushing pressure in chest"
     norm = normalize_text(phrase)
-    # Under current MAX_WINDOW_WORDS (6), distance is 2 words -> matches
+    # Under current MAX_WINDOW_WORDS (8), distance is 2 words -> matches
     hit, cat = match_red_flags(phrase)
     assert hit is True and cat == "chest_pain", "Base phrase must match chest_pain"
 
@@ -510,7 +510,7 @@ def test_mutation_killed_window_tolerance():
     distance = abs(body_idx - symptom_idx)
     # The mutant asserts distance <= 1, which fails for distance 2
     assert distance > 1, "Proves window tolerance mutant is strictly killed"
-    assert MAX_WINDOW_WORDS >= 6, "MAX_WINDOW_WORDS must be >= 6"
+    assert MAX_WINDOW_WORDS >= 8, "MAX_WINDOW_WORDS must be >= 8"
 
 
 def test_mutation_killed_negation_guard():
@@ -522,6 +522,173 @@ def test_mutation_killed_negation_guard():
     assert is_symptom_negated(normalize_text(negated_phrase)) is True, "Negation guard must return True"
     hit, _ = match_red_flags(negated_phrase)
     assert hit is False, "Negated symptom must never trigger emergency"
+
+
+def test_mutation_killed_fainting_recovery_scoped(rsa_key_pair, setup_test_environment):
+    """
+    Kills M-RF-3 (fainting recovery applied to all categories mutant):
+    When the mutant replaces 'if reason in ("loss_of_consciousness", "fainting"):'
+    with 'if True:', chest pain accompanied by recovered dizziness/faint is wrongly
+    cleared to routine/non-emergency.
+    """
+    headers, cid = _setup_patient_checkin(rsa_key_pair, "pat-m-rf-3", "both")
+    # Patient reports severe chest pain along with recovered faint/dizziness
+    answer_text = "seene mein shadeed dard hai, chakkar kha kar gir gaya tha lekin ab theek hoon"
+    resp = client.post(
+        f"/api/checkins/{cid}/answer",
+        headers=headers,
+        json={"answer": answer_text},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["emergency"] is True, "Chest pain must remain emergency even if fainting recovered"
+    assert "1122" in (data.get("safety_note") or "")
+
+
+# =============================================================================
+# 6. P0 & Coverage Gaps G1 - G7 Regression Suites
+# =============================================================================
+
+@pytest.mark.parametrize("text,expected_category", [
+    # chest_pain + recovered faint
+    ("Crushing chest pain, I fainted earlier but I feel fine now", "chest_pain"),
+    ("seene mein shadeed dard hai, thoda behosh ho gaya tha lekin ab theek hoon", "chest_pain"),
+    ("سینے میں شدید درد ہے، پہلے بے ہوش ہو گیا تھا لیکن اب بالکل ٹھیک ہوں", "chest_pain"),
+    # breathing + recovered faint
+    ("Cannot catch my breath, passed out for a minute but completely fine now", "breathing"),
+    ("saans bilkul nahi aa rahi, chakkar kha kar gir gaya tha par ab theek hoon", "breathing"),
+    ("سانس بالکل نہیں آ رہی، چکر آ کر گر گیا تھا لیکن اب ٹھیک ہوں", "breathing"),
+    # confusion_and_stroke + recovered faint
+    ("Face is drooping and slurred speech, fainted earlier but feeling okay now", "confusion_and_stroke"),
+    ("chehra aik taraf latak gaya aur zaban ladkhada rahi hai, gir gaya tha lekin ab theek hoon", "confusion_and_stroke"),
+    ("چہرہ ایک طرف لٹک گیا اور بول نہیں پا رہا، بے ہوش ہو گیا تھا لیکن اب ٹھیک ہوں", "confusion_and_stroke"),
+    # dka_vomiting_high_glucose + recovered faint
+    ("Cannot keep any fluids down even water, passed out earlier but fine now", "dka_vomiting_high_glucose"),
+    ("pani bhi andar nahi ruk raha aur ulti ruk nahi rahi, chakkar aya tha lekin ab theek hoon", "dka_vomiting_high_glucose"),
+    ("پانی بھی اندر نہیں رک رہا اور الٹی رک نہیں رہی، بے ہوش ہوا تھا مگر اب ٹھیک ہوں", "dka_vomiting_high_glucose"),
+])
+def test_p0_unrelated_emergency_with_recovered_faint(text: str, expected_category: str):
+    """P0-2: Recovery from fainting must NEVER suppress unrelated emergency categories."""
+    hit, category = match_red_flags(text)
+    assert hit is True, f"Expected emergency hit for: {text}"
+    assert category == expected_category, f"Expected {expected_category}, got {category} for: {text}"
+
+
+@pytest.mark.parametrize("text", [
+    "I fainted earlier today but I am completely fine now",
+    "chakkar kha kar gir gaya tha lekin ab bilkul theek hoon",
+    "چکر کھا کر گر گیا تھا لیکن اب بالکل ٹھیک ہوں",
+])
+def test_pure_recovered_syncope_stays_off_red(text: str):
+    """Fainting with explicit recovery is not a Stage-1 emergency (routes to review)."""
+    hit, _ = match_red_flags(text)
+    assert hit is False, f"Pure recovered fainting must not trigger Red: {text}"
+
+
+@pytest.mark.parametrize("text,expected_category", [
+    # G1: Roman Urdu chest with time/intensity words and diaphoresis
+    ("mere seene mein kal raat se bohat zyada dard hai", "chest_pain"),
+    ("chhati mein subah se kaafi shadeed dard ho raha hai", "chest_pain"),
+    ("seenay mein kal shaam se itna sakht dard hai bardasht nahi hota", "chest_pain"),
+    ("seene mein achanak dabao utha hai aur paseena chhoot raha hai", "chest_pain"),
+    ("chhati me bohot zyada jakran aur paseena aa raha hai", "chest_pain"),
+    ("kal raat se dil mein shadeed dard aur paseena hai", "chest_pain"),
+
+    # G2: Chest heaviness comparisons / metaphors
+    ("Feels like something heavy is sitting on my chest and squeezing", "chest_pain"),
+    ("Like a ton of bricks sitting on my chest right now", "chest_pain"),
+    ("aisa lag raha hai jaise koi bhaari cheez mere seene par rakh di ho", "chest_pain"),
+    ("seene mein shadeed dabao hai jaise koi haathi baitha ho", "chest_pain"),
+    ("aisa mehsoos hota hai jaise koi seene ko dono haathon se daba raha ho", "chest_pain"),
+    ("سینے پر شدید دباؤ ہے جیسے کوئی بھاری چیز رکھ دی ہو", "chest_pain"),
+    ("ایسا محسوس ہو رہا ہے جیسے کوئی سینہ دبا رہا ہو اور سانس گھٹ رہی ہو", "chest_pain"),
+    ("چھاتی پر جیسے ہاتھی بیٹھا ہو اتنا شدید بوجھ ہے", "chest_pain"),
+
+    # G3: Negation scope (contrastive presentation)
+    ("seene mein jalan nahi hai, asal mein bohat tez dard hai", "chest_pain"),
+    ("halka dard nahi, seene par shadeed dabao aur bojh hai", "chest_pain"),
+    ("gas nahi hai, chhati mein shadeed jakran mehsoos ho rahi hai", "chest_pain"),
+    ("It is not indigestion, I have crushing chest pressure", "chest_pain"),
+    ("Not mild discomfort, but severe sharp pain in my chest", "chest_pain"),
+    ("سینے میں جلن نہیں، اصل میں بہت تیز درد ہے", "chest_pain"),
+    ("گیس نہیں ہے، چھاتی پر شدید دباؤ اور کھچاؤ ہے", "chest_pain"),
+
+    # G4: Breathing inability & rest dyspnea
+    ("I can barely breathe even while sitting in bed", "breathing"),
+    ("Hardly able to breathe and gasping for every breath", "breathing"),
+    ("Severe shortness of breath even at complete rest", "breathing"),
+    ("Unable to get any air while lying flat on my back", "breathing"),
+    ("bina chale baithe hue bhi saans phool rahi hai aur dum ghut raha hai", "breathing"),
+    ("lete hue saans ruk rahi hai aur bilkul saans nahi li ja rahi", "breathing"),
+    ("aaram se baitha hoon phir bhi saans lena nihayat mushkil hai", "breathing"),
+    ("آرام سے بیٹھے ہوئے بھی سانس پھول رہی ہے اور دم گھٹ رہا ہے", "breathing"),
+    ("لیٹے ہوئے سانس رکتی ہے اور سانس لینا نہایت دشوار ہو گیا ہے", "breathing"),
+    ("بغیر کچھ کیے بھی سانس بالکل نہیں آ رہی", "breathing"),
+
+    # G5: FAST stroke (plural/respect, facial droop, speech, unilateral)
+    ("ammi ka chehra achanak aik taraf jhuk gaya hai", "confusion_and_stroke"),
+    ("munh achanak aik taraf terha ho gaya aur bol nahi pa rahin", "confusion_and_stroke"),
+    ("abbu bol nahi pa rahe hain aur ajeeb awaz nikal rahi hai", "confusion_and_stroke"),
+    ("aik taraf ka jism achanak kaam nahi kar raha aur bazu gir gaya", "confusion_and_stroke"),
+    ("Mouth suddenly became crooked and words are completely jumbled", "confusion_and_stroke"),
+    ("Left arm won't lift and speech is slurred", "confusion_and_stroke"),
+    ("والدہ کا منہ اچانک ایک طرف ٹیڑھا ہو گیا ہے اور بول نہیں پا رہیں", "confusion_and_stroke"),
+    ("ایک طرف کا جسم اچانک کام نہیں کر رہا اور ہاتھ اٹھ نہیں رہا", "confusion_and_stroke"),
+    ("آواز عجیب ہو گئی ہے اور الفاظ گڈمڈ ہو رہے ہیں", "confusion_and_stroke"),
+
+    # G6: Fluids in Roman Urdu & Urdu script
+    ("paani bhi andar nahi tik raha jo peeta hoon nikal jata hai", "dka_vomiting_high_glucose"),
+    ("ek ghoont bhi wapas aa jata hai aur ultiyan ruk nahi rahin", "dka_vomiting_high_glucose"),
+    ("jo bhi peeta hoon foran nikal jata hai kuch pet mein nahi rukta", "dka_vomiting_high_glucose"),
+    ("Even a single sip of water comes right back up continuously", "dka_vomiting_high_glucose"),
+    ("Throwing up nonstop and cannot keep fluids down", "dka_vomiting_high_glucose"),
+    ("پانی بھی اندر نہیں رکتا جو بھی پیتا ہوں فوراً نکل جاتا ہے", "dka_vomiting_high_glucose"),
+    ("ایک گھونٹ بھی واپس آ جاتا ہے اور الٹیاں مسلسل ہو رہی ہیں", "dka_vomiting_high_glucose"),
+    ("پانی بھی اندر نہیں ٹک رہا اور کچھ بھی ہضم نہیں ہو رہا", "dka_vomiting_high_glucose"),
+
+    # G7: Category label verification (limb inability + speech -> stroke, NOT syncope)
+    ("awaz ajeeb ho gayi hai aur haath uth nahi raha", "confusion_and_stroke"),
+    ("ajeeb awaaz nikal rahi hai aur bazu hil nahi raha", "confusion_and_stroke"),
+    ("عجیب آواز ہے اور ہاتھ اٹھ نہیں رہا", "confusion_and_stroke"),
+    ("Strange voice and cannot lift my right arm", "confusion_and_stroke"),
+])
+def test_coverage_gaps_positives(text: str, expected_category: str):
+    """Verifies all coverage gap positives across G1 - G7."""
+    hit, category = match_red_flags(text)
+    assert hit is True, f"Coverage positive missed: {text}"
+    assert category == expected_category, f"Expected category {expected_category}, got {category} for: {text}"
+
+
+@pytest.mark.parametrize("text", [
+    # G1 negative guards
+    "kal raat se seene mein jalan hai jo doodh peene se theek ho gayi",
+    "subah se halki gas hai chhati mein dard bilkul nahi hai",
+    "garmi ki wajah se paseena aa raha hai koi takleef nahi hai",
+    # G2 negative guards
+    "bhaari samaan uthaya tha kal is liye kamar mein dard hai",
+    "heavy backpack caused shoulder soreness",
+    "بھاری بستہ اٹھانے سے کندھے میں ہلکا درد ہے",
+    # G3 negative guards
+    "seene mein tez dard nahi hai sirf halki jalan hai",
+    "no crushing pressure or chest pain, just acid reflux",
+    "سینے میں تیز درد نہیں ہے صرف عام سی جلن ہے",
+    # G4 negative guards
+    "breathless only when jogging fast, better after resting on a chair",
+    "tez bhagne par saans phooli thi lekin aaram karne se bilkul theek ho gayi",
+    "سیڑھیاں چڑھنے پر سانس پھولتی ہے جو بیٹھنے سے آرام آ جاتا ہے",
+    # G5 negative guards
+    "gale mein kharash ki wajah se awaz baith gayi hai",
+    "feet numb and weak for years due to chronic neuropathy",
+    "گلے کی خرابی سے آواز بیٹھ گئی ہے مگر بولنے میں کوئی الجھن نہیں",
+    # G6 negative guards
+    "ek dafa ulti hui thi subah ab paani aaram se pee raha hoon",
+    "vomited once after bad food, now able to drink water normally",
+    "ایک دفعہ الٹی آئی تھی اب پانی اور چائے آرام سے پی رہا ہوں",
+])
+def test_coverage_gaps_negative_guards(text: str):
+    """Ensures clinical guards preserve specificity on negative edge cases."""
+    hit, category = match_red_flags(text)
+    assert hit is False, f"Negative guard breached: {text} falsely categorized as {category}"
 
 
 # =============================================================================

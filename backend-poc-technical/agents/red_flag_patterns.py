@@ -14,7 +14,7 @@ Covers five canonical emergency categories:
 Key architectural rules:
 - Negation-aware: Negation tokens ("no", "not", "nahi", "نہیں", "without", "never") negate
   ONLY symptom words ("no chest pain", "dard nahi hai"), NEVER inability phrases
-  ("saans nahi aa rahi", "pani nahi ruk raha").
+  ("saans nahi aa rahi", "pani nahi ruk raha"). Negation attaches locally to the adjacent word/clause.
 - Remote past suppression: "5 years ago", "bachpan mein" do not hit unless a
   current-tense marker ("now", "aaj", "abhi") is also present.
 - Exertion / rest suppression: Exertion coupled with rest relief ("breathless when walking fast,
@@ -23,7 +23,9 @@ Key architectural rules:
 - Emotional "dil": "dil mein dard" without physical cardiac cues (or with emotional words like "yaad")
   does not hit.
 - Fainting rule: Fainting that recovered ("gir gaya phir theek ho gaya", "fainted but I'm fine now")
-  stays on the wordgroup/review path. Only fainting with no recovery or not waking is Red.
+  stays on the wordgroup/review path. Only fainting with active unresponsiveness or failure to wake is Red.
+  Crucially, recovery from fainting is strictly scoped to loss_of_consciousness and NEVER cancels
+  unrelated emergency symptoms (e.g., chest pain, breathing difficulty, stroke, fluid intolerance).
 - No-throw guarantee: All matching is wrapped in a safe handler returning (False, None) on any error.
 """
 
@@ -33,7 +35,7 @@ from typing import Optional, Tuple, List
 
 
 # Module configuration for window tolerance (architectural invariant verified by mutation M-RF-1)
-MAX_WINDOW_WORDS: int = 6
+MAX_WINDOW_WORDS: int = 8
 
 
 # =============================================================================
@@ -66,10 +68,15 @@ _ROMAN_URDU_SPELLINGS = [
     (r"\bbohat\b", "bohot"),
     (r"\bbahut\b", "bohot"),
     (r"\bbht\b", "bohot"),
+    (r"\bkaafi\b", "kafi"),
+    (r"\bziada\b", "zyada"),
     (r"\bseene\b", "seena"),
     (r"\bseenay\b", "seena"),
     (r"\bsene\b", "seena"),
     (r"\bsenay\b", "seena"),
+    (r"\bchhati\b", "chhati"),
+    (r"\bchati\b", "chhati"),
+    (r"\bchaati\b", "chhati"),
     (r"\bsaans\b", "sans"),
     (r"\bbaazu\b", "bazu"),
     (r"\bbazoo\b", "bazu"),
@@ -89,6 +96,18 @@ _ROMAN_URDU_SPELLINGS = [
     (r"\bjabrey\b", "jabra"),
     (r"\bzabaan\b", "zaban"),
     (r"\bzuban\b", "zaban"),
+    (r"\bawaaz\b", "awaz"),
+    (r"\btedha\b", "terha"),
+    (r"\btedhi\b", "terha"),
+    (r"\bterhi\b", "terha"),
+    (r"\bchehray\b", "chehra"),
+    (r"\bchehre\b", "chehra"),
+    (r"\bpasina\b", "paseena"),
+    (r"\bpaseene\b", "paseena"),
+    (r"\bpaseeney\b", "paseena"),
+    (r"\bghunt\b", "ghoont"),
+    (r"\bwapis\b", "wapas"),
+    (r"\bkaam\b", "kam"),
 ]
 
 
@@ -121,7 +140,7 @@ def normalize_text(text: str) -> str:
 
 
 # =============================================================================
-# Context Suppressions: Past, Exertion+Rest, Chronic, Emotional, Resolved
+# Context Suppressions: Past, Exertion+Rest, Chronic, Emotional
 # =============================================================================
 
 _PAST_PATTERNS = [
@@ -158,17 +177,7 @@ _CURRENT_PATTERNS = [
     r"\bآج\b",
     r"\bاس\s*وقت\b",
     r"\bدوبارہ\b",
-    r"\پھر\s*سے\b",
-]
-
-_RESOLVED_PATTERNS = [
-    r"\b(?:fine|better|okay|ok|normal)\s+now\b",
-    r"\bcompletely\s+fine\b",
-    r"\bfully\s+recovered\b",
-    r"\bab\s+(?:bilkul\s+)?(?:theek|behtar|achha)\b",
-    r"\btheek\s+(?:ho\s+gaya|hai|hoon|hun)\b",
-    r"\bاب\s*(?:بالکل\s*)?(?:ٹھیک|بہتر)\b",
-    r"\bٹھیک\s*(?:ہو\s*گیا|ہوں|ہے)\b",
+    r"\bپھر\s*سے\b",
 ]
 
 _EXERTION_PATTERNS = [
@@ -214,20 +223,14 @@ def _has_any(text: str, patterns: List[str]) -> bool:
 
 
 def _is_suppressed(norm: str) -> bool:
-    """Returns True if the entire text should be suppressed due to past/exertion context."""
-    # 1. Resolved / recovered expressions
-    if _has_any(norm, _RESOLVED_PATTERNS):
-        has_acute_current = _has_any(norm, [r"\blekin\s+abhi\b", r"\bbut\s+now\b", r"\babhi\s+dobara\b", r"\bلیکن\s*ابھی\b"])
-        if not has_acute_current:
-            return True
-
-    # 2. Remote past without acute current marker
+    """Returns True if the entire text should be suppressed due to remote past or exertion context."""
+    # 1. Remote past without acute current marker
     has_past = _has_any(norm, _PAST_PATTERNS)
     has_current = _has_any(norm, _CURRENT_PATTERNS)
     if has_past and not has_current:
         return True
 
-    # 3. Exertion with relief by rest
+    # 2. Exertion with relief by rest
     has_exertion = _has_any(norm, _EXERTION_PATTERNS)
     has_rest = _has_any(norm, _REST_RELIEF_PATTERNS)
     if has_exertion and has_rest:
@@ -240,7 +243,7 @@ def _is_suppressed(norm: str) -> bool:
 # Category 1: Chest Pain
 # =============================================================================
 
-_CHEST_BODY_TOKENS = {"chest", "seena", "chhati", "سینہ", "سینے", "چھاتی"}
+_CHEST_BODY_TOKENS = {"chest", "seena", "seenay", "seene", "chhati", "chati", "chaati", "سینہ", "سینے", "چھاتی"}
 _CHEST_SYMPTOM_TOKENS = {
     "pain", "pressure", "tightness", "heaviness", "crushing", "squeezing",
     "ache", "aching", "discomfort", "hurts", "heavy",
@@ -249,12 +252,28 @@ _CHEST_SYMPTOM_TOKENS = {
 }
 
 _CHEST_METAPHORS = [
-    r"\belephant\s+(?:sitting\s+)?on\s+(?:my\s+)?chest\b",
+    r"\belephant\s+(?:is\s+)?(?:sitting|standing)\s+on\s+(?:my\s+)?chest\b",
+    r"\b(?:like\s+)?(?:an\s+elephant|something\s+heavy|a\s+heavy\s+(?:rock|stone|weight|brick))\s+(?:is\s+)?(?:sitting|placed)\s+on\s+(?:my\s+)?chest\b",
+    r"\bfeels?\s+like\s+(?:an\s+elephant|something\s+heavy|a\s+heavy\s+weight)\s+on\s+(?:my\s+)?chest\b",
+    r"\b(?:heavy\s+weight|ton\s+of\s+bricks)\s+(?:(?:is\s+)?(?:sitting|lying|placed)\s+)?on\s+(?:my\s+)?chest\b",
+    r"\b(?:someone|something)\s+is\s+(?:squeezing|crushing|pressing\s+down\s+on)\s+(?:my\s+)?chest\b",
     r"\b(?:tight\s+)?band\s+tightening\s+around\s+(?:my\s+)?chest\b",
-    r"\bvise\s+around\s+(?:my\s+)?chest\b",
+    r"\b(?:vise|vice)\s+(?:around|gripping|crushing)\s+(?:my\s+)?chest\b",
     r"\bcrushing\s+(?:weight|pressure)\s+on\s+(?:my\s+)?chest\b",
     r"\bcrushing\s+pressure\b",
+    r"\b(?:j[ae]ise|jese)\s+(?:koi\s+)?bhari\s+cheez\s+(?:rakh[iy]\s+ho|rakh\s+di\s+ho)\b",
+    r"\b(?:j[ae]ise|jese)\s+(?:koi\s+)?(?:seena|chhati)?(?:\s+ko)?(?:\s+\w+){0,3}\s+daba\s+raha\s+(?:hai|ho)\b",
+    r"\b(?:aisa\s+lagta\s+hai\s+|aisa\s+mehsoos\s+hota\s+hai\s+)?(?:j[ae]ise|jese)\s+(?:koi\s+)?(?:\w+\s+){0,4}daba\s+raha\s+(?:hai|ho)\b",
+    r"\b(?:seena|chhati)\s+(?:\w+\s+){0,4}(?:daba|nichor|masal)\s+raha\s+(?:hai|ho)\b",
+    r"\b(?:seena|chhati)\s+(?:par|pe)\s+(?:j[ae]ise|jese)\s+(?:koi\s+)?(?:bhari\s+cheez|wazan|bojh|hathi)\b",
+    r"\b(?:seena|chhati)\s+(?:par|pe)\s+hathi\s+baitha\s+(?:hai|ho)\b",
+    r"\b(?:aisa\s+lagta\s+hai\s+)?(?:koi\s+)?(?:seena|chhati)\s+(?:ko\s+)?(?:daba|nichor|masal)\s+raha\s+hai\b",
     r"چھاتی\s*پر\s*ہاتھی\s*بیٹھا",
+    r"سینے\s*پر\s*ہاتھی\s*بیٹھا",
+    r"جیسے\s*(?:کوئی\s*)?بھاری\s*چیز\s*(?:رکھی\s*ہو|رکھ\s*دی\s*ہو)",
+    r"جیسے\s*(?:کوئی\s*)?(?:سینہ\s*)?دبا\s*رہا\s*ہو",
+    r"سینے\s*پر\s*(?:جیسے\s*)?(?:کوئی\s*)?(?:بھاری\s*چیز|وزن|بوجھ|ہاتھی)",
+    r"(?:چھاتی|سینے)\s*کو\s*کوئی\s*(?:نچوڑ|دبا)\s*رہا\s*ہو",
 ]
 
 _PHYSICAL_CARDIAC_CUES = [
@@ -268,12 +287,44 @@ _PHYSICAL_CARDIAC_CUES = [
     r"(?:بائیں\s*بازو|بائیں\s*جبڑا|پسینہ|دباؤ|بوجھ|جکڑن|جلن|کھچاؤ)",
 ]
 
+_CHEST_SPAN_PATTERNS = [
+    r"\b(?:seena|seenay|seene|chhati|chati|chaati|chest)\b.{0,65}\b(?:dard|dabao|bojh|jakran|bhaari|bhari|sakht|shadeed|tez|pain|pressure|tightness|heaviness|crushing|squeezing)\b",
+    r"\b(?:dard|dabao|bojh|jakran|bhaari|bhari|sakht|shadeed|tez|pain|pressure|tightness|heaviness|crushing|squeezing)\b.{0,65}\b(?:seena|seenay|seene|chhati|chati|chaati|chest)\b",
+    r"(?:سینہ|سینے|چھاتی).{0,65}(?:درد|دباؤ|بوجھ|جکڑن|بھاری|شدید|سخت|تیز)",
+    r"(?:درد|دباؤ|بوجھ|جکڑن|بھاری|شدید|سخت|تیز).{0,65}(?:سینہ|سینے|چھاتی)",
+]
+
+_SWEATING_CARDIAC_PATTERNS = [
+    r"\b(?:paseena|sweat|sweating|perspiration)\b.*?\b(?:seena|seenay|seene|chhati|chest|dil|bazu|jabra)\b",
+    r"\b(?:seena|seenay|seene|chhati|chest|dil|bazu|jabra)\b.*?\b(?:paseena|sweat|sweating|perspiration)\b",
+    r"پسینہ.*?(?:سینہ|سینے|چھاتی|دل|بازو|جبڑا)",
+    r"(?:سینہ|سینے|چھاتی|دل|بازو|جبڑا).*?پسینہ",
+]
+
 
 def _is_chest_symptom_negated(norm: str) -> bool:
-    """Detects negated chest pain expressions."""
+    """
+    Detects negated chest pain expressions.
+    Negation attaches locally to the adjacent word/clause.
+    If the patient affirms an acute chest symptom (e.g. 'jalan nahi, asal mein tez dard hai',
+    'dard nahi dabao hai'), it is NOT negated.
+    """
+    # 1. Check if un-negated acute chest symptoms are explicitly present
+    # e.g. "jalan nahi ... tez dard", "not heartburn ... crushing pain", "dard nahi ... dabao"
+    has_contrastive_acute = bool(re.search(
+        r"\b(?:jalan\s+nahi|not\s+(?:heartburn|acid(?:ity)?|gas|mild)|dard\s+nahi|no\s+pain)\b.*?\b(?:tez\s+dard|shadeed\s+dard|severe\s+pain|sharp\s+pain|crushing|dabao|bojh|jakran|pressure|tightness|heaviness)\b",
+        norm
+    ) or re.search(
+        r"(?:جلن\s*نہیں|گیس\s*نہیں|درد\s*نہیں).*?(?:تیز\s*درد|شدید\s*درد|دباؤ|بوجھ|جکڑن|کھچاؤ)",
+        norm
+    ))
+    if has_contrastive_acute:
+        return False
+
+    # 2. General negation patterns
     if re.search(r"\b(?:no|not|without|denies|denied|free\s+of)\s+(?:\w+\s+){0,3}(?:chest\s+pain|pain|pressure|tightness|heaviness|discomfort|hurts|ache)\b", norm):
         return True
-    if re.search(r"\b(?:dard|dabao|bojh|takleef)\s+(?:to\s+|bhi\s+|bilkul\s+|hai\s+)?nahi\b", norm):
+    if re.search(r"\b(?:dard|dabao|bojh|takleef)\s+(?:to\s+|bhi\s+|bilkul\s+|hai\s+|ho\s+)?nahi\b", norm):
         return True
     if re.search(r"\bkoi\s+(?:bhi\s+)?(?:dard|dabao|bojh|takleef)\s+(?:bhi\s+)?nahi\b", norm):
         return True
@@ -293,13 +344,18 @@ def is_symptom_negated(norm: str) -> bool:
 
 
 def _match_chest_pain(norm: str) -> bool:
-    # 1. Metaphors
-    if _has_any(norm, _CHEST_METAPHORS):
+    # 1. Contrastive un-negated pain presentation ("jalan nahi, asal mein tez dard hai")
+    if re.search(r"\b(?:jalan\s+nahi|not\s+(?:heartburn|acid(?:ity)?|gas))\b.*?\b(?:tez\s+dard|shadeed\s+dard|severe\s+pain|sharp\s+pain|crushing|dabao|bojh)\b", norm) or \
+       re.search(r"(?:جلن\s*نہیں|گیس\s*نہیں).*?(?:تیز\s*درد|شدید\s*درد|دباؤ|بوجھ)", norm):
         return True
 
-    # If symptom is explicitly negated, reject
+    # If symptom is explicitly negated, reject (architectural invariant for M-RF-2)
     if is_symptom_negated(norm):
         return False
+
+    # 2. Metaphors & heaviness comparisons
+    if _has_any(norm, _CHEST_METAPHORS):
+        return True
 
     # Chronic qualifiers (old injury, years)
     if _has_any(norm, _CHRONIC_PATTERNS):
@@ -309,10 +365,18 @@ def _match_chest_pain(norm: str) -> bool:
     if re.search(r"\b(?:when\s+i\s+press|press\s+on|touching|bruise|chot)\b", norm):
         return False
 
+    # 3. Sweating (paseena) with cardiac / chest involvement
+    if _has_any(norm, _SWEATING_CARDIAC_PATTERNS):
+        if re.search(r"\b(?:dard|dabao|bojh|jakran|khichao|pain|pressure|tightness|heaviness|درد|دباؤ|بوجھ|جکڑن)\b", norm):
+            return True
+
+    # 4. Regex span patterns for body + intermediate words + symptom (G1 coverage)
+    if _has_any(norm, _CHEST_SPAN_PATTERNS):
+        return True
+
+    # 5. Token distance window (MAX_WINDOW_WORDS)
     words = norm.split()
     n = len(words)
-
-    # Check for body + symptom within MAX_WINDOW_WORDS
     for i in range(n):
         w = words[i]
         if w in _CHEST_BODY_TOKENS:
@@ -325,7 +389,7 @@ def _match_chest_pain(norm: str) -> bool:
                 if sj in _CHEST_SYMPTOM_TOKENS:
                     return True
 
-    # 2. Cardiac radiation (left arm / left jaw pain)
+    # 6. Cardiac radiation (left arm / left jaw pain)
     if re.search(r"(?:left\s+arm|bayein\s+bazu|bayan\s+bazu|بائیں\s*بازو)", norm):
         if re.search(r"(?:pain|dard|numb|sunn|kamzor|heaviness|bojh|khichao|درد|سن|کھچاؤ)", norm):
             return True
@@ -334,7 +398,7 @@ def _match_chest_pain(norm: str) -> bool:
         if re.search(r"(?:pain|dard|pressure|dabao|khichao|درد|دباؤ|کھچاؤ)", norm):
             return True
 
-    # 3. "dil" (heart) only with physical cue and no emotional cue
+    # 7. "dil" (heart) only with physical cue and no emotional cue
     if re.search(r"(?:dil|دل)", norm):
         has_emotional = _has_any(norm, _EMOTIONAL_CUES)
         if not has_emotional:
@@ -356,8 +420,14 @@ _BREATHING_METAPHORS = [
 ]
 
 _BREATHING_INABILITY_PATTERNS = [
+    # Inability & gasping (English)
     r"\b(?:cant|cannot|unable\s+to)\s+breathe\b",
     r"\b(?:cant|cannot|unable\s+to)\s+catch\s+(?:my\s+)?breath\b",
+    r"\b(?:cant|cannot|unable\s+to)\s+get\s+(?:any\s+)?air\b",
+    r"\b(?:can\s+)?barely\s+(?:able\s+to\s+)?breathe\b",
+    r"\bhardly\s+(?:able\s+to\s+)?breathe\b",
+    r"\bcan\s+hardly\s+(?:catch\s+(?:my\s+)?breath|breathe|get\s+(?:any\s+)?air)\b",
+    r"\bhardly\s+(?:any\s+air|getting\s+air)\b",
     r"\bhard\s+to\s+breathe\b",
     r"\bdifficult\s+to\s+breathe\b",
     r"\bdifficulty\s+breathing\b",
@@ -367,7 +437,10 @@ _BREATHING_INABILITY_PATTERNS = [
     r"\bsuffocating\b",
     r"\bchoking\b",
     r"\bsevere\s+(?:breathlessness|shortness\s+of\s+breath)\b",
-    # Roman Urdu inability (tolerant of inserted tokens like bilkul, bhi, etc.)
+    # Rest dyspnea (English)
+    r"\b(?:short(?:ness)?\s+of\s+breath|breathless(?:ness)?|difficult(?:y)?\s+breathing|cant\s+breathe|hard\s+to\s+breathe)\s+(?:even\s+)?(?:at\s+rest|while\s+sitting(?:\s+still)?|while\s+lying(?:\s+down|\s+flat)?|when\s+lying|when\s+sitting)\b",
+    r"\b(?:even\s+)?(?:at\s+rest|while\s+sitting(?:\s+still)?|while\s+lying(?:\s+down|\s+flat)?|when\s+lying|when\s+sitting)\b.*?\b(?:cant\s+breathe|short(?:ness)?\s+of\s+breath|breathless|struggling\s+for\s+air)\b",
+    # Roman Urdu inability & rest dyspnea
     r"\bsans\s+(?:\w+\s+){0,3}nahi\s+aa\s+rah[iyea]\b",
     r"\bsans\s+nahi\s+aa\s+rah[iyea]\b",
     r"\b(?:dam|dum)\s+ghut\s+raha\b",
@@ -375,7 +448,11 @@ _BREATHING_INABILITY_PATTERNS = [
     r"\bsans\s+ukhad\s+rah[iyea]\b",
     r"\bsans\s+lena\s+(?:\w+\s+){0,3}(?:mushkil|dushwar|muhaal)\b",
     r"\bsans\s+lene\s+me\s+(?:\w+\s+){0,3}(?:dushwari|mushkil)\b",
-    # Urdu script inability
+    r"\b(?:baithe|bethay|bethi|lete|letay)\s+(?:hue\s+)?(?:bhi\s+)?(?:sans\s+phool|sans\s+ruk|sans\s+nahi|dam\s+ghut)\b",
+    r"\bbina\s+(?:chale|hille|harakat)\s+(?:bhi\s+)?(?:sans\s+nahi|sans\s+phool|dam\s+ghut)\b",
+    r"\baaram\s+(?:se\s+baithe|karte)\s+(?:hue\s+)?(?:bhi\s+)?(?:sans\s+nahi|sans\s+lena\s+mushkil)\b",
+    r"\bsans\s+lena\s+(?:bohot\s+|shadeed\s+|sakht\s+)?mushkil\s+ho\s+gaya\s+hai\b",
+    # Urdu script inability & rest dyspnea
     r"سانس\s*(?:\S+\s*){0,3}نہیں\s*آ\s*رہی",
     r"دم\s*گھٹ\s*رہا",
     r"سانس\s*(?:\S+\s*){0,2}رک\s*رہی",
@@ -383,6 +460,10 @@ _BREATHING_INABILITY_PATTERNS = [
     r"سانس\s*لینا\s*(?:ممکن\s*نہیں|محال)",
     r"سانس\s*اکھڑ\s*(?:رہی|چکی)",
     r"ہوا\s*نہیں\s*مل\s*رہی",
+    r"(?:بیٹھے|لیٹے)\s*(?:ہوئے\s*)?(?:بھی\s*)?(?:سانس\s*پھول|سانس\s*رک|سانس\s*نہیں|دم\s*گھٹ)",
+    r"بغیر\s*چلے\s*(?:بھی\s*)?سانس\s*(?:نہیں\s*آ\s*رہی|پھول)",
+    r"آرام\s*کی\s*حالت\s*میں\s*(?:بھی\s*)?سانس\s*(?:لینا\s*محال|نہیں\s*آ\s*رہی)",
+    r"سانس\s*لینا\s*بہت\s*مشکل\s*ہو\s*گیا\s*ہے",
 ]
 
 _BREATHING_NEGATIONS = [
@@ -420,44 +501,57 @@ def _match_breathing(norm: str) -> bool:
 # =============================================================================
 
 _STROKE_FAST_PATTERNS = [
-    # Slurred speech / speech inability
+    # Slurred speech / speech inability (FAST: Speech)
     r"\bslurred\s+speech\b",
     r"\bspeech\s+is\s+slurred\b",
     r"\bslurring\s+(?:my\s+)?words\b",
+    r"\bwords\s+(?:\w+\s+){0,3}jumbled\b",
+    r"\bjumbled\s+words\b",
     r"\b(?:lost\s+speech|lost\s+my\s+speech|unable\s+to\s+speak|cannot\s+speak|cant\s+speak)\b",
+    r"\b(?:ajeeb\s+awaz|awaz\s+ajeeb|strange\s+voice)\b",
     r"\bzaban\s+ladkhada\b",
     r"\bawaz\s+ladkhada\b",
-    r"\bbol\s+nahi\s+pa\s+rah[iy]\b",
-    r"\bbol\s+nahi\s+sak\s+rah[iy]\b",
+    r"\bbol\s+nahi\s+(?:pa|sak)\s+rah(?:a|i|in|e|y|ay|ey)\b",
+    r"\bbol\s+nahi\s+(?:pa|sak)\s+rahe\s+hain\b",
     r"\bbolti\s+band\b",
     r"زبان\s*لڑکھڑا",
     r"آواز\s*لڑکھڑا",
-    r"بول\s*نہیں\s*پا\s*رہ[یا]",
+    r"بول\s*نہیں\s*(?:پا|سک)\s*رہ(?:ا|ی|یں|ے)",
+    r"بول\s*نہیں\s*(?:پا|سک)\s*رہے\s*ہیں",
     r"بولنا\s*(?:ممکن\s*نہیں|بند)",
+    r"الفاظ\s*(?:گڈ\s*مڈ|سمجھ\s*نہیں\s*آ)",
+    r"عجیب\s*آواز",
+    r"آواز\s*عجیب",
 
-    # Facial droop / asymmetry
+    # Facial droop / asymmetry (FAST: Face)
     r"\b(?:face|mouth|eye)\s+(?:is\s+)?drooping\b",
     r"\bdrooping\s+(?:face|mouth|eye)\b",
-    r"\bchehra\s+(?:aik\s+taraf\s+)?(?:latak|tedha|terha)\b",
-    r"\bmunh\s+(?:aik\s+taraf\s+)?(?:tedha|terha)\b",
-    r"چہرہ\s*(?:ایک\s*طرف\s*(?:کو\s*)?)?لٹک",
-    r"منہ\s*(?:ایک\s*طرف\s*(?:کو\s*)?)?ٹیڑھا",
+    r"\bcrooked\s+(?:mouth|face|smile)\b",
+    r"\bmouth\s+(?:\w+\s+){0,3}crooked\b",
+    r"\bface\s+(?:is\s+)?drooping\s+(?:to\s+one\s+side)?\b",
+    r"\bchehra\s+(?:\w+\s+){0,3}(?:jhuk|latak|tedha|terha)\b",
+    r"\bmunh\s+(?:\w+\s+){0,3}(?:jhuk|latak|tedha|terha)\b",
+    r"\bchehra\s+(?:achanak\s+)?(?:aik\s+taraf\s+)?(?:jhuk|latak|tedha|terha)\b",
+    r"\bmunh\s+(?:achanak\s+)?(?:aik\s+taraf\s+)?(?:jhuk|latak|tedha|terha)\b",
+    r"چہرہ\s*(?:\S+\s*){0,3}(?:لٹک|ٹیڑھا|جھک)",
+    r"منہ\s*(?:\S+\s*){0,3}(?:ٹیڑھا|لٹک|جھک)",
     r"چہرہ\s*ٹیڑھا",
 
-    # Unilateral weakness / numbness (acute)
+    # Unilateral weakness / numbness / limb inability (FAST: Arm / Body)
     r"\bone\s+side(?:d)?\s+(?:of\s+(?:my\s+)?(?:body|face|arm)\s+)?(?:(?:went|became|feels?|got|is)\s+)?(?:weak|numb|paralyzed)\b",
     r"\b(?:got\s+)?paralyzed\b",
     r"\bsudden\s+(?:weakness|numbness)\b",
     r"\bsuddenly\s+(?:feel\s+)?(?:weak|numb)\b",
     r"\b(?:arm|leg)\s+wont\s+move\b",
-    r"\b(?:cant|cannot)\s+move\s+my\s+(?:left|right)?\s*(?:arm|leg)\b",
-    r"\baik\s+taraf\s+ka\s+(?:\w+\s+){1,4}(?:sunn|kamzor|latak)\b",
+    r"\b(?:cant|cannot|unable\s+to)\s+move\s+my\s+(?:left|right)?\s*(?:arm|leg)\b",
+    r"\b(?:left|right|one)\s+(?:arm|hand|leg|side)\s+(?:wont\s+lift|cant\s+lift|unable\s+to\s+lift)\b",
+    r"\baik\s+taraf\s+ka\s+(?:jism|bazu|haath|hath|chehra|tang)\s+(?:\w+\s+){0,3}(?:ka?am\s+nahi\s+kar|uth\s+nahi\s+rah|hil\s+nahi\s+rah|sunn|kamzor|latak|tedha|terha)\b",
     r"\badha\s+jism\s+(?:\w+\s+){0,3}(?:sunn|kamzor)\b",
     r"\b(?:face|arm|chehra|bazu)\s+(?:\w+\s+){0,3}(?:sunn|kamzor|numb|weak)\b",
-    r"\bbazu\s+hil\s+nahi\s+raha\b",
-    r"\bhath\s+hil\s+nahi\s+raha\b",
+    r"\b(?:haath|hath|bazu)\s+(?:uth|hil)\s+nahi\s+rah(?:a|i|in|e|y|ay)\b",
     r"ایک\s*طرف\s*کمزوری",
-    r"ایک\s*طرف\s*کا\s*(?:\S+\s*){1,4}(?:سن|کمزور|لٹک)",
+    r"ایک\s*طرف\s*کا\s*(?:جسم|بازو|ہاتھ|چہرہ|ٹانگ)\s*(?:\S+\s*){0,3}(?:کام\s*نہیں\s*کر|اٹھ\s*نہیں\s*رہ|ہل\s*نہیں\s*رہ|سن|کمزور|لٹک|ٹیڑھا)",
+    r"(?:ہاتھ|بازو)\s*(?:اٹھ|ہل)\s*نہیں\s*رہ(?:ا|ی|یں|ے)",
     r"(?:چہرہ|بازو)\s*(?:\S+\s*){0,3}(?:سن|کمزور)",
     r"آدھا\s*جسم\s*(?:سن|کمزور|بے\s*جان)",
     r"فالج\s*(?:کا\s*اثر|ہو\s*گیا)?",
@@ -516,25 +610,27 @@ _UNRESPONSIVE_PATTERNS = [
     r"\bhosh\s+me(?:in)?\s+nahi\s+aa\s+rah",
     r"\bhosh\s+nahi\s+aa\s+rah",
     r"\bjawab\s+nahi\s+de\s+rah",
-    r"\buth\s+nahi\s+rah",
+    r"\b(?<!haath\s)(?<!hath\s)(?<!bazu\s)(?<!chehra\s)(?<!tang\s)(?<!pair\s)uth\s+nahi\s+rah",
     r"\bpa[rd][ai]\s+hai\s+aur\s+uth\s+nahi\b",
     r"ہوش\s*میں\s*نہیں\s*آ\s*رہ",
     r"ہوش\s*نہیں\s*آ\s*رہ",
     r"جواب\s*نہیں\s*دے\s*رہ",
     r"بے\s*ہوش\s*پڑا\s*ہے",
-    r"اٹھ\s*نہیں\s*رہ",
+    r"(?<!ہاتھ\s)(?<!بازو\s)(?<!چہرہ\s)(?<!ٹانگ\s)(?<!پاؤں\s)اٹھ\s*نہیں\s*رہ",
 ]
 
 _SYNCOPE_RECOVERY_PATTERNS = [
     r"\b(?:theek|thik)\s+(?:ho\s+gaya|hai|hoon|hun)\b",
-    r"\b(?:fine|better|okay|ok)\s+now\b",
-    r"\bab\s+(?:theek|behtar)\b",
+    r"\b(?:fine|better|okay|ok|normal)\s+now\b",
+    r"\bcompletely\s+fine\b",
+    r"\bfully\s+recovered\b",
+    r"\bab\s+(?:bilkul\s+)?(?:theek|behtar|achha)\b",
     r"\bhosh\s+aa\s+gaya\b",
     r"\bwoke\s+up\b",
     r"\bnow\s+awake\b",
     r"\brecovered\b",
-    r"اب\s*ٹھیک",
-    r"ٹھیک\s*ہو\s*گیا",
+    r"\bاب\s*(?:بالکل\s*)?(?:ٹھیک|بہتر)\b",
+    r"\bٹھیک\s*(?:ہو\s*گیا|ہوں|ہے)\b",
     r"ہوش\s*آ\s*گیا",
 ]
 
@@ -579,6 +675,8 @@ def is_fainting_recovered_or_benign(raw_text: str) -> bool:
     Only fainting with active unresponsiveness or no recovery ('not waking',
     'cannot wake', 'hosh mein nahi aa rahe', 'unresponsive', 'still unconscious')
     is an immediate Red emergency.
+    Crucially, this function assesses syncope recovery ONLY and must not be used
+    to suppress non-syncope emergencies.
     """
     if not raw_text or not isinstance(raw_text, str):
         return False
@@ -634,30 +732,35 @@ def _match_loss_of_consciousness(norm: str) -> bool:
 # =============================================================================
 
 _FLUIDS_DKA_PATTERNS = [
-    # Fluid inability
+    # Fluid inability (English)
     r"\b(?:cant|cannot|unable\s+to)\s+keep\s+(?:\w+\s+){1,4}down\b",
     r"\beven\s+(?:\w+\s+){0,3}water\s+comes?\s+(?:back\s+)?up\b",
     r"\bwater\s+comes\s+(?:right\s+)?back\s+up\b",
+    r"\beven\s+(?:a\s+sip\s+of\s+)?water\s+(?:comes?\s+back|wont\s+stay\s+down)\b",
     r"\bthrowing\s+up\s+everything\b",
     r"\bkeep\s+nothing\s+down\b",
     r"\bvomiting\s+(?:non-?stop|continuously|all\s+day)\b",
     r"\bvomiting\s+with\s+(?:very\s+)?high\s+(?:sugar|glucose)\b",
     r"\bliquids\s+down\s+with\s+(?:very\s+)?high\s+(?:sugar|glucose)\b",
-    # Roman Urdu
-    r"\bpani\s+(?:bhi\s+)?nahi\s+ruk\s+raha\b",
-    r"\bpani\s+bhi\s+rukta\s+nahi\b",
-    r"\bpani\s+(?:\w+\s+){0,3}wapis\b",
+    # Roman Urdu fluid inability & intractable vomiting
+    r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik)\s+rah[iyea]\b",
+    r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?(?:rukta|tikta)\s+nahi\b",
+    r"\b(?:ek\s+)?ghoont\s+(?:bhi\s+)?(?:wapis|wapas|nikal|ulti)\b",
+    r"\b(?:ek\s+)?ghoont\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik)\b",
+    r"\bjo\s+(?:bhi\s+)?(?:peeta|peeti|khata|khati)\s+(?:hoon|hun)\s+(?:\w+\s+){0,2}(?:nikal|wapas|wapis|ulti)\b",
+    r"\bpani\s+(?:\w+\s+){0,3}wapas\b",
     r"\b(?:kuch\s+)?(?:bhi\s+)?hazam\s+nahi\s+ho\s+raha\b",
     r"\bhar\s+cheez\s+ulti\b",
     r"\bulti\s+ruk\s+nahi\s+rahi\b",
     r"\bmusalsal\s+ultiyan\b",
     r"\bkuch\s+bhi\s+pet\s+me\s+nahi\s+ruk\s+raha\b",
-    # Urdu script
+    # Urdu script fluid inability & intractable vomiting
     r"الٹی\s*رک\s*نہیں\s*رہی",
     r"الٹیاں\s*بند\s*نہیں\s*ہو\s*رہ",
+    r"پانی\s*(?:بھی\s*)?(?:اندر\s*)?نہیں\s*(?:رکتا|ٹکتا|رہتا|رک\s*رہا|ٹک\s*رہا)",
+    r"ایک\s*گھونٹ\s*(?:بھی\s*)?(?:واپس|نہیں\s*(?:رکتا|ٹکتا))",
+    r"جو\s*(?:بھی\s*)?(?:پیتا|کھاتا)\s*ہوں\s*(?:\S+\s*){0,2}(?:نکل|واپس|الٹی)",
     r"پانی\s*بھی\s*واپس",
-    r"پانی\s*بھی\s*نہیں\s*رک\s*رہا",
-    r"پانی\s*بھی\s*نہیں\s*رکتا",
     r"مسلسل\s*الٹیاں",
     r"کچھ\s*بھی\s*ہضم\s*نہیں\s*ہو\s*رہا",
     r"ہر\s*چیز\s*الٹی",
@@ -666,12 +769,59 @@ _FLUIDS_DKA_PATTERNS = [
 
 
 def _match_dka_vomiting_fluids(norm: str) -> bool:
+    # Single resolved vomiting episode does not indicate intractable fluid inability
+    if re.search(r"\b(?:ek|1)\s+(?:dafa|bar)\s+ulti\b.*?\b(?:ab\s+pani\s+pee\s+raha|drinking\s+water)\b", norm):
+        return False
+    if re.search(r"\b(?:ایک\s*دفعہ|ایک\s*بار)\s*الٹی.*?پانی.*?پی\s*رہ", norm):
+        return False
     return _has_any(norm, _FLUIDS_DKA_PATTERNS)
 
 
 # =============================================================================
 # Primary Public API
 # =============================================================================
+
+def match_categories(raw_text: str) -> List[str]:
+    """
+    Returns all matching Stage-1 red flag categories for an utterance.
+    Guaranteed no-throw.
+    """
+    matched = []
+    try:
+        if not raw_text or not isinstance(raw_text, str):
+            return matched
+        norm = normalize_text(raw_text)
+        if not norm:
+            return matched
+
+        # Global suppressions (remote past without current acute, exertion with rest relief)
+        if _is_suppressed(norm):
+            return matched
+
+        # 1. Chest pain (including metaphors, radiation, diaphoresis)
+        if _match_chest_pain(norm):
+            matched.append("chest_pain")
+
+        # 2. Breathing inability & severe distress
+        if _match_breathing(norm):
+            matched.append("breathing")
+
+        # 3. FAST stroke / confusion / neurological deficit
+        if _match_confusion_and_stroke(norm):
+            matched.append("confusion_and_stroke")
+
+        # 4. Syncope / Loss of consciousness (recovery check strictly scoped to fainting)
+        if _match_loss_of_consciousness(norm):
+            matched.append("loss_of_consciousness")
+
+        # 5. DKA / Fluid intolerance / Persistent vomiting
+        if _match_dka_vomiting_fluids(norm):
+            matched.append("dka_vomiting_high_glucose")
+
+        return matched
+    except Exception:
+        return []
+
 
 def match(raw_text: str) -> Tuple[bool, Optional[str]]:
     """
@@ -688,39 +838,9 @@ def match(raw_text: str) -> Tuple[bool, Optional[str]]:
     on any internal exception.
     """
     try:
-        if not raw_text or not isinstance(raw_text, str):
-            return False, None
-
-        norm = normalize_text(raw_text)
-        if not norm:
-            return False, None
-
-        # Check global suppressions (remote past without current acute, exertion with rest relief, resolved)
-        if _is_suppressed(norm):
-            return False, None
-
-        # 1. Chest pain (including metaphors & radiating pain)
-        if _match_chest_pain(norm):
-            return True, "chest_pain"
-
-        # 2. Breathing inability & severe distress
-        if _match_breathing(norm):
-            return True, "breathing"
-
-        # 3. FAST stroke / confusion / neurological deficit
-        if _match_confusion_and_stroke(norm):
-            return True, "confusion_and_stroke"
-
-        # 4. Syncope / Loss of consciousness & unresponsiveness
-        if _match_loss_of_consciousness(norm):
-            return True, "loss_of_consciousness"
-
-        # 5. DKA / Fluid intolerance / Persistent vomiting
-        if _match_dka_vomiting_fluids(norm):
-            return True, "dka_vomiting_high_glucose"
-
+        cats = match_categories(raw_text)
+        if cats:
+            return True, cats[0]
         return False, None
-
     except Exception:
-        # Failsafe: never crash the server
         return False, None

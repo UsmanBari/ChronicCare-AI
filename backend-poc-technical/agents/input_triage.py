@@ -61,7 +61,7 @@ MULTILINGUAL_DANGER_CATEGORIES: Dict[str, List[str]] = {
     ],
     "breathing": [
         "can't breathe", "cannot breathe", "struggling for air", "severe shortness of breath",
-        "gasping for air", "suffocating",
+        "gasping for air", "suffocating", "shortness of breath",
         "saans lene me shadeed dushwari", "saans nahi aa rahi", "dum ghut raha", "saans ruk rahi",
         "سانس لینے میں شدید دشواری", "سانس نہیں آ رہی", "دم گھٹ رہا", "سانس رک رہی",
     ],

@@ -4573,10 +4573,16 @@ def answer_checkin_endpoint(
                 pass
         if triggered and body.answer:
             try:
-                from agents.red_flag_patterns import is_fainting_recovered_or_benign
-                if is_fainting_recovered_or_benign(body.answer):
-                    triggered = False
-                    reason = None
+                from agents.red_flag_patterns import is_fainting_recovered_or_benign, match_categories
+                if reason in ("loss_of_consciousness", "fainting"):
+                    if is_fainting_recovered_or_benign(body.answer):
+                        other_cats = [c for c in match_categories(body.answer) if c != "loss_of_consciousness"]
+                        if other_cats:
+                            triggered = True
+                            reason = other_cats[0]
+                        else:
+                            triggered = False
+                            reason = None
             except Exception:
                 pass
         med_safety_note = None
@@ -4745,12 +4751,20 @@ def answer_checkin_endpoint(
 
         if is_emergency and body.answer:
             try:
-                from agents.red_flag_patterns import is_fainting_recovered_or_benign
-                if is_fainting_recovered_or_benign(body.answer):
-                    is_emergency = False
-                    emergency_reason = None
-                    next_state["emergency"] = False
-                    next_state["emergency_reason"] = None
+                from agents.red_flag_patterns import is_fainting_recovered_or_benign, match_categories
+                if emergency_reason in ("loss_of_consciousness", "fainting"):
+                    if is_fainting_recovered_or_benign(body.answer):
+                        other_cats = [c for c in match_categories(body.answer) if c != "loss_of_consciousness"]
+                        if other_cats:
+                            is_emergency = True
+                            emergency_reason = other_cats[0]
+                            next_state["emergency"] = True
+                            next_state["emergency_reason"] = other_cats[0]
+                        else:
+                            is_emergency = False
+                            emergency_reason = None
+                            next_state["emergency"] = False
+                            next_state["emergency_reason"] = None
             except Exception:
                 pass
 
@@ -4928,10 +4942,16 @@ def answer_checkin_endpoint(
 
     if next_state.stage1_red_flag and body.answer:
         try:
-            from agents.red_flag_patterns import is_fainting_recovered_or_benign
-            if is_fainting_recovered_or_benign(body.answer):
-                next_state.stage1_red_flag = False
-                next_state.stage1_reason = None
+            from agents.red_flag_patterns import is_fainting_recovered_or_benign, match_categories
+            if next_state.stage1_reason in ("loss_of_consciousness", "fainting"):
+                if is_fainting_recovered_or_benign(body.answer):
+                    other_cats = [c for c in match_categories(body.answer) if c != "loss_of_consciousness"]
+                    if other_cats:
+                        next_state.stage1_red_flag = True
+                        next_state.stage1_reason = other_cats[0]
+                    else:
+                        next_state.stage1_red_flag = False
+                        next_state.stage1_reason = None
         except Exception:
             pass
 

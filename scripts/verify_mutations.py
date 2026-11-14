@@ -514,12 +514,12 @@ MUTATIONS = [
         "replacement": "                        if False and active_explain_mode == \"background\":\n                            # In background mode, 429 does NOT trip circuit breaker!\n                            if prov_attempt < max_prov_attempts - 1:",
         "test_node": "backend-poc-technical/test_explain_background.py::test_o7_429_retry_in_background_mode",
     },
-    # --- Red Flag Patterns Mutations (M-RF-1 & M-RF-2) ---
+    # --- Red Flag Patterns Mutations (M-RF-1, M-RF-2 & M-RF-3) ---
     {
         "id": "M-RF-1",
-        "name": "Red Flag Patterns: Drop window tolerance from 6 to 1",
+        "name": "Red Flag Patterns: Drop window tolerance from 8 to 1",
         "file": BACKEND_DIR / "agents" / "red_flag_patterns.py",
-        "target": "MAX_WINDOW_WORDS: int = 6",
+        "target": "MAX_WINDOW_WORDS: int = 8",
         "replacement": "MAX_WINDOW_WORDS: int = 1",
         "test_node": "backend-poc-technical/test_red_flag_patterns.py::test_mutation_killed_window_tolerance",
     },
@@ -530,6 +530,24 @@ MUTATIONS = [
         "target": "    if is_symptom_negated(norm):",
         "replacement": "    if False and is_symptom_negated(norm):",
         "test_node": "backend-poc-technical/test_red_flag_patterns.py::test_mutation_killed_negation_guard",
+    },
+    {
+        "id": "M-RF-3",
+        "name": "Red Flag Patterns: Apply fainting recovery suppression to all categories regardless of reason",
+        "file": BACKEND_DIR / "main.py",
+        "target": """            if next_state.stage1_reason in ("loss_of_consciousness", "fainting"):
+                if is_fainting_recovered_or_benign(body.answer):
+                    other_cats = [c for c in match_categories(body.answer) if c != "loss_of_consciousness"]
+                    if other_cats:
+                        next_state.stage1_red_flag = True
+                        next_state.stage1_reason = other_cats[0]
+                    else:
+                        next_state.stage1_red_flag = False
+                        next_state.stage1_reason = None""",
+        "replacement": """            if is_fainting_recovered_or_benign(body.answer):
+                next_state.stage1_red_flag = False
+                next_state.stage1_reason = None""",
+        "test_node": "backend-poc-technical/test_red_flag_patterns.py::test_mutation_killed_fainting_recovery_scoped",
     },
 ]
 
