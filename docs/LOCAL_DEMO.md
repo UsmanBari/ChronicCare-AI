@@ -88,6 +88,12 @@ Local authentication behaves exactly like the live deployed site:
 - Elevated roles (provider and admin) are resolved deterministically from `DEMO_ROLE_MAP` using the user's email address.
 - Ensure your `DEMO_ROLE_MAP` in `.env.localdemo` matches your Render configuration (e.g. `provider.demo@demo.care:provider,admin.demo@demo.care:admin`).
 
+### Step 8b: Clinical Protocol Decisions (Approved by the Doctor on Record, Nov 2026)
+Three key clinical protocol questions were reviewed and decided by the doctor on record:
+1. **Decision D1 (No-Reading Symptom Escalation):** `NO_READING_SYMPTOM_RAISE=true` is approved by the doctor on record. A check-in where the patient reports feeling unwell with no vital reading entered escalates safely from Routine to Review (Yellow).
+2. **Decision D2 (Heart Risk Triage Elevation):** *"Just having heart risk doesn't need a review unless associated with any symptoms."* An asymptomatic patient with high cardiometabolic risk remains Routine (Green). If the patient reports any symptoms during the check-in alongside High risk, triage escalates to Review (Yellow).
+3. **Decision D3 (Risk Raise Cooldown Period):** `RISK_RAISE_COOLDOWN_DAYS=30`. Once a patient has been escalated to Review by the risk model, a 30-day cooldown applies before risk alone can raise them again, preventing clinician alert fatigue.
+
 ### Step 9: Verify Environment Keys (Zero-Leak Check)
 Run this one-liner to verify all critical environment variable names are populated without printing any secrets:
 ```powershell

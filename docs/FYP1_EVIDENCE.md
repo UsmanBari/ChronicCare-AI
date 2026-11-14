@@ -90,7 +90,7 @@ Evaluated on 498 open guideline chunks (`docs/RAG_EVAL.md:23-27`):
 
 ## 5. System-Level Pipeline vs Single-LLM Baseline (Objective 5 / Section 36)
 
-*Source:* `docs/eval/SINGLE_LLM_BASELINE.md`, PR #144 (*pending merge to dev*)  
+*Source:* `docs/eval/SINGLE_LLM_BASELINE.md`, `docs/eval/SECTION36_RESULTS.md`, PR #144, PR #160  
 Evaluated across 52 simulated patient personas (`tests/sim/personas.json`), with 51 evaluable scenarios (0 incomplete, 1 excluded pregnancy exit by design) and 3 independent zero-shot LLM trials per persona (153 total trials on `qwen/qwen3.8-27b` via Groq):
 
 | Comparative Metric | Full Multi-Agent Pipeline | Single-LLM Baseline (`qwen/qwen3.8-27b`) | Finding & Clinical Impact |
@@ -164,19 +164,23 @@ Evaluated across 13 synthetic clinical reports and 4 real phone-photographed doc
 | **LA-26** | Provider SOAP clinical summary generator | Sec 13.1 | **PASS** | S/O/A/P summary exported |
 | **LA-29** | In-app notification center & reminders | Sec 13.2, 15 | **PASS** | Notifications listed (*PR #146*) |
 | **LA-30** | Speech synthesis voice output (Meta MMS-TTS Urdu) | Sec 23 | **PASS** | Urdu WAV synthesized (*PR #147*) |
-| **LA-27** | Diabetes control model (`diabetes_control_nhanes`) | Sec 13.1 | *Open in PR #142* | Saad draft PR F |
-| **LA-28** | Hybrid BM25 + dense retrieval with ChromaDB | Sec 13.2 | *Built in PR #148* | Usman PR G (flagged) |
-| **LA-31** | Single-LLM baseline benchmark comparison | Sec 36 | *Built in PR #144* | Usman PR J |
-| **LA-32** | Demo-ready seed script & one-command launcher | Sec 35 | *Built in PR #149* | Usman PR R |
+| **LA-27** | Diabetes control model (`diabetes_control_nhanes`) | Sec 13.1 | **EVALUATED** (Trained and evaluated; not shipped for FYP-1 due to G2 calibration & G4 subgroup sensitivity) | Saad PR F |
+| **LA-28** | Hybrid BM25 + dense retrieval with ChromaDB | Sec 13.2 | **PASS** (Built in PR #148; enabled via flag for local demo & eval) | Usman PR G |
+| **LA-31** | Single-LLM baseline benchmark comparison | Sec 36 | **PASS** (Built in PR #144; Section 36 full evidence table in `docs/eval/SECTION36_RESULTS.md`) | Usman PR J / PR #160 |
+| **LA-32** | Demo-ready seed script & one-command launcher | Sec 35 | **PASS** (Built in PR #149) | Usman PR R |
+| **B3**     | Red-flag detection in 3 languages (proximity matching) | Sec 13.1 | **PASS** (Built in PR #159; 394/394 unit tests, 64/64 mutations killed) | Usman |
+| **E1**     | Adaptive interview engine v3 (zero contradictions/repeats) | Sec 13.1 | **PASS** (Built in PR #160; DAG planner, early multi-intent slot filling) | Usman |
 
 ---
 
 ## 8. Honest Known Limitations & Governance
 
-1. **Research Prototype Status**: ChronicCare AI is an academic university research prototype. It has not undergone randomized clinical trials or medical device conformity assessment. **Doctor review is not clinical validation.**
-2. **Engineer-Authored Simulation Labels**: The 52 scenario labels in `tests/sim/personas.json` were authored by engineers. While calibrated to published ACC/AHA and ADA guidelines, they have not been independently validated by a multi-physician panel.
-3. **Training Population Shift**: Risk models were trained on US NHANES (1999–2023) and Framingham Heart Study data. They have **not been validated on a Pakistani population**, where type 2 diabetes and premature coronary disease manifest at younger ages and lower BMI thresholds.
-4. **Third-Party LLM Dependencies**: Explanation generation relies on external cloud APIs (Groq Cloud). Rate limits (1,000 output tokens/minute) require strict token budgeting and fallback to deterministic templates.
-5. **OCR Dataset Sample Size**: Handwritten prescription benchmarking was conducted on 4 sample doctor prescriptions (9 medicines). While RapidOCR achieved 100% medicine recall on this sample, wide handwriting variation necessitates mandatory patient review before saving.
-6. **Single Doctor Review**: Clinical review decisions (R1 through R8) reflect consensus from initial doctor review packs. Broad multi-center clinical validation remains an FYP-2 objective.
+1. **Academic Demonstration Prototype**: ChronicCare AI is an undergraduate university demonstration prototype. It has not undergone clinical trials or medical device certification. **Doctor review is not clinical validation.**
+2. **Small Simulated Persona Cohort**: The 52 scenario labels in `tests/sim/personas.json` are synthetic engineer-authored personas. While grounded in published ACC/AHA and ADA clinical guidelines, they represent a small simulation set and have not been validated on a live 1,000-patient clinical cohort.
+3. **Training Population Shift**: Risk models were trained on US NHANES (1999–2023) and Framingham Heart Study data. They have **not been prospectively validated on Pakistani populations**, where cardiometabolic disease frequently manifests at earlier ages and lower BMI thresholds.
+4. **Third-Party LLM Dependencies & Template Guard**: Explanation generation relies on external cloud APIs (Groq Cloud). To ensure complete reliability during API outages or rate limits, all explanations strictly fall back to vetted deterministic clinical templates.
+5. **OCR Dataset Sample Size**: Handwritten prescription benchmarking was evaluated on a pilot set of 4 doctor prescriptions (9 medicines). While RapidOCR achieved 100% medicine recall on this test sample, handwriting diversity necessitates mandatory patient review before saving.
+6. **Scoped Doctor Decisions**: The doctor on record provided clinical decisions on three specific pending protocol questions (D1, D2, D3 in November 2026), not an exhaustive system-wide medical signoff.
+7. **Urdu Speech-to-Text Browser Dependency**: Voice input relies on browser Web Speech API with server Whisper fallback; accuracy varies by client microphone quality, browser implementation, and ambient acoustic noise.
+8. **Mock EHR Sandbox**: EHR interoperability was tested against SMART Health IT open sandbox endpoints and a local SQLite FHIR simulation store rather than live hospital production EHR systems.
 

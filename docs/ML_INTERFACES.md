@@ -135,7 +135,7 @@ Usman's experiment harness (`backend-poc-technical/ml/experiments/`) executes th
  6. Save Validated Model Artifact & Export
     ├── ml.artifacts.save_model_artifact(pipeline, model_card, out_dir)
     └── ml.artifacts.export_production_lr(pipeline, model_card, out_dir / "export.json")
-        (Writes model.joblib, model_card.json, and production-ready export.json)
+        (Writes model.joblib, model_card.json, and standardized export.json)
 
  7. Generate Standardized Report
     └── ml.evaluation.write_eval_report(report_path, sections_dict)

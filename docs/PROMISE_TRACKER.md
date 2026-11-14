@@ -23,8 +23,8 @@
 
 | Agent Promise | Proposal Section | Built Where (File) | Local Check ID | Status Today | Owner | Target Date |
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
-| Agent 1: Stage 1 Red-Flag Screen (Danger phrases, BP crisis, emergency bypass) | Sec 13.1 | `backend-poc-technical/agents/input_triage.py` | LA-04, LA-05 | **PASS** | Usman | Done |
-| Agent 2: Adaptive Interview Agent (Condition-specific, missing-data handling) | Sec 13.1 | `backend-poc-technical/agents/adaptive_interview_agent.py` | LA-02, LA-03, LA-06 | **PASS** | Hassaan / Usman | Done |
+| Agent 1: Stage 1 Red-Flag Screen (Danger phrases, BP crisis, emergency bypass) | Sec 13.1 | `backend-poc-technical/agents/input_triage.py` & `agents/red_flag_patterns.py` | LA-04, LA-05, B3 | **PASS** (3 languages: English, Urdu script, Roman Urdu; word-window proximity matching; scoped fainting recovery) | Usman | Done (PR #159) |
+| Agent 2: Adaptive Interview Agent (Condition-specific, missing-data handling) | Sec 13.1 | `backend-poc-technical/agents/interview_planner.py` & `agents/interview_v3_runner.py` | LA-02, LA-03, LA-06, E1 | **PASS** (v3 adaptive DAG planner; zero reading contradictions, zero repeats, multi-intent early slot extraction) | Hassaan / Usman | Done (PR #160) |
 | Agent 3: Confirmation Protocols (5 physiological protocols confirming danger) | Sec 13.1 | `backend-poc-technical/agents/input_triage.py` | LA-03, LA-04 | **PASS** | Usman | Done |
 | Agent 4: Medication Confirmation Agent (Active medication inquiry & status) | Sec 13.1 | `backend-poc-technical/agents/medication_confirmation.py` | LA-07 | **PASS** | Usman | Done |
 | Agent 5: Record Retrieval Agent (Unified DataSource: FHIR vs Local Store) | Sec 13.1 | `backend-poc-technical/data_sources/local_store.py` | LA-02, LA-09 | **PASS** | Usman | Done |
@@ -58,10 +58,10 @@
 | Promise | Proposal Section | Built Where (File) | Local Check ID | Status Today | Owner | Target Date |
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
 | Triage Severity Colors (Green=Routine, Yellow=Review, Red=Urgent/Emergency) | Sec 15 | `backend-poc-technical/agents/final_triage.py` & `app/components/TriageColourChip.tsx` | LA-20 | **PASS** | Usman | Done (PR A) |
-| Stage-2 Clinical Risk Elevation (Routine -> Review on high risk band) | Sec 15 | `backend-poc-technical/agents/final_triage.py` | LA-21, LA-21b, LA-21c | **PASS** | Usman | Done (PR A) |
+| Stage-2 Clinical Risk Elevation (Routine -> Review on high risk band) | Sec 15 | `backend-poc-technical/agents/final_triage.py` | LA-21, LA-21b, LA-21c, D1, D2, D3 | **PASS** (Doctor decisions: D1 NO_READING_SYMPTOM_RAISE approved by the doctor on record; D2 asymptomatic high-risk remains Routine; D3 30-day cooldown) | Usman | Done (PR #158) |
 | Patient-Facing Risk Band Display (Plain sentence + action only) | Sec 15 | `app/components/RiskResultScreen.tsx` & `backend-poc-technical/orchestrator/steps.py` | LA-23 | **PASS** | Usman | Done (PR A) |
-| Appointment Booking by Triage Level & Clinical Specialty | Sec 15 | `backend-poc-technical/services/appointment_service.py` | LA-25 | **OPEN PR** (PR #145 by Hassaan, pending review) | Hassaan | 13 Nov 2026 |
-| Red-Flag Escalation Notification & Timeout Tracking | Sec 15 | `backend-poc-technical/services/appointment_service.py` | LA-25 | **OPEN PR** (PR #145 by Hassaan, pending review) | Hassaan | 13 Nov 2026 |
+| Appointment Booking by Triage Level & Clinical Specialty | Sec 15 | `backend-poc-technical/services/appointment_service.py` | LA-25 | **PASS** | Hassaan | Done (PR #145) |
+| Red-Flag Escalation Notification & Timeout Tracking | Sec 15 | `backend-poc-technical/services/appointment_service.py` | LA-25 | **PASS** | Hassaan | Done (PR #145) |
 
 ---
 
@@ -104,8 +104,8 @@
 | FastAPI Asynchronous High-Performance Python Backend | Sec 23 | `backend-poc-technical/main.py` | LA-01 | **PASS** | Usman | Done |
 | Pure SQLite Local Storage for Fully Isolated Operation | Sec 23 | `backend-poc-technical/data_sources/local_store.py` | LA-01, LA-02 | **PASS** | Usman | Done |
 | PyJWT Google Public Key Token Verification (RS256) | Sec 23 | `backend-poc-technical/auth/firebase_verify.py` | LA-01 | **PASS** | Usman | Done |
-| Voice Transcription Input (Whisper STT endpoint) | Sec 23 | `backend-poc-technical/main.py` | LA-16 | **PASS** | Hassaan | Done |
-| Urdu Speech Synthesis Voice Output (Meta MMS-TTS Urdu) | Sec 23 | `backend-poc-technical/voice/` | LA-30 | **OPEN PR** (PR #147 by Hassaan, pending review) | Hassaan | 13 Nov 2026 |
+| Voice Transcription Input (Whisper STT endpoint) | Sec 23 | `backend-poc-technical/main.py` | LA-16 | **PASS** (Groq Whisper cloud endpoint + Web Speech API browser input; deterministic mock fallback when offline) | Hassaan | Done |
+| Urdu Speech Synthesis Voice Output (Meta MMS-TTS Urdu) | Sec 23 | `backend-poc-technical/voice/` | LA-30 | **PASS** (Meta MMS-TTS Urdu model; local audio synthesis & fallback) | Hassaan | Done (PR #147) |
 | LangGraph State-Graph Orchestrator Execution | Sec 23 | `backend-poc-technical/orchestrator/graph.py` | LA-01 | **PASS** | Usman | Done |
 
 ---
@@ -114,10 +114,10 @@
 
 | Promise | Proposal Section | Built Where (File) | Local Check ID | Status Today | Owner | Target Date |
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
-| Automated Mutation Proofs (23 deliberate rule breaks killed in CI) | Sec 36 | `scripts/verify_mutations.py` | CI Gate 3 | **PASS** | Usman | Done |
+| Automated Mutation Proofs (64 deliberate rule breaks killed in CI) | Sec 36 | `scripts/verify_mutations.py` | CI Gate 3 | **PASS** (64/64 mutations verified and killed across clinical rules, planner, triage, risk, and explainers) | Usman | Done (PR #159) |
 | Deterministic Engine Scenarios Regression Testing | Sec 36 | `backend-poc-technical/scenarios/` | CI Gate 2 | **PASS** | Usman | Done |
 | Blind Set Danger Phrase Generalization Benchmark | Sec 36 | `docs/BLIND_SET_3_RESULTS.md` | Doc Record | **PASS** | Saad / Hassaan | Done |
-| Single-LLM Baseline Benchmark Comparison (RQ3) | Sec 36 | `scripts/eval/single_llm_baseline.py` | LA-31 | **PASS** | Usman | Done (PR #144) |
+| Single-LLM Baseline Benchmark Comparison (RQ3) | Sec 36 | `scripts/eval/single_llm_baseline.py` | LA-31 | **PASS** (100% emergency recall vs 11.1% baseline; full Section 36 results in docs/eval/SECTION36_RESULTS.md) | Usman | Done (PR #144, #160) |
 | Requirements Traceability Matrix Verification | Sec 37 | `docs/TRACEABILITY.md` | `test_traceability_links.py` | **PASS** | Usman | Done |
 | Local Demo Seed, One-Command Start & 17 Nov Cue Sheet | Sec 13.1, 15, 17, 36 | `scripts/seed_demo_local.py` & `scripts/start_local_demo.ps1` | LA-32 | **PASS** (Built in PR #149) | Usman | Done (PR I4-R) |
 
