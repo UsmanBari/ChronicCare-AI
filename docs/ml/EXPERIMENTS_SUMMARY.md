@@ -20,6 +20,28 @@ All models were evaluated on the held-out NHANES temporal test set (`test` 2017�
 | `chd10_framingham` | 2,499 / 833 / 834 | 14.99% | lr ({'C': 0.01}) | 0.7170 | 0.7241 [0.6732–0.7659] | 84.80% / 39.07% / 19.70% | 1.079 / 1.142 | age_band=<50: 60.53% (n=38) | 0.6488 / 100.00% | N/A (Framingham) | SHIP CANDIDATE (all G1-G5 gates passed) |
 | `diabetes_control_nhanes` | 2,322 / 1,302 / 1,469 | 28.11% | lr ({'C': 0.01}) | 0.7235 | 0.7167 [0.6859–0.7462] | 77.48% / 53.50% / 39.46% | 1.568 / 1.439 | on_insulin=0.0: 53.77% (n=199) | 0.7167 / 77.48% | N/A (Diagnosed Diabetes) | NOT SHIPPED (Failed G2 Slope 1.439, Failed G4 Subgroup Sens 53.77%) |
 
+### 1.1 Complete Performance & Diagnostic Metric Table at Locked Operating Thresholds
+
+In accordance with TRIPOD-AI guidelines and reviewer requests for complete diagnostic reporting, the table below details the full performance profile—including Precision (PPV), Recall (Sensitivity), F1-Score with 95% bootstrap confidence intervals, and the exact confusion matrix—for the candidate risk models at their locked operating points on the held-out test partitions.
+
+| Metric / Dimension | `diabetes_full_nhanes` (Undiagnosed T2D) | `chd10_framingham` (10-Yr CHD @ 10% Cut) | `chd10_framingham` (10-Yr CHD @ 20% Cut) |
+| :--- | :---: | :---: | :---: |
+| **Dataset & Cohort** | NHANES 2017–2023 ($N=8,681$, Pos=360) | Framingham Held-Out Test ($N=834$, Pos=125) | Framingham Held-Out Test ($N=834$, Pos=125) |
+| **Prevalence** | **4.15%** | **14.99%** | **14.99%** |
+| **Locked Operating Cutoff** | **$p_t = 0.0276$** (min sensitivity 80% on val) | **$p_t = 0.1000$** (10% Moderate/High threshold) | **$p_t = 0.2000$** (20% High Risk threshold) |
+| **AUROC [95% CI]** | **0.7527** [0.7293 – 0.7748] | **0.7241** [0.6732 – 0.7659] | **0.7241** [0.6732 – 0.7659] |
+| **Brier Score** | **0.0389** (vs naive baseline 0.0398) | **0.1172** (vs naive baseline 0.1274) | **0.1172** (vs naive baseline 0.1274) |
+| **Calibration Slope** | **0.848** (Intercept: -0.442) | **1.142** (Intercept: +0.164) | **1.142** (Intercept: +0.164) |
+| **Recall / Sensitivity [95% CI]** | **85.28%** [81.61% – 88.86%] | **84.80%** [78.15% – 91.13%] | **58.40%** [49.60% – 67.20%] |
+| **Specificity** | **52.23%** (4,346 / 8,321) | **39.07%** (277 / 709) | **78.00%** (553 / 709) |
+| **Precision / PPV [95% CI]** | **7.17%** [6.37% – 7.92%] | **19.70%** [16.32% – 23.16%] | **31.88%** [26.04% – 38.07%] |
+| **Negative Predictive Value (NPV)** | **98.80%** (4,346 / 4,399) | **93.58%** (277 / 296) | **91.40%** (553 / 605) |
+| **F1-Score [95% CI]** | **0.1323** [0.1185 – 0.1450] | **0.3198** [0.2724 – 0.3658] | **0.4124** [0.3541 – 0.4705] |
+| **Confusion Matrix** | **TP=307, FP=3,975, TN=4,346, FN=53** | **TP=106, FP=432, TN=277, FN=19** | **TP=73, FP=156, TN=553, FN=52** |
+| **Deployment Status** | **SHIP CANDIDATE (Provider-Facing Only)** | **SHIP CANDIDATE (Provider & Patient Band)** | **SHIP CANDIDATE (Provider & Patient Band)** |
+
+*Bootstrap 95% confidence intervals derived from $B=2,000$ non-parametric test cohort resamplings.*
+
 ---
 
 ## 2. Guideline-Rule Screening Baselines (No Training Required)
@@ -212,6 +234,14 @@ In production, the application displays the 10-year CHD risk estimate card only 
 | **G4** | Equity | Worst Subgroup Sens $\ge 60.0\%$ ($\ge 30$ pos) | **53.77%** (`on_insulin=0.0`, 199 pos) | **FAIL** |
 | **G5** | Information Value | Brier < Prevalence Brier | **0.1812** vs 0.2021 | **PASS** |
 
-### 8.5 Safe Stop & Non-Shipment Decision
-- **Final Status:** **NOT SHIPPED (BLOCKED)** — Safe stop triggered by failure of pre-registered Gate 2 and Gate 4.
-- **Action:** Production export file `models/diabetes_control_nhanes.json` was deliberately NOT generated. Under ChronicCare-AI safety rules, uncalibrated risk models that exhibit severe subgroup disparities must not be deployed to patient check-in workflows.
+### 8.5 Safe Stop & Non-Shipment Decision (Model 3: Responsibly Not Shipped)
+- **Final Status:** **NOT SHIPPED (BLOCKED)** — Safe stop triggered by failure of pre-registered Gate 2 (Calibration Slope = 1.439, target [0.80, 1.20]) and Gate 4 (Subgroup Equity: sensitivity 53.77% in non-insulin group, target $\ge 60.0\%$).
+- **Detailed Non-Shipment Rationale:**
+  1. *Calibration Failure (Gate G2):* A calibration slope of 1.439 demonstrates probability compression, wherein low risk is underestimated and high risk is pulled toward the mean. Shipping an uncalibrated risk tool into clinical check-in workflows violates safety governance.
+  2. *Equity Failure (Gate G4):* For diabetic patients managed with oral medications or diet alone (`on_insulin == 0.0`), the model failed to detect nearly half (46.23%) of all patients with $\text{HbA1c} \ge 8.0\%$. The algorithm heavily relied on insulin status as an artificial surrogate for poor control, creating unacceptable risk of false reassurance in orally treated patients.
+  3. *High Brier Error:* The model exhibited a Brier score of 0.1812 on held-out test data, reflecting weak discriminative resolution.
+- **Scientific & Clinical Findings:**
+  - Cross-sectional glycemic control cannot be reliably inferred from episodic self-reported symptoms or basic demographic variables without continuous glucose monitor (CGM) time-series streams or laboratory-verified HbA1c assays. Most patients with sub-optimally controlled diabetes are clinically asymptomatic during daily remote check-ins.
+- **Alignment with Proposal Commitments:**
+  - The FYP proposal formally committed to risk estimation for **undiagnosed diabetes** (`diabetes_full_nhanes`) and **coronary heart disease** (`chd10_framingham`). Glycemic control was an exploratory extension that was responsibly held back when pre-specified safety gates failed.
+- **Action Taken:** Production export file `models/diabetes_control_nhanes.json` was deliberately NOT generated. Under ChronicCare-AI safety rules, uncalibrated risk models that exhibit severe subgroup disparities must not be deployed to patient check-in workflows.
