@@ -1763,10 +1763,10 @@ class LocalAcceptanceRunner:
 
     def add_placeholders(self) -> None:
         placeholders = [
-            ("LA-27", "Diabetes control model for diabetic patients (Sec 13.1)", "Planned in PR F"),
+            ("LA-27", "Diabetes control model for diabetic patients (Sec 13.1)", "NOT SHIPPED", "NOT SHIPPED (pre-registered gates G2, G4 failed; see docs/ml/experiments/diabetes_control_nhanes.md)"),
         ]
-        for cid, feat, ev in placeholders:
-            self.results.append({"id": cid, "feature": feat, "status": "NOT BUILT YET", "evidence": ev})
+        for cid, feat, stat, ev in placeholders:
+            self.results.append({"id": cid, "feature": feat, "status": stat, "evidence": ev})
 
     def _cleanup_created_accounts(self) -> None:
         """Deletes temporary accounts created during this run via Firebase REST accounts:delete."""
