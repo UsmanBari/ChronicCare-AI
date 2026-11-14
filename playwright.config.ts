@@ -37,6 +37,7 @@ export default defineConfig({
         OCR_ENABLED: "true",
         OCR_PROVIDER: "fake",
         DB_BACKEND: "sqlite",
+        INTERVIEW_ENGINE: "v3",
         DEMO_ROLE_MAP: "provider.demo@demo.care:provider,admin.demo@demo.care:admin,provider@demo.care:provider,admin@demo.care:admin",
       },
     },

@@ -97,6 +97,35 @@ def detect_historical_trends(recent_checkins: List[Dict[str, Any]]) -> Dict[str,
 
 
 
+SLOT_EQUIVALENCES: Dict[str, Set[str]] = {
+    "glucose_reading": {"diabetes_glucose_reading", "glucose_reading"},
+    "diabetes_glucose_reading": {"diabetes_glucose_reading", "glucose_reading"},
+    "bp_reading": {"hypertension_bp_reading", "bp_reading"},
+    "hypertension_bp_reading": {"hypertension_bp_reading", "bp_reading"},
+    "glucose_context": {"diabetes_glucose_context", "glucose_context"},
+    "diabetes_glucose_context": {"diabetes_glucose_context", "glucose_context"},
+    "bp_technique": {"hypertension_bp_technique", "bp_technique"},
+    "hypertension_bp_technique": {"hypertension_bp_technique", "bp_technique"},
+    "hyperglycemia_symptoms": {"diabetes_hyperglycemia_symptoms", "hyperglycemia_symptoms"},
+    "diabetes_hyperglycemia_symptoms": {"diabetes_hyperglycemia_symptoms", "hyperglycemia_symptoms"},
+    "associated_symptoms": {"hypertension_associated_symptoms", "associated_symptoms"},
+    "hypertension_associated_symptoms": {"hypertension_associated_symptoms", "associated_symptoms"},
+    "foot_problems": {"diabetes_foot_problems", "foot_problems"},
+    "diabetes_foot_problems": {"diabetes_foot_problems", "foot_problems"},
+    "adherence_diabetes": {"diabetes_adherence", "adherence_diabetes", "adherence_all", "adherence"},
+    "diabetes_adherence": {"diabetes_adherence", "adherence_diabetes", "adherence_all", "adherence"},
+    "adherence_hypertension": {"hypertension_adherence", "adherence_hypertension", "adherence_all", "adherence"},
+    "hypertension_adherence": {"hypertension_adherence", "adherence_hypertension", "adherence_all", "adherence"},
+    "missed_doses_reason_diabetes": {"diabetes_missed_doses_reason", "missed_doses_reason_diabetes"},
+    "missed_doses_reason_hypertension": {"hypertension_missed_doses_reason", "missed_doses_reason_hypertension"},
+    "lifestyle_diabetes": {"diabetes_lifestyle", "lifestyle_diabetes"},
+    "lifestyle_hypertension": {"hypertension_lifestyle", "lifestyle_hypertension"},
+    "hypo_symptoms_acute": {"insulin_hypo_symptoms_acute", "hypo_symptoms_acute"},
+    "hypo_events_past_week": {"insulin_hypo_events_past_week", "hypo_events_past_week"},
+    "fasting_symptoms": {"fasting_symptoms", "fasting_ramadan"},
+}
+
+
 def is_slot_already_satisfied(
     slot: str,
     asked_slots: Set[str],
@@ -106,15 +135,17 @@ def is_slot_already_satisfied(
     """
     R3/R6 Centralized De-duplication Guard.
     A slot is already satisfied if:
-    1. It has been asked directly (in asked_slots), OR
-    2. Any bank item whose also_fills includes this slot has already been asked (in asked_slots).
+    1. It (or any equivalent alias) has been asked directly (in asked_slots), OR
+    2. Any bank item whose also_fills includes this slot has already been asked or populated.
     Note: asked_slots contains set(asked_slots) | set(known_slots.keys()) in plan_next_step.
     """
-    if slot in asked_slots:
+    eq_slots = SLOT_EQUIVALENCES.get(slot, {slot})
+    if any(s in asked_slots for s in eq_slots):
         return True
+
     for it in bank.all_items():
         if it.also_fills and slot in it.also_fills:
-            if it.slot in asked_slots:
+            if it.slot in asked_slots or it.id in asked_slots:
                 return True
     return False
 
@@ -224,15 +255,31 @@ def plan_next_step(
     on_insulin = bool(patient_record.get("on_insulin_or_sulfonylurea", False))
     trends = detect_historical_trends(recent_checkins)
 
+    gluc_val = known_slots.get("glucose_reading")
+    bp_val = known_slots.get("bp_reading")
+
     for item in bank.all_items():
         if item.priority_class == "safety" and item.slot not in asked_slots:
+            eq_s = SLOT_EQUIVALENCES.get(item.slot, {item.slot})
+            if any(s in asked_slots for s in eq_s):
+                continue
             req = item.requires
+            if req.get("condition") and req["condition"] not in conditions:
+                continue
             if req.get("on_insulin_or_sulfonylurea") and not on_insulin and not trends["recurrent_lows"]:
                 continue
             if req.get("is_fasting_today") is True and known_slots.get("is_fasting_today") is not True:
                 continue
             if req.get("sick_vomiting_diarrhea") is True and known_slots.get("sick_vomiting_diarrhea") is not True:
                 continue
+
+            # Clinical Branching: obey glucose reading if known
+            if gluc_val is not None and isinstance(gluc_val, (int, float)):
+                if gluc_val >= 180 and item.slot in ("hypo_symptoms_acute", "hypo_events_past_week", "hypo_recovery_food"):
+                    continue
+                if gluc_val < 70 and item.slot == "hyperglycemia_symptoms":
+                    continue
+
             return PlanDecision(
                 action="ask_bank_item",
                 item=item,
@@ -246,7 +293,7 @@ def plan_next_step(
     if contradictions:
         for contra in contradictions:
             slot = contra.get("slot")
-            if slot and slot not in asked_slots:
+            if slot and not is_slot_already_satisfied(slot, asked_slots, known_slots, bank):
                 return PlanDecision(
                     action="ask_clarification",
                     clarification_slot=slot,
@@ -274,19 +321,20 @@ def plan_next_step(
                     )
 
     # 4. PRIORITY CLASS: Historical Trends
-    if trends["recurrent_lows"] and "hypo_events_past_week" not in asked_slots:
-        item = bank.get_by_id("insulin_hypo_events_past_week")
-        if item:
-            return PlanDecision(
-                action="ask_bank_item",
-                item=item,
-                reason="trend_trigger_recurrent_hypoglycemia",
-                question_count=current_count + 1,
-                max_budget=effective_budget,
-                target_slot=item.slot,
-            )
+    if trends["recurrent_lows"] and not is_slot_already_satisfied("hypo_events_past_week", asked_slots, known_slots, bank):
+        if gluc_val is None or (isinstance(gluc_val, (int, float)) and gluc_val < 180):
+            item = bank.get_by_id("insulin_hypo_events_past_week")
+            if item:
+                return PlanDecision(
+                    action="ask_bank_item",
+                    item=item,
+                    reason="trend_trigger_recurrent_hypoglycemia",
+                    question_count=current_count + 1,
+                    max_budget=effective_budget,
+                    target_slot=item.slot,
+                )
 
-    if trends["rising_bp"] and "bp_technique" not in asked_slots and known_slots.get("bp_reading"):
+    if trends["rising_bp"] and not is_slot_already_satisfied("bp_technique", asked_slots, known_slots, bank) and known_slots.get("bp_reading"):
         item = bank.get_by_id("hypertension_bp_technique")
         if item:
             return PlanDecision(
@@ -301,7 +349,7 @@ def plan_next_step(
     if trends["repeated_missed_doses"]:
         for bar_id in ("barrier_affordability_meds", "barrier_ran_out_meds", "barrier_side_effects"):
             item = bank.get_by_id(bar_id)
-            if item and item.slot not in asked_slots:
+            if item and not is_slot_already_satisfied(item.slot, asked_slots, known_slots, bank):
                 return PlanDecision(
                     action="ask_bank_item",
                     item=item,
@@ -313,7 +361,7 @@ def plan_next_step(
 
     # 5. PRIORITY CLASS: Access Barriers
     if known_slots.get("missing_reading"):
-        if "diabetes" in conditions and "has_glucometer" not in asked_slots:
+        if "diabetes" in conditions and not is_slot_already_satisfied("has_glucometer", asked_slots, known_slots, bank):
             item = bank.get_by_id("barrier_has_glucometer")
             if item:
                 return PlanDecision(
@@ -324,7 +372,7 @@ def plan_next_step(
                     max_budget=effective_budget,
                     target_slot=item.slot,
                 )
-        if "hypertension" in conditions and "has_bp_cuff" not in asked_slots:
+        if "hypertension" in conditions and not is_slot_already_satisfied("has_bp_cuff", asked_slots, known_slots, bank):
             item = bank.get_by_id("barrier_has_bp_cuff")
             if item:
                 return PlanDecision(
@@ -375,6 +423,21 @@ def plan_next_step(
                     target_slot=r_item.slot,
                 )
 
+    # Hypoglycemia Active Branching (< 70 mg/dL):
+    # If glucose is low, prioritize acute hypo symptom check and recovery food before high sugar symptoms
+    if gluc_val is not None and isinstance(gluc_val, (int, float)) and gluc_val < 70 and "diabetes" in conditions:
+        if not is_slot_already_satisfied("hypo_symptoms_acute", asked_slots, known_slots, bank):
+            h_item = bank.get_by_id("insulin_hypo_symptoms_acute")
+            if h_item:
+                return PlanDecision(
+                    action="ask_bank_item",
+                    item=h_item,
+                    reason="hypo_reading_acute_symptoms_check",
+                    question_count=current_count + 1,
+                    max_budget=effective_budget,
+                    target_slot=h_item.slot,
+                )
+
     for item_id in standard_order:
         item = bank.get_by_id(item_id)
         if not item:
@@ -400,6 +463,42 @@ def plan_next_step(
         if req.get("adherence_hypertension") is False and known_slots.get("adherence_hypertension") is not False:
             continue
 
+        # Condition Isolation:
+        if "diabetes" not in conditions and item.slot in (
+            "glucose_reading", "glucose_context", "hyperglycemia_symptoms", "foot_problems",
+            "adherence_diabetes", "missed_doses_reason_diabetes", "lifestyle_diabetes",
+            "hypo_symptoms_acute", "hypo_events_past_week", "hypo_recovery_food"
+        ):
+            continue
+
+        if "hypertension" not in conditions and item.slot in (
+            "bp_reading", "bp_technique", "associated_symptoms", "otc_meds_bp",
+            "adherence_hypertension", "missed_doses_reason_hypertension", "lifestyle_hypertension"
+        ):
+            continue
+
+        # Clinical Reading Branching:
+        if gluc_val is not None and isinstance(gluc_val, (int, float)):
+            # Hypo (< 70): Never ask hyperglycemia symptoms!
+            if gluc_val < 70 and item.slot == "hyperglycemia_symptoms":
+                continue
+            # Hyper (>= 250): Never ask acute hypo questions!
+            if gluc_val >= 250 and item.slot in ("hypo_symptoms_acute", "hypo_events_past_week", "hypo_recovery_food"):
+                continue
+
+        if bp_val is not None and isinstance(bp_val, (list, tuple)) and len(bp_val) >= 2:
+            sys_bp, dia_bp = bp_val[0], bp_val[1]
+            # Hypotension (< 90/60): Never ask high BP symptoms or OTC meds!
+            if (sys_bp < 90 or dia_bp < 60) and item.slot in ("associated_symptoms", "otc_meds_bp"):
+                continue
+
+        # Dual Diagnosis Lifestyle Deduplication: ask lifestyle once
+        if is_dual_diagnosis:
+            if item.slot == "lifestyle_hypertension" and is_slot_already_satisfied("lifestyle_diabetes", asked_slots, known_slots, bank):
+                continue
+            if item.slot == "lifestyle_diabetes" and is_slot_already_satisfied("lifestyle_hypertension", asked_slots, known_slots, bank):
+                continue
+
         return PlanDecision(
             action="ask_bank_item",
             item=item,
@@ -412,7 +511,15 @@ def plan_next_step(
     # 7. PRIORITY CLASS: Wellbeing (optional, if room in budget)
     for w_id in ("wellbeing_depressed_mood", "wellbeing_little_interest", "wellbeing_overwhelmed"):
         item = bank.get_by_id(w_id)
-        if item and item.slot not in asked_slots:
+        if item and not is_slot_already_satisfied(item.slot, asked_slots, known_slots, bank):
+            return PlanDecision(
+                action="ask_bank_item",
+                item=item,
+                reason="optional_wellbeing_screen",
+                question_count=current_count + 1,
+                max_budget=effective_budget,
+                target_slot=item.slot,
+            )
             return PlanDecision(
                 action="ask_bank_item",
                 item=item,

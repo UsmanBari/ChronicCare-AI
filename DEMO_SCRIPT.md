@@ -24,7 +24,7 @@ The evaluation demo runs locally on pure SQLite with full pipeline flags active.
 | `APP_ENV` | `"local"` | Sec 23 | Strictly hermetic local environment; enforces SQLite local database. |
 | `DB_BACKEND` | `"sqlite"` | Sec 23 | Local SQLite storage; zero production MySQL or cloud network exposure. |
 | `ORCHESTRATOR` | `"graph"` | Sec 23 | Check-in orchestrator (`graph` mode default; `direct` mode 100% equivalent across 78/78 cases). |
-| `INTERVIEW_ENGINE` | `"v2"` | Sec 13.1 Agent 2 | Clinically structured adaptive interview engine. |
+| `INTERVIEW_ENGINE` | `"v3"` | Sec 13.1 Agent 2 | Clinically structured adaptive interview engine (v3 dynamic planner). |
 | `RISK_ENABLED` | `"true"` | Sec 13.1 Agent 9 | Provider cardiometabolic risk panel (NHANES diabetes + Framingham CHD10). |
 | `RISK_CAN_RAISE` | `"true"` | Sec 15 | Stage-2 Final Triage: High risk band raises routine to review (Yellow). |
 | `RISK_PATIENT_VISIBLE`| `"true"` | Sec 15 | Patient sees plain-language categorical band sentence only; raw scores/SHAP strictly hidden. |
@@ -73,7 +73,7 @@ flowchart LR
 ### Scene 2: Vernacular Urdu Script Check-in [1:30 – 3:00]
 - **Portal & Persona**: Patient Portal (`demo_patient_ur@demo.care`).
 - **Benchmark Persona & Seed Patient**: `demo_patient_ur` (Urdu Nastaliq script; maps to benchmark persona `p06_urdu_script_normal`).
-- **Active Demo Flags**: `APP_ENV=local`, `ORCHESTRATOR=graph`, `INTERVIEW_ENGINE=v2`.
+- **Active Demo Flags**: `APP_ENV=local`, `ORCHESTRATOR=graph`, `INTERVIEW_ENGINE=v3`.
 - **Proposal Reference**: Sec 13.2, Sec 23 (Urdu Multilingual Support), LA-10.
 - **Actions**:
   1. Sign in as `demo_patient_ur@demo.care` (interface defaults to Urdu Nastaliq script).

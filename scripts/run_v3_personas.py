@@ -179,6 +179,12 @@ def build_persona_facts(p):
             facts["hypo_recovery"] = a
         if any(w in a_low for w in ["episodes this week", "low episodes", "times this week"]):
             facts["hypo_events"] = a
+        if any(w in a_low for w in ["insulin", "metformin", "meds", "pills", "dawa", "sehri", "dose", "tablet", "took", "prescribed"]):
+            facts["adherence"] = a
+            facts["adherence_dm"] = a
+            facts["adherence_htn"] = a
+        if any(w in a_low for w in ["ramadan", "fasting", "roza", "sehri"]):
+            facts["fasting"] = a
 
     if "glucose" in facts:
         g_low = facts["glucose"].lower()
@@ -195,6 +201,18 @@ def pick_answer(facts, step, question_text, lang):
     fallback = "نہیں" if lang == "ur" else ("nahi" if lang == "roman_ur" else "no")
     unknown = "معلوم نہیں" if lang == "ur" else ("pata nahi" if lang == "roman_ur" else "I don't know")
     
+    # Clarification re-ask prompts (safety clarification or adherence clarification)
+    if "clarify if you are experiencing this" in q_low or "(yes / no" in q_low:
+        return ("ہاں" if lang == "ur" else ("haan" if lang == "roman_ur" else "yes")), True
+    if "to be sure, did you take your medication" in q_low:
+        return ("ہاں" if lang == "ur" else ("haan" if lang == "roman_ur" else "yes")), True
+
+    # Fasting today check
+    if "is_fasting_today" in step_low or "fasting today" in q_low or "are you fasting" in q_low:
+        if "fasting" in facts:
+            return ("ہاں" if lang == "ur" else ("haan" if lang == "roman_ur" else "yes")), True
+        return fallback, True
+
     # 1. Glucose unit clarification (checked before glucose reading so disambiguation questions get units)
     if ("did you mean" in q_low or "is that number in" in q_low or "is that reading in" in q_low or "unit" in step_low) and ("mmol" in q_low or "mg/dl" in q_low):
         raw_facts = " ".join(str(v) for v in facts.values()).lower()
@@ -307,6 +325,9 @@ def pick_answer(facts, step, question_text, lang):
         if "oriented in time" in q_low or "can you swallow" in q_low:
             return ("ہاں" if lang == "ur" else ("haan" if lang == "roman_ur" else "yes")), True
         return fallback, True
+
+    if "summary_confirm" in step_low or "summary" in step_low or "review the summary" in q_low:
+        return ("ٹھیک ہے" if lang == "ur" else ("theek hai" if lang == "roman_ur" else "Confirm and submit")), True
 
     if "closing" in facts:
         return facts["closing"], False
