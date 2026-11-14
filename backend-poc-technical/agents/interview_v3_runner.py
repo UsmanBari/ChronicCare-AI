@@ -350,6 +350,116 @@ def _has_clinical_content(text: str, lang: str = "en") -> bool:
         return True
     return False
 
+
+def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: str) -> None:
+    """
+    Extracts clinical slots that the patient provides early (e.g. in greeting or free text)
+    across English, Urdu, and Roman Urdu, avoiding redundant questions.
+    Only populates known_slots and readings; never alters asked_slots turn counter.
+    """
+    if not answer_text or not isinstance(answer_text, str):
+        return
+
+    known_slots = session_state.setdefault("known_slots", {})
+    readings = session_state.setdefault("readings", {})
+    lower_ans = answer_text.lower().strip()
+
+    # 1. Early Blood Pressure Extraction
+    if "bp_reading" not in known_slots and "hypertension_bp_reading" not in known_slots:
+        bp_res = parse_bp(answer_text)
+        bp_parsed = bp_res.get("value") if isinstance(bp_res, dict) else bp_res
+        if bp_parsed and isinstance(bp_parsed, (list, tuple)) and len(bp_parsed) >= 2:
+            sys_val, dia_val = float(bp_parsed[0]), float(bp_parsed[1])
+            if 40 <= sys_val <= 300 and 30 <= dia_val <= 200:
+                known_slots["bp_reading"] = [sys_val, dia_val]
+                readings["bp"] = f"{int(sys_val)}/{int(dia_val)}"
+                session_state["readings"] = readings
+
+    # 2. Early Blood Glucose Extraction
+    if "glucose_reading" not in known_slots and "diabetes_glucose_reading" not in known_slots:
+        has_glucose_hint = any(k in lower_ans for k in [
+            "glucose", "sugar", "shugar", "mg/dl", "mg / dl", "mmol", "mmol/l", "fasting", "nahar",
+            "شوگر", "گلوکوز", "نہار منہ", "نہار"
+        ])
+        is_pure_med_dose = bool(re.search(r'\b(metformin|glimepiride|insulin|tablet|tab|pill|dose|capsule)\s+\d+\s*mg\b', lower_ans))
+        if has_glucose_hint and not is_pure_med_dose:
+            meter_tok = detect_meter_lo_hi(answer_text)
+            if not meter_tok:
+                mmol_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:mmol(?:/l)?)', lower_ans)
+                if mmol_match:
+                    try:
+                        mmol_val = float(mmol_match.group(1))
+                        mg_val = round(mmol_val * 18.0, 1)
+                        if 20 <= mg_val <= 600:
+                            known_slots["glucose_reading"] = mg_val
+                            readings["glucose"] = mg_val
+                            session_state["readings"] = readings
+                    except Exception:
+                        pass
+                else:
+                    mg_match = re.search(r'(\d{2,3})\s*(?:mg(?:/dl)?)', lower_ans)
+                    if mg_match:
+                        try:
+                            g_val = float(mg_match.group(1))
+                            if 20 <= g_val <= 600:
+                                known_slots["glucose_reading"] = g_val
+                                readings["glucose"] = g_val
+                                session_state["readings"] = readings
+                        except Exception:
+                            pass
+                    else:
+                        sug_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز).*?(\d{2,3})\b', lower_ans)
+                        if sug_match:
+                            try:
+                                g_val = float(sug_match.group(1))
+                                if 20 <= g_val <= 600:
+                                    known_slots["glucose_reading"] = g_val
+                                    readings["glucose"] = g_val
+                                    session_state["readings"] = readings
+                            except Exception:
+                                pass
+
+    # 3. Early Glucose Context (Fasting / After meal)
+    if "glucose_context" not in known_slots and "diabetes_glucose_context" not in known_slots:
+        if any(w in lower_ans for w in ["fasting", "nahar munh", "nahar", "before meal", "khali pet", "before eating", "نہار منہ"]):
+            known_slots["glucose_context"] = "fasting"
+        elif any(w in lower_ans for w in ["after meal", "after eating", "post meal", "khany k baad", "khane ke baad", "کھانے کے بعد"]):
+            known_slots["glucose_context"] = "after_meal"
+
+    # 4. Early BP Technique (Rested / Seated)
+    if "bp_technique" not in known_slots and "hypertension_bp_technique" not in known_slots:
+        if any(w in lower_ans for w in ["rested", "sat quietly", "seated", "baith kar", "araam se", "rest for 5", "5 minutes", "بیٹھ کر"]):
+            known_slots["bp_technique"] = "seated_rested"
+
+    # 5. Early Adherence Extraction
+    has_adh_reported = False
+    pos_adh_patterns = [
+        r"\btook\s+(?:all\s+)?(?:my\s+)?(?:med|meds|medicine|medicines|medication|medications|pills|tablets|metformin|insulin)\b",
+        r"\b(?:all\s+)?(?:meds|medicines|medications|pills|tablets)\s+taken\b",
+        r"\b(?:taking|taken)\s+(?:all\s+)?(?:prescribed|my\s+meds)\b",
+        r"\b(?:dawa|dawain|dawai|goli|goliyan)\s+(?:le\s+li|kha\s+li|leli|khali)\b",
+        r"\bsab\s+(?:dawa|dawain|dawai|goliyan|adwiyat)\b",
+        r"(?:تمام\s+ادویات|دوائیاں\s+لے\s+لی\s+ہیں|دوا\s+لے\s+لی)",
+    ]
+    neg_adh_patterns = [
+        r"\bmissed\s+(?:my\s+)?(?:med|meds|medicine|medicines|medication|medications|pills|tablets|insulin|dose|doses)\b",
+        r"\b(?:dawa|dawain|dawai|goli|goliyan)\s+(?:nahi\s+li|chhoot\s+gayi|bhool\s+gaya)\b",
+        r"\bforgot\s+(?:to\s+take\s+)?(?:my\s+)?(?:meds|pills|medicine)\b",
+    ]
+
+    if any(re.search(pat, lower_ans) for pat in pos_adh_patterns):
+        known_slots["adherence_diabetes"] = True
+        known_slots["adherence_hypertension"] = True
+        known_slots["adherence"] = True
+        has_adh_reported = True
+    elif any(re.search(pat, lower_ans) for pat in neg_adh_patterns):
+        if "blood pressure" in lower_ans or "bp" in lower_ans:
+            known_slots["adherence_hypertension"] = False
+        if "insulin" in lower_ans or "metformin" in lower_ans or "sugar" in lower_ans:
+            known_slots["adherence_diabetes"] = False
+        has_adh_reported = True
+
+
 def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]:
     """
     Processes a patient turn in Interview Engine v3:
@@ -549,6 +659,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     readings = session_state.get("readings", {})
     asked_slots = session_state.get("asked_slots", [])
     eff_answer = clinical_remainder if (is_caregiver and clinical_remainder) else clean_answer
+    _extract_early_slots(eff_answer, session_state, lang)
 
     # Check if we were awaiting glucose unit clarification
     if session_state.get("awaiting_glucose_unit"):
@@ -822,9 +933,15 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     if current_slot == "summary_confirmation":
         yn_res = parse_yes_no(eff_answer, lang=lang)
         lower_raw = clean_answer.lower()
+        is_confirm_intent = (
+            yn_res.get("value") in (True, "yes")
+            or any(w in lower_raw for w in ["confirm", "submit", "all good", "correct", "theek", "theek hai", "ji haan", "done", "haan", "ٹھیک", "صحیح", "ہاں"])
+        )
         is_change_intent = (
-            yn_res["value"] is False
-            or any(w in lower_raw for w in ["change", "tabdeel", "galat", "wrong", "need to change", "nahi", "no", "edit"])
+            not is_confirm_intent and (
+                yn_res.get("value") in (False, "no")
+                or any(w in lower_raw for w in ["change", "tabdeel", "galat", "wrong", "need to change", "edit", "nahi"])
+            )
         )
         if is_change_intent:
             rounds = session_state.get("summary_correction_rounds", 0)

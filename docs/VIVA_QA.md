@@ -169,25 +169,26 @@ To prevent OCR recognition errors from corrupting the medical record, OCR output
 
 ### Q15: What were the key findings when you benchmarked the full pipeline against the Single-LLM baseline?
 **Spoken Answer:**  
-"We tested both systems against 51 clinical scenarios using Groq's `qwen/qwen3.8-27b` over 3 runs per scenario:  
-- **Emergency Safety:** The pipeline achieved **100% emergency recall** (3/3), while the single LLM achieved only **11.1% recall** (1/9), missing 8 life-threatening emergencies.  
-- **Invented Numbers:** The pipeline had **0 hallucinations** (0.0%), while the single LLM hallucinated fake numbers twice.  
-- **Consistency:** The pipeline was **100% consistent**, whereas the LLM fluctuated across runs in 11.8% of cases.  
-- **Exact Matches:** The LLM scored higher on exact matches (49.0% vs 37.2%) because our pipeline deliberately and conservatively over-triages non-emergency borderline cases to ensure physician review."  
+"We benchmarked both systems against 51 evaluable clinical scenarios using Groq's `qwen/qwen3.8-27b` over 3 independent trials per scenario (153 total baseline runs):  
+- **Emergency Safety Recall:** The pipeline achieved **100.0% emergency recall** (3/3), while the single LLM achieved only **11.1% recall** (1/9), missing 8 out of 9 life-threatening emergency evaluations (crushing chest pain, hypertensive crisis, DKA vomiting).  
+- **Urgent Recall:** The pipeline caught 100.0% of urgent hypoglycemia (48 mg/dL), while the single LLM under-triaged 100.0% of urgent cases to review.  
+- **Invented Numbers:** The pipeline had **0 hallucinations** (0.0%), while the single LLM hallucinated invented vitals twice.  
+- **Multi-Run Consistency:** The pipeline was **100.0% deterministic**, whereas the single LLM fluctuated across runs in 11.8% of scenarios.  
+- **Failure Mode & Over-Triage:** The single LLM over-triaged routine check-ins by 67.7% (63/93 runs). It collapsed temporal horizons (treating past resolved symptoms like 'mild headache yesterday' as active complaints) and lacked clinical threshold bounds (treating 135/88 mmHg as slightly elevated needing clinician review without recognizing expected chronic baseline variance)."  
 **Grounding Files:**  
-- `docs/SINGLE_LLM_BASELINE.md`
+- `docs/eval/SECTION36_RESULTS.md`
+- `docs/eval/SINGLE_LLM_BASELINE.md`
 - `scripts/eval/single_llm_baseline.py`
-- `backend-poc-technical/test_single_llm_baseline.py`
 
 ---
 
-### Q16: What is Mutation Testing, and what do your 60/60 mutation proofs prove?
+### Q16: What is Mutation Testing, and what do your 64/64 mutation proofs prove?
 **Spoken Answer:**  
-"Mutation testing is how we verify that our test suite actually catches safety regressions. In `scripts/verify_mutations.py`, we inject deliberate bugs into critical files—like reversing an emergency BP threshold from `>= 180` to `<= 180`, disabling the verification agent, or ignoring red-flag phrases.  
-We ran 60 deliberate mutations across input triage, reconciliation, verification, and final triage. Our test suite killed **all 60 out of 60 mutations** (100% mutation kill score), proving that any code change that weakens clinical safety immediately breaks our test build."  
+"Mutation testing is how we verify that our test suite actually catches safety regressions. In `scripts/verify_mutations.py`, we inject deliberate bugs into critical files—like reversing an emergency BP threshold, disabling the verification agent, ignoring red-flag phrases, or altering planner safety loops.  
+We ran 64 deliberate mutations across clinical rules, the adaptive DAG planner, input triage, verification, and explainers. Our test suite killed **all 64 out of 64 mutations** (100% mutation kill score), proving that any code change that weakens clinical safety or violates architectural invariants immediately breaks our test build."  
 **Grounding Files:**  
 - `scripts/verify_mutations.py`
-- `docs/FYP1_EVIDENCE.md` (Table 3: Mutation Proofs)
+- `docs/FYP1_EVIDENCE.md`
 
 ---
 
@@ -221,13 +222,17 @@ Our `LocalDataStore` in `local_store.py` uses standard relational tables (patien
 
 ---
 
-### Q20: How does the Adaptive Interview Agent handle missing vitals or uncooperative responses?
+### Q20: How does the Adaptive Interview Agent handle missing vitals and avoid repetitive loops?
 **Spoken Answer:**  
-"The Adaptive Interview Agent in `agents/adaptive_interview_agent.py` dynamically adjusts its questions based on what information has already been collected.  
-If a patient does not have a glucometer or BP cuff, the interview notes the missing vitals and moves to symptom screening. To prevent conversational loops, we enforce a strict 40-turn cap. Under Rule R8, if a check-in completes with missing vitals, the system flags the missing data on the patient result card and advises measuring at the earliest opportunity."  
+"The Adaptive Interview Agent (Engine v3 in `agents/interview_planner.py` and `agents/interview_v3_runner.py`) uses a dynamic priority DAG planner rather than a static script:  
+1. **Zero Repeated Questions:** Once a clinical slot is satisfied or answered, it is permanently marked and never re-asked across the check-in (0 repeats across all 52 personas).  
+2. **Strict Clinical Branching:** If glucose is < 70 mg/dL, it strictly asks acute hypoglycemia questions and suppresses high-sugar/DKA questions; if glucose is >= 250 mg/dL, it routes to sick-day fluids and suppresses acute hypo questions.  
+3. **Multi-Intent Extraction:** If a patient answers multiple items at once (e.g. 'sugar 180 and took metformin'), both slots are extracted immediately, preventing redundant follow-up questions.  
+4. **Hard Budget Cap:** A strict hard cap of 14 questions is enforced, preventing interrogation fatigue."  
 **Grounding Files:**  
-- `backend-poc-technical/agents/adaptive_interview_agent.py`
-- `backend-poc-technical/agents/triage_protocol.py` (Rule R8)
+- `docs/eval/INTERVIEW_V2_VS_V3.md`
+- `backend-poc-technical/agents/interview_planner.py`
+- `backend-poc-technical/test_adaptive_flow.py`
 
 ---
 
@@ -258,11 +263,11 @@ Both orchestrators execute the exact same agent logic and pass the exact same 2,
 
 ### Q23: How do speech-to-text (Whisper) and text-to-speech (Meta MMS-TTS) operate in the system?
 **Spoken Answer:**  
-"For vernacular audio interaction, `backend-poc-technical/main.py` provides an audio transcription endpoint using OpenAI Whisper to convert spoken Urdu or English voice notes into text.  
-For audio responses, we integrated Meta MMS-TTS for Urdu (`voice/`), which synthesizes localized spoken guidance for low-literacy patients. Both services operate behind clean feature flags (`URDU_VOICE_ENABLED=true`) so the application degrades gracefully to text if audio hardware is absent."  
+"For vernacular audio interaction, `backend-poc-technical/main.py` provides an audio transcription endpoint using OpenAI Whisper to convert spoken Urdu or English voice notes into text, complemented by the browser's native Web Speech API.  
+For audio responses, we integrated Meta MMS-TTS for Urdu (`voice/`), which synthesizes localized spoken guidance for low-literacy patients. Both services operate behind clean feature flags (`TTS_ENABLED=true`) so the application degrades gracefully to text if audio hardware is absent."  
 **Grounding Files:**  
-- `backend-poc-technical/main.py` (`/api/v1/voice/transcribe`)
-- `backend-poc-technical/voice/tts_engine.py` (Meta MMS-TTS)
+- `backend-poc-technical/main.py` (`/api/voice/transcribe`)
+- `backend-poc-technical/voice/` (Meta MMS-TTS)
 
 ---
 
@@ -280,12 +285,37 @@ For audio responses, we integrated Meta MMS-TTS for Urdu (`voice/`), which synth
 
 ### Q25: What are the honest known limitations of ChronicCare AI today?
 **Spoken Answer:**  
-"We maintain strict academic honesty about our current system limitations:  
-1. **Clinical Validation:** Our 51 benchmark personas have engineer-written expected triage levels and have not yet completed formal double-blind physician review.  
-2. **Cloud RAM Constraints:** Render's free tier (512 MB) cannot run heavy in-process embedding models or PyTorch checkpoints, requiring lightweight BM25 and API fallbacks for cloud hosting.  
-3. **Model Training Data:** Our ML risk models were trained on US NHANES data; fine-tuning on native Pakistani cohort data (e.g. PK-diabetes datasets) remains future work.  
-4. **Pediatric & Obstetric Exclusion:** The system explicitly excludes pregnancy and pediatric patients, exiting with an immediate referral."  
+"We maintain strict academic honesty regarding our system's current limitations:  
+1. **Small Simulated Persona Cohort:** Our 52 benchmark personas are synthetic engineer-authored personas. While grounded in published ACC/AHA and ADA clinical guidelines, they have not yet been evaluated in a 1,000-patient live clinical cohort.  
+2. **Doctor Signoff on 3 Decisions Only:** The doctor on record provided clinical decisions on three specific pending protocol questions in November 2026 (D1 no-reading symptom raise, D2 high-risk requires symptoms for review raise, D3 30-day cooldown). The system has not undergone comprehensive institutional medical signoff, and doctor review is not clinical validation.  
+3. **Mock EHR Sandbox:** Interoperability was validated on SMART Health IT open sandbox endpoints and a local SQLite FHIR simulation store, not on live hospital production EHR systems.  
+4. **Urdu Speech-to-Text Browser Dependency:** Voice transcription relies on browser Web Speech API with server Whisper fallback; performance varies significantly based on client microphone quality, browser engine, and ambient room noise.  
+5. **Model Training Data:** Our ML risk models were trained on US NHANES data (1999–2023) and Framingham Heart Study data; prospective validation on Pakistani cohorts where cardiometabolic disease occurs at earlier ages remains future work.  
+6. **Pediatric & Obstetric Exclusion:** The prototype explicitly excludes pregnancy and pediatric patients, exiting with an immediate referral."  
 **Grounding Files:**  
 - `docs/FYP1_EVIDENCE.md` (Section 8: Honest Known Limitations)
 - `docs/PROMISE_TRACKER.md` (Section 10: Change Control Log)
+
+---
+
+### Q26: What decisions were made by the doctor on record in November 2026?
+**Spoken Answer:**  
+"The doctor on record answered three critical pending clinical questions:  
+1. **Decision D1 (No-Reading Symptom Raise):** When a patient reports feeling unwell with no vital reading entered, does this raise Routine (Green) to Review (Yellow)? The doctor approved: Yes (`NO_READING_SYMPTOM_RAISE=true`).  
+2. **Decision D2 (Heart Risk Triage Elevation):** The doctor decided: 'Just having heart risk doesn't need a review unless associated with any symptoms.' If a patient is high-risk but asymptomatic in this check-in, they remain Green (Routine). If symptoms are present alongside high risk, they escalate to Yellow (Review).  
+3. **Decision D3 (Risk Raise Cooldown Period):** To prevent alert fatigue for patients with chronic unchangeable high risk, a 30-day cooldown applies before risk alone can raise them again (`RISK_RAISE_COOLDOWN_DAYS=30`)."  
+**Grounding Files:**  
+- `docs/LOCAL_DEMO.md` (Step 8b)
+- `backend-poc-technical/agents/final_triage.py`
+- `backend-poc-technical/test_doctor_decisions_d2.py`
+
+---
+
+### Q27: How does your Stage 1 Red-Flag detection work across three languages without missing subtle emergencies?
+**Spoken Answer:**  
+"Rather than rigid whole-sentence regexes, our red-flag engine in `agents/red_flag_patterns.py` uses word-window proximity matching across distinct vocabulary lists (body/person nouns, emergency verbs, severity cues) within an 8-word window across English, Urdu Nastaliq script, and Roman Urdu. It supports family subjects (ammi, abba, nana, nani), plural and respect verb forms, and failure verbs (kaam nahi kar raha, band ho gaya). Furthermore, fainting recovery suppression is strictly scoped to loss of consciousness and can never cancel acute chest pain, severe dyspnea, or stroke symptoms."  
+**Grounding Files:**  
+- `backend-poc-technical/agents/red_flag_patterns.py`
+- `backend-poc-technical/test_red_flag_patterns.py`
+
 
