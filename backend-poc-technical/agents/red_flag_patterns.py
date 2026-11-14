@@ -108,6 +108,7 @@ _ROMAN_URDU_SPELLINGS = [
     (r"\bghunt\b", "ghoont"),
     (r"\bwapis\b", "wapas"),
     (r"\bkaam\b", "kam"),
+    (r"\bbe\s*sudh\b", "be sudh"),
 ]
 
 
@@ -296,6 +297,16 @@ _CHEST_METAPHORS = [
     r"جیسے\s*(?:کوئی\s*)?(?:سینہ\s*)?دبا\s*رہا\s*ہو",
     r"سینے\s*پر\s*(?:جیسے\s*)?(?:کوئی\s*)?(?:بھاری\s*چیز|وزن|بوجھ|ہاتھی)",
     r"(?:چھاتی|سینے)\s*کو\s*کوئی\s*(?:نچوڑ|دبا)\s*رہا\s*ہو",
+    # Someone standing / sitting on chest (any verb)
+    r"\b(?:someone|somebody|anyone)\s+(?:is\s+)?(?:standing|sitting|stepped|pressing|crushing|lying)\s+on\s+(?:my\s+)?chest\b",
+    r"\bfeels?\s+like\s+(?:someone|somebody)\s+(?:is\s+)?(?:standing|sitting|stepped|pressing|crushing|lying)\s+on\s+(?:my\s+)?chest\b",
+    r"\b(?:seena|seenay|seene|chhati)\s+(?:par|pe)\s+(?:koi\s+)?(?:baitha|betha|khara|khada|sawar|dabaye)\b",
+    r"(?:سینے|چھاتی)\s*پر\s*(?:کوئی\s*)?(?:بیٹھا|کھڑا|سوار|دبائے)",
+    # Mid-chest pressure + nausea / vomit sensation (ACS presentation)
+    r"\b(?:seena|seenay|seene|chhati)\s+(?:ke\s+)?(?:beech|darmiyan|me)\s+(?:\w+\s+){0,4}(?:dabao|dabav|dbao|bojh|pressure|tightness|heaviness)\b.*?\b(?:ulti\s+jaisa|matli|nausea|vomit\w*|sick)\b",
+    r"\b(?:ulti\s+jaisa|matli|nausea|vomit\w*|sick)\b.*?\b(?:seena|seenay|seene|chhati)\s+(?:ke\s+)?(?:beech|darmiyan|me)\s+(?:\w+\s+){0,4}(?:dabao|dabav|dbao|bojh|pressure|tightness|heaviness)\b",
+    r"(?:سینے\s*کے\s*(?:بیچ|درمیان)|چھاتی\s*میں)\s*(?:\S+\s*){0,4}(?:دباؤ|بوجھ).*?(?:الٹی\s*جیسا|متلی|قے)",
+    r"(?:الٹی\s*جیسا|متلی|قے).*?(?:سینے\s*کے\s*(?:بیچ|درمیان)|چھاتی\s*میں)\s*(?:\S+\s*){0,4}(?:دباؤ|بوجھ)",
 ]
 
 _PHYSICAL_CARDIAC_CUES = [
@@ -486,6 +497,30 @@ _BREATHING_INABILITY_PATTERNS = [
     r"بغیر\s*چلے\s*(?:بھی\s*)?سانس\s*(?:نہیں\s*آ\s*رہی|پھول)",
     r"آرام\s*کی\s*حالت\s*میں\s*(?:بھی\s*)?سانس\s*(?:لینا\s*محال|نہیں\s*آ\s*رہی)",
     r"سانس\s*لینا\s*بہت\s*مشکل\s*ہو\s*گیا\s*ہے",
+    # Air not going in (Roman Urdu, Urdu script, English)
+    r"\bhawa\s+(?:\w+\s+){0,2}(?:andar\s+)?nahi\s+(?:jaa?ti|jaa?te|jaa?ta|jaa?\s*rahi|jaa?\s*raha|aati|aata|mil\s*rahi|mil\s*raha)\b",
+    r"\b(?:air\s+(?:is\s+)?(?:not\s+going\s+in|wont\s+go\s+in|not\s+getting\s+in|cant\s+get\s+in)|no\s+air\s+(?:is\s+)?(?:going\s+in|getting\s+in))\b",
+    r"ہوا\s*(?:\S+\s*){0,2}(?:اندر\s*)?نہیں\s*(?:جاتی|جا\s*رہی|آتی|مل\s*رہی)",
+    # Bilkul ukhri hui
+    r"\b(?:sans|saans|dam)\s+(?:\w+\s+){0,3}(?:bilkul\s+)?(?:ukhad|ukhri)\s+(?:gayi|gaya|rahi|raha|hui)\b",
+    r"\b(?:bilkul\s+)?ukhri\s+hui\s+(?:sans|saans)\b",
+    r"\b(?:sans|saans)\s+(?:bilkul\s+)?ukhri\s+hui\b",
+    r"سانس\s*(?:\S+\s*){0,3}(?:بالکل\s*)?اکھڑ\s*(?:گئی|گیا|رہی)",
+    r"(?:بالکل\s*)?اکھڑی\s*ہوئی\s*سانس",
+    r"سانس\s*(?:بالکل\s*)?اکھڑی\s*ہوئی",
+    # Wheezing + Blue lips
+    r"\b(?:wheez\w*|seeti\s+(?:jaisi|ki\s+awaz))\b.*?\b(?:(?:blue|bluish|neela?y?)\s+(?:lips?|hon?th?)|(?:lips?|hon?th?)\s+(?:\w+\s+){0,2}(?:blue|bluish|neela?y?))\b",
+    r"\b(?:(?:blue|bluish|neela?y?)\s+(?:lips?|hon?th?)|(?:lips?|hon?th?)\s+(?:\w+\s+){0,2}(?:blue|bluish|neela?y?))\b.*?\b(?:wheez\w*|seeti\s+(?:jaisi|ki\s+awaz))\b",
+    r"(?:سیٹی|wheez).*?(?:نیلے\s*ہونٹ|blue\s*lips?)",
+    r"(?:نیلے\s*ہونٹ|blue\s*lips?).*?(?:سیٹی|wheez)",
+    # Orthopnea / Inability to lie down
+    r"\b(?:lai?t|let)\s+(?:bhi\s+)?nahi\s+(?:sakta|sakti|saktay|sakte|pa\s+raha|pa\s+rahi|pa\s+rahe)\b",
+    r"\bcant\s+(?:even\s+)?lie\s+(?:down|flat)\b",
+    r"\bcannot\s+(?:even\s+)?lie\s+(?:down|flat)\b",
+    r"\bunable\s+to\s+lie\s+(?:down|flat)\b",
+    r"\bwont\s+lie\s+(?:down|flat)\b",
+    r"لیٹ\s*(?:بھی\s*)?نہیں\s*(?:سکتا|سکتی|سکتے|پا\s*رہ)",
+    r"سیدھا\s*لیٹنا\s*(?:ممکن\s*نہیں|محال)",
 ]
 
 _BREATHING_NEGATIONS = [
@@ -531,18 +566,28 @@ def _match_breathing(norm: str) -> bool:
     if _has_any(norm, _BREATHING_METAPHORS):
         return True
 
-    # Check negated breathing first
+    # 1. Check negated breathing first
     if _has_any(norm, _BREATHING_NEGATIONS):
-        return False
+        # Exclude acute respiratory failure phrases from negation
+        has_failure = bool(re.search(
+            r"\bhawa\s+(?:andar\s+)?nahi\s+(?:jaa?ti|jaa?te|jaa?ta|jaa?\s*rahi|jaa?\s*raha|aati|aata|mil\s*rahi|mil\s*raha)\b|"
+            r"\bair\s+(?:is\s+)?(?:not\s+going\s+in|wont\s+go\s+in|not\s+getting\s+in|cant\s+get\s+in)\b|"
+            r"\b(?:sans|saans)\s+(?:bilkul\s+)?ukhri\s+hui\b|"
+            r"ہوا\s*(?:اندر\s*)?نہیں\s*(?:جاتی|جا\s*رہی|آتی|مل\s*رہی)",
+            norm
+        ))
+        if not has_failure:
+            return False
 
-    # Chronic conditions (asthma for years)
+    # 2. Chronic conditions (asthma for years)
     if _has_any(norm, _CHRONIC_PATTERNS) and not re.search(r"\b(?:cannot|cant|gasping|suffocating)\b", norm):
         return False
 
+    # 3. Acute inability & failure phrases
     if _has_any(norm, _BREATHING_INABILITY_PATTERNS):
         return True
 
-    # Concept-based proximity matching
+    # 4. Concept-based proximity matching
     words = norm.split()
     if _has_proximity(words, _BREATH_ORGAN_TOKENS, _BREATH_DISTRESS_TOKENS, MAX_WINDOW_WORDS):
         return True
@@ -623,10 +668,59 @@ _STROKE_FAST_PATTERNS = [
     r"\bkuch\s+samajh\s+nahi\s+aa\s+raha\s+kahan\b",
     r"کچھ\s*سمجھ\s*نہیں\s*آ\s*رہا\s*کہاں",
     r"شدید\s*الجھن",
+    # Speech / Comprehension inability & failure verbs
+    r"\b(?:baat|alfaaz|words?)\s+(?:\w+\s+){0,2}samajh\s+nahi\s+(?:aa\s+rah[iyea]*|pa\s+rah[iyea]*|sak\w*)\b",
+    r"\bbaat\s+nahi\s+samajh\s+aa\s+rah[iyea]*\b",
+    r"\bkuch\s+samajh\s+nahi\s+aa\s+raha\s+kya\s+bol\b",
+    r"\b(?:cant|cannot|unable\s+to)\s+understand\s+(?:what\s+(?:they|he|she)\s+is\s+saying|words|speech)\b",
+    r"\bwords\s+(?:make\s+no\s+sense|not\s+making\s+sense|dont\s+make\s+sense)\b",
+    r"بات\s*(?:\S+\s*){0,2}سمجھ\s*نہیں\s*(?:آ\s*رہ|پا\s*رہ|سک)",
+    r"الفاظ\s*سمجھ\s*نہیں\s*آ\s*رہ",
+    r"کچھ\s*سمجھ\s*نہیں\s*آ\s*رہا\s*کیا\s*بول",
+    # Motor / Limb failure verbs (hand, arm, leg, foot)
+    r"\b(?:haath|hath|bazu|pair|tang|taang)\s+(?:\w+\s+){0,3}(?:hila\s+)?nahi\s+(?:pa\s+rah[iyea]*|sak\w*|rah[iyea]*)\b",
+    r"\b(?:haath|hath|bazu|pair|tang|taang)\s+(?:\w+\s+){0,2}(?:uth|hil)\s+nahi\s+rah[iyea]*\b",
+    r"\b(?:haath|hath|bazu|pair|tang|taang)\s+(?:\w+\s+){0,2}(?:ka?am\s+)?nahi\s+kar\s+rah[iyea]*\b",
+    r"\b(?:haath|hath|bazu|pair|tang|taang)\s+(?:bilkul\s+)?ka?am\s+nahi\s+kar\b",
+    r"\b(?:haath|hath|bazu|pair|tang|taang)\s+nahi\s+(?:uth|hil)\s+rah[iyea]*\b",
+    r"\b(?:cant|cannot|unable\s+to|wont)\s+(?:move|lift)\s+(?:\w+\s+){0,2}(?:arm|leg|hand|foot|side|limb)\b",
+    r"\b(?:arm|leg|hand|foot|side|limb)\s+(?:is\s+)?(?:wont|cant|cannot|not)\s+(?:move|lift|working)\b",
+    r"(?:ہاتھ|بازو|پاؤں|ٹانگ)\s*(?:\S+\s*){0,3}(?:نہیں\s*ہلا\s*پا|ہلا\s*نہیں\s*پا|نہیں\s*ہل|نہیں\s*اٹھ|کام\s*نہیں\s*کر|ہل\s*نہیں\s*رہ|اٹھ\s*نہیں\s*رہ)",
+    r"(?:ہاتھ|بازو|پاؤں|ٹانگ)\s*(?:\S+\s*){0,2}(?:اٹھ|ہل)\s*نہیں\s*رہ",
+    r"(?:ہاتھ|بازو|پاؤں|ٹانگ)\s*(?:\S+\s*){0,2}(?:کام\s*)?نہیں\s*کر\s*رہ",
+    # "Ajeeb baatein" (confused speech) + limb that won't move
+    r"\b(?:ajeeb\s+baat\w*|strange\s+words?|talking\s+strange\w*|confused\s+speech|nonsense\s+words?)\b.*?\b(?:haath|hath|bazu|pair|tang|taang|arm|leg|hand|limb)\b.*?\b(?:hil|uth|ka?am|move|lift)\b",
+    r"\b(?:haath|hath|bazu|pair|tang|taang|arm|leg|hand|limb)\b.*?\b(?:hil|uth|ka?am|move|lift)\b.*?\b(?:ajeeb\s+baat\w*|strange\s+words?|talking\s+strange\w*|confused\s+speech|nonsense\s+words?)\b",
+    r"عجیب\s*بات.*?(?:ہاتھ|بازو|ٹانگ|پاؤں).*?(?:ہل|اٹھ|کام)",
+    r"(?:ہاتھ|بازو|ٹانگ|پاؤں).*?(?:ہل|اٹھ|کام).*?عجیب\s*بات",
+    # "Aadha chehra latka" + speech/comprehension
+    r"\b(?:chehra|munh|face|mouth)\s+(?:\w+\s+){0,3}(?:latk\w*|latak\w*|jhuk\w*|tedh\w*|terh\w*|droop\w*|crooked)\b.*?\b(?:bol\w*|awaz|baat|samajh|speech|words?|speak\w*|understand\w*)\b",
+    r"\b(?:bol\w*|awaz|baat|samajh|speech|words?|speak\w*|understand\w*)\b.*?\b(?:chehra|munh|face|mouth)\s+(?:\w+\s+){0,3}(?:latk\w*|latak\w*|jhuk\w*|tedh\w*|terh\w*|droop\w*|crooked)\b",
+    r"(?:چہرہ|منہ)\s*(?:\S+\s*){0,3}(?:لٹک|جھک|ٹیڑھا).*?(?:بول|آواز|بات|سمجھ|الفاظ)",
+    r"(?:بول|آواز|بات|سمجھ|الفاظ).*?(?:چہرہ|منہ)\s*(?:\S+\s*){0,3}(?:لٹک|جھک|ٹیڑھا)",
 ]
 
 
 def _is_stroke_negated(norm: str) -> bool:
+    # Exclude acute stroke failure phrases from negation
+    has_failure = bool(re.search(
+        r"\b(?:haath|hath|bazu|pair|tang|taang)\s+(?:\w+\s+){0,3}(?:hila\s+)?nahi\s+(?:pa\s+rah|sak|rah)|"
+        r"\b(?:haath|hath|bazu|pair|tang|taang)\s+(?:\w+\s+){0,2}(?:uth|hil)\s+nahi\s+rah|"
+        r"\b(?:haath|hath|bazu|pair|tang|taang)\s+(?:\w+\s+){0,2}(?:ka?am\s+)?nahi\s+kar|"
+        r"\b(?:cant|cannot|unable\s+to|wont)\s+(?:move|lift)\s+(?:\w+\s+){0,2}(?:arm|leg|hand|foot|side|limb)|"
+        r"\b(?:arm|leg|hand|foot|side|limb)\s+(?:wont|cant|cannot|not)\s+(?:move|lift|working)|"
+        r"\b(?:baat|alfaaz|words?)\s+(?:\w+\s+){0,2}samajh\s+nahi|"
+        r"\bbaat\s+nahi\s+samajh\s+aa\s+rah|"
+        r"\bwords\s+(?:make\s+no\s+sense|not\s+making\s+sense|dont\s+make\s+sense)|"
+        r"(?:ہاتھ|بازو|پاؤں|ٹانگ)\s*(?:\S+\s*){0,3}(?:ہلا\s*)?نہیں\s*(?:پا\s*رہ|سک|رہ)|"
+        r"(?:ہاتھ|بازو|پاؤں|ٹانگ)\s*(?:\S+\s*){0,2}(?:اٹھ|ہل)\s*نہیں\s*رہ|"
+        r"(?:ہاتھ|بازو|پاؤں|ٹانگ)\s*(?:\S+\s*){0,2}(?:کام\s*)?نہیں\s*کر\s*رہ|"
+        r"بات\s*(?:\S+\s*){0,2}سمجھ\s*نہیں\s*(?:آ\s*رہ|پا\s*رہ|سک)",
+        norm
+    ))
+    if has_failure:
+        return False
+
     if re.search(r"\b(?:no|not|denies|denied|without)\s+(?:\w+\s+){0,3}(?:slurr\w*|speech|droop\w*|weakness|numbness|facial)\b", norm):
         return True
     if re.search(r"\b(?:speech|face|arm|hand|leg|side)\s+(?:is\s+)?(?:completely\s+)?(?:normal|fine|ok|okay)\b", norm):
@@ -649,7 +743,8 @@ _STROKE_FACE_TOKENS = {
 }
 _STROKE_DROOP_TOKENS = {
     "droop", "drooping", "drooped", "crooked", "asymmetric", "twisted", "lopsided", "slack", "slanted",
-    "tedha", "terha", "jhuk", "latak", "ٹیڑھا", "جھک", "لٹک"
+    "tedha", "terha", "jhuk", "latak", "latka", "latki", "latkay", "jhuka", "jhuki", "jhukay", "tedhi", "terhi",
+    "ٹیڑھا", "جھک", "لٹک"
 }
 
 _STROKE_SPEECH_TOKENS = {
@@ -659,8 +754,8 @@ _STROKE_SPEECH_TOKENS = {
 }
 _STROKE_SPEECH_DEFICIT_TOKENS = {
     "slur", "slurred", "slurring", "jumble", "jumbled", "garbled", "confused", "incoherent", "strange",
-    "lost", "cant", "cannot", "unable", "ladkhada", "ladkhadata", "ajeeb", "band", "ruk",
-    "لڑکھڑا", "عجیب", "بند", "گڈ مڈ"
+    "lost", "cant", "cannot", "unable", "ladkhada", "ladkhadata", "ajeeb", "band", "ruk", "samajh",
+    "لڑکھڑا", "عجیب", "بند", "گڈ مڈ", "سمجھ"
 }
 
 _STROKE_LIMB_TOKENS = {
@@ -670,8 +765,8 @@ _STROKE_LIMB_TOKENS = {
 }
 _STROKE_LIMB_DEFICIT_TOKENS = {
     "paralyze", "paralyzed", "paralysis", "weak", "weakness", "numb", "numbness", "dead", "limp",
-    "immobile", "frozen", "kamzor", "kamzori", "sunn", "bejan", "falij",
-    "فالج", "سن", "کمزور", "بے جان"
+    "immobile", "frozen", "kamzor", "kamzori", "sunn", "bejan", "falij", "hil", "uth", "hila",
+    "فالج", "سن", "کمزور", "بے جان", "ہل", "اٹھ"
 }
 
 
@@ -723,6 +818,25 @@ _UNRESPONSIVE_PATTERNS = [
     r"جواب\s*نہیں\s*دے\s*رہ",
     r"بے\s*ہوش\s*پڑا\s*ہے",
     r"(?<!ہاتھ\s)(?<!بازو\s)(?<!چہرہ\s)(?<!ٹانگ\s)(?<!پاؤں\s)اٹھ\s*نہیں\s*رہ",
+    # Eye opening failure / Unable to open eyes
+    r"\baankh(?:ein)?\s+(?:\w+\s+){0,2}nahi\s+(?:khol|khul)\s*rah",
+    r"\baankh(?:ein)?\s+(?:\w+\s+){0,2}(?:khol|khul)\s*nahi\s*rah",
+    r"\beyes?\s+(?:wont|cant|cannot|unable\s+to|not)\s+(?:open|opening)\b",
+    r"\b(?:cant|cannot|unable\s+to|wont)\s+open\s+(?:eyes?|his\s+eyes?|her\s+eyes?)\b",
+    r"آنکھ(?:یں)?\s*(?:\S+\s*){0,2}نہیں\s*(?:کھول|کھل)\s*رہ",
+    r"آنکھ(?:یں)?\s*(?:\S+\s*){0,2}(?:کھول|کھل)\s*نہیں\s*رہ",
+    # Be-sudh (deep stupor / unresponsive)
+    r"\bbe\s+sudh\b",
+    r"بے\s*سدھ",
+    # Found on the floor
+    r"\bfound\s+(?:\w+\s+){0,2}on\s+(?:the\s+)?floor\b",
+    r"\b(?:zameen|farsh)\s+par\s+(?:par[aiey]|par[eay]|gir[aiey]|gir[eay])\s+mil",
+    r"فرش\s*پر\s*پڑا\s*ملا",
+    r"زمین\s*پر\s*پڑا\s*ملا",
+    # Out for unknown duration + drowsy
+    r"\b(?:dont|do\s+not)\s+know\s+how\s+long\s+(?:i\s+was\s+)?out\b.*?\b(?:drowsy|drowsiness|sleepy|confused|unsteady)\b",
+    r"\b(?:drowsy|drowsiness|sleepy|confused|unsteady)\b.*?\b(?:dont|do\s+not)\s+know\s+how\s+long\s+(?:i\s+was\s+)?out\b",
+    r"\bkitni\s+der\s+(?:be\s*hosh|be\s*sudh)\s+raha\s+nahi\s+pata\b.*?\b(?:ghunoodgi|nasha|chakkar)\b",
 ]
 
 _SYNCOPE_RECOVERY_PATTERNS = [
@@ -815,18 +929,18 @@ def is_fainting_recovered_or_benign(raw_text: str) -> bool:
 
 
 def _match_loss_of_consciousness(norm: str) -> bool:
-    if _is_syncope_negated(norm):
-        return False
-
-    # Active unresponsiveness / inability to wake is always emergency
+    # 1. Active unresponsiveness / inability to wake / eye opening failure is ALWAYS emergency
     if _has_any(norm, _UNRESPONSIVE_PATTERNS):
         return True
 
-    # If recovered or transient syncopal episode, suppress from emergency (stays on review path)
+    if _is_syncope_negated(norm):
+        return False
+
+    # 2. If recovered or transient syncopal episode, suppress from emergency (stays on review path)
     if is_fainting_recovered_or_benign(norm):
         return False
 
-    # Loss of consciousness / syncope keywords
+    # 3. Loss of consciousness / syncope keywords
     if _has_any(norm, _SYNCOPE_KEYWORDS):
         return True
 
@@ -928,20 +1042,52 @@ def _match_dka_vomiting_fluids(norm: str) -> bool:
     if _is_vomiting_negated(norm):
         return False
 
-    # Single resolved vomiting episode does not indicate intractable fluid inability
-    if re.search(r"\b(?:vomited|threw\s+up|had\s+(?:one\s+)?vomit)\s+(?:once|1\s+time|yesterday|after|episode)\b.*?\b(?:drink\w*\s+water|water\s+down|keeping\s+water)\b", norm):
-        return False
-    if re.search(r"\b(?:ek|1|aik)\s+(?:dafa|bar)\s+(?:ulti|qay)\b.*?\b(?:pani\s+(?:\w+\s+){0,4}(?:pee|ruk)|drinking\s+water)\b", norm):
-        return False
-    if re.search(r"\b(?:ایک\s*دفعہ|ایک\s*بار)\s*(?:الٹی|قے).*?پانی.*?(?:پی|رک)", norm):
+    # 1. Recovery cancellation: "ab paani pee raha hoon / keeping water down now" cancels fluids hit
+    is_fluids_recovered = bool(re.search(
+        r"\b(?:ab\s+(?:to\s+)?(?:pani|paani)\s+(?:pee|pi)\s*rah[iyea]|"
+        r"(?:pani|paani)\s+(?:pee|pi)\s*rah[iyea]\s*(?:hoon|hun|hai|hain)?|"
+        r"can\s+drink|able\s+to\s+drink|drinking\s+(?:water|fluids?|liquids?)\s+(?:now|fine|normally|well)|"
+        r"keeping\s+(?:water|fluids?|liquids?|down)\s+(?:now|fine|well|normally)|"
+        r"tolerat(?:ing|es?)\s+(?:fluids?|water|liquids?)|"
+        r"اب\s*(?:تو\s*)?پانی\s*پی\s*رہ|"
+        r"پانی\s*پی\s*رہ[ا|ی]|"
+        r"پانی\s*(?:ہضم|ٹھہر)\s*رہا)\b",
+        norm
+    ))
+    if is_fluids_recovered:
         return False
 
+    # 2. Single vomit suppression: "ek baar ulti hui" without intractable / repeated vomiting is NOT Red
+    is_single_vomit = bool(re.search(
+        r"\b(?:once|single|just\s+one|only\s+one|1\s+time|one\s+time|"
+        r"ek\s+ba+r|aik\s+ba+r|ek\s+dafa|aik\s+dafa|sirf\s+ek|sirf\s+aik|"
+        r"ایک\s*بار|ایک\s*دفعہ|صرف\s*ایک)\b",
+        norm
+    ))
+    has_repeated_vomiting = bool(re.search(
+        r"\b(?:ba+r\s+ba+r|non-?stop|continuously|continuous|har\s+cheez|everything|"
+        r"ulti\s+pe\s+ulti|ultiyan\s+pe\s+ultiyan|musalsal|\d+\s+ghant(?:ay|e|on)\s+se|"
+        r"(?:for|since)\s+\d+\s+hours?|بار\s*بار|مسلسل|ہر\s*چیز|الٹی\s*پہ\s*الٹی)\b",
+        norm
+    ))
+    has_fluid_inability = bool(re.search(
+        r"\b(?:cant|cannot|unable\s+to|wont)\s+(?:keep|hold)\s+(?:\w+\s+){0,4}down|"
+        r"pani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik)\s*rah|"
+        r"ghoont\s+(?:bhi\s+)?(?:wapas|nikal|ulti)|"
+        r"پانی\s*(?:بھی\s*)?(?:اندر\s*)?نہیں\s*(?:رک|ٹک)|"
+        r"ایک\s*گھونٹ\s*(?:بھی\s*)?واپس\b",
+        norm
+    ))
+
+    if is_single_vomit and not (has_repeated_vomiting or has_fluid_inability):
+        return False
+
+    # 3. Explicit fluids DKA / intractable patterns
     if _has_any(norm, _FLUIDS_DKA_PATTERNS):
         return True
 
-    # Concept-based fluid intolerance & intractable vomiting proximity
-    words = norm.split()
-    if _has_proximity(words, _FLUID_TOKENS, _VOMIT_DEFICIT_TOKENS, MAX_WINDOW_WORDS):
+    # 4. Repeated vomiting proximity
+    if has_repeated_vomiting and bool(re.search(r"\b(?:vomit\w*|throwing\s+up|ulti|ultiyan|qay|الٹی|الٹیاں|قے)\b", norm)):
         return True
 
     return False
