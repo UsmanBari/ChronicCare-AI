@@ -29,7 +29,7 @@ The evaluation demo runs locally on pure SQLite with full pipeline flags active.
 | `RISK_CAN_RAISE` | `"true"` | Sec 15 | Stage-2 Final Triage: High risk band raises routine to review (Yellow). |
 | `RISK_PATIENT_VISIBLE`| `"true"` | Sec 15 | Patient sees plain-language categorical band sentence only; raw scores/SHAP strictly hidden. |
 | `TREND_CAN_RAISE` | `"true"` | Sec 16 | Longitudinal trend escalation: 5+ worsening points above target raises to Yellow. |
-| `NO_READING_SYMPTOM_RAISE` | `"true"` | Sec 15 | Symptomatic check-in without vital readings escalates safely to review. |
+| `NO_READING_SYMPTOM_RAISE` | `"false"` | Sec 15 | Stays false (doctor sign-off pending; conservative routine monitoring maintained). |
 | `DANGER_WORDGROUPS_ENABLED`| `"true"` | Sec 13.1 Agent 1 | Vernacular Urdu composable danger word groups detector. |
 | `EXPLAIN_ENABLED` | `"true"` | Sec 13.2 | Asynchronous background explainer citing WHO 2021 & ISH 2020 guidelines. |
 | `EXPLAIN_MODE` | `"background"` | Sec 13.2 | Non-blocking /complete response; polls up to 90s, instant template fallback. |
@@ -183,13 +183,14 @@ flowchart LR
 ## 3. Unmerged Features & Future Roadmap (Honest Status)
 
 The following features were developed in dedicated feature branches and are scheduled for post-evaluation integration:
-1. **Saad's Diabetes Control Model (PR #142 / PR F)**:
-   - Evaluates glycemic control risk specifically for diagnosed diabetic patients using NHANES Glycohemoglobin.
-   - Stacked PR `feat/i4-wire-dm-control` wires this into the provider risk panel upon PR F merge.
-2. **Hybrid BM25 + BGE Dense Retrieval (PR G / #146)**:
+1. **Saad's Diabetes Control Model (PR #142 / PR F — NOT SHIPPED)**:
+   - Trained and evaluated against pre-registered gates G1–G5 on NHANES Glycohemoglobin data.
+   - Pre-registered evaluation results: G1 AUROC 0.7167 PASS, G2 calibration slope 1.439 FAIL (> 1.20), G3 sensitivity 77.48% PASS, G4 worst subgroup 53.77% on non-insulin FAIL (< 65%), G5 Brier 0.1812 PASS.
+   - Per pre-registered protocol, the model was **NOT SHIPPED** to production/demo; no model weights were exported. Documented in `docs/ml/experiments/diabetes_control_nhanes.md`, LA-27, and `docs/PROMISE_TRACKER.md`.
+2. **Hybrid BM25 + BGE Dense Retrieval (PR #148)**:
    - Self-hosted BGE embeddings and ChromaDB vector store tested locally for evaluation.
-   - Week 2 retained BM25 on cloud production due to Render free-tier 512 MB RAM limit.
-3. **Single-LLM Baseline Benchmark Suite (PR #144 / PR J)**:
+   - Retained BM25 on cloud production due to Render free-tier 512 MB RAM limit.
+3. **Single-LLM Baseline Benchmark Suite (PR #144)**:
    - Benchmark across 52 clinical scenarios comparing Full Pipeline against raw Single-LLM baseline (`qwen/qwen3.8-27b`).
    - Results: Full Pipeline achieves 100% emergency recall (0 missed emergencies) vs Single-LLM 11.1% recall (8 missed emergencies).
 
