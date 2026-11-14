@@ -29,6 +29,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 
 TARGET_BASE_URL = "http://localhost:8000"
+_repo_root = str(Path(__file__).resolve().parent.parent)
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
 _backend_dir = str(Path(__file__).resolve().parent.parent / "backend-poc-technical")
 if _backend_dir not in sys.path:
     sys.path.insert(0, _backend_dir)

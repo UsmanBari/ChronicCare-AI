@@ -17,7 +17,6 @@ export const AppointmentSchedulingScreen = () => {
     isLiveMode,
     t,
     isUrdu,
-    isLiveMode,
   } = useApp();
 
   const fallbackProvider = isUrdu ? "ڈاکٹر" : ((language as string) === "roman_ur" ? "Doctor" : "Provider");
