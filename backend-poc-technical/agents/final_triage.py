@@ -363,7 +363,7 @@ def check_has_symptom_finding_triggers(state: Any = None, symptoms: Optional[Any
         kind = getattr(f, "kind", None) if hasattr(f, "kind") else (f.get("kind") if isinstance(f, dict) else None)
         if kind in (
             "foot_problems", "foot_ulcer", "hypo_events_past_week", "sick_day_flags",
-            "associated_symptoms", "orthostatic_dizziness", "dizziness_standing",
+            "orthostatic_dizziness", "dizziness_standing",
             "dose_change", "low_mood", "distress"
         ):
             return True, f"Positive clinical finding: {kind}"
@@ -371,13 +371,13 @@ def check_has_symptom_finding_triggers(state: Any = None, symptoms: Optional[Any
     # Helper to check if text answer is explicitly negative / denying symptoms
     def _is_negated_answer(text: str) -> bool:
         t = text.lower().strip()
-        if re.search(r"\b(?:no|without|never|zero|free\s+of)\s+(?:\w+\s+){0,3}(?:cut|cuts|wound|wounds|sore|sores|blister|blisters|ulcer|ulcers|pain|dizziness|problem|problems|masla|takleef|flag|flags)\b", t):
+        if re.search(r"\b(?:no|without|never|zero|free\s+of)\s+(?:\w+\s+){0,3}(?:cut|cuts|wound|wounds|sore|sores|blister|blisters|ulcer|ulcers|pain|dizziness|problem|problems|symptom|symptoms|masla|takleef|flag|flags)\b", t):
             return True
         if re.search(r"\b(?:feet|foot|haath|pair|legs|arms)\s+(?:are\s+|is\s+)?(?:okay|fine|ok|theek|good|normal|healthy)\b", t):
             return True
-        if re.search(r"\b(?:koi|kuch)\s+(?:\w+\s+){0,2}(?:masla|takleef|zakhm|kharabi)\s+(?:nahi|nhi)\b", t):
+        if re.search(r"\b(?:koi|kuch)\s+(?:\w+\s+){0,2}(?:masla|takleef|zakhm|kharabi|symptom|alamat)\s+(?:nahi|nhi)\b", t):
             return True
-        if re.match(r"^(?:no|none|nothing|nahi|nhi|kuch\s+nahi|koi\s+nahi|fine|normal|all\s+good|theek|ok|okay)$", t):
+        if re.match(r"^(?:no|none|nothing|nahi|nhi|kuch\s+nahi|koi\s+nahi|fine|normal|all\s+good|theek|ok|okay|no\s+symptoms?|no\s+associated\s+symptoms?)$", t):
             return True
         return False
 
@@ -402,15 +402,15 @@ def check_has_symptom_finding_triggers(state: Any = None, symptoms: Optional[Any
                 if isinstance(sv, str):
                     text_answers.append(sv)
                     clean_sv = sv.strip().lower()
-                    if clean_sv in ("no", "none", "nothing", "fine", "normal", "ok", "okay", "nahi", "nhi", "kuch nahi", "koi nahi", "unknown", "false") or _is_negated_answer(clean_sv):
+                    if clean_sv in ("no", "none", "nothing", "fine", "normal", "ok", "okay", "nahi", "nhi", "kuch nahi", "koi nahi", "unknown", "false", "no symptoms", "no symptom") or _is_negated_answer(clean_sv):
                         continue
-                    if sk_lower in ("foot_problems", "hypo_events_past_week", "sick_day_flags", "associated_symptoms", "orthostatic_dizziness", "dizziness_standing"):
+                    if sk_lower in ("foot_problems", "foot_ulcer", "hypo_events_past_week", "sick_day_flags", "orthostatic_dizziness", "dizziness_standing"):
                         return True, f"Reported {sk_lower}: {sv}"
                 elif isinstance(sv, (int, float)) and sv > 0:
                     if sk_lower in ("hypo_events_past_week", "sick_day_flags"):
                         return True, f"Reported {sk_lower}: {sv}"
                 elif isinstance(sv, bool) and sv:
-                    if sk_lower in ("sick_day_flags", "foot_problems", "associated_symptoms", "orthostatic_dizziness"):
+                    if sk_lower in ("sick_day_flags", "foot_problems", "orthostatic_dizziness"):
                         return True, f"Reported {sk_lower}: True"
 
     answers_dict = {}
@@ -422,24 +422,24 @@ def check_has_symptom_finding_triggers(state: Any = None, symptoms: Optional[Any
             if isinstance(v, str):
                 text_answers.append(v)
                 clean_v = v.strip().lower()
-                if clean_v in ("no", "none", "nothing", "fine", "normal", "ok", "okay", "nahi", "nhi", "kuch nahi", "koi nahi", "unknown", "false") or _is_negated_answer(clean_v):
+                if clean_v in ("no", "none", "nothing", "fine", "normal", "ok", "okay", "nahi", "nhi", "kuch nahi", "koi nahi", "unknown", "false", "no symptoms", "no symptom") or _is_negated_answer(clean_v):
                     continue
-                if k_lower in ("foot_problems", "hypo_events_past_week", "sick_day_flags", "associated_symptoms", "orthostatic_dizziness", "dizziness_standing"):
+                if k_lower in ("foot_problems", "foot_ulcer", "hypo_events_past_week", "sick_day_flags", "orthostatic_dizziness", "dizziness_standing"):
                     return True, f"Reported {k_lower}: {v}"
             elif isinstance(v, (int, float)) and v > 0:
                 if k_lower in ("hypo_events_past_week", "sick_day_flags"):
                     return True, f"Reported {k_lower}: {v}"
             elif isinstance(v, bool) and v:
-                if k_lower in ("sick_day_flags", "foot_problems", "associated_symptoms", "orthostatic_dizziness"):
+                if k_lower in ("sick_day_flags", "foot_problems", "orthostatic_dizziness"):
                     return True, f"Reported {k_lower}: True"
             elif isinstance(v, dict):
                 for sub_k, sub_v in v.items():
                     if isinstance(sub_v, str):
                         text_answers.append(sub_v)
                         sub_clean = sub_v.strip().lower()
-                        if sub_clean in ("no", "none", "nothing", "fine", "normal", "ok", "okay", "nahi", "nhi", "kuch nahi", "koi nahi", "unknown", "false") or _is_negated_answer(sub_clean):
+                        if sub_clean in ("no", "none", "nothing", "fine", "normal", "ok", "okay", "nahi", "nhi", "kuch nahi", "koi nahi", "unknown", "false", "no symptoms", "no symptom") or _is_negated_answer(sub_clean):
                             continue
-                        if str(sub_k).lower() in ("foot_problems", "hypo_events_past_week", "sick_day_flags", "associated_symptoms", "orthostatic_dizziness"):
+                        if str(sub_k).lower() in ("foot_problems", "foot_ulcer", "hypo_events_past_week", "sick_day_flags", "orthostatic_dizziness"):
                             return True, f"Reported {sub_k}: {sub_v}"
 
     # Extract narrative / free text from intakes if present
@@ -456,16 +456,6 @@ def check_has_symptom_finding_triggers(state: Any = None, symptoms: Optional[Any
                 for sk, sv in symp.items():
                     if isinstance(sv, str):
                         text_answers.append(sv)
-
-    def _is_negated_answer(text: str) -> bool:
-        t = text.lower().strip()
-        if re.search(r"\b(?:no|without|never|zero)\s+(?:\w+\s+){0,2}(?:cut|cuts|wound|wounds|sore|sores|blister|blisters|ulcer|ulcers|pain|dizziness|problem|problems|masla|takleef)\b", t):
-            return True
-        if re.search(r"\b(?:feet|foot|haath|pair|legs|arms)\s+(?:are\s+|is\s+)?(?:okay|fine|ok|theek|good|normal|healthy)\b", t):
-            return True
-        if re.match(r"^(?:no|none|nothing|nahi|nhi|kuch\s+nahi|koi\s+nahi|fine|normal|all\s+good|theek|ok|okay)$", t):
-            return True
-        return False
 
     # Scan un-negated text answers for the qualifying triggers
     for a in text_answers:
@@ -692,7 +682,8 @@ def decide_stage2(
                 "detail": finding_detail or "Patient reported clinical symptom, medication concern, or distress needing review",
             })
             triggered_rules.append("R-S2-5")
-            patient_reason_key = "symptom_reported_needs_review"
+            if not patient_reason_key:
+                patient_reason_key = "symptom_reported_needs_review"
 
     # R-S2-3: Invariant — At most one step escalation (routine -> review)
     final_level = "review" if raised else "routine"
