@@ -12,10 +12,10 @@
 | Promise | Proposal Section | Built Where (File) | Local Check ID | Status Today | Owner | Target Date |
 |:---|:---:|:---|:---:|:---:|:---:|:---:|
 | Multi-agent, dual-mode reconciliation pipeline with clinically structured adaptive interview | Objective 1 | `backend-poc-technical/agents/reconciliation_agent.py` | LA-02, LA-09 | **PASS** | Usman | Done (PR #80, #135) |
-| Two explainable risk classifiers (diabetes full NHANES, hypertension/heart) with SHAP | Objective 2 | `backend-poc-technical/agents/risk_agent.py` | LA-13, LA-24, LA-27 | **PASS** (NHANES & Framingham CHD10 in PR A, Control PR F) | Usman / Saad | Done (PR A) |
+| Two explainable risk classifiers (diabetes full NHANES, hypertension/heart) with SHAP | Objective 2 | `backend-poc-technical/agents/risk_agent.py` | LA-13, LA-24, LA-27 | **PASS** (NHANES & Framingham CHD10 merged; Diabetes Control in PR #142 draft) | Usman / Saad | 13 Nov 2026 |
 | Verification step checking outputs against explicit ground truth | Objective 3 | `backend-poc-technical/agents/verification_agent.py` | LA-09, LA-12 | **PASS** | Usman | Done (PR #80, #128) |
 | Plain-language explanations in English and Urdu with guideline citations | Objective 4 | `backend-poc-technical/rag/explain_jobs.py` | LA-10, LA-11, LA-12 | **PASS** | Usman | Done (PR #128) |
-| Multi-tier validation: scenarios, mutation proofs, single-LLM baseline | Objective 5 | `scripts/verify_mutations.py` | LA-18, LA-31 | **PARTIAL** (Mutations PASS, Single-LLM PR J) | Usman | 14 Nov 2026 |
+| Multi-tier validation: scenarios, mutation proofs, single-LLM baseline | Objective 5 | `scripts/verify_mutations.py` & `scripts/eval/single_llm_baseline.py` | LA-18, LA-31 | **PASS** | Usman | Done (PR #144) |
 
 ---
 
@@ -48,6 +48,7 @@
 | System Health & Admin Configuration Status Endpoint | Sec 13.2 | `backend-poc-technical/main.py` | LA-01 | **PASS** | Usman | Done |
 | Patient Record History, Export and Import Service | Sec 13.2 | `backend-poc-technical/main.py` | LA-17 | **PASS** | Usman | Done |
 | Server-Side OCR Intake Service (Prescriptions & lab reports) | Sec 13.2, 21.1 | `backend-poc-technical/main.py` | LA-15 | **PASS** | Hassaan / Saad | Done (PR #96) |
+| Dense + BM25 Hybrid Retrieval with ChromaDB (RRF k=60, BGE embeddings) | Sec 13.2 | `backend-poc-technical/rag/retriever.py` | LA-28 | **PASS** | Usman | Done (PR G) |
 | Notification Service (In-App notification centre, daily reminders & FCM Web Push) | Sec 13.2, 15, 35 | `backend-poc-technical/services/notification_service.py` | LA-29 | **PASS** | Hassaan | Done (PR H) |
 
 ---
@@ -59,8 +60,8 @@
 | Triage Severity Colors (Green=Routine, Yellow=Review, Red=Urgent/Emergency) | Sec 15 | `backend-poc-technical/agents/final_triage.py` & `app/components/TriageColourChip.tsx` | LA-20 | **PASS** | Usman | Done (PR A) |
 | Stage-2 Clinical Risk Elevation (Routine -> Review on high risk band) | Sec 15 | `backend-poc-technical/agents/final_triage.py` | LA-21, LA-21b, LA-21c | **PASS** | Usman | Done (PR A) |
 | Patient-Facing Risk Band Display (Plain sentence + action only) | Sec 15 | `app/components/RiskResultScreen.tsx` & `backend-poc-technical/orchestrator/steps.py` | LA-23 | **PASS** | Usman | Done (PR A) |
-| Appointment Booking by Triage Level & Clinical Specialty | Sec 15 | `backend-poc-technical/services/appointment_service.py` | LA-25 | **PASS** | Hassaan | Done (PR D) |
-| Red-Flag Escalation Notification & Timeout Tracking | Sec 15 | `backend-poc-technical/services/appointment_service.py` | LA-25 | **PASS** | Hassaan | Done (PR D) |
+| Appointment Booking by Triage Level & Clinical Specialty | Sec 15 | `backend-poc-technical/services/appointment_service.py` | LA-25 | **OPEN PR** (PR #145 by Hassaan, pending review) | Hassaan | 13 Nov 2026 |
+| Red-Flag Escalation Notification & Timeout Tracking | Sec 15 | `backend-poc-technical/services/appointment_service.py` | LA-25 | **OPEN PR** (PR #145 by Hassaan, pending review) | Hassaan | 13 Nov 2026 |
 
 ---
 
@@ -104,7 +105,7 @@
 | Pure SQLite Local Storage for Fully Isolated Operation | Sec 23 | `backend-poc-technical/data_sources/local_store.py` | LA-01, LA-02 | **PASS** | Usman | Done |
 | PyJWT Google Public Key Token Verification (RS256) | Sec 23 | `backend-poc-technical/auth/firebase_verify.py` | LA-01 | **PASS** | Usman | Done |
 | Voice Transcription Input (Whisper STT endpoint) | Sec 23 | `backend-poc-technical/main.py` | LA-16 | **PASS** | Hassaan | Done |
-| Urdu Speech Synthesis Voice Output (Meta MMS-TTS Urdu) | Sec 23 | `backend-poc-technical/voice/` | LA-30 | **PASS** | Hassaan | Done (PR I) |
+| Urdu Speech Synthesis Voice Output (Meta MMS-TTS Urdu) | Sec 23 | `backend-poc-technical/voice/` | LA-30 | **OPEN PR** (PR #147 by Hassaan, pending review) | Hassaan | 13 Nov 2026 |
 | LangGraph State-Graph Orchestrator Execution | Sec 23 | `backend-poc-technical/orchestrator/graph.py` | LA-01 | **PASS** | Usman | Done |
 
 ---
@@ -116,8 +117,9 @@
 | Automated Mutation Proofs (23 deliberate rule breaks killed in CI) | Sec 36 | `scripts/verify_mutations.py` | CI Gate 3 | **PASS** | Usman | Done |
 | Deterministic Engine Scenarios Regression Testing | Sec 36 | `backend-poc-technical/scenarios/` | CI Gate 2 | **PASS** | Usman | Done |
 | Blind Set Danger Phrase Generalization Benchmark | Sec 36 | `docs/BLIND_SET_3_RESULTS.md` | Doc Record | **PASS** | Saad / Hassaan | Done |
-| Single-LLM Baseline Benchmark Comparison (RQ3) | Sec 36 | `scripts/benchmarks/single_llm_baseline.py` | LA-31 | **NOT BUILT YET** | Usman | 14 Nov 2026 (PR J) |
+| Single-LLM Baseline Benchmark Comparison (RQ3) | Sec 36 | `scripts/eval/single_llm_baseline.py` | LA-31 | **PASS** | Usman | Done (PR #144) |
 | Requirements Traceability Matrix Verification | Sec 37 | `docs/TRACEABILITY.md` | `test_traceability_links.py` | **PASS** | Usman | Done |
+| Local Demo Seed, One-Command Start & 17 Nov Cue Sheet | Sec 13.1, 15, 17, 36 | `scripts/seed_demo_local.py` & `scripts/start_local_demo.ps1` | LA-32 | **PASS** (Built in PR #149) | Usman | Done (PR I4-R) |
 
 ---
 
@@ -127,6 +129,6 @@
 |:---|:---|:---|:---|:---:|
 | **T5 / FLAN-T5 Local LLM** for clinical explanations | **Groq Llama-3 / Template Fallback** | Render free-tier RAM limit (512 MB) cannot run heavy PyTorch T5 checkpoints without crashing. | Cloud API with strict deterministic template fallback; safe and responsive. | 02 Nov 2026 |
 | **Coqui TTS** for vernacular Urdu voice synthesis | **Meta MMS-TTS (Urdu)** | Coqui TTS repository is unmaintained and introduces incompatible torch wheel dependencies. | Meta MMS-TTS provides officially supported Urdu acoustic models with smaller footprint. | 08 Nov 2026 |
-| **ChromaDB In-Memory Vector Store** | **SQLite Guideline Chunk Store (FTS5 / Dense + BM25)** | Full ChromaDB vector database package introduces heavy native compilation on deployment. | PR G will provide SQLite-backed BM25 + dense embedding hybrid retrieval cleanly. | 08 Nov 2026 |
+| **ChromaDB Vector Store** | **Hybrid BM25 + ChromaDB BGE Retrieval (Flagged)** | Render free-tier RAM limit (512 MB) cannot run in-process embedding models continuously without OOM risk. BM25 is live default; ChromaDB + BGE dense vector store is fully implemented and enabled via flags (`CHROMA_ENABLED=true`, `HYBRID_RETRIEVAL=true`) for local evaluation and FYP-1 demo. | Dual-mode retrieval: lightweight BM25 for production cloud hosting; high-accuracy dense/hybrid vector retrieval with ChromaDB and RAGAS faithfulness eval for local FYP-1 evaluation. | 12 Nov 2026 |
 | **3 Triage Colors (Green/Yellow/Red)** | **4 Internal Severity Levels (Routine / Review / Urgent / Emergency)** | Internal clinical logic requires distinguishing urgent doctor visits from immediate 1122 ambulance calls. | Green maps to Routine, Yellow to Review, Red to Urgent & Emergency. Safe monotonic ordering preserved. | 08 Nov 2026 |
 

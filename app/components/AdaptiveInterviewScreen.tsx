@@ -392,6 +392,42 @@ export const AdaptiveInterviewScreen = () => {
       submittedAt: timestamp,
     }));
 
+    setLiveCheckinResult({
+      checkin_id: "demo-chk-mock-result",
+      triage_level: "routine",
+      triage_colour: "green",
+      emergency: false,
+      intakes: [
+        {
+          intake_id: "intake-mock-1",
+          confidence_label: "high",
+          readings: [],
+        },
+      ],
+      risk_patient: [
+        {
+          band: "low",
+          message_key: "risk_chd_low",
+        },
+      ],
+      explanation: {
+        status: "ready",
+        sentences: [
+          {
+            text: "Your daily check-in is routine with stable vitals.",
+            cites: ["ada-2024-s6"],
+          },
+        ],
+        sources: [
+          {
+            chunk_id: "ada-2024-s6",
+            title: "ADA 2024 Standards of Care",
+            full_citation: "American Diabetes Association Standards of Care 2024 Section 6",
+          },
+        ],
+      },
+    } as any);
+
     setScreen("confirmation");
   };
 

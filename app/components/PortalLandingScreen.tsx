@@ -25,7 +25,15 @@ import {
 import { motion } from "framer-motion";
 
 export const PortalLandingScreen = () => {
-  const { setPortal, setScreen, setProviderScreen, setAdminScreen, t, isUrdu } = useApp();
+  const {
+    setPortal,
+    setScreen,
+    setProviderScreen,
+    setAdminScreen,
+    isLiveMode,
+    t,
+    isUrdu,
+  } = useApp();
 
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
@@ -243,7 +251,11 @@ export const PortalLandingScreen = () => {
                     <span>Reconciliation Discrepancy Flagged</span>
                   </div>
                   <p className="text-[11px] text-amber-800/90 leading-tight">
-                    Patient check-in diverges from hospital EHR. Routed to Dr. Sana Malik for review.
+                    {isLiveMode
+                      ? (isUrdu
+                          ? "مریض کے چیک ان اور اسپتال ریکارڈ میں تضاد پایا گیا۔ معالج کو بھیجا گیا۔"
+                          : "Patient check-in diverges from hospital EHR. Routed to care provider for review.")
+                      : "Patient check-in diverges from hospital EHR. Routed to Dr. Sana Malik for review."}
                   </p>
                 </div>
 
@@ -381,7 +393,9 @@ export const PortalLandingScreen = () => {
                 <div>
                   <h3 className="font-heading font-bold text-lg text-white">Clinical Command Center</h3>
                   <p className="text-xs text-slate-300 mt-1 max-w-xs">
-                    Dr. Sana Malik • City General Hospital
+                    {isLiveMode
+                      ? (isUrdu ? "طبی معالج" : "Clinical Provider")
+                      : "Dr. Sana Malik • City General Hospital"}
                   </p>
                 </div>
                 <div className="w-full bg-navy-800/90 rounded-xl p-3 border border-teal-500/30 text-left text-xs space-y-1.5 shadow-2xs">
@@ -389,7 +403,11 @@ export const PortalLandingScreen = () => {
                     <span className="text-slate-300">Active Review Queue</span>
                     <span className="px-2 py-0.5 rounded bg-amber-400 text-navy-950 font-bold text-[10px]">1 Pending</span>
                   </div>
-                  <div className="text-[11px] text-teal-300">Glucose Discrepancy Flagged: Ali Khan</div>
+                  <div className="text-[11px] text-teal-300">
+                    {isLiveMode
+                      ? (isUrdu ? "گلوکوز میں تضاد پایا گیا" : "Glucose Discrepancy Flagged")
+                      : "Glucose Discrepancy Flagged: Ali Khan"}
+                  </div>
                 </div>
               </div>
             </div>
@@ -615,9 +633,11 @@ export const PortalLandingScreen = () => {
                     ? "روزانہ علامات کا چیک ان، رسک فیڈ بیک اور ذاتی صحت کے رجحانات۔"
                     : "Daily symptom check-in, adaptive clinical interview, risk feedback, and health trends."}
                 </p>
-                <span className="text-xs font-semibold text-teal-800 block pt-0.5">
-                  Demo Patient: Ali Khan (Type 2 Diabetes)
-                </span>
+                {!isLiveMode && (
+                  <span className="text-xs font-semibold text-teal-800 block pt-0.5">
+                    Demo Patient: Ali Khan (Type 2 Diabetes)
+                  </span>
+                )}
               </div>
             </div>
 
@@ -650,9 +670,11 @@ export const PortalLandingScreen = () => {
                   <h2 className="font-heading text-base sm:text-lg font-bold text-navy-800">
                     {t.providerPortal}
                   </h2>
-                  <span className="text-xs font-semibold text-navy-700 block mt-0.5">
-                    Dr. Sana Malik (City General)
-                  </span>
+                  {!isLiveMode && (
+                    <span className="text-xs font-semibold text-navy-700 block mt-0.5">
+                      Dr. Sana Malik (City General)
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
                   {isUrdu

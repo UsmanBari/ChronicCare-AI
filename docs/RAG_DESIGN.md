@@ -147,6 +147,15 @@ Reason: Dense failed the accuracy gate (did not get >= 2 more questions right th
    - Memory footprint of BM25 on the 498-chunk corpus is $< 1\text{ MB}$, leaving >440 MB free RAM in Render's 512 MB tier.
    - Startup time is $< 5\text{ ms}$, versus several seconds for ONNX Runtime initialization.
 
+### 3.1 Week 4 Finish Sprint: Flagged Hybrid BM25 + BGE Retrieval (PR G)
+In Week 4, proposal commitments for self-hosted dense embeddings (Section 13.1 Agent 6, Section 23) and passage-level relevance improvements were implemented:
+- **Architecture:** Hybrid retriever (`HybridRetriever` in `rag/retriever.py`) combining Okapi BM25 scores and Dense cosine similarity scores using **Reciprocal Rank Fusion** ($k=60$):
+  $$\text{RRF Score}(d) = \frac{1}{60 + \text{rank}_{\text{BM25}}(d)} + \frac{1}{60 + \text{rank}_{\text{Dense}}(d)}$$
+- **Vector Store & Embeddings:** Self-hosted persistent ChromaDB collection stored outside the repository under `$env:CHRONICCARE_DATA_DIR/rag/chroma` using `BAAI/bge-small-en-v1.5` embeddings via FastEmbed (lazy-loaded).
+- **Dual-Sided Safeguards:** Pre-ranking clinical exclusions (`exclude_source_prefixes` for non-diabetic patients), license expiry checks (`is_source_expired`), Ramadan restrictions, and condition/topic filters are strictly enforced across both candidate pools prior to fusion.
+- **Fail-Safe Fallback:** If ChromaDB or the embedding model is unavailable or throws an exception, the system logs a single warning and gracefully falls back to BM25.
+- **Decision Rule Fulfillment:** Passage relevance improved from 60.0% to 90.0% (+30.0%), but Hit@3 was 0.806 vs 0.889. Following the pre-registered decision rule, the code and demo default remains `RETRIEVER=bm25`, while `RETRIEVER=hybrid` is fully operational behind the flag.
+
 ---
 
 ## 4. BM25 Retrieval Algorithm (`retriever.py`)

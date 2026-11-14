@@ -27,7 +27,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'powershell -ExecutionPolicy Bypass -Command "backend-poc-technical\\.venv\\Scripts\\python.exe backend-poc-technical/init_local_db.py --reset; backend-poc-technical\\.venv\\Scripts\\python.exe -m uvicorn main:app --app-dir backend-poc-technical --host 127.0.0.1 --port 8000"',
+      command: 'powershell -ExecutionPolicy Bypass -Command "backend-poc-technical\\.venv\\Scripts\\python.exe backend-poc-technical/init_local_db.py --reset; backend-poc-technical\\.venv\\Scripts\\python.exe scripts/seed_demo_local.py --reset; backend-poc-technical\\.venv\\Scripts\\python.exe -m uvicorn main:app --app-dir backend-poc-technical --host 127.0.0.1 --port 8000"',
       url: "http://127.0.0.1:8000/api/health",
       reuseExistingServer: true,
       timeout: 60000,
@@ -37,6 +37,7 @@ export default defineConfig({
         OCR_ENABLED: "true",
         OCR_PROVIDER: "fake",
         DB_BACKEND: "sqlite",
+        DEMO_ROLE_MAP: "provider.demo@demo.care:provider,admin.demo@demo.care:admin,provider@demo.care:provider,admin@demo.care:admin",
       },
     },
     {
@@ -45,6 +46,7 @@ export default defineConfig({
       reuseExistingServer: true,
       timeout: 60000,
       env: {
+        NEXT_PUBLIC_AUTH_MODE: "mock",
         NEXT_PUBLIC_E2E_HOOKS: "1",
         NEXT_PUBLIC_API_BASE_URL: "http://127.0.0.1:8000",
         NEXT_PUBLIC_RISK_ENABLED: "true",

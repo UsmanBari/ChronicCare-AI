@@ -27,6 +27,7 @@ Rules:
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
@@ -130,6 +131,42 @@ def select_provider(
     return "unassigned", True
 
 
+def get_escalation_timeouts() -> Tuple[float, float]:
+    """
+    Returns (renotify_seconds, admin_flag_seconds).
+    Defaults to Proposal Section 15 constants:
+      - re-notify after 2 hours (7200 seconds)
+      - admin flag after 24 hours (86400 seconds)
+    For testing and evaluation demonstrations (e.g. 10-minute viva demo), can be overridden via:
+      - ESCALATION_TIMEOUT_MINUTES: admin flag timeout in minutes (default: 1440, i.e. 24 hours).
+      - ESCALATION_RENOTIFY_MINUTES: re-notify timeout in minutes (default: 120, i.e. 2 hours).
+    """
+    raw_admin = os.environ.get("ESCALATION_TIMEOUT_MINUTES", "").strip()
+    raw_renotify = os.environ.get("ESCALATION_RENOTIFY_MINUTES", "").strip()
+
+    if raw_admin:
+        try:
+            admin_minutes = max(0.1, float(raw_admin))
+            admin_flag_seconds = admin_minutes * 60.0
+        except ValueError:
+            admin_flag_seconds = 86400.0
+    else:
+        admin_flag_seconds = 86400.0
+
+    if raw_renotify:
+        try:
+            renotify_minutes = max(0.05, float(raw_renotify))
+            renotify_seconds = renotify_minutes * 60.0
+        except ValueError:
+            renotify_seconds = min(7200.0, admin_flag_seconds / 12.0)
+    elif raw_admin:
+        renotify_seconds = min(7200.0, admin_flag_seconds / 12.0)
+    else:
+        renotify_seconds = 7200.0
+
+    return renotify_seconds, admin_flag_seconds
+
+
 def compute_escalation_state(
     appointment: Dict[str, Any],
     now_dt: Optional[datetime] = None,
@@ -141,9 +178,9 @@ def compute_escalation_state(
     """
     Computes the escalation state on read (Section 15):
     - Urgent appointment with acknowledged_at empty:
-      * < 2 hours -> 'pending'
-      * >= 2 hours and < 24 hours -> 're_notify'
-      * >= 24 hours -> 'admin_flag' (written once to audit log)
+      * < renotify_seconds -> 'pending'
+      * >= renotify_seconds and < admin_flag_seconds -> 're_notify'
+      * >= admin_flag_seconds -> 'admin_flag' (written once to audit log)
     - Acknowledged -> 'acknowledged'
     - Routine urgency -> 'none'
     """
@@ -166,7 +203,9 @@ def compute_escalation_state(
     except Exception:
         elapsed_seconds = 0.0
 
-    if elapsed_seconds >= 86400:  # 24 hours
+    renotify_seconds, admin_flag_seconds = get_escalation_timeouts()
+
+    if elapsed_seconds >= admin_flag_seconds:
         escalation_state = "admin_flag"
         # Write to audit log once if not flagged yet
         if not appt.get("admin_flagged_at"):
@@ -208,7 +247,7 @@ def compute_escalation_state(
             )
         except Exception:
             pass
-    elif elapsed_seconds >= 7200:  # 2 hours
+    elif elapsed_seconds >= renotify_seconds:
         escalation_state = "re_notify"
         try:
             from services.notification_service import notify_escalation_renotify

@@ -36,6 +36,9 @@ export const Header = () => {
     adminScreen,
     isLiveMode,
     liveEhrConnection,
+    providerIdentifier,
+    providerDisplayName,
+    userIdentifier,
     setPortal,
     setScreen,
     setProviderScreen,
@@ -48,6 +51,11 @@ export const Header = () => {
 
   const [showPortalMenu, setShowPortalMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isOnLoginScreen =
     (portal === "patient" && screen === "login") ||
@@ -68,13 +76,22 @@ export const Header = () => {
   };
 
   const getPortalLabel = () => {
-    if (portal === "provider") return t.providerPortal;
+    if (!mounted) return "Clinical Suite";
+    if (portal === "provider") {
+      if (isLiveMode) {
+        return providerDisplayName || providerIdentifier || (isUrdu ? "ڈاکٹر" : ((language as string) === "roman_ur" ? "Doctor" : "Provider"));
+      }
+      return t.providerPortal;
+    }
     if (portal === "admin") return t.adminPortal;
     if (portal === "patient") return t.patientPortal;
     return "Clinical Suite";
   };
 
   const renderConnectionBadge = () => {
+    if (!mounted) {
+      return <span className="text-slate-500 font-sans">Clinical Suite</span>;
+    }
     if (isLiveMode) {
       if (screen === "consent" || !liveEhrConnection?.mode) {
         return (
@@ -157,7 +174,7 @@ export const Header = () => {
             <span className="font-heading font-bold text-navy-800 text-base sm:text-lg leading-tight block">
               {isUrdu ? "کرونک کیئر اے آئی" : "ChronicCare AI"}
             </span>
-            <span className="text-[11px] sm:text-xs uppercase tracking-wider font-semibold text-teal-700 block">
+            <span suppressHydrationWarning className="text-[11px] sm:text-xs uppercase tracking-wider font-semibold text-teal-700 block">
               {renderConnectionBadge()}
             </span>
           </div>
@@ -174,7 +191,7 @@ export const Header = () => {
               className="h-11 flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-navy-800 transition-colors shadow-xs min-h-[44px]"
             >
               <Layers className="w-4 h-4 text-teal-700" />
-              <span>{getPortalLabel()}</span>
+              <span suppressHydrationWarning>{getPortalLabel()}</span>
               <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
             </button>
 
@@ -197,7 +214,7 @@ export const Header = () => {
                   }`}
                 >
                   <User className="w-4 h-4" />
-                  <span>{t.patientPortal} (Ali Khan)</span>
+                  <span>{t.patientPortal}{!isLiveMode ? " (Ali Khan)" : ""}</span>
                 </button>
 
                 <button
@@ -213,7 +230,7 @@ export const Header = () => {
                   }`}
                 >
                   <Stethoscope className="w-4 h-4" />
-                  <span>{t.providerPortal} (Dr. Sana)</span>
+                  <span>{t.providerPortal}{!isLiveMode ? " (Dr. Sana)" : ""}</span>
                 </button>
 
                 <button
@@ -272,7 +289,7 @@ export const Header = () => {
           </button>
 
           {/* Notifications Center */}
-          {portal !== "landing" && !isOnLoginScreen && (
+          {mounted && portal !== "landing" && !isOnLoginScreen && (
             <NotificationBell />
           )}
 
@@ -287,7 +304,7 @@ export const Header = () => {
           </button>
 
           {/* Logout Button */}
-          {showLogout && (
+          {mounted && showLogout && (
             <button
               type="button"
               id="header-logout-btn"
@@ -349,7 +366,7 @@ export const Header = () => {
                 >
                   <div className="flex items-center gap-3">
                     <User className="w-5 h-5 text-teal-700" />
-                    <span>{t.patientPortal} (Ali Khan)</span>
+                    <span>{t.patientPortal}{!isLiveMode ? " (Ali Khan)" : ""}</span>
                   </div>
                   <ArrowRight className={`w-4 h-4 text-slate-400 ${isUrdu ? "rotate-180" : ""}`} />
                 </button>
@@ -370,7 +387,7 @@ export const Header = () => {
                 >
                   <div className="flex items-center gap-3">
                     <Stethoscope className="w-5 h-5 text-teal-400" />
-                    <span>{t.providerPortal} (Dr. Sana Malik)</span>
+                    <span>{t.providerPortal}{!isLiveMode ? " (Dr. Sana Malik)" : ""}</span>
                   </div>
                   <ArrowRight className={`w-4 h-4 text-slate-400 ${isUrdu ? "rotate-180" : ""}`} />
                 </button>

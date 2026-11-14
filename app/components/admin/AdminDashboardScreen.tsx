@@ -280,7 +280,7 @@ export const AdminDashboardScreen = () => {
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
             {t.statUsers}
           </span>
-          <div className="text-3xl font-bold text-navy-800 font-sans mt-1">126</div>
+          <div className="text-3xl font-bold text-navy-800 font-sans mt-1">{isLiveMode ? "—" : 126}</div>
         </div>
 
         {/* Stat 2: Providers */}
@@ -288,7 +288,7 @@ export const AdminDashboardScreen = () => {
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
             {t.statProviders}
           </span>
-          <div className="text-3xl font-bold text-teal-700 font-sans mt-1">{doctors.length}</div>
+          <div className="text-3xl font-bold text-teal-700 font-sans mt-1">{isLiveMode ? "—" : doctors.length}</div>
         </div>
 
         {/* Stat 3: Patients */}
@@ -296,7 +296,7 @@ export const AdminDashboardScreen = () => {
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
             {t.statPatients}
           </span>
-          <div className="text-3xl font-bold text-navy-800 font-sans mt-1">{patients.length + 105}</div>
+          <div className="text-3xl font-bold text-navy-800 font-sans mt-1">{isLiveMode ? "—" : patients.length + 105}</div>
         </div>
 
         {/* Stat 4: Active Alerts */}
@@ -504,19 +504,21 @@ export const AdminDashboardScreen = () => {
               <Stethoscope className="w-5 h-5 text-teal-700" />
               <span>Attending Clinical Providers</span>
             </h2>
-            <button
-              type="button"
-              onClick={() => setShowAddDoctor(!showAddDoctor)}
-              id="add-doctor-btn"
-              className="text-xs font-bold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1.5 rounded-xl transition-colors inline-flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Doctor</span>
-            </button>
+            {!isLiveMode && (
+              <button
+                type="button"
+                onClick={() => setShowAddDoctor(!showAddDoctor)}
+                id="add-doctor-btn"
+                className="text-xs font-bold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1.5 rounded-xl transition-colors inline-flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Doctor</span>
+              </button>
+            )}
           </div>
 
           {/* Inline Add Doctor Form */}
-          {showAddDoctor && (
+          {!isLiveMode && showAddDoctor && (
             <form onSubmit={handleAddDoctor} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 animate-fadeIn">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-navy-800">Register New Clinical Provider</span>
@@ -566,7 +568,12 @@ export const AdminDashboardScreen = () => {
           )}
 
           <div className="divide-y divide-slate-100 text-sm space-y-3">
-            {doctors.map((doc) => {
+            {isLiveMode ? (
+              <div className="p-8 text-center text-slate-500 text-sm">
+                <p className="font-medium">{isUrdu ? "ابھی کوئی ڈاکٹر رجسٹرڈ نہیں ہے" : "No providers registered yet"}</p>
+              </div>
+            ) : (
+              doctors.map((doc) => {
               const assigned = patients.filter((p) => doc.assignedPatientIds.includes(p.id));
               return (
                 <div key={doc.id} className="pt-3 first:pt-0 space-y-2">
@@ -612,7 +619,8 @@ export const AdminDashboardScreen = () => {
                   </div>
                 </div>
               );
-            })}
+            })
+            )}
           </div>
         </div>
 
@@ -623,19 +631,21 @@ export const AdminDashboardScreen = () => {
               <Users className="w-5 h-5 text-teal-700" />
               <span>Enrolled Patient Cohort</span>
             </h2>
-            <button
-              type="button"
-              onClick={() => setShowAddPatient(!showAddPatient)}
-              id="add-patient-btn"
-              className="text-xs font-bold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1.5 rounded-xl transition-colors inline-flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Patient</span>
-            </button>
+            {!isLiveMode && (
+              <button
+                type="button"
+                onClick={() => setShowAddPatient(!showAddPatient)}
+                id="add-patient-btn"
+                className="text-xs font-bold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-3 py-1.5 rounded-xl transition-colors inline-flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Patient</span>
+              </button>
+            )}
           </div>
 
           {/* Inline Add Patient Form */}
-          {showAddPatient && (
+          {!isLiveMode && showAddPatient && (
             <form onSubmit={handleAddPatient} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 animate-fadeIn">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-navy-800">Enroll New Chronic Patient</span>
@@ -702,7 +712,12 @@ export const AdminDashboardScreen = () => {
           )}
 
           <div className="divide-y divide-slate-100 text-sm space-y-3">
-            {patients.map((p) => {
+            {isLiveMode ? (
+              <div className="p-8 text-center text-slate-500 text-sm">
+                <p className="font-medium">{isUrdu ? "ابھی کوئی مریض رجسٹرڈ نہیں ہے" : "No patients enrolled yet"}</p>
+              </div>
+            ) : (
+              patients.map((p) => {
               const doc = doctors.find((d) => d.id === p.assignedDoctorId);
               return (
                 <div key={p.id} className="pt-3 first:pt-0 space-y-2">
@@ -737,7 +752,8 @@ export const AdminDashboardScreen = () => {
                   </div>
                 </div>
               );
-            })}
+            })
+            )}
           </div>
         </div>
       </div>
@@ -757,54 +773,60 @@ export const AdminDashboardScreen = () => {
           </div>
 
           <div className="space-y-3 text-sm">
-            {scheduleEntries.map((sch) => (
-              <div
-                key={sch.id}
-                className={`p-4 rounded-2xl border transition-all ${
-                  sch.isLive
-                    ? sch.status === "Requested"
-                      ? "bg-amber-50/80 border-amber-300 ring-2 ring-amber-400/30"
-                      : "bg-teal-50/70 border-teal-300 ring-2 ring-teal-400/30"
-                    : "bg-white/80 border-slate-200/70"
-                }`}
-              >
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-navy-800">{sch.patient}</span>
-                    <span className="text-[10px] text-slate-400 font-mono">({sch.patientId})</span>
-                  </div>
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                      sch.status === "Confirmed"
-                        ? "bg-mutedGreen-100 text-mutedGreen-800 border border-mutedGreen-200"
-                        : sch.status === "Requested"
-                        ? "bg-amber-100 text-amber-900 border border-amber-300"
-                        : "bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    {sch.status === "Requested" ? "Patient Requested" : sch.status}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mt-2 pt-2 border-t border-slate-100">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Attending</span>
-                    <span className="font-medium text-navy-800">{sch.provider}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Slot</span>
-                    <span className={`font-medium ${sch.isLive ? (sch.status === "Requested" ? "text-amber-800 font-bold" : "text-teal-800 font-bold") : "text-slate-800"}`}>
-                      {sch.slot}
+            {isLiveMode ? (
+              <div className="p-8 text-center text-slate-500 text-sm">
+                <p className="font-medium">{isUrdu ? "ابھی کوئی شیڈول موجود نہیں" : "No appointments scheduled"}</p>
+              </div>
+            ) : (
+              scheduleEntries.map((sch) => (
+                <div
+                  key={sch.id}
+                  className={`p-4 rounded-2xl border transition-all ${
+                    sch.isLive
+                      ? sch.status === "Requested"
+                        ? "bg-amber-50/80 border-amber-300 ring-2 ring-amber-400/30"
+                        : "bg-teal-50/70 border-teal-300 ring-2 ring-teal-400/30"
+                      : "bg-white/80 border-slate-200/70"
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-navy-800">{sch.patient}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">({sch.patientId})</span>
+                    </div>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        sch.status === "Confirmed"
+                          ? "bg-mutedGreen-100 text-mutedGreen-800 border border-mutedGreen-200"
+                          : sch.status === "Requested"
+                          ? "bg-amber-100 text-amber-900 border border-amber-300"
+                          : "bg-slate-100 text-slate-700"
+                      }`}
+                    >
+                      {sch.status === "Requested" ? "Patient Requested" : sch.status}
                     </span>
                   </div>
-                </div>
 
-                <div className="text-xs text-slate-500 mt-1.5 flex items-center justify-between">
-                  <span className="truncate">{sch.reason}</span>
-                  <span className="text-[10px] text-slate-400 shrink-0">{sch.clinic}</span>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mt-2 pt-2 border-t border-slate-100">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Attending</span>
+                      <span className="font-medium text-navy-800">{sch.provider}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Slot</span>
+                      <span className={`font-medium ${sch.isLive ? (sch.status === "Requested" ? "text-amber-800 font-bold" : "text-teal-800 font-bold") : "text-slate-800"}`}>
+                        {sch.slot}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-slate-500 mt-1.5 flex items-center justify-between">
+                    <span className="truncate">{sch.reason}</span>
+                    <span className="text-[10px] text-slate-400 shrink-0">{sch.clinic}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -821,20 +843,26 @@ export const AdminDashboardScreen = () => {
           </div>
 
           <div className="space-y-3 text-sm">
-            {isLiveMode && liveAuditLogs.length > 0 ? (
-              liveAuditLogs.map((log) => (
-                <div key={log.id} className="p-4 rounded-2xl bg-white/80 border border-slate-200/70 space-y-1 shadow-xs">
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span className="font-bold uppercase tracking-wider text-teal-800">
-                      {log.action}
-                    </span>
-                    <span className="font-mono">{new Date(log.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+            {isLiveMode ? (
+              liveAuditLogs.length > 0 ? (
+                liveAuditLogs.map((log) => (
+                  <div key={log.id} className="p-4 rounded-2xl bg-white/80 border border-slate-200/70 space-y-1 shadow-xs">
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span className="font-bold uppercase tracking-wider text-teal-800">
+                        {log.action}
+                      </span>
+                      <span className="font-mono">{new Date(log.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                    <p className="text-navy-800 font-medium text-sm leading-relaxed">
+                      Outcome: <span className="font-bold">{log.outcome}</span> • Target: {log.target || "system"}
+                    </p>
                   </div>
-                  <p className="text-navy-800 font-medium text-sm leading-relaxed">
-                    Outcome: <span className="font-bold">{log.outcome}</span> • Target: {log.target || "system"}
-                  </p>
+                ))
+              ) : (
+                <div className="p-8 text-center text-slate-500 text-sm">
+                  <p className="font-medium">{isUrdu ? "ابھی کوئی سرگرمی نہیں ہے" : "No activity yet"}</p>
                 </div>
-              ))
+              )
             ) : (
               auditLogs.map((log, idx) => (
                 <div key={idx} className="p-4 rounded-2xl bg-white/80 border border-slate-200/70 space-y-1 shadow-xs">

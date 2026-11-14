@@ -6,6 +6,20 @@
 
 ---
 
+## Quickstart: One-Command Local Demo Launcher
+
+To start the complete local evaluation environment (schema migration, demo seed, backend API server on port 8000, and Next.js frontend on port 3000) with a single command:
+
+```powershell
+Set-Location "c:\Users\usmanbari\Desktop\Chronicare"
+.\scripts\start_local_demo.ps1 -Seed
+```
+This launcher automatically verifies your Python virtual environment, strictly refuses MySQL if configured, initializes the SQLite database, seeds all 17 Nov demo personas, launches backend and frontend in separate console windows, polls `/health` until ready, and prints the evaluation dashboard URLs.
+
+---
+
+## Manual Step-by-Step Runbook
+
 ### Step 1: Open PowerShell and Navigate to Workspace Root
 ```powershell
 Set-Location "c:\Users\usmanbari\Desktop\Chronicare"
@@ -43,6 +57,11 @@ Load the licensed medical guideline chunks into your local database:
 ```powershell
 $env:DB_BACKEND = "sqlite"
 python scripts/rag/load_chunks.py --file (Join-Path $env:CHRONICCARE_DATA_DIR "rag\chunks.jsonl")
+
+# (Optional: Build Dense ChromaDB Index for Hybrid Retrieval - PR G)
+# If using RETRIEVER=hybrid, install dense requirements and build persistent index:
+pip install -r backend-poc-technical/requirements-rag-dense.txt
+python scripts/rag/build_dense_index.py
 ```
 
 ### Step 7: Configure Local Environment (`backend-poc-technical/.env.localdemo`)
@@ -58,7 +77,7 @@ Other local demo settings:
 - `GROQ_API_KEY=<copy from Render>`
 - `GROQ_MODEL=<copy from Render>` (copy the exact model configured on Render).
 - `DEMO_ROLE_MAP=<copy from Render>` (format: `provider.demo@demo.care:provider,admin.demo@demo.care:admin`).
-- Feature flags: `RISK_ENABLED=true`, `RISK_CAN_RAISE=true`, `RISK_PATIENT_VISIBLE=true`, `TREND_CAN_RAISE=true`, `EXPLAIN_ENABLED=true`, `EXPLAIN_MODE=background`, `OCR_ENABLED=true`, `DANGER_WORDGROUPS_ENABLED=true`, `ORCHESTRATOR=graph`, `INTERVIEW_ENGINE=v2`.
+- Feature flags: `RISK_ENABLED=true`, `RISK_CAN_RAISE=true`, `RISK_PATIENT_VISIBLE=true`, `TREND_CAN_RAISE=true`, `EXPLAIN_ENABLED=true`, `EXPLAIN_MODE=background`, `RETRIEVER=bm25` (or `hybrid`), `OCR_ENABLED=true`, `DANGER_WORDGROUPS_ENABLED=true`, `ORCHESTRATOR=graph`, `INTERVIEW_ENGINE=v2`.
 - Optional acceptance keys (for unattended runs): `FIREBASE_WEB_API_KEY`, `LOCAL_PROVIDER_EMAIL`, `LOCAL_PROVIDER_PASSWORD`, `LOCAL_ADMIN_EMAIL`, `LOCAL_ADMIN_PASSWORD`.
 
 *Note: `backend-poc-technical/.env.localdemo` is git-ignored (verified by `git check-ignore -v`). Never commit it.*
@@ -125,18 +144,42 @@ python scripts/local_acceptance.py
 ### Step 13b: Seed Local Demo Personas (`scripts/seed_demo_local.py`)
 To populate the local SQLite database with realistic clinical demo personas representing every key feature of the proposal:
 ```powershell
-python scripts\seed_demo_local.py
+python scripts\seed_demo_local.py --reset
 ```
-This script strictly refuses to run on MySQL and seeds 5 fake patient personas and roles:
-1. **Demo Patient HTN** (`demo_patient_htn@demo.care`): Hypertension only, complete profile, 14 days of BP readings rising above target (>140 mmHg) to trigger Stage-2 trend escalation (Yellow / Review).
-2. **Demo Patient DM** (`demo_patient_dm@demo.care`): Diabetes only, 5 days of fasting glucose history, evaluated with NHANES diabetes risk model.
-3. **Demo Patient Dual** (`demo_patient_dual@demo.care`): Both conditions, dual BP and glucose histories, evaluating both NHANES T2D and Framingham CHD risk models.
-4. **Demo Patient New** (`demo_patient_new@demo.care`): Zero check-ins (cold start demonstration).
-5. **Demo Patient FHIR** (`demo_patient_fhir@demo.care`): Connected-mode patient on FhirSim (`demo-hospital` / `sim-bilal`), high confidence vitals.
-6. **Demo Provider** (`provider.demo@demo.care`): Pre-seeded provider role for review queue.
-7. **Demo Admin** (`admin.demo@demo.care`): Pre-seeded admin role for system status.
+This script strictly refuses to run on MySQL, creates all check-ins through the real API endpoints, and seeds the 17 Nov demo personas:
+1. **Demo Patient HTN** (`demo_patient_htn@demo.care`): Hypertension only, 5+ check-ins with worsening BP trend ($122 \rightarrow 146\text{ mmHg}$) triggering Stage-2 escalation to Yellow (review), rising BP chart, and an OCR-imported unverified prescription medication (Medium trust / Unverified badge).
+2. **Demo Patient DM** (`demo_patient_dm@demo.care`): Glucose history + High DM risk band from `diabetes_full_nhanes` raising routine to Yellow (provider sees probability + SHAP drivers, patient sees band sentence only).
+3. **Demo Patient Dual** (`demo_patient_dual@demo.care`): Dual condition profile with both risk models evaluated (NHANES Diabetes + Framingham CHD10) and structured SOAP clinical summary (`/api/provider/review/{id}/soap`).
+4. **Demo Patient Urdu** (`demo_patient_ur@demo.care`): Urdu-script patient (`ur`) with check-in history and reviewed Urdu template guidance.
+5. **Demo Patient Roman Urdu** (`demo_patient_roman_ur@demo.care`): Roman Urdu patient (`roman_ur`) with check-in history and reviewed Roman Urdu template guidance.
+6. **Demo Patient Emergency** (`demo_patient_emg@demo.care`): Red-flag acute chest pain trigger -> immediate emergency bypass and 1122 screen record.
+7. **Demo Patient No-Readings** (`demo_patient_norx@demo.care`): Check-in without readings -> Rule R8 routine monitoring template wording.
+8. **Demo Patient FHIR** (`demo_patient_fhir@demo.care`): Connected-mode patient on FhirSim (`demo-hospital` / `sim-bilal`), high confidence vitals.
+9. **Demo Patient New** (`demo_patient_new@demo.care`): Strictly 0 check-ins (cold start demonstration).
+10. **Demo Provider** (`provider.demo@demo.care`): Pre-seeded provider role for review queue and SOAP note generation.
+11. **Demo Admin** (`admin.demo@demo.care`): Pre-seeded admin role for system configuration status.
 
 At the conclusion of the seed run, a structured summary table is printed showing each persona's triage level, single-source color chip, risk model bands, and trend direction.
+
+### Step 13c: Run Playwright Demo Journeys & Accessibility Audit (Task U9 / I4-S)
+To execute the automated end-to-end browser demo journeys (`J-a` through `J-i`) and WCAG 2.1 AA accessibility audit:
+```powershell
+npx playwright test tests-e2e/journeys.playwright.ts
+npx playwright test tests-e2e/accessibility.playwright.ts
+```
+The test suite automatically seeds the local database and launches the backend uvicorn server and Next.js frontend web server, verifying:
+- **J-a**: New patient onboarding (consent, profile, routine check-in, Green chip, and guideline citations).
+- **J-b**: Urdu-script patient (`demo_patient_ur@demo.care`) with end-to-end RTL Urdu UI and template explanation.
+- **J-c**: Danger phrase patient (`demo_patient_emg@demo.care`) showing 1122 emergency hotline only (and no other emergency numbers).
+- **J-d**: HTN worsening trend persona (`demo_patient_htn@demo.care`) with Yellow status and provider longitudinal BP chart.
+- **J-e**: Provider queue (`provider.demo@demo.care`) with SHAP drivers and structured SOAP note generation.
+- **J-f**: Patient risk view (`demo_patient_dm@demo.care`) displaying qualitative risk band sentences only without raw percentages or raw model names.
+- **J-g**: No-readings check-in (`demo_patient_norx@demo.care`) displaying Rule R8 wording and zero invented readings.
+- **J-h**: OCR prescription upload, confirmation screen, and Medium trust / Unverified badge in Health Record.
+- **J-i**: Admin system configuration status page (`admin.demo@demo.care`) listing runtime flags and environment settings.
+
+Key screen captures at 1280px (desktop) and 375px (mobile) are saved into `docs/screenshots/w4/demo/`.
+*Note: Playwright is intentionally not wired into GitHub CI (`.github/workflows/ci.yml`) because its webServer requires PowerShell.*
 
 ### Step 14: Local Database Reset (Between Evaluation Rehearsals)
 To reset the local database back to a clean baseline between test runs:

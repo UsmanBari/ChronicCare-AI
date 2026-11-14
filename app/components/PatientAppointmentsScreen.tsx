@@ -13,6 +13,10 @@ export const PatientAppointmentsScreen = () => {
   const [selectedSlots, setSelectedSlots] = useState<Record<string, string>>({});
 
   const fetchAppointments = async () => {
+    if (!isLiveMode) {
+      setLiveAppointments([]);
+      return;
+    }
     setIsLoading(true);
     setActionError(null);
     try {
@@ -27,6 +31,7 @@ export const PatientAppointmentsScreen = () => {
 
   useEffect(() => {
     fetchAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleBook = async (aptId: string) => {

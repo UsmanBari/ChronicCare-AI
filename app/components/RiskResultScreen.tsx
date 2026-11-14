@@ -24,7 +24,7 @@ import { ExplanationBox } from "./ExplanationBox";
 import { TriageColourChip } from "./TriageColourChip";
 
 export const RiskResultScreen = () => {
-  const { setScreen, returnToHomeAndClearRun, isLiveMode, liveCheckinResult, t, isUrdu } = useApp();
+  const { setScreen, returnToHomeAndClearRun, isLiveMode, liveCheckinResult, liveProfile, demoScenario, t, isUrdu } = useApp();
   const [showWhyPanel, setShowWhyPanel] = useState(false);
 
   // =========================================================================
@@ -40,6 +40,29 @@ export const RiskResultScreen = () => {
 
     const comparisons = liveCheckinResult?.reconciliation?.observation_comparisons || [];
     const medComparisons = liveCheckinResult?.reconciliation?.medication_comparisons || [];
+
+    const readingsFromIntakes = (liveCheckinResult?.intakes || []).reduce((acc: number, it: any) => {
+      const r = it?.readings;
+      if (Array.isArray(r)) {
+        return acc + r.filter((item: any) => item && item.value !== null && item.value !== undefined).length;
+      }
+      if (r && typeof r === "object") {
+        return acc + Object.values(r).filter((v: any) => v !== null && v !== undefined).length;
+      }
+      return acc;
+    }, 0);
+    const readingsFromComparisons = comparisons.filter(
+      (c: any) => c && c.value_b !== null && c.value_b !== undefined
+    ).length;
+    const totalReadingsEntered = Math.max(readingsFromIntakes, readingsFromComparisons);
+    const hasNoReadings = totalReadingsEntered === 0;
+
+    const activeLang = liveProfile?.language || (isUrdu ? "ur" : "en");
+    const noReadingsText = activeLang === "ur"
+      ? "آج کوئی ریڈنگ درج نہیں کی گئی"
+      : activeLang === "roman_ur"
+      ? "Aaj koi reading darj nahi ki gayi"
+      : t.noReadingsEntered;
 
     return (
       <div className="w-full max-w-lg mx-auto glass-raised rounded-3xl border border-slate-200/90 shadow-2xl overflow-hidden animate-fadeIn" dir={isUrdu ? "rtl" : "ltr"}>
@@ -72,34 +95,47 @@ export const RiskResultScreen = () => {
 
         <div className="p-6 sm:p-7 space-y-5">
           {/* Summary Metric Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-4 rounded-2xl bg-teal-50/80 border border-teal-200 text-center space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-teal-900 block">
-                {t.agreementsCountLabel}
+          {hasNoReadings ? (
+            <div
+              className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1"
+              data-testid="no-readings-summary"
+            >
+              <span className="text-sm sm:text-base font-semibold text-slate-700 block">
+                {noReadingsText}
               </span>
-              <div className="text-2xl font-bold text-teal-900 font-mono">
-                {agreementCount}
-              </div>
             </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-4 rounded-2xl bg-teal-50/80 border border-teal-200 text-center space-y-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-teal-900 block">
+                  {t.agreementsCountLabel}
+                </span>
+                <div className="text-2xl font-bold text-teal-900 font-mono">
+                  {agreementCount}
+                </div>
+              </div>
 
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
-                {t.missingCountLabel}
-              </span>
-              <div className="text-2xl font-bold text-slate-800 font-mono">
-                {missingCount}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block">
+                  {t.missingCountLabel}
+                </span>
+                <div className="text-2xl font-bold text-slate-800 font-mono">
+                  {missingCount}
+                </div>
               </div>
-            </div>
 
-            <div className="p-4 rounded-2xl bg-mutedGreen-50 border border-mutedGreen-200 text-center space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-mutedGreen-900 block">
-                {t.confidenceLabel}
-              </span>
-              <div className="text-2xl font-bold text-mutedGreen-900 capitalize">
-                {confidenceLabel || "—"}
-              </div>
+              {confidenceLabel && (
+                <div className="p-4 rounded-2xl bg-mutedGreen-50 border border-mutedGreen-200 text-center space-y-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-mutedGreen-900 block">
+                    {t.confidenceLabel}
+                  </span>
+                  <div className="text-2xl font-bold text-mutedGreen-900 capitalize">
+                    {confidenceLabel}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           {/* Patient Risk Estimates (Proposal Section 15, Clinician Approved 8 Nov, behind RISK_PATIENT_VISIBLE) */}
           {liveCheckinResult?.risk_patient && liveCheckinResult.risk_patient.length > 0 && (
@@ -358,6 +394,56 @@ export const RiskResultScreen = () => {
         {/* Guideline Explanation Box (flags on) */}
         {liveCheckinResult?.explanation && (
           <ExplanationBox />
+        )}
+
+        {/* Rule R8: No-readings summary card */}
+        {demoScenario === "no_readings" && (
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-left" data-testid="no-readings-summary">
+            <span className="text-xs font-bold uppercase tracking-wider text-navy-800">
+              {isUrdu ? "آج کوئی ریڈنگ درج نہیں کی گئی" : "No readings entered today"}
+            </span>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              {isUrdu ? "آج کوئی ریڈنگ درج نہیں کی گئی — روٹین مانیٹرنگ جاری ہے۔" : "Routine self-monitoring. Patient did not enter a blood sugar reading today; continuing standard routine monitoring."}
+            </p>
+          </div>
+        )}
+
+        {/* Patient Risk Estimates (Proposal Section 15) */}
+        {liveCheckinResult?.risk_patient && liveCheckinResult.risk_patient.length > 0 && (
+          <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3" data-testid="patient-risk-estimates-card">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+              <span className="font-heading font-bold text-xs uppercase tracking-wider text-slate-700">
+                {t.patientRiskEstimatesTitle}
+              </span>
+            </div>
+            <div className="space-y-2.5">
+              {liveCheckinResult.risk_patient.map((r, idx) => {
+                const b = (r.band || "").toLowerCase();
+                let bandColor = "bg-teal-50 text-teal-800 border-teal-200";
+                let bandLabel = t.riskBandLow;
+                if (b === "high") {
+                  bandColor = "bg-indigo-50 text-indigo-900 border-indigo-200 font-bold";
+                  bandLabel = t.riskBandHigh;
+                } else if (b === "moderate" || b === "medium") {
+                  bandColor = "bg-amber-50 text-amber-900 border-amber-200 font-semibold";
+                  bandLabel = t.riskBandMedium;
+                }
+                const msg = (t as any)[r.message_key] || (b === "high" ? t.risk_chd_high : (b === "moderate" ? t.risk_chd_moderate : t.risk_chd_low));
+                return (
+                  <div key={idx} className="p-3 rounded-xl bg-slate-50/70 border border-slate-100 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] border ${bandColor}`}>
+                        {bandLabel}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {msg}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* Toggle to view Why / Contributing Factors */}
