@@ -139,6 +139,22 @@ def normalize_text(text: str) -> str:
     return s
 
 
+def _has_proximity(words: List[str], set_a: set, set_b: set, window: int = MAX_WINDOW_WORDS) -> bool:
+    """
+    Returns True if any token from set_a and set_b appear within `window` words
+    of each other in the given token sequence (concept-based proximity matching).
+    """
+    n = len(words)
+    for i in range(n):
+        if words[i] in set_a:
+            start = max(0, i - window)
+            end = min(n, i + window + 1)
+            for j in range(start, end):
+                if i != j and words[j] in set_b:
+                    return True
+    return False
+
+
 # =============================================================================
 # Context Suppressions: Past, Exertion+Rest, Chronic, Emotional
 # =============================================================================
@@ -243,12 +259,18 @@ def _is_suppressed(norm: str) -> bool:
 # Category 1: Chest Pain
 # =============================================================================
 
-_CHEST_BODY_TOKENS = {"chest", "seena", "seenay", "seene", "chhati", "chati", "chaati", "سینہ", "سینے", "چھاتی"}
+_CHEST_BODY_TOKENS = {
+    "chest", "breastbone", "sternum",
+    "seena", "seenay", "seene", "sene", "senay", "chhati", "chati", "chaati",
+    "سینہ", "سینے", "چھاتی"
+}
 _CHEST_SYMPTOM_TOKENS = {
-    "pain", "pressure", "tightness", "heaviness", "crushing", "squeezing",
-    "ache", "aching", "discomfort", "hurts", "heavy",
-    "dard", "dabao", "bojh", "jakran", "bhaari", "bhari", "sakht", "shadeed", "tez", "khichao",
-    "درد", "دباؤ", "بوجھ", "جکڑن", "بھاری", "کھچاؤ", "شدید", "سخت"
+    "pain", "pains", "painful", "hurt", "hurts", "hurting", "ache", "aching", "aches", "discomfort",
+    "pressure", "tight", "tightness", "heavy", "heaviness", "crushing", "squeezing", "squeezed", "crushed",
+    "vice", "vise", "elephant",
+    "dard", "dardi", "dukhta", "dukh", "dabao", "dbao", "dabaw", "bojh", "jakran", "bhari", "bhaari",
+    "sakht", "shadeed", "tez", "khichao", "nichor", "masal", "bandhna", "phat",
+    "درد", "دکھتا", "دباؤ", "بوجھ", "جکڑن", "بھاری", "سخت", "شدید", "تیز", "کھچاؤ", "نچوڑ", "پھٹ"
 }
 
 _CHEST_METAPHORS = [
@@ -471,14 +493,41 @@ _BREATHING_NEGATIONS = [
     r"\bnever\s+(?:\w+\s+){0,3}(?:difficulty\s+breathing|trouble\s+breathing|shortness\s+of\s+breath)\b",
     r"\bnot\s+breathless\b",
     r"\bwithout\s+(?:shortness\s+of\s+breath|breathlessness)\b",
+    r"\bbreathing\s+(?:is\s+)?(?:completely\s+)?(?:fine|normal|ok|good)\b",
+    r"\bwithout\s+(?:any\s+)?(?:trouble|difficulty|shortness|problem|breathlessness)\b",
     r"\bsans\s+(?:\w+\s+){0,3}(?:bilkul\s+theek|theek)\b",
-    r"\bkoi\s+(?:\w+\s+){0,3}(?:masla|takleef|dushwari|mushkil)\s+(?:\w+\s+){0,2}nahi\b",
+    r"\bkoi\s+(?:\w+\s+){0,3}(?:masla|takleef|dushwari|mushkil|tangi)\s+(?:\w+\s+){0,2}nahi\b",
     r"سانس\s*(?:\S+\s*){0,3}(?:بالکل\s*ٹھیک|ٹھیک)",
-    r"کوئی\s*(?:\S+\s*){0,3}(?:مسئلہ|تکلیف|دشواری|مشکل)\s*(?:\S+\s*){0,2}نہیں",
+    r"کوئی\s*(?:\S+\s*){0,3}(?:مسئلہ|تکلیف|دشواری|مشکل|تنگی)\s*(?:\S+\s*){0,2}نہیں",
+    r"سانس\s*(?:کی\s*)?(?:تنگی|دشواری|مشکل)\s*(?:\S+\s*){0,2}نہیں",
 ]
 
 
+_BREATH_ORGAN_TOKENS = {
+    "breath", "breathe", "breathing", "breathless", "breathlessness", "air", "lungs", "lung",
+    "choke", "choking", "choked", "suffocate", "suffocating", "suffocation", "gasp", "gasping",
+    "drown", "drowning", "sans", "saans", "saas", "dam", "dum", "ghutan",
+    "سانس", "دم", "گھٹن"
+}
+
+_BREATH_DISTRESS_TOKENS = {
+    "cant", "cannot", "unable", "hard", "difficult", "difficulty", "trouble", "struggle", "struggling",
+    "short", "shortness", "barely", "hardly", "fail", "failing", "stop", "stopped",
+    "ruk", "ukhad", "ghut", "phool", "band", "dushwar", "dushwari", "mushkil", "muhaal", "tang", "kam",
+    "رک", "اکھڑ", "گھٹ", "پھول", "بند", "دشوار", "دشواری", "مشکل", "محال", "تنگ", "کم"
+}
+
+_REST_POSITION_TOKENS = {
+    "rest", "resting", "sitting", "lying", "flat", "bed",
+    "baithe", "bethay", "bethi", "lete", "letay", "aaram",
+    "بیٹھے", "لیٹے", "آرام"
+}
+
+
 def _match_breathing(norm: str) -> bool:
+    if re.search(r"sans\s+ke\s+siwa|سانس\s*کے\s*سوا", norm):
+        return False
+
     if _has_any(norm, _BREATHING_METAPHORS):
         return True
 
@@ -492,6 +541,15 @@ def _match_breathing(norm: str) -> bool:
 
     if _has_any(norm, _BREATHING_INABILITY_PATTERNS):
         return True
+
+    # Concept-based proximity matching
+    words = norm.split()
+    if _has_proximity(words, _BREATH_ORGAN_TOKENS, _BREATH_DISTRESS_TOKENS, MAX_WINDOW_WORDS):
+        return True
+
+    if _has_proximity(words, _BREATH_ORGAN_TOKENS, _REST_POSITION_TOKENS, MAX_WINDOW_WORDS):
+        if any(w in words for w in ("short", "difficult", "trouble", "hard", "cant", "cannot", "phool", "ghut", "mushkil", "نہیں", "مشکل")):
+            return True
 
     return False
 
@@ -569,13 +627,52 @@ _STROKE_FAST_PATTERNS = [
 
 
 def _is_stroke_negated(norm: str) -> bool:
-    if re.search(r"\b(?:no|not|denies|denied|without)\s+(?:\w+\s+){0,3}(?:slurred|speech|droop|weakness|numbness)\b", norm):
+    if re.search(r"\b(?:no|not|denies|denied|without)\s+(?:\w+\s+){0,3}(?:slurr\w*|speech|droop\w*|weakness|numbness|facial)\b", norm):
         return True
-    if re.search(r"\b(?:kamzori|sunn|ladkhada)\s+(?:\w+\s+){0,2}nahi\b", norm):
+    if re.search(r"\b(?:speech|face|arm|hand|leg|side)\s+(?:is\s+)?(?:completely\s+)?(?:normal|fine|ok|okay)\b", norm):
         return True
-    if re.search(r"(?:کمزوری|سن|لڑکھڑا)\s*(?:\S+\s*){0,2}نہیں", norm):
+    if re.search(r"\b(?:chehra|zaban|awaz|bazu|hath|tang)\s+(?:theek|thik|sahi)\s+hai\b", norm):
+        return True
+    if re.search(r"\b(?:kamzori|sunn|ladkhada\w*)\s+(?:\w+\s+){0,2}nahi\b", norm):
+        return True
+    if re.search(r"\bkoi\s+(?:\w+\s+){0,2}(?:ladkhada\w*|falij|kamzori|sunn)\s+nahi\b", norm):
+        return True
+    if re.search(r"(?:کمزوری|سن|لڑکھڑا|فالج)\s*(?:\S+\s*){0,2}نہیں", norm):
+        return True
+    if re.search(r"کوئی\s*(?:\S+\s*){0,2}(?:کمزوری|سن|لڑکھڑاہٹ|فالج)\s*(?:\S+\s*){0,2}نہیں", norm):
         return True
     return False
+
+
+_STROKE_FACE_TOKENS = {
+    "face", "facial", "mouth", "smile", "chehra", "chehre", "munh", "mooh", "چہرہ", "منہ"
+}
+_STROKE_DROOP_TOKENS = {
+    "droop", "drooping", "drooped", "crooked", "asymmetric", "twisted", "lopsided", "slack", "slanted",
+    "tedha", "terha", "jhuk", "latak", "ٹیڑھا", "جھک", "لٹک"
+}
+
+_STROKE_SPEECH_TOKENS = {
+    "speech", "words", "voice", "speak", "talking",
+    "zaban", "zuban", "awaz", "awaaz", "bol", "bolna", "bolti",
+    "زبان", "آواز", "بول", "بولنا", "الفاظ"
+}
+_STROKE_SPEECH_DEFICIT_TOKENS = {
+    "slur", "slurred", "slurring", "jumble", "jumbled", "garbled", "confused", "incoherent", "strange",
+    "lost", "cant", "cannot", "unable", "ladkhada", "ladkhadata", "ajeeb", "band", "ruk",
+    "لڑکھڑا", "عجیب", "بند", "گڈ مڈ"
+}
+
+_STROKE_LIMB_TOKENS = {
+    "side", "arm", "hand", "leg", "body", "limb", "half",
+    "bazu", "haath", "hath", "tang", "pair", "jism", "adha",
+    "بازو", "ہاتھ", "ٹانگ", "جسم", "آدھا"
+}
+_STROKE_LIMB_DEFICIT_TOKENS = {
+    "paralyze", "paralyzed", "paralysis", "weak", "weakness", "numb", "numbness", "dead", "limp",
+    "immobile", "frozen", "kamzor", "kamzori", "sunn", "bejan", "falij",
+    "فالج", "سن", "کمزور", "بے جان"
+}
 
 
 def _match_confusion_and_stroke(norm: str) -> bool:
@@ -590,6 +687,15 @@ def _match_confusion_and_stroke(norm: str) -> bool:
     if "feet numb" in norm or "both feet" in norm or "pair sunn" in norm:
         if not re.search(r"\b(?:face|chehra|speech|zaban|bol|one\s+side|aik\s+taraf)\b", norm):
             return False
+
+    # Concept-based FAST proximity matching
+    words = norm.split()
+    if _has_proximity(words, _STROKE_FACE_TOKENS, _STROKE_DROOP_TOKENS, MAX_WINDOW_WORDS):
+        return True
+    if _has_proximity(words, _STROKE_SPEECH_TOKENS, _STROKE_SPEECH_DEFICIT_TOKENS, MAX_WINDOW_WORDS):
+        return True
+    if _has_proximity(words, _STROKE_LIMB_TOKENS, _STROKE_LIMB_DEFICIT_TOKENS, MAX_WINDOW_WORDS):
+        return True
 
     return _has_any(norm, _STROKE_FAST_PATTERNS)
 
@@ -733,26 +839,26 @@ def _match_loss_of_consciousness(norm: str) -> bool:
 
 _FLUIDS_DKA_PATTERNS = [
     # Fluid inability (English)
-    r"\b(?:cant|cannot|unable\s+to)\s+keep\s+(?:\w+\s+){1,4}down\b",
-    r"\beven\s+(?:\w+\s+){0,3}water\s+comes?\s+(?:back\s+)?up\b",
-    r"\bwater\s+comes\s+(?:right\s+)?back\s+up\b",
-    r"\beven\s+(?:a\s+sip\s+of\s+)?water\s+(?:comes?\s+back|wont\s+stay\s+down)\b",
-    r"\bthrowing\s+up\s+everything\b",
+    r"\b(?:cant|cannot|unable\s+to|wont)\s+(?:keep|hold)\s+(?:\w+\s+){0,4}down\b",
+    r"\b(?:even\s+)?(?:a\s+sip\s+of\s+)?(?:water|fluid|fluids|liquid|liquids|food)\s+(?:comes?\s+(?:right\s+)?back\s+up|wont\s+stay\s+down)\b",
+    r"\b(?:water|fluid|fluids|liquid|liquids)\s+comes?\s+(?:right\s+)?back\s+up\b",
+    r"\bthrowing\s+up\s+(?:everything|non-?stop|all\s+day)\b",
     r"\bkeep\s+nothing\s+down\b",
     r"\bvomiting\s+(?:non-?stop|continuously|all\s+day)\b",
-    r"\bvomiting\s+with\s+(?:very\s+)?high\s+(?:sugar|glucose)\b",
-    r"\bliquids\s+down\s+with\s+(?:very\s+)?high\s+(?:sugar|glucose)\b",
+    r"\b(?:vomiting|throwing\s+up|fluids?\s+come\s+back\s+up|liquids\s+come\s+(?:right\s+)?back\s+up)\s+(?:with\s+)?(?:very\s+)?high\s+(?:sugar|glucose)\b",
+    r"\b(?:liquids|fluids)\s+down\s+with\s+(?:very\s+)?high\s+(?:sugar|glucose)\b",
     # Roman Urdu fluid inability & intractable vomiting
     r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik)\s+rah[iyea]\b",
     r"\bpani\s+(?:bhi\s+)?(?:andar\s+)?(?:rukta|tikta)\s+nahi\b",
     r"\b(?:ek\s+)?ghoont\s+(?:bhi\s+)?(?:wapis|wapas|nikal|ulti)\b",
     r"\b(?:ek\s+)?ghoont\s+(?:bhi\s+)?(?:andar\s+)?nahi\s+(?:ruk|tik)\b",
     r"\bjo\s+(?:bhi\s+)?(?:peeta|peeti|khata|khati)\s+(?:hoon|hun)\s+(?:\w+\s+){0,2}(?:nikal|wapas|wapis|ulti)\b",
-    r"\bpani\s+(?:\w+\s+){0,3}wapas\b",
+    r"\bpani\s+(?:\w+\s+){0,3}(?:wapas|wapis)\b",
     r"\b(?:kuch\s+)?(?:bhi\s+)?hazam\s+nahi\s+ho\s+raha\b",
     r"\bhar\s+cheez\s+ulti\b",
     r"\bulti\s+ruk\s+nahi\s+rahi\b",
     r"\bmusalsal\s+ultiyan\b",
+    r"\bultiyan\s+ruk\s+nahi\s+rah\b",
     r"\bkuch\s+bhi\s+pet\s+me\s+nahi\s+ruk\s+raha\b",
     # Urdu script fluid inability & intractable vomiting
     r"الٹی\s*رک\s*نہیں\s*رہی",
@@ -762,19 +868,83 @@ _FLUIDS_DKA_PATTERNS = [
     r"جو\s*(?:بھی\s*)?(?:پیتا|کھاتا)\s*ہوں\s*(?:\S+\s*){0,2}(?:نکل|واپس|الٹی)",
     r"پانی\s*بھی\s*واپس",
     r"مسلسل\s*الٹیاں",
-    r"کچھ\s*بھی\s*ہضم\s*نہیں\s*ہو\s*رہا",
-    r"ہر\s*چیز\s*الٹی",
+    r"شدید\s*قے",
+    r"کچھ\s*بھی\s*(?:پیٹ\s*میں\s*)?نہیں\s*(?:ٹھہر|رک|ٹک)",
+    r"ہر\s*چیز\s*(?:کی\s*)?الٹی",
     r"شوگر\s*(?:\S+\s*){0,3}الٹیاں",
 ]
 
 
+def _is_vomiting_negated(norm: str) -> bool:
+    # English negations
+    if re.search(r"\b(?:no|not|without|denies|never)\s+(?:\w+\s+){0,3}(?:vomit\w*|throwing\s+up|puk\w*|nausea)\b", norm):
+        return True
+    if re.search(r"\b(?:able\s+to\s+keep|keeping)\s+(?:\w+\s+){0,3}(?:food|fluids?|water|liquids?)\s+down\s+(?:fine|well|normally)\b", norm):
+        return True
+    if re.search(r"\bable\s+to\s+drink\s+(?:water|fluids?|soup)\b", norm):
+        return True
+    if re.search(r"\bdrinking\s+water\s+(?:normally|fine|well|aaram\s+se)\b", norm):
+        return True
+    if re.search(r"\bno\s+vomiting\s+or\s+inability\b", norm):
+        return True
+    # Roman Urdu negations
+    if re.search(r"\b(?:koi\s+)?(?:ulti|ultiyan|qay|matli)\s+(?:bilkul\s+)?nahi\s+(?:hai|aayi|hui)\b", norm):
+        return True
+    if re.search(r"\bulti\s+bilkul\s+nahi\b", norm):
+        return True
+    if re.search(r"\bkoi\s+(?:\w+\s+){0,4}(?:ulti|qay|matli)\b.*?\bnahi\b", norm):
+        return True
+    if re.search(r"\bkhana\s+(?:peena\s+)?theek\s+(?:ruk|hazam)\b", norm):
+        return True
+    if re.search(r"\bkhana\s+hazam\s+ho\s+raha\b", norm):
+        return True
+    # Urdu script negations
+    if re.search(r"(?:الٹی|الٹیاں|قے|متلی)\s*(?:بالکل\s*)?نہیں\s*(?:ہے|آئی|ہوئی)", norm):
+        return True
+    if re.search(r"الٹی\s*بالکل\s*نہیں", norm):
+        return True
+    if re.search(r"کوئی\s*(?:بھی\s*)?(?:الٹی|الٹیاں|قے|متلی)\s*نہیں", norm):
+        return True
+    if re.search(r"کھانا\s*(?:پینا\s*)?ٹھیک\s*(?:ہو\s*رہا|ہضم|رک)", norm):
+        return True
+    if re.search(r"کھانا\s*ہضم\s*ہو\s*رہا", norm):
+        return True
+    return False
+
+
+_FLUID_TOKENS = {
+    "water", "fluid", "fluids", "liquids", "drink", "sip", "food",
+    "pani", "paani", "ghoont", "ghunt", "peeta", "peeti", "khata", "khati",
+    "پانی", "گھونٹ", "پیتا", "کھاتا"
+}
+_VOMIT_DEFICIT_TOKENS = {
+    "vomit", "vomiting", "vomited", "vomits", "puke", "puking",
+    "ulti", "ultiyan", "qay",
+    "الٹی", "الٹیاں", "قے"
+}
+
+
 def _match_dka_vomiting_fluids(norm: str) -> bool:
+    if _is_vomiting_negated(norm):
+        return False
+
     # Single resolved vomiting episode does not indicate intractable fluid inability
-    if re.search(r"\b(?:ek|1)\s+(?:dafa|bar)\s+ulti\b.*?\b(?:ab\s+pani\s+pee\s+raha|drinking\s+water)\b", norm):
+    if re.search(r"\b(?:vomited|threw\s+up|had\s+(?:one\s+)?vomit)\s+(?:once|1\s+time|yesterday|after|episode)\b.*?\b(?:drink\w*\s+water|water\s+down|keeping\s+water)\b", norm):
         return False
-    if re.search(r"\b(?:ایک\s*دفعہ|ایک\s*بار)\s*الٹی.*?پانی.*?پی\s*رہ", norm):
+    if re.search(r"\b(?:ek|1|aik)\s+(?:dafa|bar)\s+(?:ulti|qay)\b.*?\b(?:pani\s+(?:\w+\s+){0,4}(?:pee|ruk)|drinking\s+water)\b", norm):
         return False
-    return _has_any(norm, _FLUIDS_DKA_PATTERNS)
+    if re.search(r"\b(?:ایک\s*دفعہ|ایک\s*بار)\s*(?:الٹی|قے).*?پانی.*?(?:پی|رک)", norm):
+        return False
+
+    if _has_any(norm, _FLUIDS_DKA_PATTERNS):
+        return True
+
+    # Concept-based fluid intolerance & intractable vomiting proximity
+    words = norm.split()
+    if _has_proximity(words, _FLUID_TOKENS, _VOMIT_DEFICIT_TOKENS, MAX_WINDOW_WORDS):
+        return True
+
+    return False
 
 
 # =============================================================================
