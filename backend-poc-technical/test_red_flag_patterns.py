@@ -684,6 +684,16 @@ def test_pure_recovered_syncope_stays_off_red(text: str):
     ("آرام سے بیٹھے ہوئے بھی سانس پھول رہی ہے اور دم گھٹ رہا ہے", "breathing"),
     ("لیٹے ہوئے سانس رکتی ہے اور سانس لینا نہایت دشوار ہو گیا ہے", "breathing"),
     ("بغیر کچھ کیے بھی سانس بالکل نہیں آ رہی", "breathing"),
+    # G6 additions: acute inability & panting
+    ("saans le hi nahi pa rahe", "breathing"),
+    ("saans nahi le pa raha", "breathing"),
+    ("saans le nahi pa raha", "breathing"),
+    ("hanp raha hai", "breathing"),
+    ("hanp rahe hain", "breathing"),
+    ("haanp raha hai", "breathing"),
+    ("سانس لے ہی نہیں پا رہے", "breathing"),
+    ("سانس نہیں لے پا رہا", "breathing"),
+    ("ہانپ رہا ہے", "breathing"),
 
     # G5: FAST stroke (plural/respect, facial droop, speech, unilateral)
     ("ammi ka chehra achanak aik taraf jhuk gaya hai", "confusion_and_stroke"),

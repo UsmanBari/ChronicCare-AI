@@ -550,6 +550,11 @@ _BREATHING_INABILITY_PATTERNS = [
     r"\bsans\s+ukhad\s+rah[iyea]\b",
     r"\bsans\s+lena\s+(?:\w+\s+){0,3}(?:mushkil|dushwar|muhaal)\b",
     r"\bsans\s+lene\s+me\s+(?:\w+\s+){0,3}(?:dushwari|mushkil)\b",
+    r"\b(?:saans|sans)\s+(?:\w+\s+){0,3}(?:le\s+(?:hi\s+)?nahi\s+pa\s+rah[iyea]|nahi\s+le\s+pa\s+rah[iyea]|le\s+nahi\s+pa\s+rah[iyea]|lena\s+(?:hi\s+)?mushkil|lena\s+dushwar)\b",
+    r"\b(?:le\s+(?:hi\s+)?nahi\s+pa\s+rah[iyea]|nahi\s+le\s+pa\s+rah[iyea])\s+(?:saans|sans)\b",
+    r"\b(?:hanp|haanp)\s+rah[iyea]\b",
+    r"\b(?:hanp|haanp)\s+rahe\s+hain\b",
+    r"\b(?:hanp|haanp)\s+(?:kar|ke|te|ti|tay)\b",
     r"\b(?:baithe|bethay|bethi|lete|letay)\s+(?:hue\s+)?(?:bhi\s+)?(?:sans\s+phool|sans\s+ruk|sans\s+nahi|dam\s+ghut)\b",
     r"\bbina\s+(?:chale|hille|harakat)\s+(?:bhi\s+)?(?:sans\s+nahi|sans\s+phool|dam\s+ghut)\b",
     r"\baaram\s+(?:se\s+baithe|karte)\s+(?:hue\s+)?(?:bhi\s+)?(?:sans\s+nahi|sans\s+lena\s+mushkil)\b",
@@ -562,6 +567,9 @@ _BREATHING_INABILITY_PATTERNS = [
     r"سانس\s*لینا\s*(?:ممکن\s*نہیں|محال)",
     r"سانس\s*اکھڑ\s*(?:رہی|چکی)",
     r"ہوا\s*نہیں\s*مل\s*رہی",
+    r"(?:سانس|دم)\s*(?:\S+\s*){0,3}(?:لے\s*(?:ہی\s*)?نہیں\s*پا\s*رہ|نہیں\s*لے\s*پا\s*رہ|لینا\s*(?:ہی\s*)?مشکل|لینا\s*دشوار)",
+    r"ہانپ\s*رہ[یےا]",
+    r"ہانپتے",
     r"(?:بیٹھے|لیٹے)\s*(?:ہوئے\s*)?(?:بھی\s*)?(?:سانس\s*پھول|سانس\s*رک|سانس\s*نہیں|دم\s*گھٹ)",
     r"بغیر\s*چلے\s*(?:بھی\s*)?سانس\s*(?:نہیں\s*آ\s*رہی|پھول)",
     r"آرام\s*کی\s*حالت\s*میں\s*(?:بھی\s*)?سانس\s*(?:لینا\s*محال|نہیں\s*آ\s*رہی)",
@@ -625,7 +633,8 @@ _BREATH_ORGAN_TOKENS = {
     "breath", "breathe", "breathing", "breathless", "breathlessness", "air", "lungs", "lung",
     "choke", "choking", "choked", "suffocate", "suffocating", "suffocation", "gasp", "gasping",
     "drown", "drowning", "sans", "saans", "saas", "dam", "dum", "ghutan",
-    "سانس", "دم", "گھٹن"
+    "hanp", "haanp", "hanpna", "haanpna",
+    "سانس", "دم", "گھٹن", "ہانپ"
 }
 
 _BREATH_DISTRESS_TOKENS = {
@@ -677,14 +686,18 @@ def _match_breathing(norm: str) -> bool:
             r"\bair\s+(?:is\s+)?(?:not\s+going\s+in|wont\s+go\s+in|not\s+getting\s+in|cant\s+get\s+in)\b|"
             r"\b(?:sans|saans)\s+(?:bilkul\s+)?ukhri\s+hui\b|"
             r"\bsans\s+(?:\w+\s+){0,2}nahi\s+aa\s+rah[iyea]\b|"
+            r"\b(?:saans|sans)\s+(?:\w+\s+){0,3}(?:le\s+(?:hi\s+)?nahi\s+pa\s+rah[iyea]|nahi\s+le\s+pa\s+rah[iyea]|le\s+nahi\s+pa\s+rah[iyea])\b|"
+            r"\b(?:hanp|haanp)\s+rah[iyea]\b|"
             r"ہوا\s*(?:اندر\s*)?نہیں\s*(?:جاتی|جا\s*رہی|آتی|مل\s*رہی)|"
-            r"سانس\s*(?:\S+\s*){0,2}نہیں\s*آ\s*رہی",
+            r"سانس\s*(?:\S+\s*){0,2}نہیں\s*آ\s*رہی|"
+            r"(?:سانس|دم)\s*(?:\S+\s*){0,3}(?:لے\s*(?:ہی\s*)?نہیں\s*پا\s*رہ|نہیں\s*لے\s*پا\s*رہ)|"
+            r"ہانپ\s*رہ[یےا]",
             norm
         ))
         has_preceding_negator = bool(re.search(
-            r"\b(?:no|not|without|never|denies|zero)\s+(?:\w+\s+){0,3}(?:breathing|breath|shortness)\b|"
-            r"\bkoi\s+(?:\w+\s+){0,3}(?:sans|saans|masla|takleef)\b|"
-            r"کوئی\s*(?:\S+\s*){0,3}(?:سانس|تکلیف|مسئلہ)|"
+            r"\b(?:no|not|without|never|denies|zero|nahi|bilkul\s+nahi)\s+(?:\w+\s+){0,3}(?:breathing|breath|shortness|hanp|haanp)\b|"
+            r"\bkoi\s+(?:\w+\s+){0,3}(?:sans|saans|masla|takleef|hanp|haanp)\b|"
+            r"کوئی\s*(?:\S+\s*){0,3}(?:سانس|تکلیف|مسئلہ|ہانپ)|"
             r"بغیر\s*(?:\S+\s*){0,2}(?:سانس|تکلیف)",
             norm
         ))
@@ -699,7 +712,7 @@ def _match_breathing(norm: str) -> bool:
 
     has_exertion = _has_any(norm, _EXERTION_PATTERNS)
     has_acute_inability = bool(re.search(
-        r"\b(?:cant|cannot|unable\s+to|gasp\w*|suffocat\w*|at\s+rest|sitting|lying|dam\s+ghut|ruk\s+rah|ukhri)\b|دم\s*گھٹ|اکھڑ",
+        r"\b(?:cant|cannot|unable\s+to|gasp\w*|suffocat\w*|hanp\w*|haanp\w*|at\s+rest|sitting|lying|dam\s+ghut|ruk\s+rah|ukhri)\b|دم\s*گھٹ|اکھڑ|ہانپ",
         norm
     ))
     if has_exertion and not has_acute_inability:
@@ -911,15 +924,21 @@ def _is_benign_postural_or_chronic_numbness(norm: str, words: List[str]) -> bool
 
     # 2. Must have a clear benign trigger or chronic intermittent pattern
     has_benign_trigger = bool(re.search(
-        r"\b(?:jab|when|after)\s+(?:\w+\s+){0,5}(?:mobile|phone|typing|type|computer|screen|chalata|chalatay|chalati|baithta|baithtay|baithti|sota|sotay|soti|sleep\w*|sitting)\b|"
-        r"\b(?:when\s+i\s+sleep\s+on\s+it|slept\s+on\s+(?:my\s+)?(?:arm|hand)|sleeping\s+on\s+it|after\s+typing|using\s+(?:the\s+)?phone|using\s+mobile|holding\s+(?:the\s+)?phone)\b|"
-        r"\b(?:der\s+tak\s+(?:mobile|phone|baith|computer)|zyada\s+der\s+(?:baith|mobile)|cross\s+legged)\b|"
+        r"\b(?:jab|when|after)\s+(?:\w+\s+){0,5}(?:mobile|phone|typing|type|computer|screen|chalata|chalatay|chalati|baithta|baithtay|baithti|sota|sotay|soti|so\s+gaya|so\s+gayi|so\s+gaye|sone|sleep\w*|slept|sitting|sat|lying|lay)\b|"
+        r"\b(?:sone\s+(?:ke\s+baad|par|se|ke\s+doran)|sotay\s+waqt|soye\s+hue)\b|"
+        r"\b(?:when\s+i\s+(?:sleep|slept)\s+on\s+it|slept\s+on\s+(?:it|my\s+(?:arm|hand|shoulder|side)|an\s+arm)|sleeping\s+on\s+(?:it|my\s+(?:arm|hand|shoulder|side)|an\s+arm)|after\s+typing|using\s+(?:the\s+)?phone|using\s+mobile|holding\s+(?:the\s+)?phone)\b|"
+        r"\b(?:der\s+tak\s+(?:mobile|phone|baith|computer)|zyada\s+der\s+(?:baith|mobile)|cross\s*legged)\b|"
         r"\b(?:comes\s+and\s+goes(?:\s+for\s+(?:months|years|weeks))?|off\s+and\s+on\s+for\s+(?:months|years|weeks)|for\s+(?:months|years))\b|"
         r"\b(?:mahino\s+se|kai\s+mahine|hafto\s+se|ata\s+jata\s+hai|aata\s+jaata\s+hai|kabhi\s+kabhi\s+hota\s+hai)\b|"
-        r"جب\s*(?:\S+\s*){0,4}(?:موبائل|فون|بیٹھ|سو|کمپیوٹر)|مہینوں\s*سے|کبھی\s*کبھی",
+        r"جب\s*(?:\S+\s*){0,4}(?:موبائل|فون|بیٹھ|سو|کمپیوٹر)|مہینوں\s*سے|کبھی\s*کبھی|سوتے\s*وقت|سونے\s*(?:کے\s*بعد|سے|پر)",
         norm
     ))
-    if not has_benign_trigger:
+    has_recovery_cue = bool(re.search(
+        r"\b(?:fine\s+now|ok\s+now|okay\s+now|better\s+now|went\s+away|all\s+good\s+now|resolv\w*|feeling\s+fine|ab\s+(?:bilkul\s+)?theek\s+hai|theek\s+ho\s+gaya|theek\s+hai\s+ab|khatam\s+ho\s+gaya|ab\s+sahi\s+hai)\b|"
+        r"اب\s*(?:بالکل\s*)?ٹھیک\s*ہے|ٹھیک\s*ہو\s*گیا|اب\s*صحیح\s*ہے",
+        norm
+    ))
+    if not has_benign_trigger and not has_recovery_cue:
         return False
 
     # 3. Check for sudden onset (precludes benign posture)
@@ -1091,13 +1110,31 @@ def _is_syncope_negated(norm: str) -> bool:
         norm
     ):
         return True
+    if re.search(
+        r"\b(?:faint\w*|pass\w*\s+out|black\w*\s+out|collaps\w*|unconscious\w*|chakkar|dizziness)\b\s*(?:\w+\s+){0,5}?"
+        r"(?:did\s*n\s*t\s+happen|never\s+happened|never\s+occurred|did\s+not\s+occur|did\s*n\s*t\s+occur|not\s+an\s+issue|no\s+issue|no\s+problem|did\s+not\s+happen|was\s+not\s+an\s+issue|is\s+not\s+an\s+issue|was\s+not|is\s+not|never)\b",
+        norm
+    ):
+        return True
     if re.search(r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:be\s*hosh|ghashi|chakkar)\s+(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
+        return True
+    if re.search(
+        r"\b(?:be\s*hosh\w*|ghashi|chakkar|unconscious\w*)\b\s*(?:\w+\s+){0,5}?"
+        r"(?:wali\s+|jaisi\s+|ki\s+|ka\s+)?(?:koi\s+(?:baat|masla|chiz)\s+nahi|aisa\s+kuch\s+nahi|kuch\s+nahi|nahi(?:\s+(?:hui|hua|hue|hai|tha|thi|he))?)\b",
+        norm
+    ):
         return True
     if re.search(r"\b(?:be\s*hosh|ghashi|chakkar)\s+(?:\w+\s+){0,2}(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
         return True
     if re.search(r"\bnahi\s+(?:\w+\s+){0,2}(?:be\s*hosh|chakkar)\b", norm):
         return True
     if re.search(r"(?:مجھے\s+کوئی|کوئی\s+بھی)\s*(?:\S+\s*){0,3}(?:بے\s*ہوش|غشی|چکر)\s*(?:بھی\s*)?(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
+        return True
+    if re.search(
+        r"(?:بے\s*ہوش|غشی|چکر)\s*(?:\S+\s*){0,5}?"
+        r"(?:والی\s+|جیسی\s+|کی\s+)?(?:کوئی\s+(?:بات|مسئلہ)\s+نہیں|ایسا\s+کچھ\s+نہیں|کچھ\s+نہیں|نہیں(?:\s+(?:ہوا|ہوئی|ہوئے|ہے|تھا|تھی))?)",
+        norm
+    ):
         return True
     if re.search(r"(?:بے\s*ہوش|غشی|چکر)\s*(?:\S+\s*){0,2}(?:تو|بھی)?\s*(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
         return True

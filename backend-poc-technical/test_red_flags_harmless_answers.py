@@ -69,6 +69,19 @@ ENGLISH_HARMLESS_ANSWERS = [
     "not feeling breathless",
     "I have no complaints",
     "I don't have any severe headache",
+    # Additional trailing negation and posture-recovery frames (G6)
+    "my arm went numb when I slept on it, fine now",
+    "hand was numb when I slept on it, okay now",
+    "arm felt numb after sleeping on it, all good now",
+    "leg fell asleep when sitting cross-legged, fine now",
+    "fainting was not an issue at all",
+    "passing out never happened",
+    "dizziness did not happen today",
+    "blacking out was never an issue",
+    "becoming unconscious did not occur",
+    "collapsing was not a problem",
+    "hand numbness went away after moving it",
+    "arm numbness resolved quickly, feeling fine",
 ]
 
 # -----------------------------------------------------------------------------
@@ -126,6 +139,19 @@ ROMAN_URDU_HARMLESS_ANSWERS = [
     "falij ka koi masla nahi",
     "bolne mein koi dikkat nahi hai",
     "sab mamool ke mutabiq hai",
+    # Additional trailing negation and posture-recovery frames (G6)
+    "behosh hone wali koi baat nahi hui",
+    "chakkar aane jaisi koi baat nahi thi",
+    "ghashi padne ka koi masla nahi hua",
+    "chakkar aane ka koi masla nahi hai",
+    "unconscious hone jaisa kuch nahi hua",
+    "behosh to bilkul nahi hui thi",
+    "chakkar aana to dur ki baat kuch nahi hua",
+    "haath sunn ho gaya tha jab us par so gaya tha, ab theek hai",
+    "bazu sunn ho gaya tha sone ke baad, ab bilkul theek hai",
+    "der tak baithne se taang sunn hui thi, ab theek hai",
+    "haath thoda sunn hua tha mobile use karte waqt, ab sahi hai",
+    "sunn hone ka masla khatam ho gaya ab theek hoon",
 ]
 
 # -----------------------------------------------------------------------------
@@ -183,6 +209,19 @@ URDU_HARMLESS_ANSWERS = [
     "فالج کا کوئی مسئلہ نہیں ہے",
     "بولنے میں کوئی دقت نہیں ہے",
     "سب معمول کے مطابق ہے",
+    # Additional trailing negation and posture-recovery frames (G6)
+    "بے ہوش ہونے والی کوئی بات نہیں ہوئی",
+    "چکر آنے جیسی کوئی بات نہیں تھی",
+    "غشی پڑنے کا کوئی مسئلہ نہیں ہوا",
+    "بے ہوش تو بالکل نہیں ہوئے",
+    "چکر آنے کا کوئی مسئلہ نہیں ہے",
+    "ایسا کوئی چکر یا بے ہوشی نہیں ہوئی",
+    "ہاتھ سن ہو گیا تھا جب اس پر سو گیا تھا، اب ٹھیک ہے",
+    "بازو سن ہو گیا تھا سوتے وقت، اب بالکل ٹھیک ہے",
+    "دیر تک بیٹھنے سے ٹانگ سن ہوئی تھی، اب ٹھیک ہے",
+    "موبائل چلاتے وقت ہاتھ سن ہوا تھا، اب صحیح ہے",
+    "سن ہونے کا مسئلہ ختم ہو گیا اب ٹھیک ہوں",
+    "ہاتھ سن ہوا تھا مگر اب ٹھیک ہے",
 ]
 
 
@@ -330,4 +369,37 @@ def test_stroke_descriptors_trigger_stroke_red():
         is_red, cat = match(text)
         assert is_red, f"Expected RED for stroke: {text}"
         assert cat in ("stroke_fast", "confusion_and_stroke", "stroke"), f"Expected stroke category, got {cat} for {text}"
+
+
+def test_g6_reviewer_false_red_cases():
+    """Verifies the G6 reviewer false Red test cases never trigger emergency."""
+    # 1. Trailing negation frame syncope
+    assert match("behosh hone wali koi baat nahi hui")[0] is False
+    assert match("chakkar aane jaisi koi baat nahi thi")[0] is False
+    assert match("بے ہوش ہونے والی کوئی بات نہیں ہوئی")[0] is False
+
+    # 2. Past tense + posture trigger + recovery cue numb arm
+    assert match("my arm went numb when I slept on it, fine now")[0] is False
+    assert match("haath sunn ho gaya tha jab us par so gaya tha, ab theek hai")[0] is False
+    assert match("ہاتھ سن ہو گیا تھا جب اس پر سو گیا تھا، اب ٹھیک ہے")[0] is False
+
+
+def test_g6_breathing_coverage_miss_cases():
+    """Verifies acute breathing inability & panting phrases trigger breathing-Red (G6)."""
+    cases = [
+        "saans le hi nahi pa rahe",
+        "saans nahi le pa raha",
+        "saans le nahi pa raha",
+        "hanp raha hai",
+        "hanp rahe hain",
+        "haanp raha hai",
+        "سانس لے ہی نہیں پا رہے",
+        "سانس نہیں لے پا رہا",
+        "ہانپ رہا ہے",
+    ]
+    for text in cases:
+        is_red, cat = match(text)
+        assert is_red, f"Expected RED for breathing distress: {text}"
+        assert cat in ("breathing", "breathing_difficulty"), f"Expected breathing category, got {cat} for {text}"
+
 
