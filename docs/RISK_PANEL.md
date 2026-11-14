@@ -57,7 +57,7 @@ Motto: *"The model proposes, the rules decide."*
 | **R-S2-1** | Clinical rules level is `routine`, any applicable risk model outputs band `high` | routine $\to$ `review` | `RISK_CAN_RAISE=true` (Subject to `RISK_RAISE_COOLDOWN_DAYS`) |
 | **R-S2-2** | Clinical rules level is `routine`, trend agent reports direction `rising` with $\ge 5$ points (`TREND_MIN_POINTS=5`, Doctor Answer 2), and latest reading is above target threshold (>140 SBP or >180 Glucose) | routine $\to$ `review` | `TREND_CAN_RAISE=true` (Provider review detail displays longitudinal trend chart) |
 | **R-S2-3** | Any Stage-2 escalation | Maximum 1 step (`routine` $\to$ `review`) | Invariant: Stage-2 can **never** escalate directly to `urgent` or `emergency` |
-| **R-S2-4** | Clinical rules level is `routine`, no BP or glucose readings available, and patient reported feeling unwell (severe symptom picture) | routine $\to$ `review` | `NO_READING_SYMPTOM_RAISE=true` (**Pending clinician formal sign-off**) |
+| **R-S2-4** | Clinical rules level is `routine`, no BP or glucose readings available, and patient reported feeling unwell (severe symptom picture) | routine $\to$ `review` | `NO_READING_SYMPTOM_RAISE=true` (**Approved by the doctor on record**) |
 
 ### Single Source of Truth Triage Colors
 

@@ -368,5 +368,11 @@ Answering "yes" to `hypo_events_past_week`, `sick_day_flags`, `associated_sympto
   4. Continues interview questions (symptom exploration continues to check for neuroglycopenia or autonomic symptoms).
 - **Values $> 40$:** Numbers $> 40$ without an explicit unit default to mg/dL (physiologic upper limit for mmol/L is $\approx 33.3$ mmol/L).
 
+## Doctor decisions (Nov 2026)
+- D1: Feeling unwell with no reading entered is approved to escalate routine to review (NO_READING_SYMPTOM_RAISE=true).
+- D2: High cardiovascular risk escalates routine to review only when accompanied by at least one reported symptom in the check-in; asymptomatic high risk remains routine with risk band documented.
+- D3: High diabetes-control risk estimate approved to escalate routine to review once a future model satisfies all pre-registered validation gates.
+
+
 
 

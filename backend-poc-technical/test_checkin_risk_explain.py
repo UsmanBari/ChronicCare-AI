@@ -178,6 +178,8 @@ def _create_checkin_session(
     emergency: bool = False,
     emergency_reason: Optional[str] = None,
     conditions: Optional[List[str]] = None,
+    findings: Optional[List[Dict[str, Any]]] = None,
+    answers: Optional[Dict[str, Any]] = None,
 ):
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     if emergency:
@@ -186,7 +188,7 @@ def _create_checkin_session(
             "stage1_red_flag": True,
             "stage1_reason": emergency_reason or "chest_pain",
             "intakes": [{"condition": "hypertension", "emergency": True, "reason": emergency_reason or "chest_pain"}],
-            "findings": [],
+            "findings": findings or [],
         }
     else:
         raw_state = {
@@ -197,8 +199,10 @@ def _create_checkin_session(
                 "blood_pressure_systolic": systolic,
                 "blood_pressure_diastolic": diastolic,
             },
-            "findings": [],
+            "findings": findings or [],
         }
+    if answers:
+        raw_state["answers"] = answers
 
     app_store.create_checkin(
         checkin_id=checkin_id,
@@ -362,7 +366,49 @@ def test_risk_can_raise_true_escalates_routine_to_review(rsa_key, monkeypatch):
         origin="clinician",
     )
 
-    _create_checkin_session(uid, cid, systolic=135.0, diastolic=85.0)
+    # 1. Asymptomatic check-in under Doctor Decision D2: High risk alone gives Green (routine)
+    uid_asymp = "pat_raise_03_asymp"
+    cid_asymp = "chk_raise_03_asymp"
+    headers_asymp = _setup_patient(client, rsa_key, uid_asymp, ["hypertension"], waist_cm=95.0)
+    local_store.add_local_observation(
+        id="prior_sys_03_asymp",
+        patient_id=f"local-{uid_asymp}",
+        observation_type="blood_pressure_systolic",
+        value=135.0,
+        unit="mmHg",
+        timestamp=now_iso,
+        source="local",
+        origin="clinician",
+    )
+    local_store.add_local_observation(
+        id="prior_dia_03_asymp",
+        patient_id=f"local-{uid_asymp}",
+        observation_type="blood_pressure_diastolic",
+        value=85.0,
+        unit="mmHg",
+        timestamp=now_iso,
+        source="local",
+        origin="clinician",
+    )
+    _create_checkin_session(uid_asymp, cid_asymp, systolic=135.0, diastolic=85.0)
+    resp_asymp = client.post(f"/api/checkins/{cid_asymp}/complete", headers=headers_asymp)
+    assert resp_asymp.status_code == 200
+    data_asymp = resp_asymp.json()
+    assert data_asymp["requires_review"] is False
+    assert data_asymp["triage_level"] == "routine"
+    stored_asymp = app_store.get_checkin_result(cid_asymp)
+    assert stored_asymp["risk"]["raised"] is False
+    assert stored_asymp["triage_level"] == "routine"
+    assert stored_asymp["risk"]["models"][0]["band"] == "high"
+
+    # 2. Symptomatic check-in: High risk + reported symptom elevates to review
+    _create_checkin_session(
+        uid,
+        cid,
+        systolic=135.0,
+        diastolic=85.0,
+        findings=[{"kind": "headache", "label": "Headache", "raw_quote": "mild headache"}],
+    )
 
     resp = client.post(f"/api/checkins/{cid}/complete", headers=headers)
     assert resp.status_code == 200

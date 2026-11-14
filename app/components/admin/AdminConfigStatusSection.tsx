@@ -150,8 +150,8 @@ export const AdminConfigStatusSection: React.FC = () => {
                   <div className="flex items-center gap-1.5">
                     <span className="font-mono text-[11px] text-slate-700">{k}</span>
                     {k === "NO_READING_SYMPTOM_RAISE" && (
-                      <span className="text-[9px] bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">
-                        Pending Dr Sign-off
+                      <span className="text-[9px] bg-teal-100 text-teal-900 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">
+                        Approved by the doctor on record
                       </span>
                     )}
                   </div>

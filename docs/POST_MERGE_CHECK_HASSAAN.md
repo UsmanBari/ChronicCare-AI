@@ -40,7 +40,7 @@ The comprehensive `scripts/local_acceptance.py` runner executed against `http://
 | LA-20 | Green/Yellow/Red triage colors (Sec 15) | PASS | complete=yellow; detail=yellow; list=yellow |
 | LA-21 | Stage-2 clinical risk level elevation (Sec 15) | PASS | final_level=review; colour=yellow |
 | LA-21b | Risk raise cooldown RISK_RAISE_COOLDOWN_DAYS (Sec 15) | PASS | second_chk_level=review; colour=yellow |
-| LA-21c | Ambiguous symptoms without readings (Sec 15, pending signoff) | PASS | no_readings_unwell_level=review; colour=yellow |
+| LA-21c | Ambiguous symptoms without readings (Sec 15, approved by the doctor on record) | PASS | no_readings_unwell_level=review; colour=yellow |
 | LA-22 | Trend escalation after 5 check-ins + provider chart (Sec 16) | NEEDS CREDS | provider creds NOT SET |
 | LA-23 | Patient-facing risk band display (Sec 15) | PASS | bands_shown=1; privacy_verified=True |
 | LA-23b | Section 17 confidence hierarchy (Sec 17) | PASS | rules_ok=True; all_5_hierarchies_verified |

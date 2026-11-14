@@ -205,17 +205,23 @@ def test_t3_trend_escalation_rules():
 
 
 def test_t3_risk_cooldown():
-    """Verify RISK_RAISE_COOLDOWN_DAYS prevents repeat risk raise when cooldown is active."""
+    """Verify RISK_RAISE_COOLDOWN_DAYS prevents repeat risk raise when cooldown is active (Doctor Decision D2)."""
     flags = {"RISK_ENABLED": True, "RISK_CAN_RAISE": True}
     high_risk = {"status": "ok", "band": "high", "disease": "diabetes", "model_name": "diabetes_full_nhanes"}
 
-    # Cooldown inactive -> raises to review
-    out_active = decide_stage2("routine", risk_results=high_risk, flags=flags, cooldown_active=False)
+    # Doctor Decision D2: Asymptomatic high risk gives NO raise (remains routine)
+    out_asymptomatic = decide_stage2("routine", risk_results=high_risk, flags=flags, cooldown_active=False)
+    assert out_asymptomatic["final_level"] == "routine"
+    assert out_asymptomatic["raised"] is False
+
+    # High risk WITH symptom (cooldown inactive) -> raises to review
+    out_active = decide_stage2("routine", risk_results=high_risk, flags=flags, cooldown_active=False, symptoms=["headache"])
     assert out_active["final_level"] == "review"
     assert out_active["raised"] is True
+    assert out_active["patient_reason_key"] == "high_heart_risk_with_symptoms"
 
-    # Cooldown active -> remains routine
-    out_cooldown = decide_stage2("routine", risk_results=high_risk, flags=flags, cooldown_active=True)
+    # High risk WITH symptom (cooldown active) -> remains routine
+    out_cooldown = decide_stage2("routine", risk_results=high_risk, flags=flags, cooldown_active=True, symptoms=["headache"])
     assert out_cooldown["final_level"] == "routine"
     assert out_cooldown["raised"] is False
 

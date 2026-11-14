@@ -326,6 +326,10 @@ def step_parse_and_validate_intake(
         )
         if raw_state.get("wordgroup_hits"):
             state.answers["_wordgroup_hits"] = list(raw_state["wordgroup_hits"])
+        if raw_state.get("findings"):
+            state.findings = list(raw_state["findings"])
+        if raw_state.get("answers"):
+            state.answers.update(raw_state["answers"])
         readings_map = {}
         for intake_item in intakes:
             for r_item in intake_item.get("readings", []):

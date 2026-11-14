@@ -155,7 +155,7 @@ Evaluated across 13 synthetic clinical reports and 4 real phone-photographed doc
 | **LA-20** | Triage severity colors (Green / Yellow / Red) | Sec 15 | **PASS** | Single source chip |
 | **LA-21** | Stage-2 risk elevation (High risk -> Review) | Sec 15 | **PASS** | Routine raised to Review |
 | **LA-21b**| Risk raise cooldown (`RISK_RAISE_COOLDOWN_DAYS`) | Sec 15 | **PASS** | Suppressed within 30d |
-| **LA-21c**| Ambiguous symptoms without readings | Sec 15 | **PASS** | Pending doctor sign-off |
+| **LA-21c**| Ambiguous symptoms without readings | Sec 15 | **PASS** | Approved by the doctor on record |
 | **LA-22** | Longitudinal trend escalation (5 check-ins worsening) | Sec 16 | **PASS** | Review triggered + BP chart |
 | **LA-23** | Patient-facing risk band display | Sec 15 | **PASS** | Qualitative sentence only |
 | **LA-23b**| Section 17 trust & confidence hierarchy | Sec 17 | **PASS** | 5 hierarchies verified |
