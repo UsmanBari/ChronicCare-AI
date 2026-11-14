@@ -188,3 +188,8 @@
 - **Remote Non-Lab Check-In Setting:** Relies on self-reported demographics, profile waist circumference, and home BP measurements; venous lab panels (lipids, eGFR) and diagnosis duration are not collected.
 - **Insulin Association:** Insulin therapy strongly associates with poor glycemic control in observational survey data because patients with severe, progressive beta-cell failure are selectively prescribed insulin.
 - **Intended Use:** Clinical decision support for providers with patient-facing risk tier (Low / Moderate / High); raw probability percentages are never exposed directly to patients.
+
+## Clinician Review & Decision (Nov 2026)
+- **Decision on Stage-2 Triage Raise:** The doctor on record answered: *"I am fine with this raising to Yellow for review, but only if the model meets its pre-registered validation gates. Since it didn't, it must NOT be used to raise triage in this release."*
+- **FYP-1 Status:** The doctor approved the triage raise (Routine to Review) conditional upon a future model passing all pre-registered validation gates. In this release, the model is trained but not shipped, so no code change is made to Stage-2 triage.
+

@@ -549,6 +549,14 @@ MUTATIONS = [
                 next_state.stage1_reason = None""",
         "test_node": "backend-poc-technical/test_red_flag_patterns.py::test_mutation_killed_fainting_recovery_scoped",
     },
+    {
+        "id": "M-D2-1",
+        "name": "Doctor Decision D2: Risk raise ignores symptom requirement",
+        "file": BACKEND_DIR / "agents" / "final_triage.py",
+        "target": "        if has_symptoms:",
+        "replacement": "        if True:",
+        "test_node": "backend-poc-technical/test_doctor_decisions_d2.py::test_d2_high_risk_asymptomatic_gives_green",
+    },
 ]
 
 

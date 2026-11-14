@@ -36,7 +36,8 @@ For each clinical question below, please review the current application behavior
 +---------------------------------------------------------------------------------------------------+
 | CLINICIAN DECISION:                                                                               |
 |                                                                                                   |
-|   [ ] YES  -- Elevate to Yellow (Review). Unmeasured symptoms in chronic illness warrant review.  |
+|   [X] YES  -- Elevate to Yellow (Review). Unmeasured symptoms in chronic illness warrant review.  |
+|               Answer: YES. Approved by the doctor on record (Nov 2026).                           |
 |                                                                                                   |
 |   [ ] NO   -- Keep at Green (Routine) unless specific red-flag keywords or vitals trigger Yellow. |
 |                                                                                                   |
@@ -84,7 +85,9 @@ For each clinical question below, please review the current application behavior
 |                                                                                                   |
 |   [ ] NO   -- No cooldown. Elevate every single check-in to Yellow regardless of frequency.       |
 |                                                                                                   |
-|   [ ] CHANGE IT TO: ________ days cooldown.                                                       |
+|   [X] CHANGE IT TO: "just having heart risk doesn't need a review unless associated with any      |
+|       symptoms" (the doctor on record, Nov 2026). Retain 30-day cooldown applied to this         |
+|       symptom-linked raise only. Asymptomatic high risk remains Green (Routine).                  |
 +---------------------------------------------------------------------------------------------------+
 | WHAT CHANGES IN THE APP:                                                                          |
 | - If YES: `RISK_RAISE_COOLDOWN_DAYS = 30` in `backend-poc-technical/agents/final_triage.py` is     |
@@ -125,7 +128,9 @@ For each clinical question below, please review the current application behavior
 |   [ ] NO   -- Do NOT elevate triage color. Keep at Green (Routine), but display the poor control  |
 |               risk badge on the provider review portal for optional clinician inspection.         |
 |                                                                                                   |
-|   [ ] CHANGE IT TO: _____________________________________________________________________________ |
+|   [X] CHANGE IT TO: "I am fine with this raising to Yellow for review, but only if the model     |
+|       meets its pre-registered validation gates. Since it didn't, it must NOT be used to raise   |
+|       triage in this release." (the doctor on record, Nov 2026). Model trained, not shipped.      |
 +---------------------------------------------------------------------------------------------------+
 | WHAT CHANGES IN THE APP:                                                                          |
 | - If YES: In `backend-poc-technical/agents/final_triage.py`, `evaluate_stage2_risk()` will check  |
@@ -310,9 +315,9 @@ For each clinical question below, please review the current application behavior
 
 | Rule Ref | Clinical Focus | Current Default | Proposed Review Modification |
 |:---|:---|:---|:---|
-| **R8** | Missing vitals with subjective malaise | Routine (Green) with warning | Option to escalate to Review (Yellow) |
-| **Stage 2** | CVD High-Risk Alert Cooldown | 30 days suppression window | Clinician choice on repeat alert frequency |
-| **Stage 2** | Uncontrolled Diabetes (HbA1c >= 8%) | Informational model score | Option to escalate Routine to Review |
+| **R8** | Missing vitals with subjective malaise | Routine (Green) with warning | Approved by the doctor on record: escalate to Review (Yellow) (Nov 2026) |
+| **Stage 2** | CVD High-Risk Alert Cooldown | 30 days suppression window | Approved by the doctor on record: high risk requires symptoms to escalate; 30d cooldown retained (Nov 2026) |
+| **Stage 2** | Uncontrolled Diabetes (HbA1c >= 8%) | Informational model score | Approved by the doctor on record if future model passes gates; not shipped in FYP-1 (Nov 2026) |
 | **Audit** | Edge-case benchmark suite | 51 synthetic personas (0 Category B gaps) | Expandable based on clinician feedback |
 | **Lang-1** | Subjective BP increase ("mere khyal me bp barh gaya") | Routine (Green) | Option to escalate to Review (Yellow) |
 | **Lang-2** | Urdu severe chest pain ("seene me shadeed dard") | Emergency (1122) | Confirmation of emergency failsafe |

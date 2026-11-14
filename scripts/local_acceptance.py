@@ -1078,8 +1078,8 @@ class LocalAcceptanceRunner:
             self.results.append({"id": "LA-20", "feature": feat, "status": "FAIL", "evidence": str(exc)})
 
     def run_la_21(self) -> None:
-        """LA-21: Stage-2 clinical risk level elevation routine -> review."""
-        feat = "Stage-2 clinical risk level elevation (Sec 15)"
+        """LA-21: Stage-2 clinical risk level elevation routine -> review (Doctor Decision D2)."""
+        feat = "Stage-2 clinical risk level elevation (Sec 15, approved by the doctor on record)"
         try:
             profile_extra = {
                 "date_of_birth": "1958-03-10",
@@ -1093,17 +1093,30 @@ class LocalAcceptanceRunner:
             start_resp = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
             chk_id = start_resp.json()["checkin_id"]
 
-            comp_resp = self._drive_interview(
+            # 1. Asymptomatic check-in: under Doctor Decision D2, high risk alone remains routine
+            comp_resp_asymp = self._drive_interview(
                 chk_id,
                 headers,
                 ["Feeling fine", "138/88", "No symptoms", "Yes took meds", "Normal diet", "None"],
             )
-            c_data = comp_resp.json()
-            final_lvl = c_data.get("triage_level")
-            colour = c_data.get("triage_colour")
+            c_data_asymp = comp_resp_asymp.json()
+            lvl_asymp = c_data_asymp.get("triage_level")
+            col_asymp = c_data_asymp.get("triage_colour")
 
-            status = "PASS" if final_lvl == "review" and colour == "yellow" else "FAIL"
-            ev = f"final_level={final_lvl}; colour={colour}"
+            # 2. Symptomatic check-in: high risk with reported symptom escalates routine to review
+            start_resp2 = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT)
+            chk_id2 = start_resp2.json()["checkin_id"]
+            comp_resp_symp = self._drive_interview(
+                chk_id2,
+                headers,
+                ["Feeling unwell", "138/88", "Mild headache and dizziness", "Yes took meds", "Normal diet", "None"],
+            )
+            c_data_symp = comp_resp_symp.json()
+            lvl_symp = c_data_symp.get("triage_level")
+            col_symp = c_data_symp.get("triage_colour")
+
+            status = "PASS" if (lvl_asymp == "routine" and col_asymp == "green" and lvl_symp == "review" and col_symp == "yellow") else "FAIL"
+            ev = f"asymp={lvl_asymp}/{col_asymp}; symp={lvl_symp}/{col_symp}"
             self.results.append({"id": "LA-21", "feature": feat, "status": status, "evidence": ev})
         except Exception as exc:
             self.results.append({"id": "LA-21", "feature": feat, "status": "FAIL", "evidence": str(exc)})
@@ -1121,13 +1134,13 @@ class LocalAcceptanceRunner:
                 "smoking_status": "current",
             }
             headers, _ = self._init_patient_session("la21b", ["hypertension"], profile_extra=profile_extra)
-            # First check-in: raises to review
+            # First check-in with symptom: raises to review (under Doctor Decision D2)
             s1 = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT).json()["checkin_id"]
-            self._drive_interview(s1, headers, ["Feeling fine", "138/88", "No symptoms", "Yes took meds", "Normal diet", "None"])
+            self._drive_interview(s1, headers, ["Feeling unwell", "138/88", "Mild headache and dizziness", "Yes took meds", "Normal diet", "None"])
 
             # Second check-in immediately after: with cooldown active (>0), routine stays routine!
             s2 = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT).json()["checkin_id"]
-            c2_resp = self._drive_interview(s2, headers, ["Feeling fine", "138/88", "No symptoms", "Yes took meds", "Normal diet", "None"])
+            c2_resp = self._drive_interview(s2, headers, ["Feeling unwell", "138/88", "Mild headache and dizziness", "Yes took meds", "Normal diet", "None"])
             c2_data = c2_resp.json()
             lvl2 = c2_data.get("triage_level")
             col2 = c2_data.get("triage_colour")
@@ -1141,7 +1154,7 @@ class LocalAcceptanceRunner:
 
     def run_la_21c(self) -> None:
         """LA-21c: Ambiguous symptoms without readings raise (NO_READING_SYMPTOM_RAISE)."""
-        feat = "Ambiguous symptoms without readings (Sec 15, pending signoff)"
+        feat = "Ambiguous symptoms without readings (Sec 15, approved by the doctor on record)"
         try:
             headers, _ = self._init_patient_session("la21c", ["hypertension"])
             s_id = requests.post(f"{self.base_url}/api/checkins/start", headers=headers, json={"condition": "hypertension"}, timeout=HTTP_TIMEOUT).json()["checkin_id"]
