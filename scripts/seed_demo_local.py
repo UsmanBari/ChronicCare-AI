@@ -234,14 +234,14 @@ def reset_demo_data(db_path: Optional[str] = None) -> None:
                 c_ph = ", ".join([ph] * len(c_ids))
                 cursor.execute(f"DELETE FROM checkin_results WHERE checkin_id IN ({c_ph})", tuple(c_ids))
                 cursor.execute(f"DELETE FROM appointments WHERE checkin_id IN ({c_ph})", tuple(c_ids))
-                cursor.execute(f"DELETE FROM notifications WHERE checkin_id IN ({c_ph})", tuple(c_ids))
+                cursor.execute(f"DELETE FROM notifications WHERE reference_id IN ({c_ph})", tuple(c_ids))
                 cursor.execute(f"DELETE FROM checkins WHERE checkin_id IN ({c_ph})", tuple(c_ids))
 
             # Delete local observations and medications
             pat_ids = [f"local-{uid}" for uid in user_ids] + user_ids
             pid_ph = ", ".join([ph] * len(pat_ids))
             cursor.execute(f"DELETE FROM appointments WHERE patient_id IN ({pid_ph})", tuple(pat_ids))
-            cursor.execute(f"DELETE FROM notifications WHERE user_id IN ({uid_ph})", tuple(user_ids))
+            cursor.execute(f"DELETE FROM notifications WHERE recipient_id IN ({uid_ph})", tuple(user_ids))
             cursor.execute(f"DELETE FROM observations WHERE patient_id IN ({pid_ph})", tuple(pat_ids))
             cursor.execute(f"DELETE FROM medications WHERE patient_id IN ({pid_ph})", tuple(pat_ids))
             cursor.execute(f"DELETE FROM allergies WHERE user_id IN ({uid_ph})", tuple(user_ids))
