@@ -262,6 +262,7 @@ def node_decide_triage(state: CheckinState) -> Dict[str, Any]:
         state=interview_st,
         protocol_state=proto_st,
         user_id=user["user_id"],
+        get_patient_profile_fn=lambda uid: user.get("patient_profile") or {},
     )
 
     final_lvl = triage_dec["final_triage_level"]

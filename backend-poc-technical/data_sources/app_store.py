@@ -486,6 +486,13 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                         trigger_text TEXT,
                         escalated_at TEXT,
                         created_at TEXT NOT NULL,
+                        provider_decision TEXT,
+                        provider_level TEXT,
+                        provider_reason TEXT,
+                        patient_message TEXT,
+                        reviewed_by TEXT,
+                        reviewed_at TEXT,
+                        assigned_provider_id TEXT,
                         FOREIGN KEY(checkin_id) REFERENCES checkins(checkin_id)
                     )
                 """)
@@ -737,48 +744,49 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 cursor.execute(SQLITE_FCM_TOKENS_USER_INDEX)
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (18, ?)", (now,))
 
-            cursor.execute("SELECT version FROM schema_version WHERE version = 19")
-            if not cursor.fetchone():
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS review_actions_v19 (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        checkin_id TEXT NOT NULL,
-                        provider_user_id TEXT NOT NULL,
-                        action TEXT NOT NULL CHECK(action IN ('acknowledge','resolve','escalate','approve','adjust')),
-                        note TEXT,
-                        system_level TEXT,
-                        provider_level TEXT,
-                        reason TEXT,
-                        patient_message TEXT,
-                        ts TEXT NOT NULL,
-                        FOREIGN KEY(checkin_id) REFERENCES checkins(checkin_id),
-                        FOREIGN KEY(provider_user_id) REFERENCES users(user_id)
-                    )
-                """)
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='review_actions'")
-                if cursor.fetchone():
-                    cursor.execute("PRAGMA table_info(review_actions)")
-                    cols = [r[1] for r in cursor.fetchall()]
-                    if "reason" not in cols:
-                        cursor.execute("""
-                            INSERT INTO review_actions_v19 (id, checkin_id, provider_user_id, action, note, ts)
-                            SELECT id, checkin_id, provider_user_id, action, note, ts FROM review_actions
-                        """)
-                        cursor.execute("DROP TABLE review_actions")
-                        cursor.execute("ALTER TABLE review_actions_v19 RENAME TO review_actions")
+            # Defensively ensure review_actions, checkin_results, and checkins have provider review columns if tables exist
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='review_actions'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(review_actions)")
+                cols = [r[1] for r in cursor.fetchall()]
+                if "reason" not in cols:
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS review_actions_v19 (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            checkin_id TEXT NOT NULL,
+                            provider_user_id TEXT NOT NULL,
+                            action TEXT NOT NULL CHECK(action IN ('acknowledge','resolve','escalate','approve','adjust')),
+                            note TEXT,
+                            system_level TEXT,
+                            provider_level TEXT,
+                            reason TEXT,
+                            patient_message TEXT,
+                            ts TEXT NOT NULL,
+                            FOREIGN KEY(checkin_id) REFERENCES checkins(checkin_id),
+                            FOREIGN KEY(provider_user_id) REFERENCES users(user_id)
+                        )
+                    """)
+                    cursor.execute("""
+                        INSERT INTO review_actions_v19 (id, checkin_id, provider_user_id, action, note, ts)
+                        SELECT id, checkin_id, provider_user_id, action, note, ts FROM review_actions
+                    """)
+                    cursor.execute("DROP TABLE review_actions")
+                    cursor.execute("ALTER TABLE review_actions_v19 RENAME TO review_actions")
 
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='checkin_results'")
+            if cursor.fetchone():
                 cursor.execute("PRAGMA table_info(checkin_results)")
                 cr_cols = [r[1] for r in cursor.fetchall()]
                 for col_name in ("provider_decision", "provider_level", "provider_reason", "patient_message", "reviewed_by", "reviewed_at", "assigned_provider_id"):
                     if col_name not in cr_cols:
                         cursor.execute(f"ALTER TABLE checkin_results ADD COLUMN {col_name} TEXT")
 
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='checkins'")
+            if cursor.fetchone():
                 cursor.execute("PRAGMA table_info(checkins)")
                 c_cols = [r[1] for r in cursor.fetchall()]
                 if "assigned_provider_id" not in c_cols:
                     cursor.execute("ALTER TABLE checkins ADD COLUMN assigned_provider_id TEXT")
-
-                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (19, ?)", (now,))
         else:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
@@ -889,6 +897,13 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                         trigger_text VARCHAR(500),
                         escalated_at VARCHAR(64),
                         created_at VARCHAR(64) NOT NULL,
+                        provider_decision VARCHAR(32) NULL,
+                        provider_level VARCHAR(32) NULL,
+                        provider_reason VARCHAR(500) NULL,
+                        patient_message VARCHAR(300) NULL,
+                        reviewed_by VARCHAR(128) NULL,
+                        reviewed_at VARCHAR(64) NULL,
+                        assigned_provider_id VARCHAR(128) NULL,
                         INDEX idx_review_status (review_status),
                         FOREIGN KEY (checkin_id) REFERENCES checkins(checkin_id) ON DELETE CASCADE
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -900,6 +915,10 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                         provider_user_id VARCHAR(128) NOT NULL,
                         action VARCHAR(32) NOT NULL,
                         note VARCHAR(500),
+                        system_level VARCHAR(32) NULL,
+                        provider_level VARCHAR(32) NULL,
+                        reason VARCHAR(500) NULL,
+                        patient_message VARCHAR(300) NULL,
                         ts VARCHAR(64) NOT NULL,
                         INDEX idx_checkin_act (checkin_id),
                         FOREIGN KEY (checkin_id) REFERENCES checkins(checkin_id) ON DELETE CASCADE,
@@ -1183,8 +1202,11 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                 cursor.execute(MYSQL_FCM_TOKENS_DDL)
                 cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (18, %s)", (now,))
 
-            cursor.execute("SELECT version FROM schema_version WHERE version = 19")
-            if not cursor.fetchone():
+            cursor.execute("""
+                SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'review_actions'
+            """)
+            if cursor.fetchone():
                 for col_name, col_def in [
                     ("system_level", "VARCHAR(32) NULL"),
                     ("provider_level", "VARCHAR(32) NULL"),
@@ -1195,6 +1217,11 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     if not cursor.fetchone():
                         cursor.execute(f"ALTER TABLE review_actions ADD COLUMN {col_name} {col_def}")
 
+            cursor.execute("""
+                SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkin_results'
+            """)
+            if cursor.fetchone():
                 for col_name, col_def in [
                     ("provider_decision", "VARCHAR(32) NULL"),
                     ("provider_level", "VARCHAR(32) NULL"),
@@ -1208,11 +1235,14 @@ def migrate(backend: Optional[str] = None, db_path: Optional[str] = None,
                     if not cursor.fetchone():
                         cursor.execute(f"ALTER TABLE checkin_results ADD COLUMN {col_name} {col_def}")
 
+            cursor.execute("""
+                SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkins'
+            """)
+            if cursor.fetchone():
                 cursor.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'checkins' AND COLUMN_NAME = 'assigned_provider_id'")
                 if not cursor.fetchone():
                     cursor.execute("ALTER TABLE checkins ADD COLUMN assigned_provider_id VARCHAR(128) NULL")
-
-                cursor.execute("INSERT INTO schema_version (version, applied_at) VALUES (19, %s)", (now,))
 
 
 def get_user_by_id(user_id: str, backend: Optional[str] = None, db_path: Optional[str] = None,
