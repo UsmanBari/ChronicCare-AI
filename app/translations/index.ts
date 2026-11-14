@@ -653,6 +653,17 @@ export interface Translations {
   normalRangeGlucoseMgDl: string;
   normalRangeGlucoseMmol: string;
   normalRangeBP: string;
+  reviewedByCareTeam: string;
+  approvedAsRecommended: string;
+  approveBtnLabel: string;
+  adjustBtnLabel: string;
+  adjustModalTitle: string;
+  adjustReasonLabel: string;
+  adjustMessageLabel: string;
+  adjustConfirmBtn: string;
+  adjustCancelBtn: string;
+  emergencyCannotAdjustTooltip: string;
+  reviewHistoryTitle: string;
 }
 
 const enTranslations: Translations = {
@@ -1299,6 +1310,17 @@ const enTranslations: Translations = {
     normalRangeGlucoseMgDl: "Normal: 70–130 fasting / 70–180 post-meal mg/dL",
     normalRangeGlucoseMmol: "Normal: 3.9–7.2 fasting / 3.9–10.0 post-meal mmol/L",
     normalRangeBP: "Normal: 90–139 / 60–89 mmHg",
+    reviewedByCareTeam: "Reviewed by your care team",
+    approvedAsRecommended: "Approved as recommended",
+    approveBtnLabel: "Approve",
+    adjustBtnLabel: "Adjust",
+    adjustModalTitle: "Adjust Triage Level",
+    adjustReasonLabel: "Reason for adjustment (required)",
+    adjustMessageLabel: "Message to patient (optional)",
+    adjustConfirmBtn: "Confirm Adjustment",
+    adjustCancelBtn: "Cancel",
+    emergencyCannotAdjustTooltip: "Emergencies follow protocol 1122",
+    reviewHistoryTitle: "Review Actions History",
 };
 
 const urTranslations: Translations = {
@@ -1947,10 +1969,32 @@ const urTranslations: Translations = {
     normalRangeGlucoseMgDl: "نارمل: 70–130 نہار منہ / 70–180 کھانے کے بعد mg/dL",
     normalRangeGlucoseMmol: "نارمل: 3.9–7.2 نہار منہ / 3.9–10.0 کھانے کے بعد mmol/L",
     normalRangeBP: "نارمل: 90–139 / 60–89 ملی میٹر ایچ جی",
+    reviewedByCareTeam: "آپ کی نگہداشت ٹیم نے جائزہ لے لیا ہے",
+    approvedAsRecommended: "تجویز کے مطابق منظور شدہ",
+    approveBtnLabel: "منظور کریں",
+    adjustBtnLabel: "تبدیل کریں",
+    adjustModalTitle: "ٹرائیج کی سطح تبدیل کریں",
+    adjustReasonLabel: "تبدیلی کی وجہ (لازمی)",
+    adjustMessageLabel: "مریض کے لیے پیغام (اختیاری)",
+    adjustConfirmBtn: "تبدیلی کی تصدیق کریں",
+    adjustCancelBtn: "منسوخ کریں",
+    emergencyCannotAdjustTooltip: "ہنگامی صورتحال کے لیے 1122 پروٹوکول پر عمل کریں",
+    reviewHistoryTitle: "جائزہ کارروائیوں کی تاریخ",
 };
 
 const romanUrTranslations: Translations = {
   ...enTranslations,
+  reviewedByCareTeam: "Aap ki care team ne jaiza le liya hai",
+  approvedAsRecommended: "Tajweez ke mutabiq manzoor shuda",
+  approveBtnLabel: "Approve karein",
+  adjustBtnLabel: "Adjust karein",
+  adjustModalTitle: "Triage level tabdeel karein",
+  adjustReasonLabel: "Tabdeeli ki wajah (lazmi)",
+  adjustMessageLabel: "Mareez ke liye paigham (ikhtiyari)",
+  adjustConfirmBtn: "Tabdeeli ki tasdeeq karein",
+  adjustCancelBtn: "Mansookh karein",
+  emergencyCannotAdjustTooltip: "Emergencies follow protocol 1122",
+  reviewHistoryTitle: "Jaiza karwaiyon ki tareekh",
   normalRangeDisclaimer: "Is app mein istemal hone wali normal range",
   normalRangeLabel: "Normal",
   aboveNormalLabel: "Normal se zyada",

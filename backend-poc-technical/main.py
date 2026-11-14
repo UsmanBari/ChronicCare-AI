@@ -974,6 +974,11 @@ class UserCheckinDetailResponse(BaseModel):
     triage_level: Optional[str] = None
     triage_colour: Optional[str] = None
     risk_patient: Optional[List[Dict[str, Any]]] = None
+    provider_decision: Optional[str] = None
+    provider_level: Optional[str] = None
+    provider_reason: Optional[str] = None
+    patient_message: Optional[str] = None
+    reviewed_at: Optional[str] = None
 
 
 class ReviewQueueItemResponse(BaseModel):
@@ -999,6 +1004,10 @@ class ReviewActionResponse(BaseModel):
     provider_user_id: str
     action: str
     note: Optional[str] = None
+    system_level: Optional[str] = None
+    provider_level: Optional[str] = None
+    reason: Optional[str] = None
+    patient_message: Optional[str] = None
     ts: str
 
 
@@ -1089,6 +1098,11 @@ class ReviewDetailResponse(BaseModel):
     triage_level: Optional[str] = None
     triage_colour: Optional[str] = None
     raised_by: Optional[List[Dict[str, Any]]] = None
+    provider_decision: Optional[str] = None
+    provider_level: Optional[str] = None
+    provider_reason: Optional[str] = None
+    patient_message: Optional[str] = None
+    reviewed_at: Optional[str] = None
 
 
 class VoiceTranscribeResponse(BaseModel):
@@ -1099,13 +1113,16 @@ class ReviewActionRequest(BaseModel):
     model_config = {"extra": "forbid"}
     action: str
     note: Optional[str] = Field(None, max_length=500)
+    adjusted_level: Optional[str] = Field(None, description="New triage level when action is 'adjust' ('routine', 'review', 'urgent')")
+    reason: Optional[str] = Field(None, max_length=500, description="Required justification when action is 'adjust'")
+    patient_message: Optional[str] = Field(None, max_length=300, description="Optional message sent to the patient")
 
     @field_validator("action")
     @classmethod
     def validate_action(cls, v: str) -> str:
         clean = str(v).strip().lower()
-        if clean not in ("acknowledge", "resolve", "escalate"):
-            raise ValueError("action must be one of 'acknowledge', 'resolve', or 'escalate'")
+        if clean not in ("acknowledge", "resolve", "escalate", "approve", "adjust"):
+            raise ValueError("action must be one of 'acknowledge', 'resolve', 'escalate', 'approve', or 'adjust'")
         return clean
 
 
@@ -5279,6 +5296,11 @@ def get_user_checkin_detail_endpoint(
         triage_level=level,
         triage_colour=colour,
         risk_patient=risk_p,
+        provider_decision=result.get("provider_decision") if result else None,
+        provider_level=result.get("provider_level") if result else None,
+        provider_reason=result.get("provider_reason") if result else None,
+        patient_message=result.get("patient_message") if result else None,
+        reviewed_at=result.get("reviewed_at") if result else None,
     )
 
 
@@ -5621,6 +5643,11 @@ def get_provider_review_detail_endpoint(
         triage_level=level,
         triage_colour=colour,
         raised_by=raised_by_val,
+        provider_decision=result.get("provider_decision"),
+        provider_level=result.get("provider_level"),
+        provider_reason=result.get("provider_reason"),
+        patient_message=result.get("patient_message"),
+        reviewed_at=result.get("reviewed_at"),
     )
 
 
@@ -5645,22 +5672,119 @@ def post_provider_review_action_endpoint(
             detail="Check-in result not found",
         )
 
+    # RBAC Queue Scope: only check-ins in the provider's queue (403 for other provider)
+    assigned_prov = checkin.get("assigned_provider_id") or result.get("assigned_provider_id")
+    if assigned_prov and assigned_prov != current_user["user_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Check-in is in another provider's queue",
+        )
+
+    from agents.final_triage import level_to_colour
+    raw_level = (result.get("triage_level") if result else None) or ((result.get("triage") or {}).get("level") if result else None)
+    if not raw_level:
+        raw_level = "emergency" if (result and result.get("emergency")) else ("review" if (result and result.get("requires_review")) else "routine")
+    system_level = str(raw_level).strip().lower()
+    system_colour = level_to_colour(system_level)
+    action = body.action.strip().lower()
+
+    if action == "adjust":
+        is_emergency = bool(result.get("emergency")) or system_level == "emergency" or system_colour == "red"
+        if is_emergency:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Emergency check-ins cannot be downgraded; follow emergency protocol 1122",
+            )
+        if not body.reason or not body.reason.strip() or len(body.reason.strip()) < 5:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Reason for adjustment must be at least 5 characters (max 500 characters)",
+            )
+        if not body.adjusted_level or body.adjusted_level.strip().lower() not in ("routine", "review", "urgent"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="adjusted_level must be one of 'routine', 'review', or 'urgent'",
+            )
+
+    provider_level = None
+    note_to_store = body.note
+    if action == "approve":
+        provider_level = system_level
+        prov_colour = level_to_colour(provider_level)
+        note_to_store = f"System: {system_colour.capitalize()} -> Provider: Approved ({prov_colour.capitalize()})"
+        if body.note:
+            note_to_store += f" - {body.note}"
+    elif action == "adjust":
+        provider_level = body.adjusted_level.strip().lower()
+        prov_colour = level_to_colour(provider_level)
+        note_to_store = f"System: {system_colour.capitalize()} -> Provider: {prov_colour.capitalize()} ({body.reason.strip()})"
+
     append_review_action(
         checkin_id=checkin_id,
         provider_user_id=current_user["user_id"],
-        action=body.action,
-        note=body.note,
-    )
-    append_audit(
-        actor_user_id=current_user["user_id"],
-        action=f"review_{body.action}",
-        target=checkin_id,
-        outcome="ok",
-        detail={"action": body.action, "note_length": len(body.note or "")},
+        action=action,
+        note=note_to_store,
+        system_level=system_level,
+        provider_level=provider_level,
+        reason=body.reason.strip() if body.reason else None,
+        patient_message=body.patient_message.strip() if body.patient_message else None,
     )
 
+    audit_detail: Dict[str, Any] = {"action": action}
+    if action in ("approve", "adjust"):
+        audit_detail["from"] = system_level
+        audit_detail["to"] = provider_level
+        audit_detail["summary"] = note_to_store
+        if body.reason:
+            audit_detail["reason"] = body.reason.strip()
+    else:
+        audit_detail["note_length"] = len(body.note or "")
+
+    audit_action = f"{action}_triage" if action in ("approve", "adjust") else f"review_{action}"
+    append_audit(
+        actor_user_id=current_user["user_id"],
+        action=audit_action,
+        target=checkin_id,
+        outcome="ok",
+        detail=audit_detail,
+    )
+
+    if action in ("approve", "adjust"):
+        target_level = provider_level
+        if target_level == "routine":
+            from data_sources.app_store import get_appointment_by_checkin, update_appointment
+            existing_appt = get_appointment_by_checkin(checkin_id)
+            if existing_appt and existing_appt.get("status") == "offered":
+                update_appointment(existing_appt["id"], status="cancelled")
+                from data_sources.app_store import create_notification
+                create_notification(
+                    recipient_id=checkin["user_id"],
+                    role="patient",
+                    event_type="appointment_cancelled",
+                    title="Appointment Cancelled",
+                    body="Your offered routine follow-up appointment was cancelled following care team review.",
+                    reference_id=checkin_id,
+                )
+        elif target_level in ("review", "urgent"):
+            from services.appointment_service import evaluate_and_create_appointment
+            evaluate_and_create_appointment(
+                checkin_id=checkin_id,
+                patient_id=checkin["user_id"],
+                final_triage_level=target_level,
+            )
+
+        from data_sources.app_store import create_notification
+        notif_body = body.patient_message.strip() if body.patient_message else "Your care team reviewed your check-in."
+        create_notification(
+            recipient_id=checkin["user_id"],
+            role="patient",
+            event_type="review_decision",
+            title="Your care team reviewed your check-in",
+            body=notif_body,
+            reference_id=checkin_id,
+        )
+
     updated_result = get_checkin_result(checkin_id)
-    from agents.danger_wordgroups import is_danger_wordgroups_enabled
     patient_user = get_user_by_id(checkin["user_id"])
     patient_display = (patient_user.get("display_name") if patient_user else None) or (patient_user.get("email") if patient_user else None) or "Patient"
     actions = get_review_actions(checkin_id)
@@ -5705,6 +5829,11 @@ def post_provider_review_action_endpoint(
             RecordEditItem(**e)
             for e in get_recent_edits_for_patient(checkin["user_id"], limit=20)
         ],
+        provider_decision=updated_result.get("provider_decision"),
+        provider_level=updated_result.get("provider_level"),
+        provider_reason=updated_result.get("provider_reason"),
+        patient_message=updated_result.get("patient_message"),
+        reviewed_at=updated_result.get("reviewed_at"),
     )
 
 

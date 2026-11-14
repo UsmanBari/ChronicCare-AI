@@ -213,26 +213,29 @@ Reviewer correction K3 for PR #134 updated Sentence 2 of the `routine_no_reading
 
 ---
 
-## 8. Physiological Reference Ranges Strings (F2 / Doctor Decision D5, 14 Nov 2026)
+## 9. Provider Approve or Adjust Strings (F6 / Proposal UC-15, 14 Nov 2026)
 
 **PR:** #161 (`fix/i4-freeze-final`)  
 **Target:** `app/translations/index.ts`  
-**Status:** **MARKED FOR REVIEW** (Doctor-approved clinical parameters; non-diagnostic UI labels)  
-**Scope:** Physiological reference range helpers, tags, and disclaimers for self-reported vitals.
+**Status:** **MARKED FOR REVIEW** (Clinician workflow & patient communication)  
+**Scope:** Provider review action buttons, adjustment modal, triage chip, and patient notification labels.
 
-### 8.1 Reference Range Strings Marked for Review
+### 9.1 Approve / Adjust Strings Marked for Review
 
 | Key | English | Urdu Script | Roman Urdu | Review Status | Notes |
 |---|---|---|---|---|---|
-| `normalRangeDisclaimer` | Normal range used by this app | اس ایپ میں استعمال ہونے والی نارمل حدود | Is app mein istemal hone wali normal hudood | Marked for review | Strictly non-diagnostic wording per doctor directive |
-| `normalRangeLabel` | Normal | نارمل | Normal | Marked for review | Status tag for readings within routine range |
-| `aboveNormalLabel` | Above normal | نارمل سے زیادہ | Normal se zyada | Marked for review | Status tag for elevated readings |
-| `belowNormalLabel` | Below normal | نارمل سے کم | Normal se kam | Marked for review | Status tag for low readings |
-| `normalRangeSystolic` | Normal: 90–139 mmHg | نارمل: 90–139 ملی میٹر ایچ جی | Normal: 90–139 mmHg | Marked for review | 2025 AHA/ACC guideline routine band |
-| `normalRangeDiastolic` | Normal: 60–89 mmHg | نارمل: 60–89 ملی میٹر ایچ جی | Normal: 60–89 mmHg | Marked for review | 2025 AHA/ACC guideline routine band |
-| `normalRangeGlucoseMgDl` | Normal: 70–130 fasting / 70–180 post-meal mg/dL | نارمل: 70–130 نہار منہ / 70–180 کھانے کے بعد mg/dL | Normal: 70–130 nihar munh / 70–180 khaney ke baad mg/dL | Marked for review | ADA Standards of Care routine target band |
-| `normalRangeGlucoseMmol` | Normal: 3.9–7.2 fasting / 3.9–10.0 post-meal mmol/L | نارمل: 3.9–7.2 نہار منہ / 3.9–10.0 کھانے کے بعد mmol/L | Normal: 3.9–7.2 nihar munh / 3.9–10.0 khaney ke baad mmol/L | Marked for review | ADA Standards of Care routine target band (converted) |
-| `normalRangeBP` | Normal: 90–139 / 60–89 mmHg | نارمل: 90–139 / 60–89 ملی میٹر ایچ جی | Normal: 90–139 / 60–89 mmHg | Marked for review | Combined blood pressure helper label |
+| `reviewedByCareTeam` | Reviewed by your care team | آپ کی نگہداشت ٹیم نے جائزہ لے لیا ہے | Aap ki care team ne jaiza le liya hai | Marked for review | Patient result card header |
+| `approvedAsRecommended` | Approved as recommended | تجویز کے مطابق منظور شدہ | Tajweez ke mutabiq manzoor shuda | Marked for review | Patient card note when approved |
+| `approveBtnLabel` | Approve | منظور کریں | Approve karein | Marked for review | Provider action button |
+| `adjustBtnLabel` | Adjust | تبدیل کریں | Adjust karein | Marked for review | Provider action button |
+| `adjustModalTitle` | Adjust Triage Level | ٹرائیج کی سطح تبدیل کریں | Triage level tabdeel karein | Marked for review | Provider modal heading |
+| `adjustReasonLabel` | Reason for adjustment (required) | تبدیلی کی وجہ (لازمی) | Tabdeeli ki wajah (lazmi) | Marked for review | Form field label |
+| `adjustMessageLabel` | Message to patient (optional) | مریض کے لیے پیغام (اختیاری) | Mareez ke liye paigham (ikhtiyari) | Marked for review | Form field label |
+| `adjustConfirmBtn` | Confirm Adjustment | تبدیلی کی تصدیق کریں | Tabdeeli ki tasdeeq karein | Marked for review | Modal submit button |
+| `adjustCancelBtn` | Cancel | منسوخ کریں | Mansookh karein | Marked for review | Modal cancel button |
+| `emergencyCannotAdjustTooltip` | Emergencies follow protocol 1122 | ہنگامی صورتحال کے لیے 1122 پروٹوکول پر عمل کریں | Emergencies follow protocol 1122 | Marked for review | Emergency rule safety notice |
+| `reviewHistoryTitle` | Review Actions History | جائزہ کارروائیوں کی تاریخ | Jaiza karwaiyon ki tareekh | Marked for review | History list title |
+
 
 
 

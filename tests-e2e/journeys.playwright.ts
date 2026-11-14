@@ -309,6 +309,10 @@ test.describe("I4-S: 17 Nov Evaluation Demo Journeys", () => {
     await expect(page.locator('[data-testid="soap-section-assessment"]')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('[data-testid="soap-section-plan"]')).toBeVisible({ timeout: 5000 });
 
+    // Verify Clinical Review Decision buttons (Proposal UC-15 / F6)
+    await expect(page.locator("#review-approve-btn")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("#review-adjust-btn")).toBeVisible({ timeout: 5000 });
+
     await captureKeyScreenshots(page, "je_provider_risk_soap", soapPanel);
   });
 

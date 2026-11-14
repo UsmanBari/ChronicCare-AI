@@ -197,11 +197,11 @@ export const TrendScreen = () => {
     const hasReadings = isLive && (glucoseSeries?.values?.length ?? 0) > 0;
     const chartData: Array<{ day: string; value: number }> = isLive
       ? (hasReadings && glucoseSeries
-          ? glucoseSeries.values.map((v) => ({
-              day: formatPointLabel(v.at, glucoseSeries.values),
-              value: v.value,
-            }))
-          : [])
+        ? glucoseSeries.values.map((v) => ({
+          day: formatPointLabel(v.at, glucoseSeries.values),
+          value: v.value,
+        }))
+        : [])
       : mockGlucoseData;
 
     return (

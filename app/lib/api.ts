@@ -410,6 +410,12 @@ export interface CheckinCompleteResponse {
   triage_level?: string | null;
   risk_patient?: Array<{ model_key: string; band: string; message_key: string }> | null;
   appointment?: Appointment | null;
+  provider_decision?: string | null;
+  provider_level?: string | null;
+  provider_reason?: string | null;
+  patient_message?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
 }
 
 export interface Appointment {
@@ -486,6 +492,12 @@ export interface UserCheckinDetailResponse {
   triage_level?: string | null;
   triage_colour?: string | null;
   risk_patient?: Array<{ model_key: string; band: string; message_key: string }> | null;
+  provider_decision?: string | null;
+  provider_level?: string | null;
+  provider_reason?: string | null;
+  patient_message?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
 }
 
 export interface ReviewQueueItemResponse {
@@ -512,6 +524,10 @@ export interface ReviewActionResponse {
   action: string;
   note: string | null;
   ts: string;
+  system_level?: string | null;
+  provider_level?: string | null;
+  reason?: string | null;
+  patient_message?: string | null;
 }
 
 export interface TrendValue {
@@ -636,6 +652,12 @@ export interface ReviewDetailResponse {
   triage_level?: string | null;
   triage_colour?: string | null;
   raised_by?: Array<{ source: string; detail: string; [key: string]: any }> | null;
+  provider_decision?: string | null;
+  provider_level?: string | null;
+  provider_reason?: string | null;
+  patient_message?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
 }
 
 export interface SoapNoteResponse {
@@ -1325,14 +1347,41 @@ export const api = {
 
   postProviderReviewAction: async (
     checkin_id: string,
-    action: "acknowledge" | "resolve" | "escalate",
-    note?: string
+    actionOrPayload:
+      | "acknowledge"
+      | "resolve"
+      | "escalate"
+      | "approve"
+      | "adjust"
+      | {
+          action: "acknowledge" | "resolve" | "escalate" | "approve" | "adjust";
+          note?: string;
+          adjusted_level?: "routine" | "review" | "urgent";
+          reason?: string;
+          patient_message?: string;
+        },
+    note?: string,
+    extra?: {
+      adjusted_level?: "routine" | "review" | "urgent";
+      reason?: string;
+      patient_message?: string;
+    }
   ): Promise<ReviewDetailResponse> => {
+    let body: any;
+    if (typeof actionOrPayload === "object") {
+      body = actionOrPayload;
+    } else {
+      body = {
+        action: actionOrPayload,
+        note: note || undefined,
+        ...(extra || {}),
+      };
+    }
     return request<ReviewDetailResponse>(
       `/api/provider/review/${encodeURIComponent(checkin_id)}/action`,
       {
         method: "POST",
-        body: JSON.stringify({ action, note: note || undefined }),
+        body: JSON.stringify(body),
       }
     );
   },
