@@ -223,7 +223,7 @@ def _build_dual_summary_text(
         else:
             symp_en = "Symptoms: not asked"
             symp_ur = "علامات: پوچھی نہیں گئیں"
-            symp_ro = "Alamaat: nahi poochay gaye"
+            symp_ro = "Symptoms: nahi poochay gaye"
 
     # 4. Adherence
     adh = known_slots.get("adherence_diabetes")
@@ -561,6 +561,20 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
     ]
     if any(re.search(pat, lower_ans) for pat in symptom_denial_patterns):
         known_slots["symptoms_denied"] = True
+
+    # 7. Early Greeting / Wellbeing Detection (P3-24)
+    wellbeing_patterns = [
+        r"\b(?:feeling|feel|doing)\s+(?:fine|good|well|great|okay|ok|alright|better)\b",
+        r"\bi\s*(?:am|'m)\s+(?:fine|good|well|great|okay|ok|alright)\b",
+        r"\ball\s+good\b",
+        r"\btheek\s+(?:hoon|hain|thaak|thak)\b",
+        r"\bsab\s+theek\s*(?:hai)?\b",
+        r"\btabiyat\s+theek\s*(?:hai)?\b",
+        r"\bshukar\s+hai\b",
+        r"(?:ٹھیک\s+ہوں|سب\s+ٹھیک\s*ہے|طبیعت\s+ٹھیک\s*ہے|شکر\s+ہے)",
+    ]
+    if any(re.search(pat, lower_ans) for pat in wellbeing_patterns):
+        known_slots["greeting"] = True
 
 
 def evaluate_severe_low_sugar(
