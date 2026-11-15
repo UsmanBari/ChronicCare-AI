@@ -4588,26 +4588,30 @@ def answer_checkin_endpoint(
                 if is_red_med:
                     triggered = True
                     reason = red_cat_med
-                elif cancelled_med and is_negated_red_flag_to_review_enabled():
-                    # R7 F5: Base-screen negation & remote-past conservative downgrade to review
-                    triggered = False
-                    reason = None
-                    lang = getattr(current_state, "language", None) or "en"
-                    from agents.danger_wordgroups import get_safety_note
-                    med_safety_note = get_safety_note(lang)
-                    if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
-                        current_state.answers = {}
-                    current_state.answers.setdefault("_wordgroup_hits", []).append({
-                        "group": "negated_red_flag_needs_review",
-                        "step": getattr(current_state, "step", "medication")
-                    })
-                    append_audit(
-                        actor_user_id=current_user["user_id"],
-                        action="danger_wordgroup_hit",
-                        target=checkin_id,
-                        outcome="ok",
-                        detail={"group": "negated_red_flag_needs_review"},
-                    )
+                elif cancelled_med:
+                    if is_negated_red_flag_to_review_enabled():
+                        # R7 F5: Base-screen negation & remote-past conservative downgrade to review
+                        triggered = False
+                        reason = None
+                        lang = getattr(current_state, "language", None) or "en"
+                        from agents.danger_wordgroups import get_safety_note
+                        med_safety_note = get_safety_note(lang)
+                        if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
+                            current_state.answers = {}
+                        current_state.answers.setdefault("_wordgroup_hits", []).append({
+                            "group": "negated_red_flag_needs_review",
+                            "step": getattr(current_state, "step", "medication")
+                        })
+                        append_audit(
+                            actor_user_id=current_user["user_id"],
+                            action="danger_wordgroup_hit",
+                            target=checkin_id,
+                            outcome="ok",
+                            detail={"group": "negated_red_flag_needs_review"},
+                        )
+                    else:
+                        triggered = True
+                        reason = cancelled_med[0].get("category") or "danger_phrase"
             except Exception:
                 pass
         from agents.danger_wordgroups import is_danger_wordgroups_enabled, is_danger_safety_net_enabled, detect as detect_wordgroups, detect_safety_net, get_safety_note, WordGroupResult
