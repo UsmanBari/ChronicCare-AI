@@ -19,7 +19,7 @@ interface NotificationBellProps {
 }
 
 export const NotificationBell: React.FC<NotificationBellProps> = ({ role }) => {
-  const { isUrdu, t, portal, isLiveMode, setProviderScreen } = useApp();
+  const { isUrdu, t, portal, isLiveMode, setProviderScreen, setSelectedPatient } = useApp();
   const effectiveRole = role || (portal === "provider" ? "provider" : portal === "admin" ? "admin" : "patient");
 
   const [isOpen, setIsOpen] = useState(false);
@@ -117,7 +117,13 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ role }) => {
     }
     setIsOpen(false);
     if (effectiveRole === "provider") {
-      setProviderScreen("review_queue");
+      const caseId = n.reference_id ? n.reference_id.replace(/_renotify|_admin_flag$/, "") : null;
+      if (caseId) {
+        setSelectedPatient(caseId);
+        setProviderScreen("reconciliation_alert");
+      } else {
+        setProviderScreen("review_queue");
+      }
     }
   };
 
@@ -279,17 +285,30 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ role }) => {
                     </p>
                     <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100 text-[10px] text-slate-400">
                       <span>{new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      {!n.is_read && (
-                        <button
-                          type="button"
-                          onClick={(e) => handleMarkRead(n.id, e)}
-                          data-testid={`mark-read-btn-${n.id}`}
-                          className="text-teal-700 hover:text-teal-900 font-semibold flex items-center gap-0.5"
-                        >
-                          <Check className="w-3 h-3" />
-                          <span>{t.markRead}</span>
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {effectiveRole === "provider" && (
+                          <button
+                            type="button"
+                            onClick={() => handleItemClick(n)}
+                            data-testid={`open-case-btn-${n.id}`}
+                            className="text-teal-700 hover:text-teal-900 font-semibold flex items-center gap-1"
+                          >
+                            <span>{isUrdu ? "کیس کھولیں" : "Open case"}</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                        )}
+                        {!n.is_read && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleMarkRead(n.id, e)}
+                            data-testid={`mark-read-btn-${n.id}`}
+                            className="text-teal-700 hover:text-teal-900 font-semibold flex items-center gap-0.5"
+                          >
+                            <Check className="w-3 h-3" />
+                            <span>{t.markRead}</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

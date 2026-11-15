@@ -237,12 +237,29 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning("Failed to launch reminder background worker: %s", e)
 
+    escalation_task = None
+    if os.environ.get("ESCALATION_WORKER_ENABLED", "1").strip().lower() in ("true", "1", "yes"):
+        try:
+            import asyncio
+            from services.appointment_service import escalation_worker_loop
+            escalation_task = asyncio.create_task(escalation_worker_loop(interval_seconds=15))
+            logger.info("Escalation background worker launched.")
+        except Exception as e:
+            logger.warning("Failed to launch escalation background worker: %s", e)
+
     yield
 
     if reminder_task:
         reminder_task.cancel()
         try:
             await reminder_task
+        except (asyncio.CancelledError, Exception):
+            pass
+
+    if escalation_task:
+        escalation_task.cancel()
+        try:
+            await escalation_task
         except (asyncio.CancelledError, Exception):
             pass
 
@@ -4305,6 +4322,16 @@ def persist_and_alert_emergency(
     )
     if success:
         try:
+            from services.appointment_service import evaluate_and_create_appointment
+            evaluate_and_create_appointment(
+                checkin_id=checkin_id,
+                patient_id=user_id,
+                final_triage_level="emergency",
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create urgent appointment for emergency {checkin_id}: {e}")
+
+        try:
             from services.notification_service import notify_urgent_checkin
             notify_urgent_checkin(
                 checkin_id=checkin_id,
@@ -4794,21 +4821,17 @@ def answer_checkin_endpoint(
             res = next_protocol_state.result
             level = res.get("level")
             if level == "emergency":
-                completed_at = _utc_now_iso()
                 try:
-                    success = apply_checkin_answer_atomic(
+                    success = persist_and_alert_emergency(
                         checkin_id=checkin_id,
+                        user_id=current_user["user_id"],
                         expected_version=current_version,
                         state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
-                        status="emergency",
-                        completed_at=completed_at,
-                        emergency=True,
                         trigger_category=f"triage:{next_protocol_state.protocol}",
-                        trigger_text=res.get("summary"),
-                        actor_user_id=current_user["user_id"],
+                        trigger_text=res.get("summary") or body.answer or "emergency_triage",
+                        patient_name=current_user.get("display_name"),
                         med_state_dict=med_state.to_dict() if med_state else None,
                         protocol_state_dict=next_protocol_state.to_dict(),
-                        triage_level="emergency",
                         triage_dict=res,
                     )
                 except Exception as e:
@@ -5041,19 +5064,32 @@ def answer_checkin_endpoint(
             intakes = (current_state.get("intakes") if is_v3_session else current_state.intakes) or [{"condition": last_cond, "emergency": is_emerg, "level": rf_level, "reason": reason}]
             completed_at = _utc_now_iso()
             try:
-                success = apply_checkin_answer_atomic(
-                    checkin_id=checkin_id,
-                    expected_version=current_version,
-                    state_dict=current_state if is_v3_session else (current_state.to_dict() if hasattr(current_state, "to_dict") else current_state),
-                    status=status_val,
-                    completed_at=completed_at,
-                    emergency=is_emerg,
-                    trigger_category=reason,
-                    trigger_text=body.answer,
-                    actor_user_id=current_user["user_id"],
-                    med_state_dict=med_state.to_dict(),
-                    protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
-                )
+                if is_emerg:
+                    success = persist_and_alert_emergency(
+                        checkin_id=checkin_id,
+                        user_id=current_user["user_id"],
+                        expected_version=current_version,
+                        state_dict=current_state if is_v3_session else (current_state.to_dict() if hasattr(current_state, "to_dict") else current_state),
+                        trigger_category=reason,
+                        trigger_text=body.answer,
+                        patient_name=current_user.get("display_name"),
+                        med_state_dict=med_state.to_dict(),
+                        protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
+                    )
+                else:
+                    success = apply_checkin_answer_atomic(
+                        checkin_id=checkin_id,
+                        expected_version=current_version,
+                        state_dict=current_state if is_v3_session else (current_state.to_dict() if hasattr(current_state, "to_dict") else current_state),
+                        status=status_val,
+                        completed_at=completed_at,
+                        emergency=False,
+                        trigger_category=reason,
+                        trigger_text=body.answer,
+                        actor_user_id=current_user["user_id"],
+                        med_state_dict=med_state.to_dict(),
+                        protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
+                    )
             except Exception as e:
                 logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
                 raise HTTPException(
@@ -5319,19 +5355,32 @@ def answer_checkin_endpoint(
             next_phase = None
 
         try:
-            success = apply_checkin_answer_atomic(
-                checkin_id=checkin_id,
-                expected_version=current_version,
-                state_dict=next_state,
-                status=new_status,
-                completed_at=completed_at,
-                emergency=is_emergency,
-                trigger_category=emergency_reason,
-                trigger_text=body.answer,
-                actor_user_id=current_user["user_id"],
-                med_state_dict=med_state.to_dict() if med_state else None,
-                protocol_state_dict=new_protocol_state_dict,
-            )
+            if is_emergency:
+                success = persist_and_alert_emergency(
+                    checkin_id=checkin_id,
+                    user_id=current_user["user_id"],
+                    expected_version=current_version,
+                    state_dict=next_state,
+                    trigger_category=emergency_reason or "emergency_phrase",
+                    trigger_text=body.answer,
+                    patient_name=current_user.get("display_name"),
+                    med_state_dict=med_state.to_dict() if med_state else None,
+                    protocol_state_dict=new_protocol_state_dict,
+                )
+            else:
+                success = apply_checkin_answer_atomic(
+                    checkin_id=checkin_id,
+                    expected_version=current_version,
+                    state_dict=next_state,
+                    status=new_status,
+                    completed_at=completed_at,
+                    emergency=False,
+                    trigger_category=emergency_reason,
+                    trigger_text=body.answer,
+                    actor_user_id=current_user["user_id"],
+                    med_state_dict=med_state.to_dict() if med_state else None,
+                    protocol_state_dict=new_protocol_state_dict,
+                )
         except Exception as e:
             logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
             raise HTTPException(
@@ -5592,19 +5641,32 @@ def answer_checkin_endpoint(
         next_phase = None
 
     try:
-        success = apply_checkin_answer_atomic(
-            checkin_id=checkin_id,
-            expected_version=current_version,
-            state_dict=next_state.to_dict(),
-            status=new_status,
-            completed_at=completed_at,
-            emergency=is_emergency,
-            trigger_category=next_state.stage1_reason,
-            trigger_text=body.answer,
-            actor_user_id=current_user["user_id"],
-            med_state_dict=med_state.to_dict() if med_state else None,
-            protocol_state_dict=new_protocol_state_dict,
-        )
+        if is_emergency:
+            success = persist_and_alert_emergency(
+                checkin_id=checkin_id,
+                user_id=current_user["user_id"],
+                expected_version=current_version,
+                state_dict=next_state.to_dict(),
+                trigger_category=next_state.stage1_reason or "emergency_phrase",
+                trigger_text=body.answer,
+                patient_name=current_user.get("display_name"),
+                med_state_dict=med_state.to_dict() if med_state else None,
+                protocol_state_dict=new_protocol_state_dict,
+            )
+        else:
+            success = apply_checkin_answer_atomic(
+                checkin_id=checkin_id,
+                expected_version=current_version,
+                state_dict=next_state.to_dict(),
+                status=new_status,
+                completed_at=completed_at,
+                emergency=False,
+                trigger_category=next_state.stage1_reason,
+                trigger_text=body.answer,
+                actor_user_id=current_user["user_id"],
+                med_state_dict=med_state.to_dict() if med_state else None,
+                protocol_state_dict=new_protocol_state_dict,
+            )
     except Exception as e:
         logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
         raise HTTPException(
@@ -7013,8 +7075,20 @@ def get_provider_notifications(
     from data_sources.app_store import list_notifications, count_unread_notifications
 
     prov_id = current_user.get("user_id") or "prov-demo-gen-1"
+    prov_email = (current_user.get("email") or "").lower()
     notifs = list_notifications(role="provider", unread_only=unread_only, limit=limit)
-    matched = [n for n in notifs if n.get("recipient_id") in (prov_id, "prov-demo-gen-1", "prov-demo-cardio", "prov-demo-endo", "prov-demo-im")]
+    matched = [
+        n for n in notifs
+        if n.get("recipient_id") in (
+            prov_id,
+            prov_email,
+            "prov-demo-gen-1",
+            "prov-demo-cardio",
+            "prov-demo-endo",
+            "prov-demo-im",
+            "all_providers",
+        )
+    ]
     unread = count_unread_notifications(role="provider")
     return {"notifications": matched, "unread_count": unread}
 

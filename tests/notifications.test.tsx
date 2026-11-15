@@ -223,6 +223,82 @@ describe("In-App Notification Centre & Emergency Screen Alert (PR I4-H)", () => 
         expect(screen.getAllByText("Clinical review required").length).toBe(2);
       });
     });
+
+    it("provider clicking a notification item with reference_id sets selectedPatient and opens case directly", async () => {
+      mockAppContext.portal = "provider";
+      mockAppContext.setProviderScreen = vi.fn();
+      mockAppContext.setSelectedPatient = vi.fn();
+
+      const mockProviderNotif: InAppNotification = {
+        id: "notif-prov-emg",
+        user_id: "prov-1",
+        role: "provider",
+        type: "urgent_checkin",
+        title: "Emergency Alert: Demo Patient Emergency",
+        body: "Emergency check-in from Demo Patient Emergency requires immediate clinical review",
+        reference_id: "chk-emg-case-001",
+        is_read: false,
+        created_at: new Date().toISOString(),
+      };
+
+      vi.spyOn(api, "getProviderNotifications").mockResolvedValue({
+        notifications: [mockProviderNotif],
+        unread_count: 1,
+      });
+
+      render(<NotificationBell role="provider" />);
+
+      fireEvent.click(screen.getByTestId("notification-bell-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Emergency Alert: Demo Patient Emergency")).toBeTruthy();
+      });
+
+      // Click the notification item
+      fireEvent.click(screen.getByTestId("notification-item-notif-prov-emg"));
+
+      expect(mockAppContext.setSelectedPatient).toHaveBeenCalledWith("chk-emg-case-001");
+      expect(mockAppContext.setProviderScreen).toHaveBeenCalledWith("reconciliation_alert");
+    });
+
+    it("provider clicking 'Open case' button links directly to case with stripped renotify suffix", async () => {
+      mockAppContext.portal = "provider";
+      mockAppContext.setProviderScreen = vi.fn();
+      mockAppContext.setSelectedPatient = vi.fn();
+
+      const mockEscalationNotif: InAppNotification = {
+        id: "notif-esc-001",
+        user_id: "prov-1",
+        role: "provider",
+        type: "escalation_renotify",
+        title: "Urgent Case Follow-up: Tariq Mahmood",
+        body: "An urgent case for Tariq Mahmood has remained unacknowledged for over 5 minutes. Review required.",
+        reference_id: "chk-tariq-urgent_renotify",
+        is_read: false,
+        created_at: new Date().toISOString(),
+      };
+
+      vi.spyOn(api, "getProviderNotifications").mockResolvedValue({
+        notifications: [mockEscalationNotif],
+        unread_count: 1,
+      });
+
+      render(<NotificationBell role="provider" />);
+
+      fireEvent.click(screen.getByTestId("notification-bell-btn"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Urgent Case Follow-up: Tariq Mahmood")).toBeTruthy();
+        expect(screen.getByText(/over 5 minutes/)).toBeTruthy();
+      });
+
+      // Click the Open case button
+      const openBtn = screen.getByTestId("open-case-btn-notif-esc-001");
+      fireEvent.click(openBtn);
+
+      expect(mockAppContext.setSelectedPatient).toHaveBeenCalledWith("chk-tariq-urgent");
+      expect(mockAppContext.setProviderScreen).toHaveBeenCalledWith("reconciliation_alert");
+    });
   });
 
   describe("EmergencyScreen Alert Sentence (N4 Requirement)", () => {
