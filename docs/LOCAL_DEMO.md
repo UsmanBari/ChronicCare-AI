@@ -14,6 +14,12 @@ To start the complete local evaluation environment (schema migration, demo seed,
 Set-Location "c:\Users\usmanbari\Desktop\Chronicare"
 .\scripts\start_local_demo.ps1 -Seed
 ```
+Pass `-Fresh` instead of or in addition to `-Seed` to completely wipe any prior QA state:
+```powershell
+.\scripts\start_local_demo.ps1 -Fresh
+```
+`-Fresh` backs up `backend-poc-technical/local_store.db` to `local_store.<timestamp>.bak`, removes any lingering SQLite WAL/SHM artifacts, initializes a pristine database schema, and seeds all 17 Nov demo personas and histories cleanly.
+
 This launcher automatically verifies your Python virtual environment, strictly refuses MySQL if configured, initializes the SQLite database, seeds all 17 Nov demo personas, launches backend and frontend in separate console windows, polls `/api/health` until ready, and prints the evaluation dashboard URLs.
 
 ---
