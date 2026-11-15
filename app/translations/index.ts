@@ -471,6 +471,8 @@ export interface Translations {
   riskCaveatsTitle: string;
   riskCaveatHomeBp: string;
   riskCaveatNotValidatedPakistan: string;
+  riskCaveatFramingham?: string;
+  riskCaveatNhanes?: string;
   riskMissingDataTitle: string;
   riskMissingDataDescription: string;
   riskMissingBp: string;
@@ -1130,6 +1132,8 @@ const enTranslations: Translations = {
     riskCaveatsTitle: "Clinical Caveats",
     riskCaveatHomeBp: "Home blood pressure readings are self-reported and have not been validated against clinic measurements.",
     riskCaveatNotValidatedPakistan: "This model was developed on US NHANES data and has not been validated on a Pakistani population.",
+    riskCaveatFramingham: "This model was developed on US Framingham Heart Study data and has not been validated on a Pakistani population.",
+    riskCaveatNhanes: "This model was developed on US NHANES data and has not been validated on a Pakistani population.",
     riskMissingDataTitle: "Not Enough Information",
     riskMissingDataDescription: "Risk assessment requires complete baseline measurements:",
     riskMissingBp: "Blood pressure reading in the last 30 days",
@@ -1791,6 +1795,8 @@ const urTranslations: Translations = {
     riskCaveatsTitle: "طبی تنبیہات",
     riskCaveatHomeBp: "گھر پر لیے گئے بلڈ پریشر کے نتائج مریض کے خود درج کردہ ہیں اور کلینک کے امتحانی بلڈ پریشر سے تصدیق شدہ نہیں ہیں۔",
     riskCaveatNotValidatedPakistan: "یہ ماڈل امریکی این ایچ اے این ای ایس (NHANES) ڈیٹا پر بنایا گیا ہے اور اس کی پاکستانی آبادی پر توثیق نہیں کی گئی ہے۔",
+    riskCaveatFramingham: "یہ ماڈل امریکی فریمنگھم ہارٹ اسٹڈی (Framingham) ڈیٹا پر بنایا گیا ہے اور اس کی پاکستانی آبادی پر توثیق نہیں کی گئی ہے۔",
+    riskCaveatNhanes: "یہ ماڈل امریکی این ایچ اے این ای ایس (NHANES) ڈیٹا پر بنایا گیا ہے اور اس کی پاکستانی آبادی پر توثیق نہیں کی گئی ہے۔",
     riskMissingDataTitle: "معلومات ناکافی ہیں",
     riskMissingDataDescription: "خطرے کے جائزے کے لیے درج ذیل مکمل پیمائشیں درکار ہیں:",
     riskMissingBp: "پچھلے ۳۰ دنوں کے اندر بلڈ پریشر کی ریڈنگ",
@@ -2000,6 +2006,8 @@ const romanUrTranslations: Translations = {
   adjustConfirmBtn: "Tabdeeli ki tasdeeq karein",
   adjustCancelBtn: "Mansookh karein",
   emergencyCannotAdjustTooltip: "Emergencies follow protocol 1122",
+  riskCaveatFramingham: "Yeh model US Framingham Heart Study data par banaya gaya hai aur is ki Pakistani population par tasdeeq nahi ki gayi.",
+  riskCaveatNhanes: "Yeh model US NHANES data par banaya gaya hai aur is ki Pakistani population par tasdeeq nahi ki gayi.",
   reviewHistoryTitle: "Jaiza karwaiyon ki tareekh",
   chartTargetsDisclaimer: "Targets diabetes/high BP ke mareezon ke liye ADA/AHA guidance ke mutabiq hain; aap ke doctor mukhtalif targets muqarrar kar sakte hain.",
   normalRangeDisclaimer: "Is app mein istemal hone wali target range",

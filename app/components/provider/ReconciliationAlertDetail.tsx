@@ -881,6 +881,18 @@ export const ReconciliationAlertDetail = () => {
                             );
                           })()}
 
+                          {riskModel.probability != null && (
+                            <span
+                              className="inline-flex items-center text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200"
+                              data-testid="checkin-risk-probability"
+                            >
+                              {Math.round(riskModel.probability <= 1 ? riskModel.probability * 100 : riskModel.probability)}%{" "}
+                              {(riskModel.disease === "cardiovascular" || (riskModel.model_name || riskModel.model || "").toLowerCase().includes("chd") || (riskModel.model_name || riskModel.model || "").toLowerCase().includes("framingham"))
+                                ? (isUrdu ? "۱۰ سالہ دل کے امراض کا خطرہ" : "10-year CHD risk")
+                                : (isUrdu ? "۱۰ سالہ شوگر کا خطرہ" : "10-year Diabetes risk")}
+                            </span>
+                          )}
+
                           {/* Raised to review indicator */}
                           <span
                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border ${
@@ -935,8 +947,9 @@ export const ReconciliationAlertDetail = () => {
                             <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
                               {riskModel.caveats.map((c, idx) => {
                                 let text = c;
+                                const isFramingham = (riskModel.model_name || riskModel.model || "").toLowerCase().includes("framingham") || (riskModel.disease || "").toLowerCase() === "cardiovascular";
                                 if (c === "home_bp_not_exam_bp") text = t.riskCaveatHomeBp;
-                                else if (c === "not_validated_pakistan") text = t.riskCaveatNotValidatedPakistan;
+                                else if (c === "not_validated_pakistan") text = isFramingham ? (t.riskCaveatFramingham || "This model was developed on US Framingham Heart Study data and has not been validated on a Pakistani population.") : (t.riskCaveatNhanes || t.riskCaveatNotValidatedPakistan);
                                 return (
                                   <li key={idx} data-testid="checkin-risk-caveat-item">
                                     {text}
@@ -1045,6 +1058,18 @@ export const ReconciliationAlertDetail = () => {
                           );
                         })()}
 
+                        {modelItem.probability != null && (
+                          <span
+                            className="inline-flex items-center text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200"
+                            data-testid="risk-probability"
+                          >
+                            {Math.round(modelItem.probability <= 1 ? modelItem.probability * 100 : modelItem.probability)}%{" "}
+                            {(modelItem.disease === "cardiovascular" || (modelItem.model_name || modelItem.model || "").toLowerCase().includes("chd") || (modelItem.model_name || modelItem.model || "").toLowerCase().includes("framingham"))
+                              ? (isUrdu ? "۱۰ سالہ دل کے امراض کا خطرہ" : "10-year CHD risk")
+                              : (isUrdu ? "۱۰ سالہ شوگر کا خطرہ" : "10-year Diabetes risk")}
+                          </span>
+                        )}
+
                         {modelItem.label_text && (
                           <span className="text-xs text-slate-600 font-medium">
                             {modelItem.label_text[isUrdu ? "ur" : "en"] || modelItem.label_text["en"]}
@@ -1099,8 +1124,9 @@ export const ReconciliationAlertDetail = () => {
                           <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
                             {modelItem.caveats.map((c: string, idx: number) => {
                               let text = c;
+                              const isFramingham = (modelItem.model_name || modelItem.model || "").toLowerCase().includes("framingham") || (modelItem.disease || "").toLowerCase() === "cardiovascular";
                               if (c === "home_bp_not_exam_bp") text = t.riskCaveatHomeBp;
-                              else if (c === "not_validated_pakistan") text = t.riskCaveatNotValidatedPakistan;
+                              else if (c === "not_validated_pakistan") text = isFramingham ? (t.riskCaveatFramingham || "This model was developed on US Framingham Heart Study data and has not been validated on a Pakistani population.") : (t.riskCaveatNhanes || t.riskCaveatNotValidatedPakistan);
                               return (
                                 <li key={idx} data-testid="risk-caveat-item">
                                   {text}
