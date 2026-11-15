@@ -1280,10 +1280,18 @@ def require_role(*allowed_roles: str):
     def role_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
         user_role = current_user.get("role")
         if user_role not in allowed_roles:
+            target_portal = "admin" if "admin" in allowed_roles else (allowed_roles[0] if allowed_roles else None)
+            append_audit(
+                actor_user_id=current_user.get("user_id"),
+                action="access_denied",
+                target=target_portal,
+                outcome="denied",
+                detail={"user_role": user_role, "required_roles": list(allowed_roles)},
+            )
             append_audit(
                 actor_user_id=current_user.get("user_id"),
                 action="role_denied",
-                target=None,
+                target=target_portal,
                 outcome="denied",
                 detail={"user_role": user_role, "required_roles": list(allowed_roles)},
             )
@@ -1523,6 +1531,31 @@ def auth_session_endpoint(token: str = Depends(extract_bearer_token)):
         display_name=user.get("display_name"),
         status=user.get("status", "active"),
     )
+
+
+class AccessDeniedReportRequest(BaseModel):
+    portal: str = "admin"
+    attempted_role: Optional[str] = None
+
+
+@app.post("/api/auth/access-denied", tags=["Auth"])
+def report_access_denied_endpoint(
+    body: AccessDeniedReportRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Records an immutable access_denied audit entry when a user is refused access to a portal."""
+    append_audit(
+        actor_user_id=current_user.get("user_id"),
+        action="access_denied",
+        target=body.portal,
+        outcome="denied",
+        detail={
+            "user_role": current_user.get("role"),
+            "attempted_portal": body.portal,
+            "reason": "portal_role_mismatch",
+        },
+    )
+    return {"status": "ok"}
 
 
 @app.get("/api/me", response_model=UserResponse, tags=["Auth"])

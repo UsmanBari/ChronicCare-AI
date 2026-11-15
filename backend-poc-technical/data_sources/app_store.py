@@ -1356,6 +1356,27 @@ def append_audit(actor_user_id: Optional[str], action: str, target: Optional[str
     detail_str = json.dumps(detail or {}, separators=(",", ":"))
 
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        # P3-25: Deduplicate rapid successive double-calls (within 5 seconds for same actor/action/target)
+        if clean_action.lower() in ("login", "soap_generated"):
+            try:
+                cursor.execute(
+                    f"SELECT id, ts FROM audit_log WHERE actor_user_id = {ph} AND LOWER(action) = {ph} AND (target = {ph} OR (target IS NULL AND {ph} IS NULL)) ORDER BY id DESC LIMIT 1",
+                    (actor_user_id, clean_action.lower(), target, target)
+                )
+                last_entry = cursor.fetchone()
+                if last_entry:
+                    last_ts = last_entry["ts"] if isinstance(last_entry, dict) else last_entry[1]
+                    from datetime import datetime
+                    ts_clean = str(last_ts).replace("Z", "+00:00")
+                    now_clean = str(now).replace("Z", "+00:00")
+                    last_dt = datetime.fromisoformat(ts_clean)
+                    now_dt = datetime.fromisoformat(now_clean)
+                    if abs((now_dt - last_dt).total_seconds()) < 5.0:
+                        last_id = last_entry["id"] if isinstance(last_entry, dict) else last_entry[0]
+                        return int(last_id)
+            except Exception:
+                pass
+
         cursor.execute(
             f"INSERT INTO audit_log (ts, actor_user_id, action, target, outcome, detail_json) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
             (now, actor_user_id, clean_action, target, clean_outcome, detail_str)

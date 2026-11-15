@@ -573,6 +573,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             setProviderDisplayName(name);
           } else if (targetPortal === "admin") {
             if (role !== "admin") {
+              try {
+                await api.reportAccessDenied("admin");
+              } catch {}
               await signOut(auth);
               setUserRole(null);
               setAdminScreenState("login");

@@ -1164,12 +1164,27 @@ async function requestBlob(
 }
 
 const inFlightCompleteRequests = new Map<string, Promise<CheckinCompleteResponse>>();
+let inFlightAuthSession: Promise<SessionResponse> | null = null;
+const inFlightSoapRequests = new Map<string, Promise<SoapNoteResponse>>();
 
 export const api = {
   // 1. Auth & Session
   authSession: async (): Promise<SessionResponse> => {
-    return request<SessionResponse>("/api/auth/session", {
+    if (inFlightAuthSession) return inFlightAuthSession;
+    inFlightAuthSession = request<SessionResponse>("/api/auth/session", {
       method: "POST",
+    }).finally(() => {
+      setTimeout(() => {
+        inFlightAuthSession = null;
+      }, 1500);
+    });
+    return inFlightAuthSession;
+  },
+
+  reportAccessDenied: async (portal: string = "admin"): Promise<void> => {
+    await request<void>("/api/auth/access-denied", {
+      method: "POST",
+      body: JSON.stringify({ portal }),
     });
   },
 
@@ -1484,9 +1499,17 @@ export const api = {
   getProviderSoapNote: async (
     checkin_id: string
   ): Promise<SoapNoteResponse> => {
-    return request<SoapNoteResponse>(`/api/provider/review/${encodeURIComponent(checkin_id)}/soap`, {
+    const existing = inFlightSoapRequests.get(checkin_id);
+    if (existing) return existing;
+    const p = request<SoapNoteResponse>(`/api/provider/review/${encodeURIComponent(checkin_id)}/soap`, {
       method: "GET",
+    }).finally(() => {
+      setTimeout(() => {
+        inFlightSoapRequests.delete(checkin_id);
+      }, 2000);
     });
+    inFlightSoapRequests.set(checkin_id, p);
+    return p;
   },
 
   postProviderReviewAction: async (
