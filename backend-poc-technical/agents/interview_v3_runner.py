@@ -426,39 +426,52 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
         if has_glucose_hint and not is_pure_med_dose:
             meter_tok = detect_meter_lo_hi(answer_text)
             if not meter_tok:
-                mmol_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:mmol(?:/l)?)', lower_ans)
-                if mmol_match:
+                today_match = re.search(r'\b(?:today|aaj|ab|now|آج|اب)\s*(?:it\s*(?:is|was)|is|hai|tha|thi|ko)?\s*(\d{2,3})\b', lower_ans)
+                if today_match:
                     try:
-                        mmol_val = float(mmol_match.group(1))
-                        mg_val = round(mmol_val * 18.0, 1)
-                        if 20 <= mg_val <= 600:
-                            known_slots["glucose_reading"] = mg_val
-                            readings["glucose"] = mg_val
+                        g_val = float(today_match.group(1))
+                        if 20 <= g_val <= 600:
+                            known_slots["glucose_reading"] = g_val
+                            readings["glucose"] = g_val
                             session_state["readings"] = readings
                     except Exception:
                         pass
                 else:
-                    mg_match = re.search(r'(\d{2,3})\s*(?:mg(?:/dl)?)', lower_ans)
-                    if mg_match:
+                    mmol_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:mmol(?:/l)?)', lower_ans)
+                    if mmol_match:
                         try:
-                            g_val = float(mg_match.group(1))
-                            if 20 <= g_val <= 600:
-                                known_slots["glucose_reading"] = g_val
-                                readings["glucose"] = g_val
+                            mmol_val = float(mmol_match.group(1))
+                            mg_val = round(mmol_val * 18.0, 1)
+                            if 20 <= mg_val <= 600:
+                                known_slots["glucose_reading"] = mg_val
+                                readings["glucose"] = mg_val
                                 session_state["readings"] = readings
                         except Exception:
                             pass
                     else:
-                        sug_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز).*?(\d{2,3})\b', lower_ans)
-                        if sug_match:
+                        mg_match = re.search(r'(\d{2,3})\s*(?:mg(?:/dl)?)', lower_ans)
+                        if mg_match:
                             try:
-                                g_val = float(sug_match.group(1))
+                                g_val = float(mg_match.group(1))
                                 if 20 <= g_val <= 600:
                                     known_slots["glucose_reading"] = g_val
                                     readings["glucose"] = g_val
                                     session_state["readings"] = readings
                             except Exception:
                                 pass
+                        else:
+                            past_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز)\s*(?:was|thi|tha)?\s*(\d{2,3})\s*(?:last\s+week|yesterday|pichle\s+hafte|kal\b)', lower_ans)
+                            if not past_match:
+                                sug_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز).*?(\d{2,3})\b', lower_ans)
+                                if sug_match:
+                                    try:
+                                        g_val = float(sug_match.group(1))
+                                        if 20 <= g_val <= 600:
+                                            known_slots["glucose_reading"] = g_val
+                                            readings["glucose"] = g_val
+                                            session_state["readings"] = readings
+                                    except Exception:
+                                        pass
 
     # 3. Early Glucose Context (Fasting / After meal)
     if "glucose_context" not in known_slots and "diabetes_glucose_context" not in known_slots:
@@ -510,6 +523,185 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
     ]
     if any(re.search(pat, lower_ans) for pat in symptom_denial_patterns):
         known_slots["symptoms_denied"] = True
+
+
+def evaluate_severe_low_sugar(
+    text: Optional[str] = None,
+    session_state: Optional[Any] = None,
+    current_readings: Optional[Dict[str, Any]] = None,
+    current_question: Optional[str] = None,
+    current_step: Optional[str] = None,
+    lang: str = "en",
+) -> Dict[str, Any]:
+    """
+    Evaluates acute severe hypoglycemia (< 54 mg/dL or < 3.0 mmol/L) with confusion,
+    disorientation, inability to eat/drink, or fainting/seizure turn-by-turn.
+    Deterministic: Calls triage_protocol._decide_glucose_low without duplicating thresholds.
+    If glucose < 70 without neuro symptoms, returns approved low-sugar guidance.
+    """
+    from agents.triage_protocol import (
+        GLUCOSE_VERY_LOW_MG_DL,
+        GLUCOSE_LOW_MG_DL,
+        _decide_glucose_low,
+        TriageProtocolState,
+        GLUCOSE,
+    )
+    from agents.interview_bank.loader import get_message
+
+    text_clean = (text or "").strip()
+    lower_ans = text_clean.lower()
+    glucose_val = None
+
+    # 1. Check text for current reading
+    today_match = re.search(r'\b(?:today|aaj|ab|now|آج|اب)\s*(?:it\s*(?:is|was)|is|hai|tha|thi|ko)?\s*(\d{2,3})\b', lower_ans)
+    if today_match:
+        val = float(today_match.group(1))
+        if 20 <= val <= 600:
+            glucose_val = val
+    else:
+        mmol_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:mmol(?:/l)?)', lower_ans)
+        if mmol_match:
+            val = round(float(mmol_match.group(1)) * 18.0, 1)
+            if 20 <= val <= 600:
+                glucose_val = val
+        else:
+            mg_match = re.search(r'(\d{2,3})\s*(?:mg(?:/dl)?)', lower_ans)
+            if mg_match:
+                val = float(mg_match.group(1))
+                if 20 <= val <= 600:
+                    glucose_val = val
+            else:
+                past_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز)\s*(?:was|thi|tha)?\s*(\d{2,3})\s*(?:last\s+week|yesterday|pichle\s+hafte|kal\b)', lower_ans)
+                if not past_match:
+                    sug_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز).*?(\d{2,3})\b', lower_ans)
+                    if sug_match:
+                        val = float(sug_match.group(1))
+                        if 20 <= val <= 600:
+                            glucose_val = val
+
+    # 2. Check if answer is a pure numeric response to glucose question
+    if glucose_val is None and current_step in ("glucose_reading", "fasting_blood_sugar", "diabetes_glucose_reading") and text_clean.isdigit():
+        val = float(text_clean)
+        if 20 <= val <= 600:
+            glucose_val = val
+
+    # 3. Check current readings dict
+    if glucose_val is None and current_readings and isinstance(current_readings, dict):
+        val = current_readings.get("glucose")
+        if val is not None:
+            glucose_val = float(val)
+
+    # 4. Check session state
+    if glucose_val is None and session_state:
+        if isinstance(session_state, dict):
+            val = session_state.get("readings", {}).get("glucose")
+            if val is None:
+                val = session_state.get("known_slots", {}).get("glucose_reading")
+            if val is None:
+                val = session_state.get("known_slots", {}).get("diabetes_glucose_reading")
+            if val is not None:
+                try:
+                    glucose_val = float(val)
+                except Exception:
+                    pass
+        elif hasattr(session_state, "answers") and isinstance(session_state.answers, dict):
+            val = session_state.answers.get("glucose_reading")
+            if val is not None:
+                try:
+                    glucose_val = float(val)
+                except Exception:
+                    pass
+
+    # Threshold checks against triage_protocol constants
+    if glucose_val is None or glucose_val >= GLUCOSE_LOW_MG_DL:
+        return {"is_emergency": False, "needs_low_guidance": False, "glucose_val": glucose_val}
+
+    if glucose_val >= GLUCOSE_VERY_LOW_MG_DL:
+        return {
+            "is_emergency": False,
+            "needs_low_guidance": True,
+            "glucose_val": glucose_val,
+            "guidance": get_message("v3_possible_low_guidance", lang),
+        }
+
+    # glucose_val < GLUCOSE_VERY_LOW_MG_DL (< 54 mg/dL or < 3.0 mmol/L)
+    # Check confusion / neuro symptoms in EN, Urdu, Roman Urdu
+    NEURO_PATTERNS = [
+        r'\b(?:confus\w*|disorient\w*|can\'?t think(?:\s+straight)?|cannot think(?:\s+straight)?|unable to think|trouble thinking|mind is foggy|drows\w*|trouble staying awake)\b',
+        r'(?:\u0627\u0644\u062c\u06be\u0646|\u0633\u0645\u062c\u06be \u0646\u06c1\u06cc\u06ba|\u06a9\u0686\u06be \u0633\u0645\u062c\u06be \u0646\u06c1\u06cc\u06ba|\u0630\u06c1\u0646 \u06a9\u0627\u0645 \u0646\u06c1\u06cc\u06ba|\u062f\u0645\u0627\u063a \u06a9\u0627\u0645 \u0646\u06c1\u06cc\u06ba|\u0633\u0648\u0686 \u0646\u06c1\u06cc\u06ba \u067e\u0627 \u0631\u06c1|\u063a\u0646\u0648\u062f\u06af\u06cc)',
+        r'\b(?:kuch samajh nahi|samajh nahi aa rah|samajh nahi arah|samajh nahi aari|samajh nahi aa rahi|zehn kaam nahi|dimagh kaam nahi|soch nahi pa rah|soch nahi pa rahi|socha nahi ja rah|uljhan|ghunoodgi)\b',
+    ]
+    SWALLOW_PATTERNS = [
+        r'\b(?:unable to (?:eat|drink|swallow)|can(?:\'?t|not) (?:eat|drink|swallow)|not able to (?:eat|drink|swallow))\b',
+        r'(?:\u06a9\u06be\u0627 \u067e\u06cc \u0646\u06c1\u06cc\u06ba|\u067e\u0627\u0646\u06cc \u0646\u06c1\u06cc\u06ba \u067e\u06cc|\u0646\u06af\u0644 \u0646\u06c1\u06cc\u06ba)',
+        r'\b(?:kha pi nahi|kuch kha pi nahi|pani nahi pee|nigal nahi|kha pee nahi)\b',
+    ]
+    SEIZURE_PATTERNS = [
+        r'\b(?:faint\w*|passed out|passing out|blacked out|blacking out|collaps\w*|unconscious\w*|loss of consciousness|seizur\w*|fits|convuls\w*)\b',
+        r'(?:\u0628\u06d2 \u06c1\u0648\u0634|\u0628\u06cc\u06c1\u0648\u0634|\u063a\u0634|\u062f\u0648\u0631\u06c1|\u062f\u0648\u0631\u06d2|\u062c\u06be\u0679\u06a9\u06d2)',
+        r'\b(?:behosh|be hosh|gash|daura|daure|jhatke|gir gay[ai])\b',
+    ]
+
+    def has_active_symptom(t: str, patterns: List[str]) -> bool:
+        for pat in patterns:
+            for m in re.finditer(pat, t, re.IGNORECASE):
+                start = m.start()
+                end = m.end()
+                pre = t[max(0, start-20):start].lower()
+                post = t[end:min(len(t), end+20)].lower()
+                is_neg = any(w in pre or w in post for w in ['no', 'not', 'nahi', 'nahin', 'نہیں', 'koi'])
+                if not is_neg:
+                    return True
+        return False
+
+    texts_to_check = [text_clean]
+    if session_state and isinstance(session_state, dict):
+        if session_state.get('opening_note'):
+            texts_to_check.append(session_state['opening_note'])
+        texts_to_check.extend(session_state.get('raw_answers', []))
+        for v in session_state.get('answers', {}).values():
+            if isinstance(v, str):
+                texts_to_check.append(v)
+    elif session_state and hasattr(session_state, 'answers') and isinstance(session_state.answers, dict):
+        for v in session_state.answers.values():
+            if isinstance(v, str):
+                texts_to_check.append(v)
+
+    has_neuro = any(has_active_symptom(t, NEURO_PATTERNS) or has_active_symptom(t, SEIZURE_PATTERNS) for t in texts_to_check)
+    has_swallow = any(has_active_symptom(t, SWALLOW_PATTERNS) for t in texts_to_check)
+
+    # Check affirmative answer to neuro question
+    if not has_neuro and current_question:
+        q_low = current_question.lower()
+        if re.search(r'\b(?:confus\w*|shakin\w*|sweat\w*|dizz\w*|الجھن|چکر|پسینہ|uljhan|chakkar|paseena)\b', q_low):
+            if re.search(r'\b(?:yes|haan|jee|ji|yep|yeah|جی|ہاں)\b', lower_ans):
+                has_neuro = True
+
+    if has_neuro or has_swallow:
+        st = TriageProtocolState(
+            protocol='glucose_low',
+            age_band='adult_18_64',
+            readings={GLUCOSE: glucose_val},
+            answers={'orientation': False} if has_neuro else {'can_swallow': False},
+        )
+        t_res = _decide_glucose_low(st)
+        return {
+            'is_emergency': True,
+            'needs_low_guidance': False,
+            'emergency_reason': t_res.get('summary') or f"glucose low: glucose {glucose_val:g} mg/dL; Low glucose with disorientation or acute confusion.",
+            'triage_dict': t_res,
+            'glucose_val': glucose_val,
+            'guidance': t_res.get('guidance'),
+        }
+
+    return {
+        'is_emergency': False,
+        'needs_low_guidance': True,
+        'emergency_reason': None,
+        'triage_dict': None,
+        'glucose_val': glucose_val,
+        'guidance': get_message('v3_possible_low_guidance', lang),
+    }
 
 
 def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]:
@@ -712,6 +904,30 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     asked_slots = session_state.get("asked_slots", [])
     eff_answer = clinical_remainder if (is_caregiver and clinical_remainder) else clean_answer
     _extract_early_slots(eff_answer, session_state, lang)
+
+    # P0-2: Immediate severe low sugar check right after early slot extraction
+    early_low_eval = evaluate_severe_low_sugar(
+        text=eff_answer,
+        session_state=session_state,
+        current_readings=session_state.get("readings"),
+        current_question=session_state.get("current_question"),
+        current_step=current_slot,
+        lang=lang,
+    )
+    if early_low_eval.get("is_emergency"):
+        session_state["emergency"] = True
+        session_state["emergency_reason"] = early_low_eval["emergency_reason"]
+        session_state["completed"] = True
+        session_state["step"] = "COMPLETE"
+        session_state["current_question"] = None
+        session_state["system_note"] = get_message("emergency_red_flag_note", lang)
+        from agents.danger_wordgroups import get_safety_note
+        session_state["safety_note"] = get_safety_note(lang)
+        session_state["triage"] = early_low_eval.get("triage_dict")
+        return session_state
+    elif early_low_eval.get("needs_low_guidance"):
+        session_state["safety_note"] = early_low_eval["guidance"]
+        session_state["system_note"] = early_low_eval["guidance"]
 
     # Check if we were awaiting glucose unit clarification
     if session_state.get("awaiting_glucose_unit"):
@@ -1176,6 +1392,30 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     session_state["can_say_unknown"] = can_say_unknown
     session_state["progress_hint"] = f"{decision.question_count}/{decision.max_budget}"
     session_state["current_decision_target"] = decision.target_slot
+
+    # P0-2: Turn-end severe low sugar check
+    low_eval = evaluate_severe_low_sugar(
+        text=eff_answer,
+        session_state=session_state,
+        current_readings=session_state.get("readings"),
+        current_question=session_state.get("current_question"),
+        current_step=session_state.get("step"),
+        lang=lang,
+    )
+    if low_eval.get("is_emergency"):
+        session_state["emergency"] = True
+        session_state["emergency_reason"] = low_eval["emergency_reason"]
+        session_state["completed"] = True
+        session_state["step"] = "COMPLETE"
+        session_state["current_question"] = None
+        session_state["system_note"] = get_message("emergency_red_flag_note", lang)
+        from agents.danger_wordgroups import get_safety_note
+        session_state["safety_note"] = get_safety_note(lang)
+        session_state["triage"] = low_eval.get("triage_dict")
+        return session_state
+    elif low_eval.get("needs_low_guidance"):
+        session_state["safety_note"] = low_eval["guidance"]
+        session_state["system_note"] = low_eval["guidance"]
 
     return session_state
 

@@ -4251,6 +4251,15 @@ def evaluate_text_safety(
         from agents.danger_wordgroups import get_safety_note
         safety_note = get_safety_note(lang)
 
+    # 4. Severe low sugar with neuro symptoms check (P0-2)
+    from agents.interview_v3_runner import evaluate_severe_low_sugar
+    low_eval = evaluate_severe_low_sugar(text=clean_text, current_step=current_step, lang=lang)
+    if low_eval.get("is_emergency"):
+        is_emergency = True
+        emergency_reason = low_eval["emergency_reason"]
+    elif low_eval.get("needs_low_guidance") and not safety_note:
+        safety_note = low_eval["guidance"]
+
     return {
         "is_emergency": is_emergency,
         "is_urgent": is_urgent,
@@ -5216,6 +5225,29 @@ def answer_checkin_endpoint(
             except Exception:
                 pass
 
+        # P0-2: Turn-by-turn severe low sugar with neuro symptoms check
+        from agents.interview_v3_runner import evaluate_severe_low_sugar
+        low_eval = evaluate_severe_low_sugar(
+            text=body.answer,
+            session_state=next_state,
+            current_readings=next_state.get("readings"),
+            current_question=current_state.get("current_question"),
+            current_step=current_step_id,
+            lang=lang,
+        )
+        if low_eval.get("is_emergency"):
+            is_emergency = True
+            emergency_reason = low_eval["emergency_reason"]
+            next_state["emergency"] = True
+            next_state["emergency_reason"] = low_eval["emergency_reason"]
+            next_state["completed"] = True
+            next_state["step"] = "COMPLETE"
+            next_state["current_question"] = None
+            next_state["triage"] = low_eval.get("triage_dict")
+        elif low_eval.get("needs_low_guidance") and not next_state.get("safety_note"):
+            next_state["safety_note"] = low_eval["guidance"]
+            next_state["system_note"] = low_eval["guidance"]
+
         if is_emergency or is_urgent_v3:
             if is_emergency and not next_state.get("safety_note"):
                 from agents.danger_wordgroups import get_safety_note
@@ -5467,6 +5499,22 @@ def answer_checkin_endpoint(
                 outcome=outcome_val,
                 detail={"group": wg_hit.group},
             )
+
+    # P0-2: Turn-by-turn severe low sugar with neuro symptoms check for v2
+    from agents.interview_v3_runner import evaluate_severe_low_sugar
+    v2_low_eval = evaluate_severe_low_sugar(
+        text=body.answer,
+        session_state=next_state,
+        current_readings=getattr(next_state, "readings", None),
+        current_question=get_current_question(current_state),
+        current_step=current_state.step,
+        lang=lang,
+    )
+    if v2_low_eval.get("is_emergency"):
+        next_state.stage1_red_flag = True
+        next_state.stage1_reason = v2_low_eval["emergency_reason"]
+    elif v2_low_eval.get("needs_low_guidance") and not v2_safety_note:
+        v2_safety_note = v2_low_eval["guidance"]
 
     rf_level = get_red_flag_level(next_state.stage1_reason) if next_state.stage1_red_flag else "routine"
     is_emergency = bool(

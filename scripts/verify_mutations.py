@@ -605,6 +605,14 @@ MUTATIONS = [
         "replacement": "    if False and opening_note:\n        safety_eval = evaluate_text_safety(opening_note, lang=patient_lang, current_step=\"opening_note\")",
         "test_node": "backend-poc-technical/test_opening_note_safety.py::test_mutation_killed_opening_note_skips_red_flag",
     },
+    {
+        "id": "M-SEVERE-LOW-1",
+        "name": "Severe low sugar with confusion checked only at complete",
+        "file": BACKEND_DIR / "main.py",
+        "target": "        if low_eval.get(\"is_emergency\"):\n            is_emergency = True",
+        "replacement": "        if False and low_eval.get(\"is_emergency\"):\n            is_emergency = True",
+        "test_node": "backend-poc-technical/test_severe_low_sugar.py::test_mutation_killed_severe_low_only_at_complete",
+    },
 ]
 
 
