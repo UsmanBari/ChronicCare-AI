@@ -691,7 +691,8 @@ def step_decide_triage(
         review_status = "open" if final_requires_review else "resolved"
 
         from agents.danger_wordgroups import is_danger_wordgroups_enabled
-        if is_danger_wordgroups_enabled():
+        is_nrf_enabled = os.environ.get("NEGATED_RED_FLAG_TO_REVIEW", "true").strip().lower() in ("true", "1", "yes")
+        if is_danger_wordgroups_enabled() or is_nrf_enabled:
             wordgroup_hits = []
             if hasattr(state, "answers") and isinstance(state.answers, dict) and state.answers.get("_wordgroup_hits"):
                 wordgroup_hits.extend(state.answers["_wordgroup_hits"])
@@ -700,6 +701,9 @@ def step_decide_triage(
             for it in (getattr(state, "intakes", None) or []):
                 if isinstance(it, dict) and it.get("wordgroup_hits"):
                     wordgroup_hits.extend(it["wordgroup_hits"])
+
+            if not is_danger_wordgroups_enabled():
+                wordgroup_hits = [h for h in wordgroup_hits if isinstance(h, dict) and h.get("group") == "negated_red_flag_needs_review"]
 
             if wordgroup_hits:
                 final_triage_level = _raise_level(final_triage_level, "review")
@@ -786,7 +790,8 @@ def step_decide_triage(
             triage_dict = None
 
         from agents.danger_wordgroups import is_danger_wordgroups_enabled
-        if is_danger_wordgroups_enabled():
+        is_nrf_enabled = os.environ.get("NEGATED_RED_FLAG_TO_REVIEW", "true").strip().lower() in ("true", "1", "yes")
+        if is_danger_wordgroups_enabled() or is_nrf_enabled:
             wordgroup_hits = []
             if hasattr(state, "answers") and isinstance(state.answers, dict) and state.answers.get("_wordgroup_hits"):
                 wordgroup_hits.extend(state.answers["_wordgroup_hits"])
@@ -795,6 +800,9 @@ def step_decide_triage(
             for it in (getattr(state, "intakes", None) or []):
                 if isinstance(it, dict) and it.get("wordgroup_hits"):
                     wordgroup_hits.extend(it["wordgroup_hits"])
+
+            if not is_danger_wordgroups_enabled():
+                wordgroup_hits = [h for h in wordgroup_hits if isinstance(h, dict) and h.get("group") == "negated_red_flag_needs_review"]
 
             if wordgroup_hits:
                 final_triage_level = _raise_level(final_triage_level, "review")

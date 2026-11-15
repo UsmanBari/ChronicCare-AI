@@ -527,26 +527,18 @@ MUTATIONS = [
         "id": "M-RF-2",
         "name": "Red Flag Patterns: Disable symptom negation guard",
         "file": BACKEND_DIR / "agents" / "red_flag_patterns.py",
-        "target": "    if is_symptom_negated(norm):",
-        "replacement": "    if False and is_symptom_negated(norm):",
+        "target": "        if is_symptom_negated(raw_text):",
+        "replacement": "        if False and is_symptom_negated(raw_text):",
         "test_node": "backend-poc-technical/test_red_flag_patterns.py::test_mutation_killed_negation_guard",
     },
     {
         "id": "M-RF-3",
         "name": "Red Flag Patterns: Apply fainting recovery suppression to all categories regardless of reason",
-        "file": BACKEND_DIR / "main.py",
-        "target": """            if next_state.stage1_reason in ("loss_of_consciousness", "fainting"):
-                if is_fainting_recovered_or_benign(body.answer):
-                    other_cats = [c for c in match_categories(body.answer) if c != "loss_of_consciousness"]
-                    if other_cats:
-                        next_state.stage1_red_flag = True
-                        next_state.stage1_reason = other_cats[0]
-                    else:
-                        next_state.stage1_red_flag = False
-                        next_state.stage1_reason = None""",
-        "replacement": """            if is_fainting_recovered_or_benign(body.answer):
-                next_state.stage1_red_flag = False
-                next_state.stage1_reason = None""",
+        "file": BACKEND_DIR / "agents" / "red_flag_patterns.py",
+        "target": """            # Fainting recovery can ONLY cancel loss_of_consciousness in its own clause
+            if cat in ("loss_of_consciousness", "fainting") and is_syncope_rec:""",
+        "replacement": """            # Fainting recovery can ONLY cancel loss_of_consciousness in its own clause
+            if is_fainting_recovered_or_benign(answer):""",
         "test_node": "backend-poc-technical/test_red_flag_patterns.py::test_mutation_killed_fainting_recovery_scoped",
     },
     {
@@ -572,6 +564,30 @@ MUTATIONS = [
         "target": "    if symptom_finding_enabled and (state is not None or symptoms is not None):",
         "replacement": "    if True and (state is not None or symptoms is not None):",
         "test_node": "backend-poc-technical/test_symptom_finding_raise.py::test_flag_off_preserves_routine",
+    },
+    {
+        "id": "M-SN-1",
+        "name": "Yellow Safety Net disabled (R5.4)",
+        "file": BACKEND_DIR / "agents" / "danger_wordgroups.py",
+        "target": '    return val in ("true", "1", "yes")',
+        "replacement": "    return False",
+        "test_node": "backend-poc-technical/test_red_flag_r5.py::test_mutation_killed_safety_net_disabled",
+    },
+    {
+        "id": "M-NRF-1",
+        "name": "Negated base red-flag hit still triggers Red emergency (R6 F5)",
+        "file": BACKEND_DIR / "main.py",
+        "target": "    if (next_state.stage1_red_flag or (hasattr(next_state, " + '"intake")' + " and isinstance(next_state.intake, dict) and next_state.intake.get(" + '"emergency")' + ")) and body.answer and is_negated_red_flag_to_review_enabled():",
+        "replacement": "    if False and (next_state.stage1_red_flag or (hasattr(next_state, " + '"intake")' + " and isinstance(next_state.intake, dict) and next_state.intake.get(" + '"emergency")' + ")) and body.answer and is_negated_red_flag_to_review_enabled():",
+        "test_node": "backend-poc-technical/test_red_flag_r6.py::test_mutation_killed_negated_base_hit_still_red",
+    },
+    {
+        "id": "M-F5-WHOLE",
+        "name": "F5 uses whole-answer negation (R7)",
+        "file": BACKEND_DIR / "agents" / "red_flag_patterns.py",
+        "target": "    if not answer or not isinstance(answer, str) or not answer.strip():\n        return RedDecision(is_red=False, category=None, cancelled_hits=[])",
+        "replacement": "    if not answer or not isinstance(answer, str) or not answer.strip():\n        return RedDecision(is_red=False, category=None, cancelled_hits=[])\n    if is_symptom_negated_or_remote_past(answer):\n        return RedDecision(is_red=False, category=None, cancelled_hits=[{'category': 'mutant', 'reason': 'whole_answer_negated'}])",
+        "test_node": "backend-poc-technical/test_red_flag_mixed_answers.py::test_mutation_killed_whole_answer_negation",
     },
 ]
 
