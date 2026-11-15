@@ -101,7 +101,7 @@ export const RoutedToReviewScreen = () => {
     ? medComparisons.map((c: any) => {
         const v = medVerifications.find((ver: any) => ver.medication_name === c.medication_name);
         return {
-          desc: describeMedicationItem(c, v, isUrdu),
+          desc: describeMedicationItem(c, v, isUrdu, language),
           comparison: c,
           verification: v,
         };
@@ -192,7 +192,7 @@ export const RoutedToReviewScreen = () => {
           <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-300 text-left space-y-2 animate-fadeIn">
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-950 flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-              <span>{isUrdu ? "تصدیق شدہ ادویات:" : "Confirmed medicines:"}</span>
+              <span>{isUrdu ? "تصدیق شدہ ادویات:" : isRomanUrdu ? "Tasdeeq shuda dawaiyan:" : "Confirmed medicines:"}</span>
             </span>
             <div className="space-y-1.5">
               {confirmedMeds.map((m, idx) => (
@@ -218,7 +218,7 @@ export const RoutedToReviewScreen = () => {
         {isLiveMode && flaggedMeds.length > 0 && (
           <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-300 text-left space-y-2.5 animate-fadeIn">
             <span className="text-xs font-bold uppercase tracking-wider text-amber-950 block">
-              {isUrdu ? "جائزے کے لیے بھیجی گئی ادویات:" : "Medications Flagged for Review:"}
+              {isUrdu ? "جائزے کے لیے بھیجی گئی ادویات:" : isRomanUrdu ? "Jaize ke liye bheji gayi dawaiyan:" : "Medications Flagged for Review:"}
             </span>
             <div className="space-y-2">
               {flaggedMeds.map((m, idx) => {

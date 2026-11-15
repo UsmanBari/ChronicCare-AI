@@ -194,12 +194,9 @@ describe("Live Mode Demo Identities Gating (Part E)", () => {
       });
       vi.spyOn(api, "getEHRSystems").mockResolvedValue([
         {
-          id: "ehr-live-national",
+          ehr_system_id: "ehr-live-national",
           display_name: "National Medical Center FHIR",
-          base_url: "https://fhir.national-med.org/r4",
           kind: "epic",
-          auth_type: "smart",
-          created_at: "2026-11-01T00:00:00Z",
         },
       ]);
       vi.spyOn(api, "getProviderAppointments").mockResolvedValue({

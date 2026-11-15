@@ -85,10 +85,12 @@ export function calculateAgeFromDob(dobString?: string | null, asOfDateStr?: str
 export function describeMedicationItem(
   comparison?: MedicationComparison | null,
   verification?: MedicationVerification | null,
-  isUrdu?: boolean
+  isUrdu?: boolean,
+  lang?: string
 ): MedicationItemDescription {
+  const isRoman = lang === "roman_ur" || (!isUrdu && lang?.includes("roman"));
   const medName =
-    comparison?.medication_name || verification?.medication_name || (isUrdu ? "دوا" : "Medication");
+    comparison?.medication_name || verification?.medication_name || (isUrdu ? "دوا" : isRoman ? "Dawa" : "Medication");
   const title = medName;
 
   const statusA = (comparison?.status_a || "active").toLowerCase();
@@ -109,7 +111,11 @@ export function describeMedicationItem(
   let recordDetails = "";
   let recordText = "";
   if (compStatus === "missing_in_a" || compStatus === "source_b_only") {
-    recordText = isUrdu ? "ریکارڈ: ہسپتال کے ریکارڈ میں موجود نہیں" : "Record: Not found in hospital record";
+    recordText = isUrdu
+      ? "ریکارڈ: ہسپتال کے ریکارڈ میں موجود نہیں"
+      : isRoman
+      ? "Record: Hospital ke record mein nahi mila"
+      : "Record: Not found in hospital record";
   } else if (dosageA) {
     recordDetails = `${dosageA} (${statusA})`;
     recordText = isUrdu
@@ -123,49 +129,65 @@ export function describeMedicationItem(
   }
 
   // 2. Today's Text (Side B)
-  let todayText = isUrdu ? "آج نہیں بتایا گیا" : "Not reported today";
+  let todayText = isUrdu ? "آج نہیں بتایا گیا" : isRoman ? "Aaj nahi bataya gaya" : "Not reported today";
   if (compStatus === "missing_in_b" || (!statusB && !dosageB)) {
-    todayText = isUrdu ? "آج نہیں بتایا گیا" : "Not reported today";
+    todayText = isUrdu ? "آج نہیں بتایا گیا" : isRoman ? "Aaj nahi bataya gaya" : "Not reported today";
   } else if (statusB === "stopped") {
-    todayText = isUrdu ? "آج: بند کر دی ہے" : "Today: stopped";
+    todayText = isUrdu ? "آج: بند کر دی ہے" : isRoman ? "Aaj: band kar di hai" : "Today: stopped";
   } else if (statusB === "active") {
     if (dosageB && dosageA && dosageB.toLowerCase() !== dosageA.toLowerCase()) {
       todayText = isUrdu
         ? `آج: جاری، نئی مقدار: ${dosageB}`
+        : isRoman
+        ? `Aaj: jari, nayi dose: ${dosageB}`
         : `Today: active, new dose: ${dosageB}`;
     } else if (dosageB) {
-      todayText = isUrdu ? `آج: جاری، ${dosageB}` : `Today: active, ${dosageB}`;
+      todayText = isUrdu ? `آج: جاری، ${dosageB}` : isRoman ? `Aaj: jari, ${dosageB}` : `Today: active, ${dosageB}`;
     } else if (dosageA) {
-      todayText = isUrdu ? `آج: جاری، ${dosageA}` : `Today: active, ${dosageA}`;
+      todayText = isUrdu ? `آج: جاری، ${dosageA}` : isRoman ? `Aaj: jari, ${dosageA}` : `Today: active, ${dosageA}`;
     } else {
-      todayText = isUrdu ? "آج: جاری" : "Today: active";
+      todayText = isUrdu ? "آج: جاری" : isRoman ? "Aaj: jari" : "Today: active";
     }
   } else if (dosageB) {
-    todayText = isUrdu ? `آج: ${dosageB}` : `Today: ${dosageB}`;
+    todayText = isUrdu ? `آج: ${dosageB}` : isRoman ? `Aaj: ${dosageB}` : `Today: ${dosageB}`;
   }
 
   // 3. Reason
-  let reason = isUrdu ? "طبی معالج کے جائزے کی ضرورت ہے۔" : "Requires clinician review.";
+  let reason = isUrdu
+    ? "طبی معالج کے جائزے کی ضرورت ہے۔"
+    : isRoman
+    ? "Doctor ke jaize ki zaroorat hai."
+    : "Requires clinician review.";
   if (isConfirmed) {
-    reason = isUrdu ? "ریکارڈ کے مطابق ہے۔" : "Matches the record.";
+    reason = isUrdu ? "ریکارڈ کے مطابق ہے۔" : isRoman ? "Record ke mutabiq hai." : "Matches the record.";
   } else if (compStatus === "conflict") {
     if (statusA === "active" && statusB === "stopped") {
       reason = isUrdu
         ? "ریکارڈ کے مطابق آپ یہ دوا لیتے ہیں؛ آپ نے بتایا کہ آپ نے بند کر دی ہے۔"
+        : isRoman
+        ? "Record ke mutabiq aap yeh dawa letay hain; aap ne bataya ke aap ne band kar di hai."
         : "The record says you take this medication; you said you stopped it.";
     } else if (dosageA && dosageB && dosageA.toLowerCase() !== dosageB.toLowerCase()) {
       reason = isUrdu
         ? "آپ نے ریکارڈ سے مختلف مقدار بتائی ہے۔"
+        : isRoman
+        ? "Aap ne record se mukhtalif dose batayi hai."
         : "You reported a different dose from the record.";
     } else {
       reason = isUrdu
         ? "ریکارڈ کے مطابق آپ یہ دوا لیتے ہیں؛ آپ نے بتایا کہ آپ نے بند کر دی ہے۔"
+        : isRoman
+        ? "Record ke mutabiq aap yeh dawa letay hain; aap ne bataya ke aap ne band kar di hai."
         : "The record says you take this medication; you said you stopped it.";
     }
   } else if (compStatus === "missing_in_a" || compStatus === "source_b_only") {
-    reason = isUrdu ? "ریکارڈ میں موجود نہیں، جائزے کی ضرورت ہے" : "missing in record, needs review";
+    reason = isUrdu
+      ? "ریکارڈ میں موجود نہیں، جائزے کی ضرورت ہے"
+      : isRoman
+      ? "Record mein nahi mila, jaize ki zaroorat hai"
+      : "missing in record, needs review";
   } else if (compStatus === "missing_in_b") {
-    reason = isUrdu ? "آج نہیں بتایا گیا۔" : "Not reported today.";
+    reason = isUrdu ? "آج نہیں بتایا گیا۔" : isRoman ? "Aaj nahi bataya gaya." : "Not reported today.";
   } else if (verification?.review_reason && verification.review_reason.trim()) {
     reason = verification.review_reason.trim();
   }

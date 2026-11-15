@@ -56,6 +56,8 @@ export const AdaptiveInterviewScreen = () => {
     language,
   } = useApp();
 
+  const isRomanUrdu = (language as string) === "roman_ur" || liveProfile?.language === "roman_ur";
+
   // --- LIVE MODE STATE ---
   const [liveQuestion, setLiveQuestion] = useState<string>("");
   const [liveAnswerInput, setLiveAnswerInput] = useState<string>("");
@@ -670,7 +672,7 @@ export const AdaptiveInterviewScreen = () => {
             {currentStep?.startsWith("medication_check") && (
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-100 text-teal-900 border border-teal-300 text-xs font-bold uppercase tracking-wider w-fit">
                 <Pill className="w-3.5 h-3.5 text-teal-700" />
-                <span>{isUrdu ? "ادویات کی تصدیق" : "Medication check"}</span>
+                <span>{isUrdu ? "ادویات کی تصدیق" : isRomanUrdu ? "Dawaiyon ki Tasdeeq" : "Medication check"}</span>
               </div>
             )}
 
@@ -837,17 +839,17 @@ export const AdaptiveInterviewScreen = () => {
                   className="min-h-[42px] py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 border-2 border-teal-600 text-teal-900 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-2xs"
                 >
                   <CheckCircle2 className="w-4 h-4 text-teal-700" />
-                  <span>{isUrdu ? "ہاں، وہی مقدار" : "Yes, same dose"}</span>
+                  <span>{isUrdu ? "ہاں، وہی مقدار" : isRomanUrdu ? "Haan, wahi dose" : "Yes, same dose"}</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleLiveSendAnswer("no")}
+                  onClick={() => handleLiveSendAnswer(isUrdu ? "نہیں، میں نے بند کر دی ہے" : isRomanUrdu ? "band kar di hai" : "no")}
                   disabled={isSending}
                   id="med-check-no-btn"
                   className="min-h-[42px] py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 border-2 border-slate-300 text-slate-800 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-2xs"
                 >
                   <RotateCcw className="w-4 h-4 text-slate-600" />
-                  <span>{isUrdu ? "نہیں، میں نے بند کر دی ہے" : "No, I stopped it"}</span>
+                  <span>{isUrdu ? "نہیں، میں نے بند کر دی ہے" : isRomanUrdu ? "Nahi, band kar di hai" : "No, I stopped it"}</span>
                 </button>
               </div>
             )}

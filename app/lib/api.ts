@@ -1645,7 +1645,7 @@ export const api = {
     return request("/api/admin/stats");
   },
 
-  getAdminUsers: async (): Promise<{ users: Array<{ user_id: string; email: string; role: string; created_at: string }> }> => {
+  getAdminUsers: async (): Promise<{ users: Array<{ user_id: string; email: string; role: string; display_name?: string; created_at: string }> }> => {
     return request("/api/admin/users");
   },
 

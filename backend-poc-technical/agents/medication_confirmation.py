@@ -49,14 +49,28 @@ MAX_MEDICATIONS = 20
 MAX_DOSAGE_CHARS = 100
 SELF_REPORTED_ORIGIN = "self_reported"
 
-_STOP_WORDS = re.compile(r"\b(?:stopped|quit|discontinued|no longer|anymore)\b")
+_STOP_WORDS = re.compile(
+    r"\b(?:stopped|quit|discontinued|no longer|anymore"
+    r"|band\s*kar\s*(?:di|dia|diya|de|deen|dain|dii|gyi|gayi)"
+    r"|band\s*kardi|band\s*kardiya|band\s*kardiye"
+    r"|chho?r\s*(?:di|dia|diya|de|deen|dain|dii)"
+    r"|chho?d\s*(?:di|dia|diya|de|deen|dain|dii)"
+    r"|ab\s+nahi\s+le(?:ta|ti|tay|te|raha|rahi|rahe)"
+    r"|nahi\s+le(?:ta|ti|tay|te|raha|rahi|rahe)"
+    r"|بند\s*کر\s*(?:دی|دیا|دیں|دے)"
+    r"|بند\s*کردی|بند\s*کردیا|بند\s*کردیں"
+    r"|چھوڑ\s*(?:دی|دیا|دیں|دے)"
+    r"|اب\s*نہیں\s*لی(?:تا|تی|تے|رہا|رہی|رہے)"
+    r"|نہیں\s*لی(?:تا|تی|تے|رہا|رہی|رہے))\b",
+    re.IGNORECASE | re.UNICODE,
+)
 _MISSED = re.compile(
     r"\b(?:missed|skipped|forgot|forgotten|didn'?t take|did not take|haven'?t taken|not taken)\b")
 _HARD_NO = re.compile(r"\b(?:no|never|nope|nah|not taking)\b")
 _DOSE_HINT = re.compile(
     r"\d\s*(?:mg|mcg|ml|units?|tablets?|pills?|capsules?|times|x)\b"
     r"|\b(?:mg|mcg|ml|tablets?|pills?|capsules?|units?|half|double|twice|thrice|once|daily|times)\b")
-_LEADING_YES = re.compile(r"^(?:yes|yeah|yep|yup|haan|ji)\b[\s,.:;!-]*", re.IGNORECASE)
+_LEADING_YES = re.compile(r"^(?:yes|yeah|yep|yup|haan|han|ji|bilkul|ہاں|جی|بالکل)\b[\s,.:;!-]*", re.IGNORECASE | re.UNICODE)
 
 
 def _norm(text: Optional[str]) -> str:

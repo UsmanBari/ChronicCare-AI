@@ -22,7 +22,8 @@ import {
 } from "../lib/presentation";
 
 export const ConflictScreen = () => {
-  const { setScreen, checkIn, liveCheckinResult, liveEhrConnection, isLiveMode, t, isUrdu } = useApp();
+  const { setScreen, checkIn, liveCheckinResult, liveEhrConnection, isLiveMode, t, isUrdu, language } = useApp();
+  const isRomanUrdu = (language as string) === "roman_ur";
 
   // In live mode, extract comparisons and verifications
   const obsComparisons = liveCheckinResult?.reconciliation?.observation_comparisons || [];
@@ -37,7 +38,7 @@ export const ConflictScreen = () => {
     ? medComparisons.map((c: any) => {
         const v = medVerifications.find((ver: any) => ver.medication_name === c.medication_name);
         return {
-          desc: describeMedicationItem(c, v, isUrdu),
+          desc: describeMedicationItem(c, v, isUrdu, language),
           comparison: c,
           verification: v,
         };
@@ -95,12 +96,12 @@ export const ConflictScreen = () => {
   let severity = isLiveMode ? (liveCheckinResult?.max_severity || null) : "medium";
 
   // Mock-mode fallback values
-  let sideALabel = isUrdu ? "ماخذ ۱: پہلے درج کردہ ریکارڈ" : "Source A: Earlier Record";
-  let sideBLabel = isUrdu ? "ماخذ ۲: آج کا چیک ان" : "Source B: Today's Check-in";
+  let sideALabel = isUrdu ? "ماخذ ۱: پہلے درج کردہ ریکارڈ" : isRomanUrdu ? "Source A: Purana Record" : "Source A: Earlier Record";
+  let sideBLabel = isUrdu ? "ماخذ ۲: آج کا چیک ان" : isRomanUrdu ? "Source B: Aaj ka Check-in" : "Source B: Today's Check-in";
   let sideAValue = isLiveMode ? "" : "180 mg/dL";
   let sideBValue = isLiveMode ? "" : "140 mg/dL";
-  let sideADesc = isLiveMode ? "" : (isUrdu ? "خون میں شوگر (گلوکوز): 180 mg/dL" : "Glucose reading: 180 mg/dL");
-  let sideBDesc = isLiveMode ? "" : (isUrdu ? "آج کا جواب: 140 mg/dL" : "Today's check-in: 140 mg/dL");
+  let sideADesc = isLiveMode ? "" : (isUrdu ? "خون میں شوگر (گلوکوز): 180 mg/dL" : isRomanUrdu ? "Glucose reading: 180 mg/dL" : "Glucose reading: 180 mg/dL");
+  let sideBDesc = isLiveMode ? "" : (isUrdu ? "آج کا جواب: 140 mg/dL" : isRomanUrdu ? "Aaj ka jawab: 140 mg/dL" : "Today's check-in: 140 mg/dL");
 
   const screenTitle = isLiveMode
     ? isAllPlainConflicts
@@ -352,7 +353,7 @@ export const ConflictScreen = () => {
           <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-300 text-left space-y-2 animate-fadeIn">
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-950 flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-              <span>{isUrdu ? "تصدیق شدہ ادویات:" : "Confirmed medicines:"}</span>
+              <span>{isUrdu ? "تصدیق شدہ ادویات:" : isRomanUrdu ? "Tasdeeq shuda dawaiyan:" : "Confirmed medicines:"}</span>
             </span>
             <div className="space-y-1.5">
               {confirmedMedItems.map((item, idx) => {
@@ -380,7 +381,7 @@ export const ConflictScreen = () => {
         {isLiveMode && flaggedMedItems.length > 0 && (
           <div className="space-y-3 pt-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
-              {isUrdu ? "جائزے کے لیے بھیجی گئی ادویات:" : "Medications flagged for review:"}
+              {isUrdu ? "جائزے کے لیے بھیجی گئی ادویات:" : isRomanUrdu ? "Jaize ke liye bheji gayi dawaiyan:" : "Medications flagged for review:"}
             </span>
             <div className="space-y-3">
               {flaggedMedItems.map((item, idx) => {

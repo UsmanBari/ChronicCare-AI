@@ -4459,7 +4459,8 @@ def start_checkin_endpoint(
             st = InterviewState.from_dict(c_state)
             if st.step == INTERVIEW_COMPLETE and med_st and not med_st.complete:
                 res_step = f"medication_check:{med_st.index}:{med_st.attempts}"
-                res_question = current_medication_question(med_st)
+                checkin_lang = (c_state.get("language") or existing_unanswered.get("language") or "en")
+                res_question = format_medication_question_for_lang(med_st, checkin_lang)
             else:
                 res_step = st.step
                 res_question = get_current_question(st)
@@ -4704,15 +4705,55 @@ def _compute_age_years(dob_str: Optional[str]) -> Optional[int]:
         return None
 
 
+def format_medication_question_for_lang(state: MedicationCheckState, lang: str = "en") -> Optional[str]:
+    if not state or state.complete:
+        return None
+    item = state.items[state.index]
+    label = f"{item['name']} ({item['dosage']})" if item.get("dosage") else item["name"]
+    norm_lang = (lang or "en").lower().strip()
+
+    if norm_lang == "ur" or norm_lang.startswith("ur_") or norm_lang == "urdu":
+        if state.attempts == 0:
+            return (
+                f"آپ کے ریکارڈ میں {label} درج ہے۔ کیا آپ اب بھی یہ دوا لے رہے ہیں؟ "
+                "ہاں یا نہیں میں جواب دیں، یا اب جو خوراک لیتے ہیں وہ بتائیں۔"
+            )
+        return (
+            f"معذرت، میں سمجھ نہیں سکا۔ کیا آپ اب بھی {label} لے رہے ہیں؟ "
+            "براہ کرم ہاں یا نہیں میں جواب دیں، یا خوراک بتائیں۔"
+        )
+    elif norm_lang == "roman_ur" or "roman" in norm_lang:
+        if state.attempts == 0:
+            return (
+                f"Aap ke record mein {label} darj hai. Kya aap ab bhi yeh dawa le rahe hain? "
+                "Haan ya nahi mein jawab dein, ya ab jo dose letay hain woh batayein."
+            )
+        return (
+            f"Mazzrat, samajh nahi aaya. Kya aap ab bhi {label} le rahe hain? "
+            "Barah-e-karam haan ya nahi mein jawab dein, ya dose batayein."
+        )
+    else:
+        return current_medication_question(state)
+
+
 def get_medication_check_ui_metadata(lang: str = "en") -> Dict[str, Any]:
-    is_ur = (lang or "").lower().startswith("ur")
-    if is_ur:
+    norm_lang = (lang or "en").lower().strip()
+    if norm_lang == "ur" or norm_lang.startswith("ur_") or norm_lang == "urdu":
         return {
             "why_text": "آپ کی فعال ادویات کی تصدیق سے یہ یقینی بنانے میں مدد ملتی ہے کہ آپ کا علاج محفوظ اور درست ہے۔",
             "options": ["ہاں، وہی مقدار", "نہیں، میں نے بند کر دی ہے"],
             "option_items": [
                 {"label": "ہاں، وہی مقدار", "value": "yes"},
-                {"label": "نہیں، میں نے بند کر دی ہے", "value": "no, stopped"},
+                {"label": "نہیں، میں نے بند کر دی ہے", "value": "بند کر دی"},
+            ],
+        }
+    if norm_lang == "roman_ur" or "roman" in norm_lang:
+        return {
+            "why_text": "Aap ki active dawaiyon ki tasdeeq se aap ka ilaaj mehfooz aur durust rehta hai.",
+            "options": ["Haan, wahi dose", "Nahi, band kar di hai"],
+            "option_items": [
+                {"label": "Haan, wahi dose", "value": "yes"},
+                {"label": "Nahi, band kar di hai", "value": "band kar di hai"},
             ],
         }
     return {
@@ -4866,7 +4907,7 @@ def answer_checkin_endpoint(
                     completed_at = None
                     is_complete = False
                     next_step_str = f"medication_check:{med_state.index}:{med_state.attempts}"
-                    next_question_str = current_medication_question(med_state)
+                    next_question_str = format_medication_question_for_lang(med_state, lang)
                     next_phase = "medication"
                 else:
                     new_status = "complete"
@@ -4964,7 +5005,7 @@ def answer_checkin_endpoint(
                 content={
                     "detail": "stale_step",
                     "step": expected_step,
-                    "question": current_medication_question(med_state),
+                    "question": format_medication_question_for_lang(med_state, lang),
                 },
             )
 
@@ -4972,7 +5013,7 @@ def answer_checkin_endpoint(
         if not answer_text:
             med_meta = get_medication_check_ui_metadata(lang)
             return CheckinAnswerResponse(
-                question=current_medication_question(med_state),
+                question=format_medication_question_for_lang(med_state, lang),
                 complete=False,
                 emergency=False,
                 emergency_reason=None,
@@ -5130,8 +5171,9 @@ def answer_checkin_endpoint(
             else:
                 next_med_step = f"medication_check:{next_med_state.index}:{next_med_state.attempts}"
                 current_state["step"] = next_med_step
-                current_state["current_question"] = current_medication_question(next_med_state)
-                med_meta = get_medication_check_ui_metadata(current_state.get("language") or lang or "en")
+                med_lang_eff = current_state.get("language") or lang or "en"
+                current_state["current_question"] = format_medication_question_for_lang(next_med_state, med_lang_eff)
+                med_meta = get_medication_check_ui_metadata(med_lang_eff)
                 current_state["why_text"] = med_meta["why_text"]
                 current_state["options"] = med_meta["options"]
                 current_state["option_items"] = med_meta["option_items"]
@@ -5177,7 +5219,7 @@ def answer_checkin_endpoint(
             )
         else:
             return CheckinAnswerResponse(
-                question=current_medication_question(next_med_state),
+                question=format_medication_question_for_lang(next_med_state, lang),
                 complete=False,
                 emergency=False,
                 emergency_reason=None,
@@ -5330,7 +5372,7 @@ def answer_checkin_endpoint(
                     completed_at = None
                     is_complete = False
                     next_step_str = f"medication_check:{med_state.index}:{med_state.attempts}"
-                    next_question_str = current_medication_question(med_state)
+                    next_question_str = format_medication_question_for_lang(med_state, lang)
                     next_phase = "medication"
                     next_state["step"] = next_step_str
                     next_state["current_question"] = next_question_str
@@ -5622,7 +5664,7 @@ def answer_checkin_endpoint(
                 completed_at = None
                 is_complete = False
                 next_step_str = f"medication_check:{med_state.index}:{med_state.attempts}"
-                next_question_str = current_medication_question(med_state)
+                next_question_str = format_medication_question_for_lang(med_state, lang)
                 next_phase = "medication"
             else:
                 new_status = "complete"

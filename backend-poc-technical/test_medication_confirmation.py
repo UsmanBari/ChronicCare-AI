@@ -75,6 +75,13 @@ def test_nameless_records_are_skipped():
     ("I take 2 tablets now", "active", True),
     ("500mg once a day", "active", True),
     ("Yes, since 2020", "active", False),                 # a year is not a dose
+    ("yeh do hafte se band kar di hai", "stopped", False),
+    ("band kar di", "stopped", False),
+    ("chhor di", "stopped", False),
+    ("ab nahi leta", "stopped", False),
+    ("بند کر دی", "stopped", False),
+    ("چھوڑ دی", "stopped", False),
+    ("اب نہیں لیتا", "stopped", False),
 ])
 def test_answer_interpretation(answer, status, changed):
     state = feed(check([METFORMIN]), answer)

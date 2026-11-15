@@ -121,4 +121,31 @@ describe("Medication Result & Confirmation Presentation (FIX 10 Part 7)", () => 
     expect(confirmed).toHaveLength(6);
     expect(flagged).toHaveLength(2);
   });
+
+  it("localizes medication result in Roman Urdu (P1-10)", () => {
+    const comparisonAgree = {
+      medication_name: "Metformin 500mg",
+      status_a: "active",
+      status_b: "active",
+      dosage_a: "500mg daily",
+      dosage_b: "500mg daily",
+      comparison_status: "agree",
+    };
+    const resultAgree = describeMedicationItem(comparisonAgree, null, false, "roman_ur");
+    expect(resultAgree.isConfirmed).toBe(true);
+    expect(resultAgree.reason).toBe("Record ke mutabiq hai.");
+
+    const comparisonStopped = {
+      medication_name: "Lisinopril 10mg",
+      status_a: "active",
+      status_b: "stopped",
+      dosage_a: "10mg daily",
+      dosage_b: null,
+      comparison_status: "conflict",
+    };
+    const resultStopped = describeMedicationItem(comparisonStopped, null, false, "roman_ur");
+    expect(resultStopped.isConfirmed).toBe(false);
+    expect(resultStopped.todayText).toBe("Aaj: band kar di hai");
+    expect(resultStopped.reason).toContain("Record ke mutabiq aap yeh dawa letay hain; aap ne bataya ke aap ne band kar di hai.");
+  });
 });
