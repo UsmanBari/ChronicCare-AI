@@ -31,7 +31,7 @@ Key architectural rules:
 
 import re
 import unicodedata
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict, Any, NamedTuple
 
 
 # Module configuration for window tolerance (architectural invariant verified by mutation M-RF-1)
@@ -512,6 +512,10 @@ _FAILURE_VERB_PATTERNS = [
     r"\b(?:cant|cannot|can\s+not|unable\s+to|struggling\s+to)\s+(?:catch\s+(?:my\s+)?breath|breathe?)\b",
     r"\b(?:cant|cannot|unable\s+to)\s+get\s+air\s+in\b",
     r"\bhawa\s+(?:andar\s+)?nahi\s+(?:jaa?\s*rahi|jaa?\s*raha|aati|aata|mil\s*rahi)\b",
+    r"\bwheez\w*\b.*?\b(?:can\s+barely\s+talk|barely\s+(?:able\s+to\s+)?talk|getting\s+worse|cannot\s+speak|unable\s+to\s+talk)\b",
+    r"\b(?:can\s+barely\s+talk|barely\s+(?:able\s+to\s+)?talk|getting\s+worse|cannot\s+speak|unable\s+to\s+talk)\b.*?\bwheez\w*\b",
+    r"\bitni\s+takleef\b.*?\b(?:ke\s+)?baat\s+nahi\s+ho\s+rah",
+    r"اتنی\s*تکلیف.*?(?:کہ\s*)?بات\s*نہیں\s*ہو\s*رہ",
     r"(?:سانس|دم)\s*(?:\S+\s+){0,4}(?:نہیں\s*(?:آ\s*رہ\w*|جا\s*رہ\w*|لے\s*پا\s*رہ\w*)|پھنسی|اٹکی|رکی)",
     r"دم\s*گھٹ\s*رہ\w*",
     r"ہوا\s*(?:اندر\s*)?نہیں\s*(?:جا\s*رہی|آ\s*رہی|مل\s*رہی)",
@@ -519,10 +523,14 @@ _FAILURE_VERB_PATTERNS = [
     # Syncope / Consciousness failure
     r"\b(?:aankh|ankh)\w*\s+(?:\w+\s+){0,3}nahi\s+(?:khol|khul)\b",
     r"\b(?:uth|uth\s*pa)\s+nahi\s+rah[iyea]\b",
+    r"\b(?:not|cant|cannot|unable\s+to|wont|is\s+not|are\s+not)\s+responding\b",
+    r"\bno\s+response\b",
     r"\b(?:koi\s+)?jawab\s+(?:\w+\s+){0,2}nahi\s+(?:de\s+rah\w*|diya|aaraha)\b",
     r"\b(?:koi\s+)?hosh\s+(?:\w+\s+){0,2}nahi\s+(?:aa\s*rah\w*|aaya|aya|hai)\b",
     r"\bbe\s*hosh\s+pa[rd][aiey]\b",
     r"\bbilkul\s+be\s*hosh\b",
+    r"\b(?:jagaane|jagane|uthane)\s+par\s+bhi\s+(?:nahi|nahin)\s+jaag\s*rah\w*\b",
+    r"\bjag\s+nahi\s+rah\w*\b",
     r"\b(?:koi\s+)?harkat\s+(?:\w+\s+){0,2}nahi\b",
     r"(?<!be\s)\bhosh\s+mein\s+nahi\b",
     r"\bhosh\s+kho\s+baith\w*\b",
@@ -533,6 +541,8 @@ _FAILURE_VERB_PATTERNS = [
     r"(?:کوئی\s*)?ہوش\s*(?:\S+\s+){0,2}نہیں\s*(?:آیا|آ\s*رہ\w*|ہے)",
     r"بے\s*ہوش\s*(?:پڑا|پڑے|پڑی)",
     r"بالکل\s*بے\s*ہوش",
+    r"(?:جگانے|اٹھانے)\s*پر\s*بھی\s*نہیں\s*جاگ\s*رہ\w*",
+    r"جاگ\s*نہیں\s*رہ\w*",
     r"(?:کوئی\s*)?حرکت\s*(?:\S+\s+){0,2}نہیں",
     r"ہوش\s*کھو\s*بیٹھے",
     r"(?<!بے\s)ہوش\s*میں\s*نہیں",
@@ -634,6 +644,14 @@ _PAST_CUES_RE = re.compile(
 
 _RECOVERY_RE = re.compile(
     r"\b(?:tests?\s+(?:were|was)?\s*all\s*clear|all\s+clear|all\s+tests\s+normal)\b|"
+    r"\b(?:angiography|angio|ecg|echo|scan|reports?|tests?)\s+(?:was|were)?\s*(?:all\s*)?(?:normal|clear)\b|"
+    r"\b(?:angiography|angio|ecg|test|report)\s+(?:bhi\s*)?normal\s+(?:tha|thi|aayi)\b|"
+    r"(?:اینجیوگرافی|ای سی جی|ٹیسٹ|رپورٹ)\s*نارمل|"
+    r"\b(?:ek|aik)\s+(?:dafa|baar|bar)\s+(?:\w+\s+){0,3}(?:tha|thi)\b|"
+    r"\b(?:hua|hui)\s+tha\b|"
+    r"\bہوا\s*تھا\b|"
+    r"\bfainted\s+once\b|"
+    r"\bhappened\s+once\b|"
     r"\b(?:recovered|fully\s+recovered|fine\s+now|doing\s+fine|normal\s+now|completely\s+stopped\s+now|stopped\s+now|perfectly\s+healthy|fully\s+resolved(?:\s+now)?)\b|"
     r"\b(?:theek|thik|sahi)\s+(?:ho\s+gaya|tha|thi)\b|"
     r"\bab\s+(?:bilkul\s+)?(?:theek|thik|sahi|koi\s+masla\s+nahi)\b|"
@@ -666,7 +684,7 @@ def is_remote_past(text: str) -> bool:
     clean_norm = re.sub(r"\b(?:aaj|آج)\s+(?=(?:se\s+)?(?:\w+\s+)?(?:sa+l|sal|mahine|سال|مہینے)\s+pehle)", "", norm, flags=re.IGNORECASE)
     clean_norm = re.sub(r"childhud", "childhood", clean_norm)
     has_past = bool(_YEAR_RE.search(norm) or _PAST_CUES_RE.search(clean_norm))
-    has_recovery = bool(_RECOVERY_RE.search(norm))
+    has_recovery = bool(_RECOVERY_RE.search(norm) or re.search(r"\b(?:bachpan\s+me|in\s+childhood|saal\s+pehle)\b.*?\b(?:hua\s+tha|tha|thi|the)\b", norm, re.I))
     has_acute = bool(_ACUTE_PRESENT_RE.search(clean_norm))
     return has_past and has_recovery and not has_acute
 
@@ -924,6 +942,8 @@ def is_symptom_negated(norm: str) -> bool:
         return True
     if "_is_vomiting_negated" in globals() and _is_vomiting_negated(n):
         return True
+    if "_is_syncope_negated" in globals() and _is_syncope_negated(n):
+        return True
     return False
 
 
@@ -1023,6 +1043,12 @@ _BREATHING_METAPHORS = [
 ]
 
 _BREATHING_INABILITY_PATTERNS = [
+    # R7: Wheezing + severe distress / inability to speak / getting worse
+    r"\b(?:wheez\w*|whiz\w*)\b.*?\b(?:can\s+barely\s+talk|barely\s+(?:able\s+to\s+)?talk|getting\s+worse|cannot\s+speak|unable\s+to\s+talk|cant\s+speak)\b",
+    r"\b(?:can\s+barely\s+talk|barely\s+(?:able\s+to\s+)?talk|getting\s+worse|cannot\s+speak|unable\s+to\s+talk|cant\s+speak)\b.*?\b(?:wheez\w*|whiz\w*)\b",
+    # R7: Breathless speech inability ("اتنی تکلیف ... کہ بات نہیں ہو رہی" / "itni takleef ... ke baat nahi ho rahi")
+    r"\bitni\s+takl[ei]+f\b.*?\b(?:ke\s+)?ba+t\s+nahi\s+ho\s+rah",
+    r"اتنی\s*تکلیف.*?(?:کہ\s*)?بات\s*نہیں\s*ہو\s*رہ",
     # Inability & gasping (English)
     r"\b(?:cant|cannot|unable\s+to)\s+breathe\b",
     r"\b(?:cant|cannot|unable\s+to)\s+catch\s+(?:my\s+)?breath\b",
@@ -1048,7 +1074,7 @@ _BREATHING_INABILITY_PATTERNS = [
     r"\bsans\s+nahi\s+aa\s+rah[iyea]\b",
     r"\b(?:dam|dum)\s+ghut\s+raha\b",
     r"\bsans\s+(?:\w+\s+){0,2}ruk\s+rah[iyea]\b",
-    r"\bsans\s+ukhad\s+rah[iyea]\b",
+    r"\bsans\s+(?:ukhad|ukhar)\s+rah[iyea]\b",
     r"\bsans\s+lena\s+(?:\w+\s+){0,3}(?:mushkil|dushwar|muhaal)\b",
     r"\bsans\s+lene\s+me\s+(?:\w+\s+){0,3}(?:dushwari|mushkil)\b",
     r"\b(?:saans|sans)\s+(?:\w+\s+){0,3}(?:le\s+(?:hi\s+)?nahi\s+pa\s+rah[iyea]|nahi\s+le\s+pa\s+rah[iyea]|le\s+nahi\s+pa\s+rah[iyea]|lena\s+(?:hi\s+)?mushkil|lena\s+dushwar)\b",
@@ -1312,8 +1338,8 @@ _STROKE_FAST_PATTERNS = [
     r"\bsudden\s+loss\s+of\s+power\s+in\s+(?:\w+\s+){0,2}(?:side|arm|leg)\b",
     r"\b(?:haath|hath)\s+se\s+(?:\w+\s+){0,3}(?:gir\s+jat|drop\w*)\b",
     r"\bpakar\s+(?:nahi|nahin|na[iy])\s+pa\s+rah\w*\b",
-    r"\bzaban\s+larkhara\b",
-    r"(?:زبان\s*لڑکھڑا|ہاتھ\s*سے\s*چھوٹ|پکڑ\s*نہیں\s*پا|قوت\s*ختم)",
+    r"\bzaban\s+(?:\w+\s+){0,3}(?:larkhara\w*|ladkhada\w*)\b",
+    r"(?:زبان\s*(?:\S+\s*){0,3}لڑکھڑا\w*|ہاتھ\s*سے\s*چھوٹ|پکڑ\s*نہیں\s*پا|قوت\s*ختم)",
     r"ایک\s*طرف\s*کمزوری",
     r"ایک\s*طرف\s*کا\s*(?:جسم|بازو|ہاتھ|چہرہ|ٹانگ)\s*(?:\S+\s*){0,3}(?:کام\s*نہیں\s*کر|اٹھ\s*نہیں\s*رہ|ہل\s*نہیں\s*رہ|سن|کمزور|لٹک|ٹیڑھا)",
     r"(?:ہاتھ|بازو)\s*(?:اٹھ|ہل)\s*نہیں\s*رہ(?:ا|ی|یں|ے)",
@@ -1419,6 +1445,10 @@ def _is_stroke_negated(norm: str) -> bool:
     if re.search(r"\b(?:speech|face|arm|hand|leg|side|haath|bazu|pair|tang|chehra)\s+(?:is\s+)?(?:completely\s+)?(?:normal|fine|ok|okay|theek|thik|sahi)\b", norm):
         return True
     if re.search(r"\b(?:chehra|zaban|awaz|bazu|hath|haath|tang|pair)\s+(?:theek|thik|sahi)\s+hai\b", norm):
+        return True
+    if re.search(r"\b(?:zaban|zuban|awaz|awaaz|speech|words?)\s+(?:\w+\s+){0,2}(?:nahi|nahin|na|not|didnt|never)\s+(?:ladkhada\w*|larkhara\w*|slur\w*)\b", norm):
+        return True
+    if re.search(r"(?:زبان|آواز)\s*(?:\S+\s*){0,2}نہیں\s*(?:لڑکھڑا\w*|بند)", norm):
         return True
     if re.search(r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:kamzori|sunn|ladkhada\w*|falij|masla|takleef)\s+(?:to\s+|bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
         return True
@@ -1557,6 +1587,16 @@ def _match_confusion_and_stroke(norm: str) -> bool:
 
 # Active unresponsiveness cues indicating current acute failure to wake / recover (Red)
 _UNRESPONSIVE_PATTERNS = [
+    # R7: Jagane par bhi nahi jaag rahe / failure verb & unresponsive cues
+    r"\b(?:jaga+ne|uthane)\s+par\s+bhi\s+(?:nahi|nahin)\s+jaa?g\s*rah\w*\b",
+    r"\b(?:jaga+ne|uthane)\s+(?:\w+\s+){0,3}(?:nahi|nahin)\s+(?:jaa?g|uth)\s*rah\w*\b",
+    r"\bjaa?g\s+nahi\s+rah\w*\b",
+    r"(?:جگانے|اٹھانے)\s*پر\s*بھی\s*نہیں\s*جاگ\s*رہ\w*",
+    r"(?:جگانے|اٹھانے)\s*(?:\S+\s*){0,3}نہیں\s*(?:جاگ|اٹھ)\s*رہ\w*",
+    r"جاگ\s*نہیں\s*رہ\w*",
+    r"نہیں\s*جاگ\s*رہ\w*",
+    r"\b(?:not|unresponsive|unable\s+to|cant|cannot|wont|is\s+not|are\s+not)\s+responding\b",
+    r"\bno\s+response\b",
     r"\b(?:not|wont|unable\s+to|cant|cannot)\s+wake\b",
     r"\bnot\s+waking\s+up\b",
     r"\bstill\s+unconscious\b",
@@ -1643,7 +1683,7 @@ def _is_syncope_negated(norm: str) -> bool:
         r"\b(?:aankh|ankh)\w*\s+(?:\w+\s+){0,3}nahi\s+(?:khol|khul)\b|"
         r"\b(?:jaag|jag|uth)\s+nahi\s+rah[iyea]*\b|"
         r"(?<!be\s)(?<!bay\s)\bhosh\s+(?:mein\s+)?nahi\s+(?:aa\s+rah|hai)\b|"
-        r"\b(?:not|cant|cannot|will\s+not|wont|unable\s+to)\s+(?:wake|open\s+eyes|respond)\b|"
+        r"\b(?:not|cant|cannot|will\s+not|wont|unable\s+to|is\s+not|are\s+not)\s+(?:wak\w*(?:\s+up)?|open\s+eyes?|respond\w*)\b|"
         r"(?:آنکھ|آنکھیں)\s*(?:\S+\s*){0,3}نہیں\s*(?:کھول|کھل)|"
         r"(?:جاگ|اٹھ)\s*نہیں\s*رہ[یےا]|"
         r"ہوش\s*میں\s*نہیں|(?<!بے\s)ہوش\s*نہیں\s*آ\s*رہ",
@@ -1978,33 +2018,224 @@ def match_categories(raw_text: str) -> List[str]:
         if not norm:
             return matched
 
-        # Global suppressions (remote past without current acute, exertion with rest relief)
-        if _is_suppressed(norm):
-            return matched
-
-        # 1. Chest pain (including metaphors, radiation, diaphoresis)
-        if _match_chest_pain(norm):
-            matched.append("chest_pain")
-
-        # 2. Breathing inability & severe distress
-        if _match_breathing(norm):
-            matched.append("breathing")
-
-        # 3. FAST stroke / confusion / neurological deficit
-        if _match_confusion_and_stroke(norm):
-            matched.append("confusion_and_stroke")
-
-        # 4. Syncope / Loss of consciousness (recovery check strictly scoped to fainting)
-        if _match_loss_of_consciousness(norm):
-            matched.append("loss_of_consciousness")
-
-        # 5. DKA / Fluid intolerance / Persistent vomiting
-        if _match_dka_vomiting_fluids(norm):
-            matched.append("dka_vomiting_high_glucose")
-
-        return matched
+        return _match_raw_categories(norm)
     except Exception:
         return []
+
+
+def _match_raw_categories(norm: str) -> List[str]:
+    """
+    Evaluates normalized text against the 5 canonical red flag symptom categories
+    without top-level negation suppression.
+    """
+    matched = []
+    if not norm:
+        return matched
+
+    # Global suppressions (remote past without current acute, exertion with rest relief)
+    if _is_suppressed(norm):
+        return matched
+
+    # 1. Chest pain (including metaphors, radiation, diaphoresis)
+    if _match_chest_pain(norm):
+        matched.append("chest_pain")
+
+    # 2. Breathing inability & severe distress
+    if _match_breathing(norm):
+        matched.append("breathing")
+
+    # 3. FAST stroke / confusion / neurological deficit
+    if _match_confusion_and_stroke(norm):
+        matched.append("confusion_and_stroke")
+
+    # 4. Syncope / Loss of consciousness (recovery check strictly scoped to fainting)
+    if _match_loss_of_consciousness(norm):
+        matched.append("loss_of_consciousness")
+
+    # 5. DKA / Fluid intolerance / Persistent vomiting
+    if _match_dka_vomiting_fluids(norm):
+        matched.append("dka_vomiting_high_glucose")
+
+    return matched
+
+
+_ECHO_PUNCT_MAP = {'?': '___ECHO_QMARK___', ':': '___ECHO_COLON___', '-': '___ECHO_DASH___', '؟': '___ECHO_UQMARK___'}
+_REV_ECHO_PUNCT_MAP = {v: k for k, v in _ECHO_PUNCT_MAP.items()}
+
+
+def split_into_clauses(text: str) -> List[str]:
+    """
+    R7: Span-scoped clause segmentation.
+    Splits text on punctuation (., ; ! ? , and Urdu script counterparts)
+    and contrastive conjunctions (lekin, magar, but, however, par, etc.).
+    Protects echo-question negation, diagnostic recovery commas, and prepositional 'par'.
+    """
+    if not text:
+        return []
+    s = text
+
+    # 1. Protect echo questions (e.g. "chest pain? no", "سینے میں درد؟ نہیں")
+    def _repl_echo(m):
+        tok = _ECHO_PUNCT_MAP.get(m.group(1), '___ECHO_QMARK___')
+        return f"{tok} {m.group(2)}"
+
+    s = re.sub(
+        r'([\?\:\-–—؟])\s*(no|nope|nah|not(?:\s+really|\s+at\s+all)?|never|nahi|nahin|nai|ni|bilkul\s+nahi|koi\s+nahi|kuch\s+nahi|نہیں|نہ|بالکل نہیں)',
+        _repl_echo,
+        s,
+        flags=re.IGNORECASE | re.UNICODE
+    )
+
+    # 2. Protect recovery commas (e.g. "had chest pain in 2021, angiography was normal")
+    s = re.sub(
+        r',\s*(?=(?:angiography|angio|ecg|echo|scan|reports?|tests?)\s+(?:was|were)?\s*(?:all\s*)?(?:normal|clear)|all\s+clear|all\s+tests\s+normal|theek\s+ho\s+gaya|koi\s+masla\s+nahi|نارمل)',
+        r'___RECOVERY_COMMA___ ',
+        s,
+        flags=re.IGNORECASE | re.UNICODE
+    )
+
+    # 3. Protect prepositional 'par' / 'پر'
+    s = re.sub(
+        r'\b(seene|seenay|chhati|zameen|farsh|bazu|haath|hath|sir|sar|bed|palang|dil|munh|gale|galay|pet|jagane|jagaane|uthane)\s+(par|pr)\b',
+        r'\1 ___PREP_PAR___',
+        s,
+        flags=re.IGNORECASE | re.UNICODE
+    )
+    s = re.sub(
+        r'(سینے|چھاتی|زمین|فرش|بازو|ہاتھ|سر|دل|منہ|گلے|پیٹ|جگانے|اٹھانے)\s*(پر)',
+        r'\1 ___URDU_PREP_PAR___',
+        s,
+        flags=re.UNICODE
+    )
+
+    # 4. Split by clause delimiters
+    delim = re.compile(
+        r'[\.\;\!\?\,۔؛!؟،\n]+|\b(?:but|however|although|yet|lekin|magar|halanke|halankay|par|pr)\b|لیکن|مگر|حالانکہ|پر',
+        flags=re.IGNORECASE | re.UNICODE
+    )
+    parts = delim.split(s)
+
+    clauses = []
+    for p in parts:
+        # Restore protected tokens
+        for k, v in _REV_ECHO_PUNCT_MAP.items():
+            p = p.replace(k, v)
+        p = p.replace('___RECOVERY_COMMA___', ', ').replace('___PREP_PAR___', 'par').replace('___URDU_PREP_PAR___', 'پر').strip()
+        if p:
+            clauses.append(p)
+    return clauses
+
+
+class RedDecision(NamedTuple):
+    is_red: bool
+    category: Optional[str]
+    cancelled_hits: List[Dict[str, Any]]
+
+
+_CANONICAL_CATEGORY_MAP = {
+    "unable_to_keep_fluids": "dka_vomiting_high_glucose",
+    "non_stop_vomiting": "dka_vomiting_high_glucose",
+    "dka": "dka_vomiting_high_glucose",
+    "confusion": "confusion_and_stroke",
+    "one_sided_weakness": "confusion_and_stroke",
+    "fainting": "loss_of_consciousness",
+    "syncope": "loss_of_consciousness",
+}
+
+
+def decide_red(answer: str) -> RedDecision:
+    """
+    R7: Span- and Category-Scoped Red Flag Decision Engine.
+    Evaluates answer clause-by-clause against base screen and red flag pattern matcher.
+    Cancels a Red hit ONLY if the negation or remote-past check is true for that specific clause.
+    Fainting recovery can only cancel loss_of_consciousness in its own clause.
+    Returns (is_red, category, cancelled_hits).
+    The answer stays RED if ANY clause hit is not cancelled.
+    Downgrade to Yellow (F5) occurs only when EVERY Red hit in the answer is cancelled.
+    """
+    if not answer or not isinstance(answer, str) or not answer.strip():
+        return RedDecision(is_red=False, category=None, cancelled_hits=[])
+
+    clauses = split_into_clauses(answer)
+    if not clauses:
+        clauses = [answer.strip()]
+
+    uncancelled_hits: List[Tuple[str, str, str]] = []  # (category, source, clause)
+    cancelled_hits: List[Dict[str, Any]] = []
+
+    for clause in clauses:
+        clause_hits: List[Tuple[str, str]] = []  # (category, source)
+
+        # 1. Base stage1 screen
+        try:
+            from agents.adaptive_interview_agent import run_stage1_red_flag_screen
+            s1_hit, s1_cat = run_stage1_red_flag_screen(clause)
+            if s1_hit and s1_cat:
+                canon_cat = _CANONICAL_CATEGORY_MAP.get(s1_cat, s1_cat)
+                clause_hits.append((canon_cat, "stage1"))
+        except Exception:
+            pass
+
+        # 2. Base triage classify_input
+        try:
+            from agents.input_triage import classify_input
+            t_res = classify_input(clause)
+            if t_res.is_emergency or t_res.is_urgent_safety:
+                t_detail = t_res.trigger_detail or "emergency"
+                canon_cat = _CANONICAL_CATEGORY_MAP.get(t_detail, t_detail)
+                clause_hits.append((canon_cat, "triage"))
+        except Exception:
+            pass
+
+        # 3. Red flag matcher categories
+        try:
+            norm_c = normalize_text(clause)
+            if norm_c:
+                raw_cats = _match_raw_categories(norm_c)
+                for cat in raw_cats:
+                    canon_cat = _CANONICAL_CATEGORY_MAP.get(cat, cat)
+                    if (canon_cat, "stage1") not in clause_hits and (canon_cat, "triage") not in clause_hits:
+                        clause_hits.append((canon_cat, "patterns"))
+        except Exception:
+            pass
+
+        # If no hits detected on this clause, continue
+        if not clause_hits:
+            continue
+
+        # Evaluate cancellations strictly for this clause
+        is_neg_or_past = is_symptom_negated_or_remote_past(clause)
+        is_syncope_rec = is_fainting_recovered_or_benign(clause)
+
+        for cat, src in clause_hits:
+            is_cancelled = False
+            cancel_reason = None
+
+            # Fainting recovery can ONLY cancel loss_of_consciousness in its own clause
+            if cat in ("loss_of_consciousness", "fainting") and is_syncope_rec:
+                is_cancelled = True
+                cancel_reason = "fainting_recovered"
+            elif is_neg_or_past:
+                is_cancelled = True
+                cancel_reason = "negated_or_remote_past"
+
+            if is_cancelled:
+                cancelled_hits.append({
+                    "category": cat,
+                    "source": src,
+                    "clause": clause,
+                    "reason": cancel_reason,
+                })
+            else:
+                uncancelled_hits.append((cat, src, clause))
+
+    if uncancelled_hits:
+        return RedDecision(is_red=True, category=uncancelled_hits[0][0], cancelled_hits=cancelled_hits)
+
+    if cancelled_hits:
+        return RedDecision(is_red=False, category=None, cancelled_hits=cancelled_hits)
+
+    return RedDecision(is_red=False, category=None, cancelled_hits=[])
 
 
 def match(raw_text: str) -> Tuple[bool, Optional[str]]:

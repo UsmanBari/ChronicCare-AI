@@ -4577,47 +4577,19 @@ def answer_checkin_endpoint(
                 triage=protocol_state.result if protocol_state else None,
             )
 
-        # Stage-1 red-flag screen on medication answer
-        triggered, reason = run_stage1_red_flag_screen(body.answer)
-        if not triggered and body.answer:
-            try:
-                from agents.input_triage import classify_input
-                t_res = classify_input(body.answer)
-                if t_res.is_emergency:
-                    triggered = True
-                    reason = t_res.trigger_detail or "danger_phrase"
-            except Exception:
-                pass
-        if not triggered and body.answer:
-            try:
-                from agents.red_flag_patterns import match as match_red_flags
-                rf_hit, rf_cat = match_red_flags(body.answer)
-                if rf_hit and rf_cat:
-                    triggered = True
-                    reason = rf_cat
-            except Exception:
-                pass
-        if triggered and body.answer:
-            try:
-                from agents.red_flag_patterns import is_fainting_recovered_or_benign, match_categories
-                if reason in ("loss_of_consciousness", "fainting"):
-                    if is_fainting_recovered_or_benign(body.answer):
-                        other_cats = [c for c in match_categories(body.answer) if c != "loss_of_consciousness"]
-                        if other_cats:
-                            triggered = True
-                            reason = other_cats[0]
-                        else:
-                            triggered = False
-                            reason = None
-            except Exception:
-                pass
-
+        # Stage-1 red-flag screen on medication answer (R7: span- and category-scoped)
+        triggered = False
+        reason = None
         med_safety_note = None
-        # R6 F5: Base-screen negation & remote-past conservative downgrade to review
-        if triggered and body.answer and is_negated_red_flag_to_review_enabled():
+        if body.answer:
             try:
-                from agents.red_flag_patterns import is_symptom_negated_or_remote_past
-                if is_symptom_negated_or_remote_past(body.answer):
+                from agents.red_flag_patterns import decide_red
+                is_red_med, red_cat_med, cancelled_med = decide_red(body.answer)
+                if is_red_med:
+                    triggered = True
+                    reason = red_cat_med
+                elif cancelled_med and is_negated_red_flag_to_review_enabled():
+                    # R7 F5: Base-screen negation & remote-past conservative downgrade to review
                     triggered = False
                     reason = None
                     lang = getattr(current_state, "language", None) or "en"
@@ -4783,69 +4755,51 @@ def answer_checkin_endpoint(
         emergency_reason = next_state.get("emergency_reason")
 
         is_urgent_v3 = False
-        if not is_emergency and body.answer:
+        # R7: Stage-1 red-flag screen on v3 answer (span- and category-scoped)
+        if body.answer:
             try:
-                from agents.red_flag_patterns import match as match_red_flags
-                rf_hit, rf_cat = match_red_flags(body.answer)
-                if rf_hit and rf_cat:
-                    rf_level = get_red_flag_level(rf_cat)
+                from agents.red_flag_patterns import decide_red
+                is_red_v3, red_cat_v3, cancelled_v3 = decide_red(body.answer)
+                if is_red_v3:
+                    rf_level = get_red_flag_level(red_cat_v3)
                     if rf_level == "emergency":
                         is_emergency = True
-                        emergency_reason = rf_cat
+                        emergency_reason = red_cat_v3
                         next_state["emergency"] = True
-                        next_state["emergency_reason"] = rf_cat
+                        next_state["emergency_reason"] = red_cat_v3
                         next_state["completed"] = True
                         next_state["step"] = "COMPLETE"
                         next_state["current_question"] = None
                     elif rf_level == "urgent":
                         is_urgent_v3 = True
-                        emergency_reason = rf_cat
+                        emergency_reason = red_cat_v3
                         next_state["completed"] = True
                         next_state["step"] = "COMPLETE"
                         next_state["current_question"] = None
-            except Exception:
-                pass
-
-        if is_emergency and body.answer:
-            try:
-                from agents.red_flag_patterns import is_fainting_recovered_or_benign, match_categories
-                if emergency_reason in ("loss_of_consciousness", "fainting"):
-                    if is_fainting_recovered_or_benign(body.answer):
-                        other_cats = [c for c in match_categories(body.answer) if c != "loss_of_consciousness"]
-                        if other_cats:
-                            is_emergency = True
-                            emergency_reason = other_cats[0]
-                            next_state["emergency"] = True
-                            next_state["emergency_reason"] = other_cats[0]
-                        else:
-                            is_emergency = False
-                            emergency_reason = None
-                            next_state["emergency"] = False
-                            next_state["emergency_reason"] = None
-            except Exception:
-                pass
-
-        # R6 F5: Base-screen negation & remote-past conservative downgrade to review (v3 session)
-        if is_emergency and body.answer and is_negated_red_flag_to_review_enabled():
-            try:
-                from agents.red_flag_patterns import is_symptom_negated_or_remote_past
-                if is_symptom_negated_or_remote_past(body.answer):
-                    is_emergency = False
-                    emergency_reason = None
-                    next_state["emergency"] = False
-                    next_state["emergency_reason"] = None
-                    v3_lang = next_state.get("language") or lang or "en"
-                    from agents.danger_wordgroups import get_safety_note
-                    next_state["safety_note"] = get_safety_note(v3_lang)
-                    hit_data = {"group": "negated_red_flag_needs_review", "step": current_state.get("step", "")}
-                    next_state.setdefault("wordgroup_hits", []).append(hit_data)
-                    append_audit(
-                        actor_user_id=current_user["user_id"],
-                        action="danger_wordgroup_hit",
-                        target=checkin_id,
-                        outcome="ok",
-                        detail={"group": "negated_red_flag_needs_review"},
-                    )
+                elif is_emergency and emergency_reason not in ("meter_lo", "meter_hi"):
+                    # Was set by v3_next_turn on text, but decide_red found no uncancelled red hits
+                    if cancelled_v3 and is_negated_red_flag_to_review_enabled():
+                        is_emergency = False
+                        emergency_reason = None
+                        next_state["emergency"] = False
+                        next_state["emergency_reason"] = None
+                        v3_lang = next_state.get("language") or lang or "en"
+                        from agents.danger_wordgroups import get_safety_note
+                        next_state["safety_note"] = get_safety_note(v3_lang)
+                        hit_data = {"group": "negated_red_flag_needs_review", "step": current_state.get("step", "")}
+                        next_state.setdefault("wordgroup_hits", []).append(hit_data)
+                        append_audit(
+                            actor_user_id=current_user["user_id"],
+                            action="danger_wordgroup_hit",
+                            target=checkin_id,
+                            outcome="ok",
+                            detail={"group": "negated_red_flag_needs_review"},
+                        )
+                    else:
+                        is_emergency = False
+                        emergency_reason = None
+                        next_state["emergency"] = False
+                        next_state["emergency_reason"] = None
             except Exception:
                 pass
 
@@ -5011,28 +4965,16 @@ def answer_checkin_endpoint(
         except Exception:
             pass
 
-    if not next_state.stage1_red_flag and body.answer:
+    v2_is_red = False
+    v2_red_cat = None
+    v2_cancelled_hits = []
+    if body.answer:
         try:
-            from agents.red_flag_patterns import match as match_red_flags
-            rf_hit, rf_cat = match_red_flags(body.answer)
-            if rf_hit and rf_cat:
+            from agents.red_flag_patterns import decide_red, is_symptom_negated_or_remote_past
+            v2_is_red, v2_red_cat, v2_cancelled_hits = decide_red(body.answer)
+            if v2_is_red:
                 next_state.stage1_red_flag = True
-                next_state.stage1_reason = rf_cat
-        except Exception:
-            pass
-
-    if next_state.stage1_red_flag and body.answer:
-        try:
-            from agents.red_flag_patterns import is_fainting_recovered_or_benign, match_categories
-            if next_state.stage1_reason in ("loss_of_consciousness", "fainting"):
-                if is_fainting_recovered_or_benign(body.answer):
-                    other_cats = [c for c in match_categories(body.answer) if c != "loss_of_consciousness"]
-                    if other_cats:
-                        next_state.stage1_red_flag = True
-                        next_state.stage1_reason = other_cats[0]
-                    else:
-                        next_state.stage1_red_flag = False
-                        next_state.stage1_reason = None
+                next_state.stage1_reason = v2_red_cat
         except Exception:
             pass
 
@@ -5040,7 +4982,7 @@ def answer_checkin_endpoint(
     if (next_state.stage1_red_flag or (hasattr(next_state, "intake") and isinstance(next_state.intake, dict) and next_state.intake.get("emergency"))) and body.answer and is_negated_red_flag_to_review_enabled():
         try:
             from agents.red_flag_patterns import is_symptom_negated_or_remote_past
-            if is_symptom_negated_or_remote_past(body.answer):
+            if not v2_is_red and (v2_cancelled_hits or is_symptom_negated_or_remote_past(body.answer)):
                 next_state.stage1_red_flag = False
                 next_state.stage1_reason = None
                 if hasattr(next_state, "intake") and isinstance(next_state.intake, dict):

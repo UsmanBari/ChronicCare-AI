@@ -31,7 +31,7 @@ import random
 from pathlib import Path
 
 
-def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int = 700):
+def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int = 700, output_path: str = None):
     random.seed(seed)
 
     # =========================================================================
@@ -51,6 +51,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} vice-like crushing pain in chest since 20 minutes",
             "{subj} band of heavy pressure around chest, worsening rapidly",
             "{subj} intense heavy chest ache, unbearable and agonizing",
+            "{subj} sudden onset of severe pressure in chest and jaw pain",
+            "{subj} crushing pain under breastbone, sweating profusely",
+            "{subj} intense chest constriction making it impossible to breathe",
+            "{subj} severe squeezing retrosternal pain radiating to shoulder",
         ],
         "breathing": [
             "{subj} completely unable to breathe and choking right now",
@@ -61,6 +65,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} acute respiratory distress, choking and panting heavily",
             "{subj} cannot catch breath at all, severe gasping for air",
             "{subj} air won't go in, severe shortness of breath at complete rest",
+            "{subj} acute wheezing and can barely talk, getting worse rapidly",
+            "{subj} severe shortness of breath, cannot speak full sentences",
+            "{subj} choking sensation with blueness around lips and fingertips",
+            "{subj} gasping desperately, feels like drowning in air",
         ],
         "confusion_and_stroke": [
             "{subj} face has suddenly dropped on one side with crooked smile",
@@ -71,6 +79,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} cannot speak clearly, slurring speech and mouth is lopsided",
             "{subj} unable to move or raise right leg and arm suddenly",
             "{subj} one side of face is sagging and unable to communicate words",
+            "{subj} right side of face suddenly drooped, unable to speak clearly",
+            "{subj} sudden weakness in left arm, dropped plate and slurring words",
+            "{subj} words are completely garbled, sudden confusion and facial asymmetry",
+            "{subj} cannot raise right arm, sudden hemiparesis and unsteady gait",
         ],
         "loss_of_consciousness": [
             "{subj} suddenly collapsed to the floor and is totally unconscious",
@@ -81,6 +93,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} had a syncopal blackout and is out cold right now",
             "{subj} collapsed and unresponsive, not waking up at all",
             "{subj} sudden blackout and passed out on the ground",
+            "{subj} abruptly lost consciousness and not waking up despite shaking",
+            "{subj} passed out cold on the floor, unresponsive to calling",
+            "{subj} sudden syncopal attack, eyes closed and motionless",
+            "{subj} unconscious, not responding to voice or touch",
         ],
         "dka_vomiting_high_glucose": [
             "{subj} vomiting non-stop for hours and cannot keep water down",
@@ -91,6 +107,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} throwing up repeatedly, nothing stays down at all",
             "{subj} vomiting uncontrollably with high blood sugar",
             "{subj} severe constant vomiting, unable to retain any food or liquid",
+            "{subj} severe repetitive vomiting for 12 hours with sugar over 400",
+            "{subj} cannot retain any liquids, constant vomiting and extreme exhaustion",
+            "{subj} throwing up every sip of water, signs of critical dehydration",
+            "{subj} continuous violent vomiting, stomach will not hold anything",
         ],
     }
 
@@ -109,6 +129,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} jaise koi seene par baitha daba {v_form} ho, dard bohat shadeed hai",
             "{subj} seenay me nichor aur crushing dabav hai",
             "{subj} seene me achanak sakht jakran aur paseena aa {v_form}",
+            "{subj} seene mein bayein taraf achanak bohat tez dard aur paseena aa {v_form}",
+            "{subj} chhati par achanak shadeed kasav aur sans lene mein takleef ho {v_form}",
+            "{subj} seene mein achanak aisa dard jaise chhati phat rahi ho",
+            "{subj} seene mein shadeed dabao aur bayen bazu mein sunn pan phail {v_form}",
         ],
         "breathing": [
             "{subj} sans bilkul {neg_verb} aa {v_form} aur dam ghut {v_form} hai",
@@ -119,6 +143,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} haanp {v_form} hain aur hont neelay par gaye hain",
             "{subj} sans atki hui hai aur achanak hawa {neg_verb} mil {v_form}",
             "{subj} sans ukhri hui hai achanak bohat shadeed takleef hai",
+            "{subj} achanak wheezing shuru ho gayi hai aur baat {neg_verb} kar pa {v_form}",
+            "{subj} itni shadeed sans ki takleef hai ke achanak baat karna band ho gaya",
+            "{subj} dam bilkul ruka hua hai aur hont neelay ho {v_form} hain",
+            "{subj} hawa bilkul andar {neg_verb} ja rahi, achanak haanp {v_form} hai",
         ],
         "confusion_and_stroke": [
             "{subj} chehra ek taraf latak gaya hai aur munh terha ho gaya",
@@ -129,6 +157,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} chehra dhalak gaya hai aur ulti seedhi baatein kar {v_form}",
             "{subj} ek taraf ka jism sunn aur bekaar ho gaya hai",
             "{subj} munh tedha ho gaya aur awaaz {neg_verb} nikal {v_form}",
+            "{subj} achanak munh ek taraf jhuk gaya aur zaban larkhara gayi",
+            "{subj} bayein bazu mein achanak taqat khatam ho gayi aur hath gir gaya",
+            "{subj} chehra achanak tedha ho gaya aur bolna dushwar ho gaya",
+            "{subj} achanak hath aur paon ne kaam karna chhor diya hai",
         ],
         "loss_of_consciousness": [
             "{subj} achanak behosh ho gaye aur hosh {neg_verb} aa {v_form}",
@@ -139,6 +171,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} achanak chakkar kha kar behosh ho gaye, unko hosh {neg_verb}",
             "{subj} bilkul be hosh hain koi harkat {neg_verb} ho {v_form}",
             "{subj} ghashi ka daura para aur bilkul sunn ho gaye",
+            "{subj} jagane par bhi {neg_verb} jaag {v_form}, bilkul behosh pare hain",
+            "{subj} achanak zameen par gir kar behosh ho gaye aur koi harkat {neg_verb}",
+            "{subj} ghashi ke baad se bilkul be-sudh pare hain",
+            "{subj} achanak behosh ho gaye aur aankhein band hain",
         ],
         "dka_vomiting_high_glucose": [
             "{subj} har ghante ulti ho {v_form} hai, pani bhi andar {neg_verb} theharta",
@@ -149,6 +185,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} pani ka ghoont bhi {neg_verb} rukta, foran ulti aa jati hai",
             "{subj} lagataar ultiyan ho {v_form} hain kuch hazam {neg_verb} ho {v_form}",
             "{subj} ulti rukne ka naam {neg_verb} le {v_form}, dehydration ho gayi hai",
+            "{subj} bar bar ultiyan aa rahi hain aur sugar bohat zyada high hai",
+            "{subj} pait mein kuch bhi {neg_verb} theharta, har ghante qay ho rahi hai",
+            "{subj} pani ka ek qatra bhi andar {neg_verb} rukta, musalsal ulti ho {v_form}",
+            "{subj} lagataar qay ki wajah se mareez bilkul nidhal ho gaya hai",
         ],
     }
 
@@ -171,6 +211,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} جیسے کوئی سینے پر بیٹھ کر دبا رہا ہو، درد بے حد ہے",
             "{subj} سینے میں شدید دباؤ اور پسینہ آ رہا ہے",
             "{subj} سینے میں اچانک شدید گھٹن اور جکڑن ہو گئی ہے",
+            "{subj} سینے میں اچانک شدید کساؤ اور بائیں بازو میں درد جا رہا ہے",
+            "{subj} چھاتی پر شدید بوجھ اور پسینے آ رہے ہیں",
+            "{subj} سینے میں شدید دباؤ کی وجہ سے سانس لینا محال ہے",
+            "{subj} دل پر شدید کھچاؤ اور درد بائیں جبڑے تک جا رہا ہے",
         ],
         "breathing": [
             "{subj} سانس بالکل نہیں آ رہی اور دم گھٹ رہا ہے",
@@ -181,6 +225,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} ہانپ رہے ہیں اور ہونٹ نیلے پڑ گئے ہیں",
             "{subj} سانس اٹکی ہوئی ہے اور ہوا نہیں مل رہی",
             "{subj} سانس اکھڑی ہوئی ہے اور بات کرنا محال ہو گیا ہے",
+            "{subj} اتنی تکلیف ہے سانس میں کہ بات نہیں ہو رہی",
+            "{subj} اچانک سانس اکھڑ گئی ہے اور ہونٹ نیلے پڑ گئے ہیں",
+            "{subj} دم بالکل رک گیا ہے اور شدید گھٹن ہو رہی ہے",
+            "{subj} سانس کی شدید تنگی اور مسلسل کھانسی و ہانپنا ہے",
         ],
         "confusion_and_stroke": [
             "{subj} چہرہ ایک طرف لٹک گیا ہے اور منہ ٹیڑھا ہو گیا",
@@ -191,6 +239,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} چہرہ ڈھلک گیا ہے اور الٹی سیدھی باتیں کر رہے ہیں",
             "{subj} ایک طرف کا جسم سن اور بیکار ہو گیا ہے",
             "{subj} منہ ٹیڑھا ہو گیا اور آواز نہیں نکل رہی",
+            "{subj} چہرہ اچانک ٹیڑھا ہو گیا اور بول چال بند ہو گئی ہے",
+            "{subj} اچانک بایاں بازو گر گیا اور حرکت نہیں کر رہا",
+            "{subj} زبان لڑکھڑا گئی اور منہ ایک طرف لٹک گیا ہے",
+            "{subj} اچانک بولنا بند ہو گیا اور الفاظ سمجھ نہیں آ رہے",
         ],
         "loss_of_consciousness": [
             "{subj} اچانک بے ہوش ہو گئے اور ہوش نہیں آ رہا",
@@ -201,6 +253,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} اچانک چکر کھا کر بے ہوش ہو گئے ہیں",
             "{subj} بالکل بے ہوش ہیں کوئی حرکت نہیں ہو رہی",
             "{subj} غشی کا دورہ پڑا اور بالکل بے ہوش ہیں",
+            "{subj} جگانے پر بھی نہیں جاگ رہیں، بالکل بے ہوش ہیں",
+            "{subj} اچانک بے ہوش ہو کر گر پڑے اور کوئی ہوش نہیں ہے",
+            "{subj} بے ہوش پڑے ہیں اور پکارنے پر کوئی جواب نہیں دے رہے",
+            "{subj} غشی کے بعد سے آنکھیں نہیں کھول رہے اور بالکل بے سدھ ہیں",
         ],
         "dka_vomiting_high_glucose": [
             "{subj} ہر گھنٹے الٹی ہو رہی ہے، پانی بھی اندر نہیں ٹھہر رہا",
@@ -211,6 +267,10 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
             "{subj} پانی کا گھونٹ بھی نہیں رکتا، فوراً الٹی آ جاتی ہے",
             "{subj} لگاتار الٹیاں ہو رہی ہیں کچھ ہضم نہیں ہوتا",
             "{subj} الٹی رکنے کا نام نہیں لے رہی، شدید نڈھال ہیں",
+            "{subj} پانی بھی واپس نکل جاتا ہے اور شوگر بہت زیادہ بڑھی ہوئی ہے",
+            "{subj} مسلسل الٹیاں آ رہی ہیں اور کچھ بھی پیٹ میں نہیں ٹکتا",
+            "{subj} ہر آدھے گھنٹے بعد قے آ رہی ہے اور نڈھال ہیں",
+            "{subj} الٹیاں بند ہونے کا نام نہیں لے رہیں اور پانی کی شدید کمی ہو گئی ہے",
         ],
     }
 
@@ -517,17 +577,30 @@ def generate_corpus(seed: int = 42, num_positives: int = 700, num_negatives: int
         combined.append(n)
         idx += 1
 
-    output_path = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "red_flag_heldout_r5.json"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
+    if output_path is None:
+        target_path = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "red_flag_heldout_r5.json"
+    else:
+        target_path = Path(output_path)
+        if not target_path.is_absolute():
+            target_path = Path(__file__).resolve().parents[2] / target_path
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(target_path, "w", encoding="utf-8") as f:
         json.dump(combined, f, ensure_ascii=False, indent=2)
 
     print(f"Generated {len(combined)} held-out examples:")
     print(f"  Positives: {len(sampled_positives)}")
     print(f"  Negatives: {len(sampled_negatives)}")
-    print(f"Saved to: {output_path}")
+    print(f"Saved to: {target_path}")
     return combined
 
 
 if __name__ == "__main__":
-    generate_corpus(seed=42, num_positives=700, num_negatives=700)
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate systematic held-out red-flag corpus.")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--output", type=str, default=None, help="Output JSON path")
+    parser.add_argument("--num-positives", type=int, default=700, help="Number of positives")
+    parser.add_argument("--num-negatives", type=int, default=700, help="Number of negatives")
+    args = parser.parse_args()
+    generate_corpus(seed=args.seed, num_positives=args.num_positives, num_negatives=args.num_negatives, output_path=args.output)
