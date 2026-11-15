@@ -516,6 +516,13 @@ _FAILURE_VERB_PATTERNS = [
     r"\b(?:can\s+barely\s+talk|barely\s+(?:able\s+to\s+)?talk|getting\s+worse|cannot\s+speak|unable\s+to\s+talk)\b.*?\bwheez\w*\b",
     r"\bitni\s+takleef\b.*?\b(?:ke\s+)?baat\s+nahi\s+ho\s+rah",
     r"اتنی\s*تکلیف.*?(?:کہ\s*)?بات\s*نہیں\s*ہو\s*رہ",
+    # R8: Respiratory sentence completion & breathing impossible
+    r"\b(?:ek|aik)\s+jumla\s+(?:bhi\s+)?(?:poora|pura)\s+nahi\s+bol\s+pa\s+rah\w*\b",
+    r"\b(?:cant|cannot|unable\s+to)\s+(?:finish\s+a\s+sentence|speak\s+in\s+full\s+sentences?)\b",
+    r"ایک\s*جملہ\s*(?:بھی\s*)?پورا\s*نہیں\s*بول\s*پا\s*رہ\w*",
+    r"\b(?:saans|sans)\s+lena\s+(?:\w+\s+){0,3}(?:na-?mumkin|na\s+mumkin)\b",
+    r"\b(?:impossible\s+(?:\w+\s+){0,2}(?:to\s+)?breathe|breathing\s+(?:\w+\s+){0,3}impossible)\b",
+    r"سانس\s*لینا\s*(?:\S+\s*){0,3}(?:ناممکن|نا\s*ممکن)",
     r"(?:سانس|دم)\s*(?:\S+\s+){0,4}(?:نہیں\s*(?:آ\s*رہ\w*|جا\s*رہ\w*|لے\s*پا\s*رہ\w*)|پھنسی|اٹکی|رکی)",
     r"دم\s*گھٹ\s*رہ\w*",
     r"ہوا\s*(?:اندر\s*)?نہیں\s*(?:جا\s*رہی|آ\s*رہی|مل\s*رہی)",
@@ -615,9 +622,12 @@ _TRAILING_RE = re.compile("|".join(_TRAILING_NEGATORS), re.IGNORECASE)
 
 _PRECEDING_NEGATORS = [
     r"\b(?:no|not|never|without|denies|denied|zero|bina)\s+(?:\w+\s+){0,3}(?:chest|pain|pressure|tightness|breath\w*|shortness|stroke|droop\w*|slur\w*|speech|faint\w*|vomit\w*|ulti|behosh|dard|dabao|sans|saans|terha|harkat|collapse\w*|black\w*\s*out)\b",
+    r"\b(?:do\s*n\s*['’]?\s*t|does\s*n\s*['’]?\s*t|did\s*n\s*['’]?\s*t|not)\s+(?:feel\w*|feeling)\s+(?:any\s+)?(?:\w+\s+){0,3}(?:chest|pain|pressure|tightness|discomfort|breath\w*|shortness|stroke|droop\w*|slur\w*|speech|faint\w*|vomit\w*|ulti|behosh|dard|dabao|sans|saans|terha|harkat|takleef|masla)\b",
+    r"\b(?:koi|kisi)\s+(?:\w+\s+){0,4}mehsoo?s\s+(?:\w+\s+){0,2}(?:nahi|nhn|ni|nhi|na)\b",
     r"\b(?:koi|kisi)\s+(?:\w+\s+){0,3}(?:masla|takleef|dard|dabao|sans|seena|ulti|terha|terha\s+pan)\s+(?:\w+\s+){0,2}(?:nahi|nhn|ni|nhi|na)\b",
     r"\bkoi\s+(?:\w+\s+){0,4}nahi\b",
     r"\b(?:bilkul|zara\s+bhi)\s+nahi\b",
+    r"کوئی\s*(?:\S+\s+){0,4}محسوس\s*(?:\S+\s+){0,2}نہیں",
     r"کوئی\s*(?:\S+\s+){0,4}نہیں",
     r"(?:بالکل|ذرا\s*بھی)\s*نہیں",
     r"بغیر\s*(?:\S+\s+){0,3}(?:درد|تکلیف|سانس)",
@@ -825,8 +835,9 @@ def _is_chest_symptom_negated(norm: str) -> bool:
     # 2. General negation patterns
     if re.search(
         r"\b(?:no|not|without|denies|denied|never|free\s+of|zero|"
-        r"i\s+do\s*n\s*['’]?\s*t\s+have|i\s+did\s*n\s*['’]?\s*t\s+have|"
-        r"i\s+have\s+no|there\s+is\s+no|not\s+feeling\s+any|no\s+sign\s+of|"
+        r"(?:i\s+)?(?:do|does|did)\s*n\s*['’]?\s*t\s+(?:have|feel(?:\s+any)?)|"
+        r"(?:i\s*['’]?\s*m\s+)?not\s+feeling(?:\s+any)?|"
+        r"i\s+have\s+no|there\s+is\s+no|no\s+sign\s+of|"
         r"i\s*['’]?\s*m\s+not\s+having)\s+(?:\w+\s+){0,3}"
         r"(?:chest\s+pain|chest\s+trouble|chest\s+problem|chest\s+issue|chest\s+discomfort|pain|pressure|tightness|heaviness|discomfort|hurts|ache|trouble|problem|masla|takleef)\b",
         norm
@@ -838,9 +849,13 @@ def _is_chest_symptom_negated(norm: str) -> bool:
         return True
     if re.search(r"\b(?:dard|dabao|bojh|takleef|masla)\s+(?:to\s+|bhi\s+|bilkul\s+|hai\s+|ho\s+)?nahi(?:\s+hai)?\b", norm):
         return True
+    if re.search(r"\b(?:mujhe\s+koi|koi\s+bhi|koi|kisi)\s+(?:\w+\s+){0,4}(?:dard|dabao|bojh|takleef|masla|discomfort)?\s*(?:\w+\s+){0,2}mehsoo?s\s+(?:nahi|nhn|ni|nhi|na)\b", norm):
+        return True
     if re.search(r"\b(?:mujhe\s+koi|koi\s+bhi)\s+(?:\w+\s+){0,3}(?:dard|dabao|bojh|takleef|masla|seene\s+me\s+dard)\s+(?:bhi\s+)?(?:bilkul\s+)?nahi(?:\s+hai)?\b", norm):
         return True
     if re.search(r"\bkoi\s+(?:bhi\s+)?(?:\w+\s+){0,2}(?:dard|dabao|bojh|takleef|masla)\s+(?:bhi\s+)?nahi\b", norm):
+        return True
+    if re.search(r"کوئی\s*(?:\S+\s*){0,4}(?:درد|تکلیف|دباؤ|بوجھ|مسئلہ)?\s*(?:\S+\s*){0,2}محسوس\s*نہیں", norm):
         return True
     if re.search(r"(?:مجھے\s+کوئی|کوئی\s+بھی)\s*(?:\S+\s*){0,3}(?:درد|دباؤ|بوجھ|تکلیف|مسئلہ)\s*(?:بھی\s*)?(?:بالکل\s*)?نہیں(?:\s*ہے)?", norm):
         return True
@@ -1049,6 +1064,20 @@ _BREATHING_INABILITY_PATTERNS = [
     # R7: Breathless speech inability ("اتنی تکلیف ... کہ بات نہیں ہو رہی" / "itni takleef ... ke baat nahi ho rahi")
     r"\bitni\s+takl[ei]+f\b.*?\b(?:ke\s+)?ba+t\s+nahi\s+ho\s+rah",
     r"اتنی\s*تکلیف.*?(?:کہ\s*)?بات\s*نہیں\s*ہو\s*رہ",
+    # R8: Inability to finish a sentence / speak full sentences due to respiratory distress
+    r"\b(?:cant|cannot|unable\s+to|too\s+breathless\s+to|too\s+short\s+of\s+breath\s+to)\s+(?:finish\s+a\s+sentence|speak\s+in\s+full\s+sentences?|say\s+a\s+full\s+sentence|speak\s+full\s+sentences?)\b",
+    r"\b(?:can\s+barely|barely\s+able\s+to)\s+(?:finish\s+a\s+sentence|speak\s+in\s+full\s+sentences?|say\s+a\s+full\s+sentence)\b",
+    r"\b(?:saans|sans)\s+(?:itni\s+tez|itna\s+tez|itni\s+kharab|itni\s+takleef|itni\s+taklif)\s+(?:hai\s+)?k[ei]\s+(?:ek|aik)\s+jumla\s+(?:bhi\s+)?(?:poora|pura)\s+nahi\s+bol\s+pa\s+rah\w*\b",
+    r"\b(?:ek|aik)\s+jumla\s+(?:bhi\s+)?(?:poora|pura)\s+nahi\s+bol\s+pa\s+rah\w*\b",
+    r"\b(?:saans|sans)\s+(?:\w+\s+){0,4}k[ei]\s+(?:ek|aik)\s+jumla\s+(?:bhi\s+)?(?:poora|pura)\s+nahi\s+(?:bol|keh)\b",
+    r"سانس\s*(?:اتنی\s*تیز|اتنی\s*خراب|اتنی\s*تکلیف).*?ایک\s*جملہ\s*(?:بھی\s*)?پورا\s*نہیں\s*بول\s*پا\s*رہ\w*",
+    r"ایک\s*جملہ\s*(?:بھی\s*)?پورا\s*نہیں\s*بول\s*پا\s*رہ\w*",
+    # R8: Breathing impossible (na-mumkin / namumkin / impossible to breathe)
+    r"\b(?:saans|sans)\s+lena\s+(?:\w+\s+){0,3}(?:na-?mumkin|na\s+mumkin)\b",
+    r"\b(?:na-?mumkin|na\s+mumkin)\s+(?:ho\s+gaya|hai)\s+(?:saans|sans)\s+lena\b",
+    r"\b(?:impossible\s+(?:\w+\s+){0,2}(?:to\s+)?breathe|breathing\s+(?:\w+\s+){0,3}impossible|impossible\s+to\s+catch\s+(?:my\s+)?breath)\b",
+    r"سانس\s*لینا\s*(?:\S+\s*){0,3}(?:ناممکن|نا\s*ممکن)",
+    r"(?:ناممکن|نا\s*ممکن)\s*(?:\S+\s*){0,3}سانس\s*لینا",
     # Inability & gasping (English)
     r"\b(?:cant|cannot|unable\s+to)\s+breathe\b",
     r"\b(?:cant|cannot|unable\s+to)\s+catch\s+(?:my\s+)?breath\b",
@@ -1338,6 +1367,14 @@ _STROKE_FAST_PATTERNS = [
     r"\bsudden\s+loss\s+of\s+power\s+in\s+(?:\w+\s+){0,2}(?:side|arm|leg)\b",
     r"\b(?:haath|hath)\s+se\s+(?:\w+\s+){0,3}(?:gir\s+jat|drop\w*)\b",
     r"\bpakar\s+(?:nahi|nahin|na[iy])\s+pa\s+rah\w*\b",
+    # R8: Dropping objects (glass, cup, etc.) + speech changes
+    r"\b(?:hand|grip|fingers?)\s+(?:\w+\s+){0,3}drop(?:ped|s)?\s+(?:the\s+)?(?:glass|cup|mug|plate|bottle|phone|keys?|object|things?)\b",
+    r"\b(?:words?\s+came\s+out\s+(?:wrong|strange|garbled|slurred|jumbled)|speech\s+came\s+out\s+(?:wrong|strange))\b",
+    r"\b(?:words?|speech)\s+sound\w*\s+(?:wrong|strange|slurred|garbled)\b",
+    r"\b(?:haath|hath)\s+se\s+(?:glass|cup|cheez|chiz)\s+gir\s+(?:gaya|gayi|gaye)\b",
+    r"\b(?:alfaaz|bol|awaz|zaban)\s+(?:\w+\s+){0,3}(?:galat|ghalat|ajeeb|kharab)\s+nikal\s+rah[iyea]*\b",
+    r"(?:الفاظ|بات)\s*(?:\S+\s*){0,2}(?:غلط|عجیب)\s*نکل",
+    r"ہاتھ\s*سے\s*(?:گلاس|کپ|چیز)\s*گر\s*(?:گیا|گئی|گئے)",
     r"\bzaban\s+(?:\w+\s+){0,3}(?:larkhara\w*|ladkhada\w*)\b",
     r"(?:زبان\s*(?:\S+\s*){0,3}لڑکھڑا\w*|ہاتھ\s*سے\s*چھوٹ|پکڑ\s*نہیں\s*پا|قوت\s*ختم)",
     r"ایک\s*طرف\s*کمزوری",
@@ -1482,17 +1519,19 @@ def _is_benign_postural_or_chronic_numbness(norm: str, words: List[str]) -> bool
     # 2. Must have a clear benign trigger or chronic intermittent pattern
     has_benign_trigger = bool(re.search(
         r"\b(?:jab|when|after)\s+(?:\w+\s+){0,5}(?:mobile|phone|typing|type|computer|screen|chalata|chalatay|chalati|baith\w*|sota|sotay|soti|so\s+gaya|so\s+gayi|so\s+gaye|sone|sleep\w*|slept|sitting|sat|lying|lay)\b|"
-        r"\b(?:sone\s+(?:ke\s+(?:baad|bad)|par|se|ke\s+doran)|sotay\s+waqt|soye\s+hue)\b|"
+        r"\b(?:sone\s+(?:ke\s+(?:baad|bad)|par|se|ke\s+doran)|sotay\s+waqt|soye\s+hue|sote\s+hue|sotay\s+hue|soye\s+huwe)\b|"
+        r"\b(?:while\s+sleeping|when\s+sleeping|during\s+sleep)\b|"
         r"\b(?:when\s+i\s+(?:sleep|slept)\s+on\s+it|slept\s+on\s+(?:it|my\s+(?:arm|hand|shoulder|side)|an\s+arm)|sleeping\s+on\s+(?:it|my\s+(?:arm|hand|shoulder|side)|an\s+arm)|after\s+typing|using\s+(?:the\s+)?phone|using\s+mobile|holding\s+(?:the\s+)?phone)\b|"
         r"\b(?:der\s+tak\s+(?:mobile|phone|baith\w*|computer)|zyada\s+der\s+(?:baith\w*|mobile)|cross\s*legged)\b|"
         r"\b(?:comes\s+and\s+goes(?:\s+for\s+(?:months|years|weeks))?|off\s+and\s+on\s+for\s+(?:months|years|weeks)|for\s+(?:months|years))\b|"
         r"\b(?:mahino\s+se|kai\s+mahine|hafto\s+se|ata\s+jata\s+hai|aata\s+jaata\s+hai|kabhi\s+kabhi\s+hota\s+hai)\b|"
-        r"جب\s*(?:\S+\s*){0,4}(?:موبائل|فون|بیٹھ|سو|کمپیوٹر)|مہینوں\s*سے|کبھی\s*کبھی|سوتے\s*وقت|سونے\s*(?:کے\s*بعد|سے|پر)",
+        r"\bso\s+kar\s+uthn[aye]\b|"
+        r"جب\s*(?:\S+\s*){0,4}(?:موبائل|فون|بیٹھ|سو|کمپیوٹر)|مہینوں\s*سے|کبھی\s*کبھی|سوتے\s*وقت|سوتے\s*ہوئے|سونے\s*(?:کے\s*بعد|سے|پر)|سو\s*کر\s*اٹھنے",
         norm
     ))
     has_recovery_cue = bool(re.search(
-        r"\b(?:fine\s+now|ok\s+now|okay\s+now|better\s+now|went\s+away|all\s+good\s+now|resolv\w*|feeling\s+fine|ab\s+(?:bilkul\s+)?(?:theek|thik)\s+hai|(?:theek|thik)\s+ho\s+gaya|(?:theek|thik)\s+hai\s+ab|ab\s+(?:theek|thik)|khatam\s+ho\s+gaya|ab\s+sahi\s+hai)\b|"
-        r"اب\s*(?:بالکل\s*)?ٹھیک\s*ہے|ٹھیک\s*ہو\s*گیا|اب\s*صحیح\s*ہے",
+        r"\b(?:fine\s+now|ok\s+now|okay\s+now|better\s+now|went\s+away|all\s+good\s+now|resolv\w*|feeling\s+fine|ab\s+(?:bilkul\s+)?(?:theek|thik)\s+hai|(?:theek|thik)\s+ho\s+gaya|(?:theek|thik)\s+hai\s+ab|ab\s+(?:theek|thik|sahi)|theek\s+ab|khatam\s+ho\s+gaya|ab\s+sahi\s+hai)\b|"
+        r"اب\s*(?:بالکل\s*)?ٹھیک\s*ہے|اب\s*ٹھیک|ٹھیک\s*ہو\s*گیا|اب\s*صحیح\s*ہے|اب\s*صحیح",
         norm
     ))
     if not has_benign_trigger and not has_recovery_cue:
@@ -1536,7 +1575,8 @@ _STROKE_SPEECH_TOKENS = {
 _STROKE_SPEECH_DEFICIT_TOKENS = {
     "slur", "slurred", "slurring", "jumble", "jumbled", "garbled", "confused", "incoherent", "strange",
     "lost", "cant", "cannot", "unable", "ladkhada", "ladkhadata", "ajeeb", "band", "ruk", "samajh",
-    "لڑکھڑا", "عجیب", "بند", "گڈ مڈ", "سمجھ"
+    "wrong", "galat", "ghalat",
+    "لڑکھڑا", "عجیب", "بند", "گڈ مڈ", "سمجھ", "غلط"
 }
 
 _STROKE_LIMB_TOKENS = {
@@ -2215,6 +2255,9 @@ def decide_red(answer: str) -> RedDecision:
             if cat in ("loss_of_consciousness", "fainting") and is_syncope_rec:
                 is_cancelled = True
                 cancel_reason = "fainting_recovered"
+            elif cat in ("confusion_and_stroke", "stroke", "confusion", "one_sided_weakness") and _is_benign_postural_or_chronic_numbness(normalize_text(answer), normalize_text(answer).split()):
+                is_cancelled = True
+                cancel_reason = "postural_numbness_recovered"
             elif is_neg_or_past:
                 is_cancelled = True
                 cancel_reason = "negated_or_remote_past"
