@@ -149,9 +149,11 @@ def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots
     # 2. Blood Pressure
     bp = known_slots.get("bp_reading")
     if bp and isinstance(bp, (list, tuple)) and len(bp) >= 2:
-        bp_en = f"Blood Pressure: {bp[0]}/{bp[1]} mmHg"
-        bp_ur = f"بلڈ پریشر: {bp[0]}/{bp[1]} mmHg"
-        bp_ro = f"Blood Pressure: {bp[0]}/{bp[1]} mmHg"
+        bp_sys = int(bp[0]) if float(bp[0]).is_integer() else bp[0]
+        bp_dia = int(bp[1]) if float(bp[1]).is_integer() else bp[1]
+        bp_en = f"Blood Pressure: {bp_sys}/{bp_dia} mmHg"
+        bp_ur = f"بلڈ پریشر: {bp_sys}/{bp_dia} mmHg"
+        bp_ro = f"Blood Pressure: {bp_sys}/{bp_dia} mmHg"
     else:
         bp_en = "Blood Pressure: Not provided"
         bp_ur = "بلڈ پریشر: درج نہیں کیا گیا"
@@ -368,11 +370,30 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
     if "bp_reading" not in known_slots and "hypertension_bp_reading" not in known_slots:
         bp_res = parse_bp(answer_text)
         bp_parsed = bp_res.get("value") if isinstance(bp_res, dict) else bp_res
+        if not bp_parsed:
+            bp_patterns = [
+                r'(?:(?:bp|blood\s*pressure|b\.p\.?|بلڈ\s*پریشر)\s*(?:was|is|tha|thi|hai|:)?\s*)?([0-9\u0660-\u0669\u06F0-\u06F9]{2,3})\s*(?:[/]|over|by|bata|بٹہ|پر)\s*([0-9\u0660-\u0669\u06F0-\u06F9]{2,3})\b',
+                r'\b(?:bp|blood\s*pressure|b\.p\.?|بلڈ\s*پریشر)\s*(?:was|is|tha|thi|hai|:)?\s*([0-9\u0660-\u0669\u06F0-\u06F9]{2,3})\s+([0-9\u0660-\u0669\u06F0-\u06F9]{2,3})\b',
+            ]
+            for pat in bp_patterns:
+                m = re.search(pat, answer_text, re.IGNORECASE)
+                if m:
+                    candidate = f"{m.group(1)}/{m.group(2)}"
+                    cand_res = parse_bp(candidate)
+                    val = cand_res.get("value") if isinstance(cand_res, dict) else cand_res
+                    if val and isinstance(val, (list, tuple)) and len(val) >= 2:
+                        bp_parsed = val
+                        break
+
         if bp_parsed and isinstance(bp_parsed, (list, tuple)) and len(bp_parsed) >= 2:
             sys_val, dia_val = float(bp_parsed[0]), float(bp_parsed[1])
             if 40 <= sys_val <= 300 and 30 <= dia_val <= 200:
-                known_slots["bp_reading"] = [sys_val, dia_val]
-                readings["bp"] = f"{int(sys_val)}/{int(dia_val)}"
+                sys_num = int(sys_val) if sys_val.is_integer() else sys_val
+                dia_num = int(dia_val) if dia_val.is_integer() else dia_val
+                known_slots["bp_reading"] = [sys_num, dia_num]
+                readings["bp"] = f"{sys_num}/{dia_num}"
+                readings["blood_pressure_systolic"] = sys_num
+                readings["blood_pressure_diastolic"] = dia_num
                 session_state["readings"] = readings
 
     # 2. Early Blood Glucose Extraction
