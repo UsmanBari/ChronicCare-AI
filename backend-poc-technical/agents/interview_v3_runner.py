@@ -122,7 +122,12 @@ def _get_localized_text(item: Any, lang: str = "en") -> str:
     return str(item) if item else ""
 
 
-def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots: Optional[List[str]] = None) -> str:
+def _build_dual_summary_text(
+    known_slots: Dict[str, Any],
+    lang: str,
+    asked_slots: Optional[List[str]] = None,
+    session_state: Optional[Dict[str, Any]] = None,
+) -> str:
     """
     R8: Constructs a structured summary listing captured readings and values
     for both diabetes and hypertension in the session language.
@@ -130,7 +135,10 @@ def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots
     if "known_slots" in known_slots and isinstance(known_slots["known_slots"], dict):
         if asked_slots is None and "asked_slots" in known_slots:
             asked_slots = known_slots["asked_slots"]
-        known_slots = known_slots["known_slots"]
+        session_dict = known_slots
+        if session_state is None:
+            session_state = session_dict
+        known_slots = session_dict["known_slots"]
 
     if asked_slots is None:
         asked_slots = []
@@ -165,36 +173,50 @@ def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots
         bp_ro = "Blood Pressure: Darj nahi kiya gaya"
 
     # 3. Symptoms
-    symptoms = []
-    if known_slots.get("hyperglycemia_symptoms") is True or known_slots.get("associated_symptoms") is True:
-        symptoms.append("reported symptoms")
-    if known_slots.get("foot_problems") is True:
-        symptoms.append("foot numbness or sores")
+    findings = []
+    if session_state and isinstance(session_state, dict):
+        findings = session_state.get("findings", [])
+    if not findings and isinstance(known_slots, dict):
+        findings = known_slots.get("findings", [])
 
-    symptoms_denied = (
-        known_slots.get("symptoms_denied") is True
-        or known_slots.get("hyperglycemia_symptoms") is False
-        or known_slots.get("associated_symptoms") is False
-        or known_slots.get("foot_problems") is False
-    )
-    symptoms_asked = symptoms_denied or any(
-        k in known_slots for k in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems", "symptoms_denied")
-    ) or any(
-        s in asked_slots for s in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems", "core_symptoms", "symptoms")
-    )
-
-    if symptoms:
-        symp_en = f"Symptoms: {', '.join(symptoms)}"
-        symp_ur = "علامات: علامات کی اطلاع دی گئی"
-        symp_ro = "Alamaat: Alamaat report ki gayi hain"
-    elif symptoms_asked:
-        symp_en = "Symptoms: None reported"
-        symp_ur = "علامات: کوئی نہیں"
-        symp_ro = "Alamaat: Koi nahi"
+    if findings:
+        from agents.interview_findings import format_finding_label
+        formatted_list = [format_finding_label(f, lang) for f in findings]
+        joined = ", ".join(formatted_list)
+        symp_en = f"Symptoms: {joined}"
+        if lang == "ur":
+            symp_ur = f"علامات: {joined}"
+        elif lang == "roman_ur":
+            symp_ro = f"Alamaat: {joined}"
+        else:
+            symp_ur = f"علامات: {joined}"
+            symp_ro = f"Alamaat: {joined}"
     else:
-        symp_en = "Symptoms: not asked"
-        symp_ur = "علامات: پوچھی نہیں گئیں"
-        symp_ro = "Symptoms: nahi poochay gaye"
+        symptoms = []
+        if known_slots.get("hyperglycemia_symptoms") is True or known_slots.get("associated_symptoms") is True:
+            symptoms.append("reported symptoms")
+        if known_slots.get("foot_problems") is True:
+            symptoms.append("foot numbness or sores")
+
+        symptoms_denied = (
+            known_slots.get("symptoms_denied") is True
+            or known_slots.get("hyperglycemia_symptoms") is False
+            or known_slots.get("associated_symptoms") is False
+            or known_slots.get("foot_problems") is False
+        )
+
+        if symptoms:
+            symp_en = f"Symptoms: {', '.join(symptoms)}"
+            symp_ur = "علامات: علامات کی اطلاع دی گئی"
+            symp_ro = "Alamaat: Alamaat report ki gayi hain"
+        elif symptoms_denied:
+            symp_en = "Symptoms: None reported"
+            symp_ur = "علامات: کوئی نہیں"
+            symp_ro = "Alamaat: Koi nahi"
+        else:
+            symp_en = "Symptoms: not asked"
+            symp_ur = "علامات: پوچھی نہیں گئیں"
+            symp_ro = "Symptoms: nahi poochay gaye"
 
     # 4. Adherence
     adh = known_slots.get("adherence_diabetes")
@@ -1237,6 +1259,8 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             existing_kinds.add(f.kind)
 
     session_state["findings"] = [asdict(f) for f in current_findings]
+    if current_findings:
+        known_slots.pop("symptoms_denied", None)
 
     # R8: Summary Confirmation & Correction Loop
     if current_slot == "summary_confirmation":
@@ -1325,7 +1349,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         # R8: Re-show summary confirmation immediately after the corrected slot is answered
         session_state["is_probe"] = False
         step_id = "summary_confirmation"
-        question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots)
+        question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots, session_state=session_state)
         why_text = get_message("summary_confirm_why", lang)
         options = ["Confirm and submit", "Need to change something"]
         option_items = [
@@ -1380,7 +1404,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     if decision.action == "summary_confirm":
         session_state["is_probe"] = False
         step_id = "summary_confirmation"
-        question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots)
+        question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots, session_state=session_state)
         why_text = get_message("summary_confirm_why", lang)
         options = ["Confirm and submit", "Need to change something"]
         option_items = [

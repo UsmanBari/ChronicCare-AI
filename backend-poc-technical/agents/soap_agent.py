@@ -181,17 +181,50 @@ def build_soap(
         else:
             reported_symptoms.append(f"General condition: {val}")
 
-    symp_keys = ["hyperglycemia_symptoms", "hypoglycemia_symptoms", "symptoms", "symptom_notes"]
+    # P1-4: Check clinical findings first, format attributes (e.g. "Headache (mild, gradual)")
+    findings = state.get("findings") or (result.get("findings") if result else None) or checkin.get("findings") or []
+    if not findings and isinstance(state.get("known_slots"), dict):
+        findings = state["known_slots"].get("findings", [])
+
     found_symp = False
-    for sk in symp_keys:
-        if sk in answers and answers[sk] is not None:
-            val = str(answers[sk]).strip()
-            if val.lower() in ("skip", "skipped", "null", "none", "not provided", ""):
-                reported_symptoms.append("Reported symptoms: not answered")
-            else:
-                reported_symptoms.append(f"Reported symptoms: {val}")
+    if findings:
+        from agents.interview_findings import format_finding_label
+        formatted_findings = [format_finding_label(f, "en") for f in findings]
+        reported_symptoms.append(f"Reported symptoms: {'; '.join(formatted_findings)}")
+        found_symp = True
+    else:
+        # Check if symptoms were explicitly denied
+        symptoms_denied = (
+            state.get("symptoms_denied") is True
+            or (isinstance(state.get("known_slots"), dict) and state["known_slots"].get("symptoms_denied") is True)
+            or answers.get("hyperglycemia_symptoms") is False
+            or answers.get("associated_symptoms") is False
+            or answers.get("foot_problems") is False
+            or answers.get("symptoms_denied") is True
+        )
+        if symptoms_denied:
+            reported_symptoms.append("Reported symptoms: None reported")
             found_symp = True
-            break
+        else:
+            symp_keys = ["hyperglycemia_symptoms", "hypoglycemia_symptoms", "symptoms", "symptom_notes"]
+            for sk in symp_keys:
+                if sk in answers and answers[sk] is not None:
+                    raw_val = answers[sk]
+                    if raw_val is True or raw_val == "true":
+                        reported_symptoms.append("Reported symptoms: Present")
+                        found_symp = True
+                        break
+                    elif raw_val is False or raw_val == "false":
+                        reported_symptoms.append("Reported symptoms: None reported")
+                        found_symp = True
+                        break
+                    val = str(raw_val).strip()
+                    if val.lower() in ("skip", "skipped", "null", "none", "not provided", ""):
+                        reported_symptoms.append("Reported symptoms: not answered")
+                    else:
+                        reported_symptoms.append(f"Reported symptoms: {val}")
+                    found_symp = True
+                    break
 
     if not found_symp:
         intake_symps = []
@@ -200,11 +233,11 @@ def build_soap(
                 symps_val = it["symptoms"]
                 if isinstance(symps_val, dict):
                     for k, v in symps_val.items():
-                        if v and str(v).lower() not in ("skip", "skipped", "null", "none", "not provided", ""):
+                        if v and str(v).lower() not in ("skip", "skipped", "null", "none", "not provided", "", "false"):
                             intake_symps.append(f"{k.replace('_', ' ')}: {v}")
                 elif isinstance(symps_val, list):
                     for s in symps_val:
-                        if s and str(s).lower() not in ("skip", "skipped", "null", "none", "not provided", ""):
+                        if s and str(s).lower() not in ("skip", "skipped", "null", "none", "not provided", "", "false"):
                             intake_symps.append(str(s))
         if intake_symps:
             reported_symptoms.append(f"Reported symptoms: {'; '.join(intake_symps)}")
