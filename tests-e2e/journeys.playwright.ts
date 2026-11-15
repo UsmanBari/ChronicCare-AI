@@ -849,4 +849,80 @@ test.describe("H3-5-01: Five End-to-End User Journeys", () => {
       expect(download.suggestedFilename()).toContain(".json");
     }
   });
+
+  test("J-provider-resilience: Provider logs in, waits 45s, navigates review queue, opens case, SOAP, approves without 401 kick (and admin portal)", async ({ page }) => {
+    test.setTimeout(120000);
+
+    // 1. Provider Journey
+    await page.goto("/?portal=landing");
+    await dismissPreloader(page);
+
+    const providerPortalBtn = page.locator("#select-provider-portal-btn");
+    await expect(providerPortalBtn).toBeVisible({ timeout: 10000 });
+    await providerPortalBtn.click();
+
+    // Login as provider
+    const provIdInput = page.locator("#provider-identifier");
+    await expect(provIdInput).toBeVisible({ timeout: 10000 });
+    await provIdInput.fill("provider.demo@demo.care");
+    await page.locator("#provider-password").fill("password123");
+    await page.click("#provider-login-btn");
+
+    // Dashboard loads
+    const dashboardTitle = page.locator("h1:has-text('Clinical Provider Dashboard'), h1:has-text('Provider Clinical Dashboard'), h1:has-text('کلینکل ڈیش بورڈ')");
+    await expect(dashboardTitle).toBeVisible({ timeout: 15000 });
+
+    // Wait 45s (simulating provider viewing dashboard without token loss / 401 kick)
+    await page.waitForTimeout(45000);
+
+    // Verify still authenticated (never kicked to login)
+    await expect(page.locator("#provider-login-btn")).toBeHidden();
+    await expect(page.locator("#provider-session-notice-banner")).toBeHidden();
+
+    // Open Review Queue (open a case)
+    const openQueueBtn = page.locator("#open-review-queue-btn, button:has-text('Open Review Queue')").first();
+    if (await openQueueBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await openQueueBtn.click();
+    }
+    const caseRow = page.locator("#queue-row-ali-khan-conflict, [id^='queue-row-'], [id^='patient-row-']").first();
+    await expect(caseRow).toBeVisible({ timeout: 10000 });
+    await caseRow.click();
+
+    // Verify case details & SOAP note panel
+    const soapPanel = page.locator('[data-testid="provider-soap-note-panel"]');
+    await expect(soapPanel).toBeVisible({ timeout: 12000 });
+
+    // Approve the case
+    const approveBtn = page.locator("#review-approve-btn");
+    await expect(approveBtn).toBeVisible({ timeout: 10000 });
+    await approveBtn.click();
+
+    // Verify no unauthorized kick occurred after approval API call
+    await page.waitForTimeout(2000);
+    await expect(page.locator("#provider-login-btn")).toBeHidden();
+    await expect(page.locator("#provider-session-notice-banner")).toBeHidden();
+
+    // 2. Admin Portal Journey
+    await page.goto("/?portal=landing");
+    await dismissPreloader(page);
+
+    const adminPortalBtn = page.locator("#select-admin-portal-btn");
+    await expect(adminPortalBtn).toBeVisible({ timeout: 10000 });
+    await adminPortalBtn.click();
+
+    const adminIdInput = page.locator("#admin-identifier");
+    await expect(adminIdInput).toBeVisible({ timeout: 10000 });
+    await adminIdInput.fill("admin.demo@demo.care");
+    await page.locator("#admin-password").fill("password123");
+    await page.click("#admin-login-btn");
+
+    // Admin dashboard loads
+    const configSection = page.locator('[data-testid="admin-config-status-section"]');
+    await expect(configSection).toBeVisible({ timeout: 15000 });
+
+    // Assert admin remains logged in and not kicked
+    await page.waitForTimeout(3000);
+    await expect(page.locator("#admin-login-btn")).toBeHidden();
+    await expect(page.locator("#admin-session-notice-banner")).toBeHidden();
+  });
 });

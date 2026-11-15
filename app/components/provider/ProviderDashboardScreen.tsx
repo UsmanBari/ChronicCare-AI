@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
-import { api, ReviewQueueItemResponse } from "../../lib/api";
+import { api, ReviewQueueItemResponse, InAppNotification } from "../../lib/api";
 import {
   Activity,
   AlertTriangle,
@@ -34,14 +34,26 @@ export const ProviderDashboardScreen = () => {
 
   const [showNotifications, setShowNotifications] = useState(true);
   const [liveItems, setLiveItems] = useState<ReviewQueueItemResponse[]>([]);
+  const [liveNotifications, setLiveNotifications] = useState<InAppNotification[]>([]);
 
   useEffect(() => {
     if (!isLiveMode) return;
+    // P1-7: Backend accepts open|acknowledged|resolved|escalated
     api
-      .getProviderReviewQueue("pending")
+      .getProviderReviewQueue("open")
       .then((res) => {
         if (Array.isArray(res)) {
           setLiveItems(res);
+        }
+      })
+      .catch(() => {});
+
+    // P2-8: Live notifications feed for provider dashboard
+    api
+      .getProviderNotifications()
+      .then((res) => {
+        if (res && Array.isArray(res.notifications)) {
+          setLiveNotifications(res.notifications);
         }
       })
       .catch(() => {});
@@ -206,15 +218,69 @@ export const ProviderDashboardScreen = () => {
               <span>{t.patientListTitle}</span>
             </h3>
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
-              {isLiveMode ? (isUrdu ? "0 مریض تفویض شدہ" : "0 Assigned Patients") : "3 Assigned Patients"}
+              {isLiveMode ? (isUrdu ? `${liveItems.length} مریض تفویض شدہ` : `${liveItems.length} Assigned Patients`) : "3 Assigned Patients"}
             </span>
           </div>
 
           <div className="space-y-3">
             {isLiveMode ? (
-              <div className="p-8 text-center text-slate-500 text-sm">
-                <p className="font-medium">{isUrdu ? "ابھی کوئی مریض تفویض نہیں کیا گیا" : "No assigned patients yet"}</p>
-              </div>
+              liveItems.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 text-sm">
+                  <p className="font-medium">{isUrdu ? "ابھی کوئی مریض تفویض نہیں کیا گیا" : "No assigned patients yet"}</p>
+                </div>
+              ) : (
+                liveItems.map((item) => (
+                  <div
+                    key={item.checkin_id}
+                    onClick={() => {
+                      setSelectedPatient(item.patient_display);
+                      setProviderScreen("review_queue");
+                    }}
+                    id={`patient-row-${item.checkin_id}`}
+                    className="p-4 sm:p-5 rounded-2xl border border-slate-200 hover:border-teal-600 bg-white/90 hover:bg-teal-50/40 transition-all cursor-pointer flex items-center justify-between shadow-xs"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="shrink-0">
+                        {item.emergency || item.triage_level === "emergency" ? (
+                          <div className="w-9 h-9 rounded-xl bg-emergencyRed-100 border border-emergencyRed-700/40 text-emergencyRed-800 flex items-center justify-center animate-pulse">
+                            <AlertOctagon className="w-5 h-5" />
+                          </div>
+                        ) : item.triage_level === "urgent" || item.triage_level === "review" ? (
+                          <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center">
+                            <AlertTriangle className="w-5 h-5" />
+                          </div>
+                        ) : (
+                          <div className="w-9 h-9 rounded-xl bg-mutedGreen-100 border border-mutedGreen-800/30 text-mutedGreen-800 flex items-center justify-center">
+                            <CheckCircle2 className="w-5 h-5" />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-base text-navy-800">{item.patient_display}</span>
+                          <span className="text-xs text-slate-500 font-medium">
+                            {item.mode === "connected" ? "Connected EHR" : "Self-Reported"}
+                          </span>
+                        </div>
+                        <div className="text-sm mt-0.5">
+                          {item.emergency ? (
+                            <span className="text-emergencyRed-800 font-semibold flex items-center gap-1">
+                              <AlertOctagon className="w-3.5 h-3.5 shrink-0" />
+                              <span>{item.trigger_text || "Critical: Emergency flagged"}</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-600 font-medium flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                              <span>{item.trigger_text || `Triage: ${item.triage_level || "Routine"}`}</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight className={`w-5 h-5 text-slate-400 ${isUrdu ? "rotate-180" : ""}`} />
+                  </div>
+                ))
+              )
             ) : (
               <>
             {/* Patient 1: Ali Khan (Dynamic) */}
@@ -363,9 +429,42 @@ export const ProviderDashboardScreen = () => {
 
           <div className="space-y-3 text-sm">
             {isLiveMode ? (
-              <div className="p-8 text-center text-slate-500 text-sm">
-                <p className="font-medium">{isUrdu ? "ابھی کوئی سرگرمی نہیں ہے" : "No activity yet"}</p>
-              </div>
+              liveNotifications.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 text-sm">
+                  <p className="font-medium">{isUrdu ? "ابھی کوئی سرگرمی نہیں ہے" : "No activity yet"}</p>
+                </div>
+              ) : (
+                liveNotifications.slice(0, 5).map((notif) => (
+                  <div
+                    key={notif.id}
+                    onClick={() => setProviderScreen("review_queue")}
+                    className={`p-4 rounded-2xl border space-y-1 cursor-pointer transition-all ${
+                      notif.type === "emergency" || notif.type === "urgent"
+                        ? "bg-emergencyRed-50 border-emergencyRed-800/30 text-emergencyRed-800 hover:bg-emergencyRed-100/60"
+                        : notif.type === "clinical_review"
+                        ? "bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100/60"
+                        : "bg-slate-50 border-slate-200/80 text-slate-700 hover:bg-slate-100/80"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 font-bold text-sm">
+                      <div className="flex items-center gap-2">
+                        {notif.type === "emergency" || notif.type === "urgent" ? (
+                          <AlertOctagon className="w-4 h-4 shrink-0 text-emergencyRed-800 animate-pulse" />
+                        ) : notif.type === "clinical_review" ? (
+                          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-800" />
+                        ) : (
+                          <ShieldCheck className="w-4 h-4 text-teal-700 shrink-0" />
+                        )}
+                        <span>{notif.title}</span>
+                      </div>
+                      {!notif.is_read && (
+                        <span className="w-2 h-2 rounded-full bg-teal-600 shrink-0" />
+                      )}
+                    </div>
+                    <p className="text-xs leading-relaxed text-slate-600">{notif.body}</p>
+                  </div>
+                ))
+              )
             ) : (
               <>
                 {demoScenario === "emergency" && !isAliResolved && (
