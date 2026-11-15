@@ -220,4 +220,29 @@ def test_seed_demo_data_hermetic_pipeline(temp_sqlite_db):
     admin_user = app_store.get_user_by_email("admin.demo@demo.care", db_path=temp_sqlite_db)
     assert admin_user is not None and admin_user["role"] == "admin"
 
+    # 10. P1-7 & P2-8: Provider Review Queue & Dashboard Data Source non-zero counts
+    main.app.dependency_overrides[main.get_current_user] = lambda: {
+        "user_id": seeded_users["provider"],
+        "email": "provider.demo@demo.care",
+        "role": "provider",
+    }
+    queue_resp = client.get("/api/provider/review-queue?status=open")
+    assert queue_resp.status_code == 200, f"Expected 200 from review-queue, got {queue_resp.status_code}: {queue_resp.text}"
+    queue_items = queue_resp.json()
+    assert isinstance(queue_items, list)
+    active_cases_count = len(queue_items)
+    urgent_cases_count = len([
+        it for it in queue_items
+        if it.get("emergency") or it.get("triage_level") in ("urgent", "emergency")
+    ])
+    assert active_cases_count > 0, "Provider dashboard activeCasesCount must be non-zero with demo seed"
+    assert urgent_cases_count > 0, "Provider dashboard urgentCasesCount must be non-zero with demo seed"
+
+    # Provider notifications non-zero
+    notif_resp = client.get("/api/provider/notifications")
+    assert notif_resp.status_code == 200
+    notif_data = notif_resp.json()
+    assert notif_data.get("unread_count", 0) > 0, "Provider dashboard notifications count must be non-zero with demo seed"
+    assert len(notif_data.get("notifications", [])) > 0, "Provider dashboard notifications list must be non-zero with demo seed"
+
     main.app.dependency_overrides.clear()

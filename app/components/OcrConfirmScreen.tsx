@@ -161,8 +161,12 @@ export default function OcrConfirmScreen() {
       if (o.date) return o.date;
     }
     for (const line of rawLines) {
-      const m = line.match(/\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/);
-      if (m) return m[0];
+      // Matches "Date: 2026-11-15", "Date: 15/11/2026", "2026-11-15", "15-11-2026", etc.
+      const m = line.match(/(?:date\s*[:\-]?\s*)?(\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b|\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b)/i);
+      if (m) {
+        const datePart = m[1] || m[0];
+        return datePart.replace(/^date\s*[:\-]?\s*/i, "").trim();
+      }
     }
     return null;
   })();
@@ -215,6 +219,22 @@ export default function OcrConfirmScreen() {
       return;
     }
     setError(null);
+
+    // Validate that confirmed items do not have empty names
+    const hasEmptyConfirmed =
+      medications.some((m) => m.confirmed && !m.name.trim()) ||
+      allergies.some((a) => a.confirmed && !a.substance.trim()) ||
+      observations.some((o) => o.confirmed && !o.type.trim());
+
+    if (hasEmptyConfirmed) {
+      setError(
+        isUrdu
+          ? "براہ کرم محفوظ کرنے سے پہلے تمام منتخب کردہ اشیاء کے نام درج کریں۔"
+          : "Please enter a name for all confirmed items before saving."
+      );
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -225,11 +245,11 @@ export default function OcrConfirmScreen() {
         .forEach((o) => {
           confirmedItems.push({
             id: o.id,
-            type: o.type,
+            type: "observation",
+            observation_type: o.type,
             value: Number(o.value),
             unit: o.unit,
-            date: o.date,
-            evidence: o.evidence,
+            measured_at: o.date || new Date().toISOString(),
           });
         });
 
@@ -238,10 +258,10 @@ export default function OcrConfirmScreen() {
         .forEach((m) => {
           confirmedItems.push({
             id: m.id,
-            name: m.name,
-            dosage: m.dosage,
-            status: m.status,
-            evidence: m.evidence,
+            type: "medication",
+            name: m.name.trim(),
+            dosage: (m.dosage && m.dosage.trim()) || "as directed",
+            status: m.status || "active",
           });
         });
 
@@ -250,11 +270,12 @@ export default function OcrConfirmScreen() {
         .forEach((a) => {
           confirmedItems.push({
             id: a.id,
-            substance: a.substance,
-            reaction: a.reaction || undefined,
+            type: "allergy",
+            substance: a.substance.trim(),
+            reaction: a.reaction?.trim() || undefined,
             severity: a.severity || undefined,
-            status: a.status || undefined,
-            evidence: a.evidence || undefined,
+            status: a.status || "active",
+            confirmed: true,
           });
         });
 
@@ -271,6 +292,7 @@ export default function OcrConfirmScreen() {
       setScreen(returnTarget);
     } catch (err: any) {
       setIsSaving(false);
+      console.error("OCR confirm error:", err);
       const errData = err?.data?.detail || err?.data;
       if (errData?.code === "invalid_item") {
         const itemIdx = Number(errData.item_index ?? 0);
@@ -317,7 +339,18 @@ export default function OcrConfirmScreen() {
         }
         setError(t.ocrInvalidItemBanner);
       } else {
-        setError(err?.detail || err?.message || (isUrdu ? "محفوظ کرنے میں خرابی واقع ہوئی" : "Failed to save confirmed items."));
+        let friendlyMsg = isUrdu
+          ? "آپ کے منتخب کردہ اندراجات کو محفوظ نہیں کیا جا سکا۔ براہ کرم معلومات کی تصدیق کریں اور دوبارہ کوشش کریں۔"
+          : "Could not save your confirmed items. Please review the highlighted fields and try again.";
+
+        if (err?.status === 422) {
+          friendlyMsg = isUrdu
+            ? "کچھ اندراجات کی شکل درست نہیں ہے۔ براہ کرم نام اور مقدار کی جانچ کریں۔"
+            : "Some items have an invalid format. Please verify names and doses, then try again.";
+        } else if (typeof err?.detail === "string" && !err.detail.startsWith("[") && !err.detail.startsWith("{")) {
+          friendlyMsg = err.detail;
+        }
+        setError(friendlyMsg);
       }
     }
   };
@@ -328,6 +361,13 @@ export default function OcrConfirmScreen() {
     allergies.filter((a) => a.confirmed).length;
 
   const totalCount = observations.length + medications.length + allergies.length;
+
+  const hasEmptyConfirmedName =
+    medications.some((m) => m.confirmed && !m.name.trim()) ||
+    allergies.some((a) => a.confirmed && !a.substance.trim()) ||
+    observations.some((o) => o.confirmed && !o.type.trim());
+
+  const isSaveDisabled = isSaving || confirmedCount === 0 || hasEmptyConfirmedName;
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12" data-testid="ocr-confirm-screen">
@@ -622,7 +662,8 @@ export default function OcrConfirmScreen() {
                       <input
                         type="text"
                         aria-label="Observation Type"
-                        value={obs.type}
+                        value={obs.type || ""}
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) =>
                           setObservations((prev) =>
                             prev.map((o) =>
@@ -630,8 +671,15 @@ export default function OcrConfirmScreen() {
                             )
                           )
                         }
-                        className="w-full text-xs p-2 rounded-lg border border-slate-300"
+                        className={`w-full text-xs p-2.5 rounded-xl border bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-2xs ${
+                          obs.confirmed && !obs.type.trim() ? "border-red-400 ring-1 ring-red-300" : "border-slate-300"
+                        }`}
                       />
+                      {obs.confirmed && !obs.type.trim() && (
+                        <p className="text-[10px] text-red-600 font-medium mt-1">
+                          {isUrdu ? "قسم درج کرنا ضروری ہے" : "Type is required"}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Value</label>
@@ -639,7 +687,8 @@ export default function OcrConfirmScreen() {
                         type="number"
                         step="any"
                         aria-label="Observation Value"
-                        value={obs.value}
+                        value={obs.value ?? ""}
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) =>
                           setObservations((prev) =>
                             prev.map((o) =>
@@ -647,7 +696,7 @@ export default function OcrConfirmScreen() {
                             )
                           )
                         }
-                        className="w-full text-xs p-2 rounded-lg border border-slate-300"
+                        className="w-full text-xs p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-2xs"
                       />
                     </div>
                     <div>
@@ -655,7 +704,8 @@ export default function OcrConfirmScreen() {
                       <input
                         type="text"
                         aria-label="Observation Unit"
-                        value={obs.unit}
+                        value={obs.unit || ""}
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) =>
                           setObservations((prev) =>
                             prev.map((o) =>
@@ -663,14 +713,14 @@ export default function OcrConfirmScreen() {
                             )
                           )
                         }
-                        className="w-full text-xs p-2 rounded-lg border border-slate-300"
+                        className="w-full text-xs p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-2xs"
                       />
                     </div>
                   </div>
                 ) : (
                   <div>
-                    <div className="font-bold text-sm text-navy-900 capitalize">
-                      {obs.type.replace(/_/g, " ")}:{" "}
+                    <div className="font-bold text-sm text-navy-900">
+                      <span className="capitalize">{obs.type.replace(/_/g, " ")}</span>:{" "}
                       <bdi className="font-mono text-purple-900">
                         {obs.value} {obs.unit}
                       </bdi>
@@ -832,11 +882,15 @@ export default function OcrConfirmScreen() {
                 {med.isEditing ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">Name</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">
+                        {isUrdu ? "دوا کا نام" : "Medication Name"}
+                      </label>
                       <input
                         type="text"
                         aria-label="Medication Name"
-                        value={med.name}
+                        value={med.name || ""}
+                        placeholder="e.g. Glimepiride"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) =>
                           setMedications((prev) =>
                             prev.map((m) =>
@@ -844,15 +898,26 @@ export default function OcrConfirmScreen() {
                             )
                           )
                         }
-                        className="w-full text-xs p-2 rounded-lg border border-slate-300"
+                        className={`w-full text-xs p-2.5 rounded-xl border bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-2xs ${
+                          med.confirmed && !med.name.trim() ? "border-red-400 ring-1 ring-red-300" : "border-slate-300"
+                        }`}
                       />
+                      {med.confirmed && !med.name.trim() && (
+                        <p className="text-[10px] text-red-600 font-medium mt-1">
+                          {isUrdu ? "دوا کا نام درج کرنا ضروری ہے" : "Medication name is required"}
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">Dosage</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">
+                        {isUrdu ? "مقدار" : "Dosage"}
+                      </label>
                       <input
                         type="text"
                         aria-label="Medication Dosage"
-                        value={med.dosage}
+                        value={med.dosage || ""}
+                        placeholder="e.g. 2mg"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) =>
                           setMedications((prev) =>
                             prev.map((m) =>
@@ -860,7 +925,7 @@ export default function OcrConfirmScreen() {
                             )
                           )
                         }
-                        className="w-full text-xs p-2 rounded-lg border border-slate-300"
+                        className="w-full text-xs p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-2xs"
                       />
                     </div>
                   </div>
@@ -1005,11 +1070,15 @@ export default function OcrConfirmScreen() {
                 {all.isEditing ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">Substance</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">
+                        {isUrdu ? "مادہ" : "Substance"}
+                      </label>
                       <input
                         type="text"
                         aria-label="Allergy Substance"
-                        value={all.substance}
+                        value={all.substance || ""}
+                        placeholder="e.g. Penicillin"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) =>
                           setAllergies((prev) =>
                             prev.map((a) =>
@@ -1017,15 +1086,26 @@ export default function OcrConfirmScreen() {
                             )
                           )
                         }
-                        className="w-full text-xs p-2 rounded-lg border border-slate-300"
+                        className={`w-full text-xs p-2.5 rounded-xl border bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-2xs ${
+                          all.confirmed && !all.substance.trim() ? "border-red-400 ring-1 ring-red-300" : "border-slate-300"
+                        }`}
                       />
+                      {all.confirmed && !all.substance.trim() && (
+                        <p className="text-[10px] text-red-600 font-medium mt-1">
+                          {isUrdu ? "مادہ کا نام درج کرنا ضروری ہے" : "Substance name is required"}
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">Reaction</label>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">
+                        {isUrdu ? "ردعمل" : "Reaction"}
+                      </label>
                       <input
                         type="text"
                         aria-label="Allergy Reaction"
                         value={all.reaction || ""}
+                        placeholder="e.g. Rash"
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) =>
                           setAllergies((prev) =>
                             prev.map((a) =>
@@ -1033,7 +1113,7 @@ export default function OcrConfirmScreen() {
                             )
                           )
                         }
-                        className="w-full text-xs p-2 rounded-lg border border-slate-300"
+                        className="w-full text-xs p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-2xs"
                       />
                     </div>
                   </div>
@@ -1081,6 +1161,11 @@ export default function OcrConfirmScreen() {
         </div>
 
         <div className="flex items-center gap-2">
+          {hasEmptyConfirmedName && (
+            <span className="text-[11px] text-amber-700 font-medium mr-1">
+              {isUrdu ? "محفوظ کرنے سے پہلے تمام نام درج کریں" : "Please enter a name for all confirmed items"}
+            </span>
+          )}
           <button
             type="button"
             data-testid="ocr-cancel-btn"
@@ -1094,7 +1179,7 @@ export default function OcrConfirmScreen() {
             type="button"
             data-testid="ocr-save-confirmed-btn"
             onClick={handleConfirmAndSave}
-            disabled={isSaving || confirmedCount === 0}
+            disabled={isSaveDisabled}
             className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 disabled:bg-purple-300 text-white text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

@@ -196,7 +196,12 @@ def plan_next_step(
     if bank is None:
         bank = get_default_bank()
 
-    clean_known = {k for k in known_slots.keys() if not k.endswith("__evidence") and not k.endswith("__partial")}
+    clean_known = {
+        k for k in known_slots.keys()
+        if not k.endswith("__evidence")
+        and not k.endswith("__partial")
+        and k != "symptoms_denied"
+    }
     if asked_slots is None:
         asked_slots = clean_known
     else:
@@ -228,10 +233,28 @@ def plan_next_step(
         and not s.endswith("__evidence") 
         and not s.endswith("__partial") 
         and s != "summary_confirmation"
+        and s != "symptoms_denied"
     ])
 
     # Hard cap check
     if current_count >= effective_budget:
+        # Missing-data checkpoint: Hypertension & dual patients must be asked BP reading before summary
+        conditions = set(patient_record.get("conditions", []))
+        if "hypertension" in conditions:
+            bp_sat = is_slot_already_satisfied("bp_reading", asked_slots, known_slots, bank)
+            bp_asked = ("bp_reading" in asked_slots or "hypertension_bp_reading" in asked_slots)
+            if not bp_sat and not bp_asked:
+                bp_item = bank.get_by_id("hypertension_bp_reading")
+                if bp_item:
+                    return PlanDecision(
+                        action="ask_bank_item",
+                        item=bp_item,
+                        reason="missing_data_checkpoint_bp_required",
+                        question_count=current_count + 1,
+                        max_budget=effective_budget + 1,
+                        target_slot=bp_item.slot,
+                    )
+
         if "summary_confirmation" not in asked_slots:
             sum_item = bank.get_by_id("core_summary_confirm")
             return PlanDecision(
@@ -530,6 +553,22 @@ def plan_next_step(
             )
 
     # 8. Summary & Confirmation
+    # Missing-data checkpoint: Hypertension & dual patients must be asked BP reading before summary
+    if "hypertension" in conditions:
+        bp_sat = is_slot_already_satisfied("bp_reading", asked_slots, known_slots, bank)
+        bp_asked = ("bp_reading" in asked_slots or "hypertension_bp_reading" in asked_slots)
+        if not bp_sat and not bp_asked:
+            bp_item = bank.get_by_id("hypertension_bp_reading")
+            if bp_item:
+                return PlanDecision(
+                    action="ask_bank_item",
+                    item=bp_item,
+                    reason="missing_data_checkpoint_bp_required",
+                    question_count=current_count + 1,
+                    max_budget=effective_budget + 1,
+                    target_slot=bp_item.slot,
+                )
+
     if "summary_confirmation" not in asked_slots:
         sum_item = bank.get_by_id("core_summary_confirm")
         return PlanDecision(

@@ -247,7 +247,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [connectionMode, setConnectionMode] = useState<ConnectionMode>("fhir");
 
   // Live Mode states
-  const isLiveMode = isFirebaseEnabled();
+  const isFirebaseMode = isFirebaseEnabled();
+  const [isLiveModeOverride, setIsLiveModeOverride] = useState<boolean | null>(null);
+  const isLiveMode = isLiveModeOverride !== null ? isLiveModeOverride : isFirebaseMode;
   const [serverWaking, setServerWaking] = useState<boolean>(false);
   const [liveProfile, setLiveProfile] = useState<ProfileResponse | null>(null);
   const [liveEhrConnection, setLiveEhrConnection] = useState<EHRConnectionResponse | null>(null);
@@ -271,6 +273,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const p = params.get("portal");
     if (p === "patient" || p === "provider" || p === "admin" || p === "landing") {
       setPortalState(p);
+    }
+    const liveParam = params.get("live");
+    if (liveParam === "true") {
+      setIsLiveModeOverride(true);
     }
     const s = params.get("screen");
     if (s) {

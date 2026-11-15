@@ -4,6 +4,9 @@ import { getAuth, Auth } from "firebase/auth";
 let firebaseAppInstance: FirebaseApp | null = null;
 let firebaseAuthInstance: Auth | null = null;
 
+const GLOBAL_APP_KEY = "__CHRONICARE_FIREBASE_APP__";
+const GLOBAL_AUTH_KEY = "__CHRONICARE_FIREBASE_AUTH__";
+
 export function isFirebaseEnabled(): boolean {
   return process.env.NEXT_PUBLIC_AUTH_MODE === "firebase";
 }
@@ -43,6 +46,13 @@ export function getFirebaseAuth(): Auth | null {
     return null;
   }
 
+  // Cross-chunk singleton protection: retrieve from window if available
+  const globalObj = typeof window !== "undefined" ? (window as any) : (globalThis as any);
+  if (globalObj[GLOBAL_AUTH_KEY]) {
+    firebaseAuthInstance = globalObj[GLOBAL_AUTH_KEY];
+    return firebaseAuthInstance;
+  }
+
   if (!firebaseAuthInstance) {
     if (!getApps().length) {
       firebaseAppInstance = initializeApp(config);
@@ -50,6 +60,11 @@ export function getFirebaseAuth(): Auth | null {
       firebaseAppInstance = getApp();
     }
     firebaseAuthInstance = getAuth(firebaseAppInstance);
+  }
+
+  if (globalObj) {
+    globalObj[GLOBAL_APP_KEY] = firebaseAppInstance;
+    globalObj[GLOBAL_AUTH_KEY] = firebaseAuthInstance;
   }
 
   return firebaseAuthInstance;

@@ -990,3 +990,92 @@ def test_subprocess_large_result_over_100kb_queue_drain(rsa_key_pair, monkeypatc
     assert data["extracted"]["observations"][0]["value"] == 115.0
     assert len(data["extracted"]["observations"][0]["evidence"]) >= 100
 
+
+# ----------------------------------------------------------------------------
+# 9. P1-2: OCR Confirm Payload Schema & Date Header Handling
+# ----------------------------------------------------------------------------
+def test_ocr_upload_returns_raw_lines_and_accepts_frontend_confirm_payload(rsa_key_pair, monkeypatch):
+    """P1-2: upload returns raw_lines; confirm accepts frontend payload with type, evidence, and date without 422."""
+    monkeypatch.setenv("OCR_ENABLED", "true")
+    monkeypatch.setenv("OCR_PROVIDER", "fake")
+    client = TestClient(app)
+    user_id = "p-ocr-p12"
+    headers = _setup_patient(client, rsa_key_pair, user_id, "p_p12@demo.com")
+
+    # Custom canned text with Date header and medications
+    canned_rx = (
+        "CLINICAL PRESCRIPTION NOTE\n"
+        "Patient: Test Patient Age: 54y / M\n"
+        "Date: 2026-11-15\n"
+        "Rx: Tab Metformin 500mg 1+0+1\n"
+        "Rx: Tab Glimepiride 1mg 1+0+0\n"
+        "Fasting Blood Glucose: 118 mg/dL\n"
+    )
+
+    from data_sources.ocr.fake_provider import FakeOcrProvider
+    monkeypatch.setattr("main.get_ocr_provider", lambda: FakeOcrProvider(canned_text=canned_rx))
+
+    resp_up = client.post(
+        "/api/me/record/uploads",
+        headers=headers,
+        files={"file": ("rx.png", MINIMAL_PNG, "image/png")},
+    )
+    assert resp_up.status_code == 200, resp_up.text
+    data = resp_up.json()
+    upload_id = data["upload_id"]
+
+    # Proves raw_lines is returned in extracted dict and contains the Date header
+    assert "raw_lines" in data["extracted"]
+    raw_lines = data["extracted"]["raw_lines"]
+    assert any("2026-11-15" in line for line in raw_lines)
+
+    # Date header must never be extracted as a medication
+    med_names = [m["name"].lower() for m in data["extracted"]["medications"]]
+    assert not any("date" in name or "2026" in name for name in med_names)
+
+    # Confirm using the exact frontend schema (including evidence, date, observation_type)
+    staged_meds = data["extracted"]["medications"]
+    staged_obs = data["extracted"]["observations"]
+
+    confirm_payload = {
+        "confirmed_items": [
+            {
+                "id": staged_meds[0]["id"],
+                "type": "medication",
+                "name": staged_meds[0]["name"],
+                "dosage": staged_meds[0]["dosage"],
+                "status": "active",
+                "evidence": staged_meds[0].get("evidence"),  # Extra client field must not cause 422
+            },
+            {
+                "id": staged_obs[0]["id"],
+                "type": "observation",
+                "observation_type": staged_obs[0]["observation_type"],
+                "value": staged_obs[0]["value"],
+                "unit": staged_obs[0]["unit"],
+                "date": "2026-11-15",
+                "evidence": staged_obs[0].get("evidence"),
+            },
+        ]
+    }
+
+    resp_conf = client.post(
+        f"/api/me/record/uploads/{upload_id}/confirm",
+        headers=headers,
+        json=confirm_payload,
+    )
+    assert resp_conf.status_code == 200, resp_conf.text
+    conf_data = resp_conf.json()
+    assert conf_data["status"] == "ok"
+    assert conf_data["confirmed_count"] == 2
+
+    # Verify patient record now contains the confirmed items with origin='ocr'
+    rec_resp = client.get("/api/me/record", headers=headers)
+    assert rec_resp.status_code == 200
+    rec = rec_resp.json()
+    ocr_meds = [m for m in rec["medications"] if m.get("origin") == "ocr"]
+    ocr_obs = [o for o in rec["baseline_observations"] if o.get("origin") == "ocr"]
+    assert len(ocr_meds) >= 1
+    assert len(ocr_obs) >= 1
+    assert ocr_meds[0]["name"].lower() in ("metformin", "glimepiride")
+

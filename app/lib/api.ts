@@ -1,4 +1,8 @@
 import { getFirebaseAuth, isFirebaseEnabled } from "./firebase";
+import { onAuthStateChanged } from "firebase/auth";
+
+export const ALLOWED_REVIEW_QUEUE_STATUSES = ["open", "acknowledged", "resolved", "escalated"] as const;
+export type ReviewQueueStatus = (typeof ALLOWED_REVIEW_QUEUE_STATUSES)[number];
 
 export interface SessionResponse {
   user_id: string;
@@ -179,17 +183,20 @@ export interface OcrUploadResponse {
 
 export interface ConfirmOcrItem {
   id?: string;
-  type?: string;
+  type: "medication" | "observation" | "allergy" | string;
   name?: string;
   substance?: string;
   dosage?: string;
+  observation_type?: string;
   value?: number;
   unit?: string;
+  measured_at?: string;
   reaction?: string | null;
   severity?: string | null;
   status?: string | null;
   date?: string | null;
   evidence?: string | null;
+  confirmed?: boolean;
 }
 
 export interface ConfirmOcrUploadResponse {
@@ -859,22 +866,90 @@ function getBaseUrl(): string {
   return url.replace(/\/+$/, "");
 }
 
-async function getAuthHeaders(): Promise<Record<string, string>> {
+function isPublicEndpoint(endpoint?: string): boolean {
+  if (!endpoint) return false;
+  const path = endpoint.split("?")[0];
+  return (
+    path === "/api/health" ||
+    path === "/api/emergency/speech" ||
+    path === "/api/reference-ranges"
+  );
+}
+
+export async function getAuthHeaders(endpoint?: string): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
 
   if (isFirebaseEnabled()) {
     const auth = getFirebaseAuth();
-    if (auth && auth.currentUser) {
-      try {
-        const token = await auth.currentUser.getIdToken();
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
-      } catch {
-        // Fallback without token if getIdToken fails
+    if (!auth) {
+      if (!isPublicEndpoint(endpoint)) {
+        throw new ApiError(401, "Firebase Auth is not initialized");
       }
+      return headers;
+    }
+
+    let user: any = auth.currentUser;
+    // P0-6: If Firebase mode is on and currentUser is null, WAIT for auth to be ready
+    if (!user) {
+      if (typeof (auth as any).authStateReady === "function") {
+        try {
+          await (auth as any).authStateReady();
+        } catch {
+          // authStateReady failed or timed out
+        }
+        user = auth.currentUser;
+      }
+      if (!user && typeof onAuthStateChanged === "function") {
+        user = await new Promise<any>((resolve) => {
+          let unsub: (() => void) | undefined;
+          const timer = setTimeout(() => {
+            if (unsub) {
+              try { unsub(); } catch {}
+            }
+            resolve(auth.currentUser || null);
+          }, 3500);
+          try {
+            unsub = onAuthStateChanged(auth, (u) => {
+              clearTimeout(timer);
+              if (unsub) {
+                try { unsub(); } catch {}
+              }
+              resolve(u || null);
+            });
+          } catch {
+            clearTimeout(timer);
+            resolve(auth.currentUser || null);
+          }
+        });
+      }
+    }
+
+    if (user) {
+      let token: string | null = null;
+      try {
+        token = await user.getIdToken();
+      } catch {
+        // P0-6: If getIdToken() throws, retry once with getIdToken(true) (force refresh)
+        try {
+          token = await user.getIdToken(true);
+        } catch (forceErr: any) {
+          if (!isPublicEndpoint(endpoint)) {
+            throw new ApiError(401, `Failed to acquire auth token: ${forceErr?.message || forceErr}`);
+          }
+        }
+      }
+
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      } else if (!isPublicEndpoint(endpoint)) {
+        // P0-6: NEVER silently send an authenticated endpoint without a token
+        throw new ApiError(401, "Authentication token unavailable");
+      }
+    } else if (!isPublicEndpoint(endpoint)) {
+      // P0-6: NEVER silently send an authenticated endpoint without a token
+      throw new ApiError(401, "Authentication required: no active user session");
     }
   }
 
@@ -884,11 +959,15 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
-  retriesLeft = 3
+  retriesLeft = 3,
+  is401Retry = false
 ): Promise<T> {
   const baseUrl = getBaseUrl();
   const url = `${baseUrl}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
-  const defaultHeaders = await getAuthHeaders();
+  const explicitAuth = (options.headers as Record<string, string> | undefined)?.["Authorization"];
+  const defaultHeaders = explicitAuth
+    ? { "Content-Type": "application/json", Authorization: explicitAuth }
+    : await getAuthHeaders(endpoint);
 
   const finalHeaders: Record<string, string> = {
     ...defaultHeaders,
@@ -927,7 +1006,7 @@ async function request<T>(
           markSlowRequestStarted();
         }
         await new Promise((resolve) => setTimeout(resolve, 3000));
-        return await request<T>(endpoint, options, retriesLeft - 1);
+        return await request<T>(endpoint, options, retriesLeft - 1, is401Retry);
       }
       const isTimeout = fetchErr?.name === "AbortError";
       const status = isTimeout ? 504 : 0;
@@ -944,10 +1023,34 @@ async function request<T>(
         markSlowRequestStarted();
       }
       await new Promise((resolve) => setTimeout(resolve, 3000));
-      return await request<T>(endpoint, options, retriesLeft - 1);
+      return await request<T>(endpoint, options, retriesLeft - 1, is401Retry);
     }
 
     if (!response.ok) {
+      // P0-6 (c): On a single 401, retry once with a force-refreshed token before signing the user out.
+      if (response.status === 401 && !is401Retry && isFirebaseEnabled()) {
+        const auth = getFirebaseAuth();
+        if (auth && auth.currentUser) {
+          try {
+            const forceToken = await auth.currentUser.getIdToken(true);
+            if (forceToken) {
+              const retryHeaders = {
+                ...finalHeaders,
+                Authorization: `Bearer ${forceToken}`,
+              };
+              return await request<T>(
+                endpoint,
+                { ...options, headers: retryHeaders },
+                retriesLeft,
+                true // is401Retry
+              );
+            }
+          } catch {
+            // Force refresh failed
+          }
+        }
+      }
+
       if (response.status === 401) {
         notifyUnauthorized();
       }
@@ -982,11 +1085,15 @@ async function request<T>(
 
 async function requestBlob(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  is401Retry = false
 ): Promise<Blob> {
   const baseUrl = getBaseUrl();
   const url = `${baseUrl}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
-  const defaultHeaders = await getAuthHeaders();
+  const explicitAuth = (options.headers as Record<string, string> | undefined)?.["Authorization"];
+  const defaultHeaders = explicitAuth
+    ? { Authorization: explicitAuth }
+    : await getAuthHeaders(endpoint);
   delete defaultHeaders["Content-Type"];
 
   const finalHeaders: Record<string, string> = {
@@ -1000,6 +1107,25 @@ async function requestBlob(
   });
 
   if (!response.ok) {
+    // P0-6 (c): On a single 401, retry once with force-refreshed token
+    if (response.status === 401 && !is401Retry && isFirebaseEnabled()) {
+      const auth = getFirebaseAuth();
+      if (auth && auth.currentUser) {
+        try {
+          const forceToken = await auth.currentUser.getIdToken(true);
+          if (forceToken) {
+            const retryHeaders = {
+              ...finalHeaders,
+              Authorization: `Bearer ${forceToken}`,
+            };
+            return await requestBlob(endpoint, { ...options, headers: retryHeaders }, true);
+          }
+        } catch {
+          // Force refresh failed
+        }
+      }
+    }
+
     if (response.status === 401) {
       notifyUnauthorized();
     }
@@ -1223,9 +1349,10 @@ export const api = {
   },
 
   // 4. Check-in Pipeline
-  startCheckin: async (): Promise<CheckinStartResponse> => {
+  startCheckin: async (note?: string): Promise<CheckinStartResponse> => {
     return request<CheckinStartResponse>("/api/checkins/start", {
       method: "POST",
+      body: note ? JSON.stringify({ note }) : undefined,
     });
   },
 
@@ -1321,7 +1448,7 @@ export const api = {
 
   // 5. Provider Review
   getProviderReviewQueue: async (
-    status?: string
+    status?: ReviewQueueStatus | string
   ): Promise<ReviewQueueItemResponse[]> => {
     const query = status ? `?status=${encodeURIComponent(status)}` : "";
     return request<ReviewQueueItemResponse[]>(`/api/provider/review-queue${query}`, {

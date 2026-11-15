@@ -378,7 +378,13 @@ def step_parse_and_validate_intake(
             protocol_state = p_state
         else:
             protocol_state = None
-        med_state = None
+        med_state_dict = checkin.get("med_state")
+        med_state = MedicationCheckState.from_dict(med_state_dict) if med_state_dict else None
+        if not is_emergency and med_state and not med_state.complete:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="medication_check_incomplete",
+            )
 
     else:
         state = InterviewState.from_dict(checkin["state"])

@@ -421,7 +421,11 @@ export const ConnectionScreen = () => {
               </div>
 
               <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                {t.fhirCardDesc}
+                {activeSystem?.display_name
+                  ? (isUrdu
+                      ? `${activeSystem.display_name} کے ساتھ HL7® FHIR® معیاری انٹرفیس کے ذریعے محفوظ رابطہ قائم کریں۔`
+                      : `Link your record with ${activeSystem.display_name} using the HL7® FHIR® standard interface.`)
+                  : t.fhirCardDesc}
               </p>
 
               <div className="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-center gap-2 leading-relaxed">

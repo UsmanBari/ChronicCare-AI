@@ -152,9 +152,13 @@ describe("OCR v1 UI (HealthRecordScreen & OcrConfirmScreen)", () => {
 
     await waitFor(() => {
       expect(confirmSpy).toHaveBeenCalledWith("up-test-123", expect.arrayContaining([
-        expect.objectContaining({ type: "fasting_blood_glucose", value: 145 }),
-        expect.objectContaining({ name: "Glimepiride", dosage: "2mg daily" }),
+        expect.objectContaining({ type: "observation", observation_type: "fasting_blood_glucose", value: 145 }),
+        expect.objectContaining({ type: "medication", name: "Glimepiride", dosage: "2mg daily" }),
       ]));
+      // Verify evidence is not in payload
+      const sentItems = confirmSpy.mock.calls[0][1];
+      expect(sentItems[0]).not.toHaveProperty("evidence");
+      expect(sentItems[1]).not.toHaveProperty("evidence");
       expect(mockAppContext.setScreen).toHaveBeenCalledWith("health_record");
     });
   });
@@ -238,6 +242,86 @@ describe("OCR v1 UI (HealthRecordScreen & OcrConfirmScreen)", () => {
     await waitFor(() => {
       expect(cancelSpy).toHaveBeenCalledWith("up-cancel-test");
       expect(mockAppContext.setScreen).toHaveBeenCalledWith("health_record");
+    });
+  });
+
+  it("extracts header date with 'Date: YYYY-MM-DD' format", () => {
+    mockAppContext.stagedOcrUpload = {
+      upload_id: "up-date-test",
+      expires_in_seconds: 1800,
+      extracted: {
+        observations: [],
+        medications: [
+          { id: "med-1", name: "Metformin", dosage: "500mg", status: "active" },
+        ],
+        allergies: [],
+        raw_lines: [
+          "CLINICAL PRESCRIPTION NOTE",
+          "Patient: Test Patient Age: 54y / M",
+          "Date: 2026-11-15",
+          "Rx: Tab Metformin 500mg",
+        ],
+      },
+    };
+
+    render(<OcrConfirmScreen />);
+    const dateStatus = screen.getByTestId("header-date-status");
+    expect(dateStatus.textContent).toContain("2026-11-15");
+  });
+
+  it("disables Confirm & Save button when an item has an empty name", () => {
+    mockAppContext.stagedOcrUpload = {
+      upload_id: "up-empty-name",
+      expires_in_seconds: 1800,
+      extracted: {
+        observations: [],
+        medications: [
+          { id: "med-empty", name: "", dosage: "500mg", status: "active", confidence: "Low" },
+        ],
+        allergies: [],
+        raw_lines: ["Date: 2026-11-15"],
+      },
+    };
+
+    render(<OcrConfirmScreen />);
+    const saveBtn = screen.getByTestId("ocr-save-confirmed-btn") as HTMLButtonElement;
+    expect(saveBtn.disabled).toBe(true);
+    expect(screen.getByText(/Please enter a name for all confirmed items/i)).toBeTruthy();
+  });
+
+  it("never shows raw JSON validation dumps to patient on 422 error", async () => {
+    const rawValidationError = {
+      status: 422,
+      detail: JSON.stringify([
+        { loc: ["body", "confirmed_items", 0, "type"], msg: "Field required", type: "missing" },
+        { loc: ["body", "confirmed_items", 0, "evidence"], msg: "Extra inputs are not permitted", type: "extra_forbidden" },
+      ]),
+    };
+    vi.spyOn(api, "confirmOcrUpload").mockRejectedValue(rawValidationError);
+
+    mockAppContext.stagedOcrUpload = {
+      upload_id: "up-raw-err-test",
+      expires_in_seconds: 1800,
+      extracted: {
+        observations: [],
+        medications: [
+          { id: "m-1", name: "Glimepiride", dosage: "2mg", status: "active", confidence: "High" },
+        ],
+        allergies: [],
+      },
+    };
+
+    render(<OcrConfirmScreen />);
+    const saveBtn = screen.getByTestId("ocr-save-confirmed-btn");
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      // Must not display raw JSON dump
+      expect(screen.queryByText(/Field required/i)).toBeNull();
+      expect(screen.queryByText(/Extra inputs are not permitted/i)).toBeNull();
+      expect(screen.queryByText(/confirmed_items/i)).toBeNull();
+      // Must display friendly error message
+      expect(screen.getByText(/Some items have an invalid format/i)).toBeTruthy();
     });
   });
 });

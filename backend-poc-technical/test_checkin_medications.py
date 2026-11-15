@@ -492,3 +492,201 @@ def test_l_isolated_mode_self_reported_medication_requires_review(rsa_key_pair, 
     assert metformin_verif["trust_level_b"] == "low"
     assert metformin_verif["requires_human_review"] is True
 
+
+def _answer_v3_dual_to_med_phase(client, chk_id, headers):
+    """Walks v3 dual interview until medication check phase begins."""
+    curr_res = client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": "I feel fine", "step": "greeting"})
+    assert curr_res.status_code == 200, curr_res.text
+    curr = curr_res.json()
+    for _ in range(25):
+        step = curr.get("step")
+        if step == "summary_confirmation":
+            conf_res = client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": "Confirm and submit", "step": step})
+            assert conf_res.status_code == 200, conf_res.text
+            return conf_res.json()
+        elif step == "glucose_reading":
+            ans = "115"
+        elif step == "bp_reading":
+            ans = "120/80"
+        elif step == "glucose_context":
+            ans = "fasting"
+        elif step == "bp_technique":
+            ans = "seated"
+        elif any(k in (step or "") for k in ["symptom", "headache", "vision", "chest", "hypo", "foot"]):
+            ans = "no"
+        elif "adherence" in (step or ""):
+            ans = "yes"
+        else:
+            ans = "no"
+        curr_res = client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": ans, "step": step})
+        assert curr_res.status_code == 200, curr_res.text
+        curr = curr_res.json()
+    raise RuntimeError("Did not reach summary confirmation within 25 turns")
+
+
+def test_v3_dual_patient_three_meds_flow_isolated(rsa_key_pair, monkeypatch):
+    """P0-1 API Test: v3 dual patient with 3 meds: yes / changed dose / stopped -> completes with reconciliation & triage."""
+    monkeypatch.setenv("INTERVIEW_ENGINE", "v3")
+    monkeypatch.setenv("ORCHESTRATOR", "direct")
+    client = TestClient(app)
+    headers = _setup_patient(client, rsa_key_pair, "p-v3-dual-3m", "p_v3_dual_3m@demo.com", ["diabetes", "hypertension"])
+
+    med1 = NormalizedMedication("local-p-v3-dual-3m", "Metformin 500mg", "active", "1 tablet twice daily", "2026-10-01T09:00:00Z", "local", "MED-1")
+    med2 = NormalizedMedication("local-p-v3-dual-3m", "Lisinopril 10mg", "active", "1 tablet daily", "2026-10-01T09:00:00Z", "local", "MED-2")
+    med3 = NormalizedMedication("local-p-v3-dual-3m", "Amlodipine 5mg", "active", "1 tablet daily", "2026-10-01T09:00:00Z", "local", "MED-3")
+    _mock_bundle(monkeypatch, medications=[med1, med2, med3])
+
+    resp = client.post("/api/checkins/start", headers=headers)
+    assert resp.status_code == 200, resp.text
+    chk_id = resp.json()["checkin_id"]
+
+    # 1. Walk interview to medication phase
+    med_intro = _answer_v3_dual_to_med_phase(client, chk_id, headers)
+    assert med_intro["complete"] is False
+    assert med_intro["step"] == "medication_check:0:0"
+    assert med_intro["phase"] == "medication"
+    assert med_intro["why_text"] is not None
+    assert med_intro["options"] is not None
+    assert "Metformin" in med_intro["question"]
+
+    # Early complete returns 409
+    early_comp = client.post(f"/api/checkins/{chk_id}/complete", headers=headers)
+    assert early_comp.status_code == 409
+    assert early_comp.json()["detail"] == "medication_check_incomplete"
+
+    # 2. Med 1 answer: yes
+    ans1 = client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": "yes", "step": "medication_check:0:0"})
+    assert ans1.status_code == 200, ans1.text
+    d1 = ans1.json()
+    assert d1["complete"] is False
+    assert d1["step"] == "medication_check:1:0"
+    assert "Lisinopril" in d1["question"]
+
+    # 3. Med 2 answer: changed dose
+    ans2 = client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": "now I take 1 mg once daily", "step": "medication_check:1:0"})
+    assert ans2.status_code == 200, ans2.text
+    d2 = ans2.json()
+    assert d2["complete"] is False
+    assert d2["step"] == "medication_check:2:0"
+    assert "Amlodipine" in d2["question"]
+
+    # 4. Med 3 answer: stopped
+    ans3 = client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": "No, I stopped it", "step": "medication_check:2:0"})
+    assert ans3.status_code == 200, ans3.text
+    d3 = ans3.json()
+    assert d3["complete"] is True
+    assert d3["question"] is None
+
+    # 5. Complete check-in
+    comp = client.post(f"/api/checkins/{chk_id}/complete", headers=headers)
+    assert comp.status_code == 200, comp.text
+    data = comp.json()
+    assert data["triage_level"] is not None
+    assert data["requires_review"] is True
+
+    recon = data["reconciliation"]
+    med_comps = recon["medication_comparisons"]
+    met_comp = [c for c in med_comps if "Metformin" in c["medication_name"]][0]
+    assert met_comp["comparison_status"] in ("agree", "agreement")
+
+    lis_comp = [c for c in med_comps if "Lisinopril" in c["medication_name"]][0]
+    assert lis_comp["comparison_status"] == "conflict"
+    assert lis_comp["dosage_a"] != lis_comp["dosage_b"]
+
+    amlo_comp = [c for c in med_comps if "Amlodipine" in c["medication_name"]][0]
+    assert amlo_comp["comparison_status"] == "conflict"
+    assert amlo_comp["status_b"] == "stopped"
+
+
+def test_v3_dual_patient_connected_fhir(rsa_key_pair, monkeypatch):
+    """P0-1 API Test: Connected mode with FHIR meds on v3 dual patient."""
+    monkeypatch.setenv("INTERVIEW_ENGINE", "v3")
+    monkeypatch.setenv("ORCHESTRATOR", "direct")
+    client = TestClient(app)
+    user_id = "p-v3-fhir-dual"
+    headers = _setup_patient(client, rsa_key_pair, user_id, "p_v3_fhir_dual@demo.com", ["diabetes", "hypertension"])
+
+    app_store.record_ehr_connection(
+        connection_id="conn-v3-fhir",
+        user_id=user_id,
+        ehr_system_id="smart-sandbox",
+        external_patient_id="EXT-V3-1",
+        status="active",
+    )
+
+    med1 = NormalizedMedication("EXT-V3-1", "Metformin 500mg", "active", "1 tablet twice daily", "2026-10-01T09:00:00Z", "fhir", "FHIR-M1")
+    med2 = NormalizedMedication("EXT-V3-1", "Lisinopril 10mg", "active", "1 tablet daily", "2026-10-01T09:00:00Z", "fhir", "FHIR-M2")
+    med3 = NormalizedMedication("EXT-V3-1", "Amlodipine 5mg", "active", "1 tablet daily", "2026-10-01T09:00:00Z", "fhir", "FHIR-M3")
+    _mock_bundle(monkeypatch, medications=[med1, med2, med3])
+
+    resp = client.post("/api/checkins/start", headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["mode"] == "connected"
+    chk_id = resp.json()["checkin_id"]
+
+    med_intro = _answer_v3_dual_to_med_phase(client, chk_id, headers)
+    assert med_intro["step"] == "medication_check:0:0"
+
+    client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": "yes", "step": "medication_check:0:0"})
+    client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": "now I take 1 mg once daily", "step": "medication_check:1:0"})
+    client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": "No, I stopped it", "step": "medication_check:2:0"})
+
+    comp = client.post(f"/api/checkins/{chk_id}/complete", headers=headers)
+    assert comp.status_code == 200, comp.text
+    data = comp.json()
+    assert data["triage_level"] is not None
+    assert data["requires_review"] is True
+
+
+def test_v3_dual_patient_graph_orchestrator(rsa_key_pair, monkeypatch):
+    """P0-1 API Test: Same flow on ORCHESTRATOR=graph."""
+    monkeypatch.setenv("INTERVIEW_ENGINE", "v3")
+    monkeypatch.setenv("ORCHESTRATOR", "graph")
+    client = TestClient(app)
+    headers = _setup_patient(client, rsa_key_pair, "p-v3-graph", "p_v3_graph@demo.com", ["diabetes", "hypertension"])
+
+    med1 = NormalizedMedication("local-p-v3-graph", "Metformin 500mg", "active", "1 tablet twice daily", "2026-10-01T09:00:00Z", "local", "MED-1")
+    med2 = NormalizedMedication("local-p-v3-graph", "Lisinopril 10mg", "active", "1 tablet daily", "2026-10-01T09:00:00Z", "local", "MED-2")
+    med3 = NormalizedMedication("local-p-v3-graph", "Amlodipine 5mg", "active", "1 tablet daily", "2026-10-01T09:00:00Z", "local", "MED-3")
+    _mock_bundle(monkeypatch, medications=[med1, med2, med3])
+
+    resp = client.post("/api/checkins/start", headers=headers)
+    assert resp.status_code == 200
+    chk_id = resp.json()["checkin_id"]
+
+    med_intro = _answer_v3_dual_to_med_phase(client, chk_id, headers)
+    assert med_intro["step"] == "medication_check:0:0"
+
+    client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": "yes", "step": "medication_check:0:0"})
+    client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": "now I take 1 mg once daily", "step": "medication_check:1:0"})
+    client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": "No, I stopped it", "step": "medication_check:2:0"})
+
+    comp = client.post(f"/api/checkins/{chk_id}/complete", headers=headers)
+    assert comp.status_code == 200, comp.text
+    data = comp.json()
+    assert data["triage_level"] is not None
+    assert data["requires_review"] is True
+
+
+def test_v3_medication_check_in_med_phase(rsa_key_pair, monkeypatch):
+    """Mutant killer test: v3 sessions enter medication phase once complete and can answer med check."""
+    monkeypatch.setenv("INTERVIEW_ENGINE", "v3")
+    client = TestClient(app)
+    headers = _setup_patient(client, rsa_key_pair, "p-v3-mutant-check", "p_v3_mutant@demo.com", ["diabetes", "hypertension"])
+
+    med1 = NormalizedMedication("local-p-v3-mutant-check", "Metformin 500mg", "active", "1 tablet twice daily", "2026-10-01T09:00:00Z", "local", "MED-1")
+    _mock_bundle(monkeypatch, medications=[med1])
+
+    resp = client.post("/api/checkins/start", headers=headers)
+    assert resp.status_code == 200
+    chk_id = resp.json()["checkin_id"]
+
+    med_intro = _answer_v3_dual_to_med_phase(client, chk_id, headers)
+    assert med_intro["step"] == "medication_check:0:0"
+
+    # Answering the medication question MUST be processed in medication phase (returns 200, not 409 stale_step)
+    ans = client.post(f"/api/checkins/{chk_id}/answer", headers=headers, json={"answer": "yes", "step": "medication_check:0:0"})
+    assert ans.status_code == 200, f"Expected 200 but got {ans.status_code}: {ans.text}"
+    assert ans.json()["complete"] is True
+    assert ans.json()["phase"] == "medication"
+

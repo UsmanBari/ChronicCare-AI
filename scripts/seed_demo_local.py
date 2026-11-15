@@ -53,6 +53,7 @@ from data_sources.app_store import (
     set_patient_consent,
     set_patient_provider_notification_consent,
     record_ehr_connection,
+    create_notification,
     get_user_checkins,
     get_checkin_result,
     get_user_reading_history,
@@ -644,6 +645,26 @@ def seed_demo_data(reset: bool = False, db_path: Optional[str] = None) -> Dict[s
 
     # 9. Demo Patient New: 0 check-ins (cold start)
     print("  - Demo Patient New configured with strictly 0 check-ins (cold start).")
+
+    # 10. Seed provider notifications for urgent review and alerts
+    prov_uid = seeded_users["provider"]
+    create_notification(
+        recipient_id=prov_uid,
+        role="provider",
+        event_type="urgent_checkin",
+        title="Urgent Check-in Alert",
+        body="Urgent check-in requires clinical review",
+        db_path=resolved_db,
+    )
+    create_notification(
+        recipient_id=prov_uid,
+        role="provider",
+        event_type="urgent_checkin",
+        title="Review Queue Alert",
+        body="New check-in requires clinical review",
+        db_path=resolved_db,
+    )
+    print("  - Seeded clinical notifications for Demo Provider.")
 
     # Clear dependency overrides
     main.app.dependency_overrides.clear()

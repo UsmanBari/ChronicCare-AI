@@ -327,6 +327,13 @@ export const HealthRecordScreen = () => {
             allergies: [
               { id: "all-0", substance: "Penicillin", reaction: "Rash", severity: "moderate", status: "active", evidence: "Allergic to Penicillin" },
             ],
+            raw_lines: [
+              "CLINICAL PRESCRIPTION NOTE",
+              "Date: 2026-11-15",
+              "Rx: Tab Glimepiride 2mg daily",
+              "FBS: 142 mg/dL",
+              "Allergic to Penicillin",
+            ],
           },
         };
       }
@@ -1237,8 +1244,8 @@ export const HealthRecordScreen = () => {
               >
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-navy-900 capitalize">
-                      {obs.observation_type.replace(/_/g, " ")}: {obs.value} {obs.unit}
+                    <span className="font-bold text-navy-900">
+                      <span className="capitalize">{obs.observation_type.replace(/_/g, " ")}</span>: {obs.value} {obs.unit}
                     </span>
                     {readingStatus.status !== "unspecified" && (
                       <span

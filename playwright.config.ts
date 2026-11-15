@@ -30,7 +30,7 @@ export default defineConfig({
       command: 'powershell -ExecutionPolicy Bypass -Command "backend-poc-technical\\.venv\\Scripts\\python.exe backend-poc-technical/init_local_db.py --reset; backend-poc-technical\\.venv\\Scripts\\python.exe scripts/seed_demo_local.py --reset; backend-poc-technical\\.venv\\Scripts\\python.exe -m uvicorn main:app --app-dir backend-poc-technical --host 127.0.0.1 --port 8000"',
       url: "http://127.0.0.1:8000/api/health",
       reuseExistingServer: true,
-      timeout: 60000,
+      timeout: 120000,
       env: {
         RISK_ENABLED: "true",
         EXPLAIN_ENABLED: "true",
@@ -45,7 +45,7 @@ export default defineConfig({
       command: "npx next dev -p 3000",
       url: "http://localhost:3000",
       reuseExistingServer: true,
-      timeout: 60000,
+      timeout: 120000,
       env: {
         NEXT_PUBLIC_AUTH_MODE: "mock",
         NEXT_PUBLIC_E2E_HOOKS: "1",

@@ -346,7 +346,7 @@ MUTATIONS = [
         "id": "M-H7-1",
         "name": "Server-side re-validation removed in OCR confirm endpoint",
         "file": BACKEND_DIR / "main.py",
-        "target": '                o_type, val, unit, ts = _validate_ocr_observation(\n                    obs_type=item.observation_type or "",\n                    value=item.value,\n                    measured_at=item.measured_at,\n                    item_index=idx,\n                )',
+        "target": '                o_type, val, unit, ts = _validate_ocr_observation(\n                    obs_type=obs_type,\n                    value=item.value,\n                    measured_at=obs_ts,\n                    item_index=idx,\n                )',
         "replacement": '                o_type, val, unit, ts = (item.observation_type or "glucose", float(item.value or 0), "mg/dL", _utc_now_iso())',
         "test_node": "backend-poc-technical/test_ocr_upload.py::test_confirm_revalidation_rejects_out_of_range_values",
     },
@@ -588,6 +588,14 @@ MUTATIONS = [
         "target": "    if not answer or not isinstance(answer, str) or not answer.strip():\n        return RedDecision(is_red=False, category=None, cancelled_hits=[])",
         "replacement": "    if not answer or not isinstance(answer, str) or not answer.strip():\n        return RedDecision(is_red=False, category=None, cancelled_hits=[])\n    if is_symptom_negated_or_remote_past(answer):\n        return RedDecision(is_red=False, category=None, cancelled_hits=[{'category': 'mutant', 'reason': 'whole_answer_negated'}])",
         "test_node": "backend-poc-technical/test_red_flag_mixed_answers.py::test_mutation_killed_whole_answer_negation",
+    },
+    {
+        "id": "M-V3-MED-1",
+        "name": "v3 excluded from med phase",
+        "file": BACKEND_DIR / "main.py",
+        "target": "    interview_complete = is_v3_complete if is_v3_session else is_v2_complete",
+        "replacement": "    interview_complete = False if is_v3_session else is_v2_complete",
+        "test_node": "backend-poc-technical/test_checkin_medications.py::test_v3_medication_check_in_med_phase",
     },
 ]
 
