@@ -657,6 +657,11 @@ export const ReconciliationAlertDetail = () => {
                 {liveDetail.patient_background.height_cm ? `${liveDetail.patient_background.height_cm} cm` : "Height unrecorded"} •{" "}
                 {liveDetail.patient_background.weight_kg ? `${liveDetail.patient_background.weight_kg} kg` : "Weight unrecorded"}
               </span>
+              {liveDetail.patient_background.metrics_source === "fhir" && (
+                <span className="text-[9px] text-teal-700 block font-medium" data-testid="metrics-source-label">
+                  (From hospital record)
+                </span>
+              )}
             </div>
 
             <div className="p-2.5 rounded-xl bg-white border border-slate-200">

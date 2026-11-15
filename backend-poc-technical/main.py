@@ -4010,7 +4010,13 @@ def get_ehr_connection_endpoint(
             for m in norm_meds:
                 status_val = getattr(m, "status", None) or (m.get("status") if isinstance(m, dict) else None)
                 if status_val in ("active", "intended", "prescribed", None):
-                    name = getattr(m, "name", None) or (m.get("name") if isinstance(m, dict) else None) or "Medication"
+                    name = (
+                        getattr(m, "medication_name", None)
+                        or getattr(m, "name", None)
+                        or (m.get("medication_name") if isinstance(m, dict) else None)
+                        or (m.get("name") if isinstance(m, dict) else None)
+                        or "Medication"
+                    )
                     dosage = getattr(m, "dosage", None) or (m.get("dosage") if isinstance(m, dict) else None)
                     if name not in seen_med_names:
                         seen_med_names.add(name)
@@ -6151,6 +6157,27 @@ def _build_patient_background(user_id: str) -> Optional[Dict[str, Any]]:
         return None
     height_cm = profile.get("height_cm")
     weight_kg = profile.get("weight_kg")
+    metrics_source = "patient"
+
+    # Fallback to FHIR physical metrics if patient entered none
+    if height_cm is None or weight_kg is None:
+        try:
+            conn = get_active_ehr_connection(user_id)
+            if conn and conn.get("status") in ("active", "connected"):
+                ext_pid = conn.get("external_patient_id")
+                ehr_sys = get_ehr_system_by_id(conn.get("ehr_system_id"))
+                base_url = ehr_sys.get("fhir_base_url") if ehr_sys else None
+                from data_sources.fhir_adapter import get_fhir_patient_physical_metrics
+                fhir_metrics = get_fhir_patient_physical_metrics(ext_pid, base_url=base_url)
+                if height_cm is None and fhir_metrics.get("height_cm"):
+                    height_cm = fhir_metrics["height_cm"]
+                    metrics_source = "fhir"
+                if weight_kg is None and fhir_metrics.get("weight_kg"):
+                    weight_kg = fhir_metrics["weight_kg"]
+                    metrics_source = "fhir"
+        except Exception as exc:
+            logger.debug("Failed to fallback to FHIR physical metrics in _build_patient_background: %s", exc)
+
     bmi = None
     if height_cm and weight_kg and height_cm > 0:
         h_m = height_cm / 100.0
@@ -6160,6 +6187,7 @@ def _build_patient_background(user_id: str) -> Optional[Dict[str, Any]]:
         "weight_kg": weight_kg,
         "waist_cm": profile.get("waist_cm"),
         "bmi": bmi,
+        "metrics_source": metrics_source,
         "diagnosis_year_diabetes": profile.get("diagnosis_year_diabetes"),
         "diagnosis_year_hypertension": profile.get("diagnosis_year_hypertension"),
         "smoking_status": profile.get("smoking_status"),

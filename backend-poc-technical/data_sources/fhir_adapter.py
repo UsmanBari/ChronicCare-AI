@@ -8,8 +8,11 @@ Provides accurate LOINC resolution, standard clinical unit conversions,
 safe component extraction, and robust timestamp fallback.
 """
 
+import logging
 import re
 from typing import List, Optional, Dict, Any
+
+logger = logging.getLogger("chroniccare.fhir_adapter")
 from data_sources.models import NormalizedPatient, NormalizedObservation, NormalizedMedication
 from data_sources.fhir_client import (
     get_fhir_patient,
@@ -98,6 +101,19 @@ def _convert_unit_and_value(obs_type: str, val: float, unit: str) -> tuple[float
         if u_lower in ("mm[hg]", "mmhg"):
             return round(val, 1), "mmHg"
         return round(val, 1), clean_unit
+
+    # 5. Height: in / [in_i] to cm (* 2.54), m to cm (* 100)
+    if obs_type == "height":
+        if u_lower in ("[in_i]", "in", "inch", "inches"):
+            return round(val * 2.54, 1), "cm"
+        if u_lower in ("m", "meter", "meters"):
+            return round(val * 100.0, 1), "cm"
+        if u_lower in ("cm", "centimeter", "centimeters"):
+            return round(val, 1), "cm"
+
+    # 6. BMI: kg/m2
+    if obs_type == "bmi":
+        return round(val, 1), "kg/m2"
 
     return round(val, 1), clean_unit
 
@@ -373,4 +389,47 @@ def get_normalized_allergies(patient_id: str, base_url: Optional[str] = None) ->
     """
     raw_allergies = get_fhir_allergies(patient_id, base_url=base_url)
     return fhir_to_normalized_allergies(raw_allergies, patient_id=patient_id)
+
+
+def get_fhir_patient_physical_metrics(
+    patient_id: str,
+    base_url: Optional[str] = None,
+    timeout: float = 3.0,
+) -> Dict[str, Any]:
+    """
+    Extracts the latest height, weight, and BMI observations from a patient's FHIR record.
+    Returns:
+        {
+            "height_cm": float or None,
+            "weight_kg": float or None,
+            "bmi": float or None,
+            "source": "fhir"
+        }
+    """
+    metrics: Dict[str, Any] = {"height_cm": None, "weight_kg": None, "bmi": None, "source": "fhir"}
+    try:
+        raw_obs = get_fhir_observations(patient_id, base_url=base_url, timeout=timeout)
+        norm_obs = fhir_to_normalized_observations(raw_obs, patient_id=patient_id)
+        sorted_obs = sorted(norm_obs, key=lambda x: str(x.timestamp), reverse=True)
+        for obs in sorted_obs:
+            if obs.observation_type == "height" and metrics["height_cm"] is None:
+                metrics["height_cm"] = float(obs.value)
+            elif obs.observation_type == "weight" and metrics["weight_kg"] is None:
+                metrics["weight_kg"] = float(obs.value)
+            elif obs.observation_type == "bmi" and metrics["bmi"] is None:
+                metrics["bmi"] = float(obs.value)
+
+        h = metrics["height_cm"]
+        w = metrics["weight_kg"]
+        b = metrics["bmi"]
+        if h and w and not b and h > 0:
+            metrics["bmi"] = round(w / ((h / 100.0) ** 2), 1)
+        elif b and h and not w and h > 0:
+            metrics["weight_kg"] = round(b * ((h / 100.0) ** 2), 1)
+        elif b and w and not h and b > 0:
+            import math
+            metrics["height_cm"] = round(math.sqrt(w / b) * 100.0, 1)
+    except Exception as exc:
+        logger.warning("Failed to retrieve FHIR physical metrics: %s", exc)
+    return metrics
 

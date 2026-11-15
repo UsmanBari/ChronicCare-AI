@@ -936,6 +936,29 @@ def step_risk(
             profile = get_patient_profile_fn(user_id) or {}
             conditions = profile.get("conditions", [])
 
+            # Use latest FHIR height/weight/BMI when patient gave none (P2-15)
+            if profile.get("height_cm") is None or profile.get("weight_kg") is None:
+                try:
+                    from data_sources.app_store import get_active_ehr_connection, get_ehr_system_by_id
+                    conn = get_active_ehr_connection(user_id)
+                    if conn and conn.get("status") in ("active", "connected"):
+                        ext_pid = conn.get("external_patient_id")
+                        ehr_sys = get_ehr_system_by_id(conn.get("ehr_system_id"))
+                        base_url = ehr_sys.get("fhir_base_url") if ehr_sys else None
+                        from data_sources.fhir_adapter import get_fhir_patient_physical_metrics
+                        fhir_metrics = get_fhir_patient_physical_metrics(ext_pid, base_url=base_url)
+                        if profile.get("height_cm") is None and fhir_metrics.get("height_cm"):
+                            profile["height_cm"] = fhir_metrics["height_cm"]
+                            profile["height_source"] = "fhir"
+                        if profile.get("weight_kg") is None and fhir_metrics.get("weight_kg"):
+                            profile["weight_kg"] = fhir_metrics["weight_kg"]
+                            profile["weight_source"] = "fhir"
+                        if fhir_metrics.get("bmi"):
+                            profile["bmi"] = fhir_metrics["bmi"]
+                            profile["bmi_source"] = "fhir"
+                except Exception:
+                    pass
+
             # Compatibility check for legacy test_w3_coverage_new_code.py (D12/D13 single-model test)
             import inspect
             is_w3_test = any("test_w3_coverage_new_code.py" in frame.filename for frame in inspect.stack()[:5])
