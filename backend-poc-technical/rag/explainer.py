@@ -18,6 +18,7 @@ from rag.licences import has_complete_attribution, get_source_attribution, is_ll
 from rag.query_map import build_query_from_triage
 from rag.retriever import BM25Retriever, tokenize
 from rag.store import ChunkStore, JsonlChunkStore
+from agents.reference_ranges import is_reading_in_target_range
 
 logger = logging.getLogger(__name__)
 
@@ -300,6 +301,115 @@ def validate_level_consistency(
     return errors
 
 
+BP_HIGH_CLAIM_PATTERNS = [
+    r"\b(?:above|exceed\w*)\s+(?:the\s+)?(?:normal\s+)?target\b",
+    r"\b(?:above)\s+(?:the\s+)?(?:normal\s+)?(?:range|levels?|limits?)\b",
+    r"\b(?:your\s+)?(?:blood\s+pressure|bp|systolic|diastolic)(?:\s+reading)?(?:\s+of\s+[^,;]+?)?\s+(?:is|was)\s+(?:in\s+the\s+)?(?:slightly\s+|moderately\s+|severely\s+)?(?:above\s+(?:the\s+)?target|outside\s+(?:the\s+)?target|high|higher|too\s+high|exceeding)\b",
+    r"\b(?:high)\s+(?:blood\s+pressure|bp|systolic|diastolic)\b",
+    r"\b(?:stage\s+2\s+(?:hypertension|elevation))\b",
+    r"\b(?:hypertensive\s+(?:crisis|urgency|emergency))\b",
+    r"\b(?:blood\s+pressure|bp)\s+(?:bohat\s+|thoda\s+)?(?:zyada|high|barha|barh|target\s+se\s+bahar)\b",
+    r"(?:بلڈ پریشر|بی پی)\s*(?:زیادہ|بلند|بڑھا|ہدف سے باہر)",
+]
+
+BP_LOW_CLAIM_PATTERNS = [
+    r"\b(?:below|under)\s+(?:the\s+)?(?:normal\s+)?target\b",
+    r"\b(?:below|under)\s+(?:the\s+)?(?:normal\s+)?(?:range|levels?|limits?)\b",
+    r"\b(?:your\s+)?(?:blood\s+pressure|bp|systolic|diastolic)(?:\s+reading)?(?:\s+of\s+[^,;]+?)?\s+(?:is|was)\s+(?:in\s+the\s+)?(?:slightly\s+|moderately\s+|severely\s+)?(?:below\s+(?:the\s+)?target|low|lower|too\s+low)\b",
+    r"\b(?:low)\s+(?:blood\s+pressure|bp|systolic|diastolic)\b",
+    r"\b(?:hypotension)\b",
+    r"\b(?:blood\s+pressure|bp)\s+(?:bohat\s+|thoda\s+)?(?:kam|low|gir\s+gaya)\b",
+    r"(?:بلڈ پریشر|بی پی)\s*(?:کم|گر گیا)",
+]
+
+GLUCOSE_HIGH_CLAIM_PATTERNS = [
+    r"\b(?:above|exceed\w*)\s+(?:the\s+)?(?:normal\s+)?target\b",
+    r"\b(?:above)\s+(?:the\s+)?(?:normal\s+)?(?:range|levels?|limits?)\b",
+    r"\b(?:your\s+)?(?:blood\s+sugar|glucose|sugar)(?:\s+reading)?(?:\s+of\s+[^,;]+?)?\s+(?:is|was)\s+(?:in\s+the\s+)?(?:slightly\s+|moderately\s+|severely\s+)?(?:above\s+(?:the\s+)?target|outside\s+(?:the\s+)?target|high|higher|elevated|too\s+high|exceeding)\b",
+    r"\b(?:high|elevated)\s+(?:blood\s+sugar|glucose)\b",
+    r"\b(?:hyperglycemia)\b",
+    r"\b(?:blood\s+sugar|glucose|sugar)\s+(?:bohat\s+|thoda\s+)?(?:zyada|high|barhi|barh|target\s+se\s+bahar)\b",
+    r"(?:شوگر|گلوکوز)\s*(?:زیادہ|بلند|بڑھی|ہدف سے باہر)",
+]
+
+GLUCOSE_LOW_CLAIM_PATTERNS = [
+    r"\b(?:below|under)\s+(?:the\s+)?(?:normal\s+)?target\b",
+    r"\b(?:below|under)\s+(?:the\s+)?(?:normal\s+)?(?:range|levels?|limits?)\b",
+    r"\b(?:your\s+)?(?:blood\s+sugar|glucose|sugar)(?:\s+reading)?(?:\s+of\s+[^,;]+?)?\s+(?:is|was)\s+(?:in\s+the\s+)?(?:slightly\s+|moderately\s+|severely\s+)?(?:below\s+(?:the\s+)?target|low|lower|too\s+low)\b",
+    r"\b(?:low)\s+(?:blood\s+sugar|glucose)\b",
+    r"\b(?:hypoglycemia)\b",
+    r"\b(?:blood\s+sugar|glucose|sugar)\s+(?:bohat\s+|thoda\s+)?(?:kam|low|gir\s+gayi)\b",
+    r"(?:شوگر|گلوکوز)\s*(?:کم|گر گئی)",
+]
+
+
+def validate_reading_target_claims(
+    sentences: list[dict[str, Any]],
+    readings: dict[str, Any],
+    context: str | None = None,
+) -> list[str]:
+    """
+    V6: Reject any sentence claiming a reading is high/low/above/below/outside target
+    when the reading is within D6 reference targets (agents/reference_ranges.py).
+    """
+    errors = []
+    if not readings or not sentences:
+        return errors
+
+    # Extract BP values
+    sbp_raw = readings.get("blood_pressure_systolic", readings.get("systolic"))
+    dbp_raw = readings.get("blood_pressure_diastolic", readings.get("diastolic"))
+    try:
+        sbp = float(sbp_raw) if sbp_raw is not None else None
+    except (ValueError, TypeError):
+        sbp = None
+    try:
+        dbp = float(dbp_raw) if dbp_raw is not None else None
+    except (ValueError, TypeError):
+        dbp = None
+
+    sbp_in_target = is_reading_in_target_range("blood_pressure_systolic", sbp) if sbp is not None else False
+    dbp_in_target = is_reading_in_target_range("blood_pressure_diastolic", dbp) if dbp is not None else False
+    bp_in_target = (sbp_in_target or sbp is None) and (dbp_in_target or dbp is None) and (sbp is not None or dbp is not None)
+
+    # Extract Glucose values
+    gluc_raw = readings.get("glucose", readings.get("fasting_glucose", readings.get("random_glucose")))
+    try:
+        gluc = float(gluc_raw) if gluc_raw is not None else None
+    except (ValueError, TypeError):
+        gluc = None
+
+    ctx = context or readings.get("glucose_context") or readings.get("context")
+    if not ctx and readings.get("fasting_glucose") is not None:
+        ctx = "fasting"
+    gluc_in_target = is_reading_in_target_range("glucose", gluc, context=ctx) if gluc is not None else False
+
+    for idx, s_obj in enumerate(sentences, start=1):
+        text = str(s_obj.get("text", ""))
+
+        if bp_in_target:
+            for pat in BP_HIGH_CLAIM_PATTERNS:
+                if re.search(pat, text, re.IGNORECASE):
+                    errors.append(f"V6: Sentence {idx} falsely claims blood pressure is high/above target when reading is within target range")
+                    break
+            for pat in BP_LOW_CLAIM_PATTERNS:
+                if re.search(pat, text, re.IGNORECASE):
+                    errors.append(f"V6: Sentence {idx} falsely claims blood pressure is low/below target when reading is within target range")
+                    break
+
+        if gluc_in_target:
+            for pat in GLUCOSE_HIGH_CLAIM_PATTERNS:
+                if re.search(pat, text, re.IGNORECASE):
+                    errors.append(f"V6: Sentence {idx} falsely claims blood glucose is high/above target when reading is within target range")
+                    break
+            for pat in GLUCOSE_LOW_CLAIM_PATTERNS:
+                if re.search(pat, text, re.IGNORECASE):
+                    errors.append(f"V6: Sentence {idx} falsely claims blood glucose is low/below target when reading is within target range")
+                    break
+
+    return errors
+
+
 def is_template_consistent(trigger_category: str, readings: dict[str, Any]) -> bool:
     """
     Template consistency guard (H2):
@@ -561,12 +671,22 @@ def explain(
         "8. NEVER say 'nothing to worry', 'you are fine', or 'no need to see a doctor' if the level is review, urgent, or emergency.\n"
         f"9. CLINICAL LEVEL CONSISTENCY: The decided triage level for this patient is '{decided_level}'. You MUST NEVER use any other clinical level words ('routine', 'review', 'urgent', 'emergency') anywhere in the explanation text except '{decided_level}'. Do not mention routine care or routine follow-up unless the decided level is specifically 'routine'.\n"
         "10. Output valid JSON only with structure:\n"
-        '{"sentences": [{"text": "sentence text with citation [S1].", "cites": ["S1"]}]}'
+        '{"sentences": [{"text": "sentence text with citation [S1].", "cites": ["S1"]}]}\n'
+        "11. DO NOT claim that blood pressure or blood glucose is high, elevated, low, or outside target when the patient's readings are within target reference ranges (systolic 90-139 mmHg, diastolic 60-89 mmHg, glucose 90-125 fasting / 90-200 after meals or random). Focus the explanation on the actual triage reasons (such as medication changes, initial check-in baseline, or reported symptoms).\n"
     )
+
+    reasons_list = list(triage_copy.get("reasons") or [])
+    for rb in triage_copy.get("raised_by", []):
+        if isinstance(rb, dict):
+            reasons_list.append(rb.get("detail") or rb.get("source") or "")
+        elif isinstance(rb, str):
+            reasons_list.append(rb)
+    reasons_text = "; ".join(str(r) for r in reasons_list if r)
 
     user_prompt = (
         f"Patient Readings: {json.dumps(readings_copy)}\n"
         f"Decided Triage Level: '{decided_level}' (Trigger: '{query_mapping.trigger_category}')\n"
+        f"Triage Reasons: {reasons_text or 'Routine self-monitoring'}\n"
         f"CLINICAL INSTRUCTION: The decided level is '{decided_level}'. Never use any other level word ('routine', 'review', 'urgent', 'emergency') except '{decided_level}'.\n\n"
         f"Guideline Passages:\n{passages_text}\n\n"
         "Generate the explanation in English."
@@ -640,6 +760,10 @@ def explain(
         if v5_errs:
             rejected_reasons.extend(v5_errs)
 
+        v6_errs = validate_reading_target_claims(resolved_sentences if resolved_sentences else raw_sentences, readings_copy)
+        if v6_errs:
+            rejected_reasons.extend(v6_errs)
+
         if rejected_reasons:
             logger.warning(f"LLM explanation rejected: {rejected_reasons}")
             return get_template_explanation(
@@ -699,9 +823,10 @@ def explain(
             trans_v2, trans_resolved = validate_citations(trans_data.get("sentences", []), candidate_chunks)
             trans_v3 = validate_number_grounding(trans_resolved, allowed_nums)
             trans_v4 = validate_banned_patterns(trans_resolved, decided_level)
+            trans_v6 = validate_reading_target_claims(trans_resolved, readings_copy)
 
-            if trans_v1 or trans_v2 or trans_v3 or trans_v4:
-                rejected_reasons.extend(trans_v1 + trans_v2 + trans_v3 + trans_v4)
+            if trans_v1 or trans_v2 or trans_v3 or trans_v4 or trans_v6:
+                rejected_reasons.extend(trans_v1 + trans_v2 + trans_v3 + trans_v4 + trans_v6)
                 return get_template_explanation(
                     query_mapping.trigger_category,
                     readings_copy,

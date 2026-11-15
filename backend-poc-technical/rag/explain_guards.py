@@ -39,6 +39,7 @@ from rag.explainer import (
     validate_citations,
     validate_level_consistency,
     validate_number_grounding,
+    validate_reading_target_claims,
 )
 from rag.licences import (
     get_restricted_gemini_sources,
@@ -400,6 +401,13 @@ class ExplainCache:
         # 5. Re-validate level consistency
         v5_errs = validate_level_consistency(resolved_sentences, decided_level)
         if v5_errs:
+            with self._lock:
+                self.misses += 1
+            return None
+
+        # 6. Re-validate reading target claims (V6)
+        v6_errs = validate_reading_target_claims(resolved_sentences, readings)
+        if v6_errs:
             with self._lock:
                 self.misses += 1
             return None
