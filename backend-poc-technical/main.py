@@ -4782,23 +4782,27 @@ def answer_checkin_endpoint(
                         next_state["current_question"] = None
                 elif is_emergency and emergency_reason not in ("meter_lo", "meter_hi"):
                     # Was set by v3_next_turn on text, but decide_red found no uncancelled red hits
-                    if cancelled_v3 and is_negated_red_flag_to_review_enabled():
-                        is_emergency = False
-                        emergency_reason = None
-                        next_state["emergency"] = False
-                        next_state["emergency_reason"] = None
-                        v3_lang = next_state.get("language") or lang or "en"
-                        from agents.danger_wordgroups import get_safety_note
-                        next_state["safety_note"] = get_safety_note(v3_lang)
-                        hit_data = {"group": "negated_red_flag_needs_review", "step": current_state.get("step", "")}
-                        next_state.setdefault("wordgroup_hits", []).append(hit_data)
-                        append_audit(
-                            actor_user_id=current_user["user_id"],
-                            action="danger_wordgroup_hit",
-                            target=checkin_id,
-                            outcome="ok",
-                            detail={"group": "negated_red_flag_needs_review"},
-                        )
+                    if cancelled_v3:
+                        if is_negated_red_flag_to_review_enabled():
+                            is_emergency = False
+                            emergency_reason = None
+                            next_state["emergency"] = False
+                            next_state["emergency_reason"] = None
+                            v3_lang = next_state.get("language") or lang or "en"
+                            from agents.danger_wordgroups import get_safety_note
+                            next_state["safety_note"] = get_safety_note(v3_lang)
+                            hit_data = {"group": "negated_red_flag_needs_review", "step": current_state.get("step", "")}
+                            next_state.setdefault("wordgroup_hits", []).append(hit_data)
+                            append_audit(
+                                actor_user_id=current_user["user_id"],
+                                action="danger_wordgroup_hit",
+                                target=checkin_id,
+                                outcome="ok",
+                                detail={"group": "negated_red_flag_needs_review"},
+                            )
+                        else:
+                            # Flag is disabled: preserve base-screen emergency
+                            pass
                     else:
                         is_emergency = False
                         emergency_reason = None
