@@ -247,6 +247,14 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning("Failed to launch escalation background worker: %s", e)
 
+    if os.environ.get("TTS_ENABLED", "").strip().lower() in ("true", "1", "yes"):
+        try:
+            from voice import tts_service
+            tts_service.warmup_models()
+            logger.info("TTS background model warmup triggered at startup.")
+        except Exception as e:
+            logger.warning("TTS startup warmup skipped: %s", str(e))
+
     yield
 
     if reminder_task:

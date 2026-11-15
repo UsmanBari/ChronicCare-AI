@@ -601,6 +601,7 @@ export interface Translations {
   listenToExplanationBtn: string;
   listeningToExplanation: string;
   speechLoading: string;
+  speechPreparingWarmup: string;
   speechError: string;
   listenToEmergencyInstructions: string;
   adminConfigTitle: string;
@@ -1259,6 +1260,7 @@ const enTranslations: Translations = {
     listenToExplanationBtn: "Listen",
     listeningToExplanation: "Playing...",
     speechLoading: "Generating voice...",
+    speechPreparingWarmup: "Preparing voice, the first time can take up to a minute",
     speechError: "Voice output unavailable",
     listenToEmergencyInstructions: "Listen to Instructions",
     adminConfigTitle: "System Configuration & Guards Status",
@@ -1919,6 +1921,7 @@ const urTranslations: Translations = {
     listenToExplanationBtn: "وضاحت سنیں",
     listeningToExplanation: "آواز چل رہی ہے...",
     speechLoading: "آواز تیار ہو رہی ہے...",
+    speechPreparingWarmup: "آواز تیار کی جا رہی ہے، پہلی بار ایک منٹ تک لگ سکتا ہے",
     speechError: "آواز دستیاب نہیں ہے",
     listenToEmergencyInstructions: "ایمرجنسی ہدایات سنیں",
     adminConfigTitle: "سسٹم کنفیگریشن اور گارڈز کی حالت",

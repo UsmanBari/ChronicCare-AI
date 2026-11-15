@@ -151,6 +151,30 @@ def synthesize_speech(text: str, language: str = "ur") -> bytes:
         return generate_fake_wav(clean_text)
 
 
+def warmup_models() -> None:
+    """
+    Warms up the Meta MMS-TTS models in a background daemon thread at startup.
+    Ensures first /speech call does not suffer cold load latency.
+    """
+    if not is_tts_enabled():
+        return
+    if _FORCE_FAKE_SYNTHESIZER or os.environ.get("TTS_MOCK", "").lower() in ("true", "1", "yes"):
+        return
+    import threading
+
+    def _do_warmup() -> None:
+        try:
+            logger.info("Warming up MMS-TTS models in background thread...")
+            synthesize_speech("warmup", language="ur")
+            synthesize_speech("warmup", language="en")
+            logger.info("MMS-TTS background warmup complete.")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("TTS warmup background load encountered: %s", exc)
+
+    thread = threading.Thread(target=_do_warmup, daemon=True, name="tts-warmup")
+    thread.start()
+
+
 def _load_templates_catalog() -> dict[str, Any]:
     """Loads the multilingual clinical explanation template catalog."""
     templates_path = Path(__file__).resolve().parent.parent / "rag" / "templates.json"

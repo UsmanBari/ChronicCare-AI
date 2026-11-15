@@ -41,9 +41,11 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
   const [explanation, setExplanation] = useState<PatientExplanation | null | undefined>(initialExplanation);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingSpeech, setIsLoadingSpeech] = useState(false);
+  const [isWarmingUpHint, setIsWarmingUpHint] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [isTtsEnabled, setIsTtsEnabled] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const warmupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -59,8 +61,17 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
     };
   }, []);
 
+  const clearWarmup = () => {
+    if (warmupTimerRef.current) {
+      clearTimeout(warmupTimerRef.current);
+      warmupTimerRef.current = null;
+    }
+    setIsWarmingUpHint(false);
+  };
+
   useEffect(() => {
     return () => {
+      clearWarmup();
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
@@ -79,7 +90,12 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
     }
 
     setIsLoadingSpeech(true);
+    setIsWarmingUpHint(false);
     setSpeechError(null);
+    if (warmupTimerRef.current) clearTimeout(warmupTimerRef.current);
+    warmupTimerRef.current = setTimeout(() => {
+      setIsWarmingUpHint(true);
+    }, 3000);
 
     try {
       const blob = await api.getCheckinSpeech(effectiveCheckinId);
@@ -88,14 +104,17 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
       audioRef.current = audio;
 
       audio.onplay = () => {
+        clearWarmup();
         setIsPlaying(true);
         setIsLoadingSpeech(false);
       };
       audio.onended = () => {
+        clearWarmup();
         setIsPlaying(false);
         URL.revokeObjectURL(url);
       };
       audio.onerror = () => {
+        clearWarmup();
         setIsPlaying(false);
         setIsLoadingSpeech(false);
         setSpeechError(t.speechError || "Voice output unavailable");
@@ -104,6 +123,7 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
 
       await audio.play();
     } catch {
+      clearWarmup();
       setIsLoadingSpeech(false);
       setIsPlaying(false);
       setSpeechError(t.speechError || "Voice output unavailable");
@@ -253,35 +273,42 @@ export const ExplanationBox: React.FC<ExplanationBoxProps> = ({
         >
           {/* Audio Listen Action - Only shown when backend TTS_ENABLED is true */}
           {isTtsEnabled && (
-            <div className="flex items-center justify-between pt-1">
-              <button
-                type="button"
-                data-testid="explanation-speech-btn"
-                onClick={handlePlaySpeech}
-                disabled={isLoadingSpeech || !effectiveCheckinId}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-50 text-teal-800 border border-teal-200/80 hover:bg-teal-100 text-xs font-medium transition-colors disabled:opacity-50"
-              >
-                {isLoadingSpeech ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-700" />
-                    <span>{t.speechLoading || "Generating voice..."}</span>
-                  </>
-                ) : isPlaying ? (
-                  <>
-                    <Volume2 className="w-3.5 h-3.5 text-teal-700 animate-pulse" />
-                    <span>{t.listeningToExplanation || "Playing..."}</span>
-                  </>
-                ) : (
-                  <>
-                    <Volume2 className="w-3.5 h-3.5 text-teal-700" />
-                    <span>{t.listenToExplanationBtn || "Listen"}</span>
-                  </>
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  data-testid="explanation-speech-btn"
+                  onClick={handlePlaySpeech}
+                  disabled={isLoadingSpeech || !effectiveCheckinId}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-50 text-teal-800 border border-teal-200/80 hover:bg-teal-100 text-xs font-medium transition-colors disabled:opacity-50"
+                >
+                  {isLoadingSpeech ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-700" />
+                      <span>{isWarmingUpHint ? (t.speechPreparingWarmup || "Preparing voice, the first time can take up to a minute") : (t.speechLoading || "Generating voice...")}</span>
+                    </>
+                  ) : isPlaying ? (
+                    <>
+                      <Volume2 className="w-3.5 h-3.5 text-teal-700 animate-pulse" />
+                      <span>{t.listeningToExplanation || "Playing..."}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-3.5 h-3.5 text-teal-700" />
+                      <span>{t.listenToExplanationBtn || "Listen"}</span>
+                    </>
+                  )}
+                </button>
+                {speechError && (
+                  <span data-testid="explanation-speech-error" className="text-[11px] text-amber-700 font-medium">
+                    {speechError}
+                  </span>
                 )}
-              </button>
-              {speechError && (
-                <span data-testid="explanation-speech-error" className="text-[11px] text-amber-700 font-medium">
-                  {speechError}
-                </span>
+              </div>
+              {isLoadingSpeech && isWarmingUpHint && (
+                <p data-testid="explanation-speech-warmup-hint" className="text-[11px] text-slate-500 italic">
+                  {t.speechPreparingWarmup || "Preparing voice, the first time can take up to a minute"}
+                </p>
               )}
             </div>
           )}
