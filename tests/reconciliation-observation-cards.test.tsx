@@ -262,6 +262,11 @@ describe("P1-6: Reconciliation Observation Cards (SMART Sandbox Fixture)", () =>
       expect(text.includes("Blood Glucose")).toBe(true);
       expect(text.includes("110 mg/dL")).toBe(true);
       expect(text.includes("165 mg/dL")).toBe(true);
+
+      // 5. P2-11: Shows every reading given (BP too) with the target tag
+      expect(text.includes("Above target")).toBe(true);
+      expect(text.includes("Also reported today:")).toBe(true);
+      expect(text.includes("148/94 mmHg")).toBe(true);
     });
 
     it("Provider ReconciliationAlertDetail: shows one card per discrepancy; NEVER headlines 'Sodium Review'", async () => {

@@ -20,6 +20,7 @@ import {
   isObservationThatMatters,
   formatObservationTitle,
 } from "../lib/presentation";
+import { getReadingStatus } from "../lib/referenceRanges";
 
 export const ConflictScreen = () => {
   const { setScreen, checkIn, liveCheckinResult, liveEhrConnection, isLiveMode, t, isUrdu, language } = useApp();
@@ -102,6 +103,113 @@ export const ConflictScreen = () => {
   let sideBValue = isLiveMode ? "" : "140 mg/dL";
   let sideADesc = isLiveMode ? "" : (isUrdu ? "خون میں شوگر (گلوکوز): 180 mg/dL" : isRomanUrdu ? "Glucose reading: 180 mg/dL" : "Glucose reading: 180 mg/dL");
   let sideBDesc = isLiveMode ? "" : (isUrdu ? "آج کا جواب: 140 mg/dL" : isRomanUrdu ? "Aaj ka jawab: 140 mg/dL" : "Today's check-in: 140 mg/dL");
+
+  // Extract all clinical readings entered today (glucose, blood pressure, etc.) with target tags
+  const todayReadingsList = React.useMemo(() => {
+    if (!isLiveMode) {
+      return [
+        {
+          key: "glucose",
+          label: isUrdu ? "خون میں گلوکوز (شوگر)" : isRomanUrdu ? "Blood Glucose" : "Blood Glucose",
+          value: sideBValue || "140 mg/dL",
+          targetTag: getReadingStatus("blood_glucose", 140, language as any, "mg/dL"),
+        },
+      ];
+    }
+
+    const list: Array<{ key: string; label: string; value: string; targetTag?: ReturnType<typeof getReadingStatus> }> = [];
+    const seen = new Set<string>();
+
+    // 1. From observation comparisons (where value_b is provided)
+    // First check for combined BP if systolic and diastolic are both in obsComparisons
+    const sbpComp = obsComparisons.find((c: any) => c.observation_type?.toLowerCase().includes("systolic") && c.value_b !== null && c.value_b !== undefined);
+    const dbpComp = obsComparisons.find((c: any) => c.observation_type?.toLowerCase().includes("diastolic") && c.value_b !== null && c.value_b !== undefined);
+
+    if (sbpComp && dbpComp) {
+      seen.add("systolic_blood_pressure");
+      seen.add("diastolic_blood_pressure");
+      seen.add("blood_pressure_systolic");
+      seen.add("blood_pressure_diastolic");
+      seen.add("blood_pressure");
+      const sbpVal = typeof sbpComp.value_b === "number" && Number.isInteger(sbpComp.value_b) ? sbpComp.value_b : sbpComp.value_b;
+      const dbpVal = typeof dbpComp.value_b === "number" && Number.isInteger(dbpComp.value_b) ? dbpComp.value_b : dbpComp.value_b;
+      const bpValStr = `${sbpVal}/${dbpVal} mmHg`;
+      const sbpStatus = getReadingStatus("systolic_blood_pressure", sbpComp.value_b, language as any);
+      const dbpStatus = getReadingStatus("diastolic_blood_pressure", dbpComp.value_b, language as any);
+      const combinedTag = (sbpStatus.status === "above_target" || dbpStatus.status === "above_target")
+        ? sbpStatus.status === "above_target" ? sbpStatus : dbpStatus
+        : (sbpStatus.status === "below_target" || dbpStatus.status === "below_target")
+        ? sbpStatus.status === "below_target" ? sbpStatus : dbpStatus
+        : sbpStatus;
+
+      list.push({
+        key: "bp",
+        label: isUrdu ? "بلڈ پریشر" : isRomanUrdu ? "Blood Pressure" : "Blood Pressure",
+        value: bpValStr,
+        targetTag: combinedTag,
+      });
+    }
+
+    // 2. Other observations in comparisons with value_b
+    for (const c of obsComparisons) {
+      if (c.value_b === null || c.value_b === undefined) continue;
+      const normType = (c.observation_type || "").toLowerCase();
+      if (seen.has(normType)) continue;
+      seen.add(normType);
+
+      const valFormatted = `${typeof c.value_b === "number" && Number.isInteger(c.value_b) ? c.value_b : c.value_b} ${c.unit_b || ""}`.trim();
+      const status = getReadingStatus(c.observation_type, c.value_b, language as any, c.unit_b || "mg/dL");
+
+      list.push({
+        key: normType,
+        label: formatObservationTitle(c.observation_type, isUrdu),
+        value: valFormatted,
+        targetTag: status,
+      });
+    }
+
+    // 3. Fallback to intakes if comparisons didn't capture a reading (e.g. BP was in intake but not reconciled)
+    const intakes = liveCheckinResult?.intakes || [];
+    for (const it of intakes) {
+      const data = it?.extracted_data || it?.readings || {};
+      const sbp = data.blood_pressure_systolic ?? data.systolic ?? (Array.isArray(data.blood_pressure) ? data.blood_pressure[0] : null);
+      const dbp = data.blood_pressure_diastolic ?? data.diastolic ?? (Array.isArray(data.blood_pressure) ? data.blood_pressure[1] : null);
+      if (sbp !== null && sbp !== undefined && dbp !== null && dbp !== undefined && !seen.has("blood_pressure")) {
+        seen.add("blood_pressure");
+        seen.add("systolic_blood_pressure");
+        seen.add("diastolic_blood_pressure");
+        const sbpInt = typeof sbp === "number" && Number.isInteger(sbp) ? sbp : sbp;
+        const dbpInt = typeof dbp === "number" && Number.isInteger(dbp) ? dbp : dbp;
+        const sbpStatus = getReadingStatus("systolic_blood_pressure", sbp, language as any);
+        const dbpStatus = getReadingStatus("diastolic_blood_pressure", dbp, language as any);
+        const combinedTag = (sbpStatus.status === "above_target" || dbpStatus.status === "above_target")
+          ? sbpStatus.status === "above_target" ? sbpStatus : dbpStatus
+          : (sbpStatus.status === "below_target" || dbpStatus.status === "below_target")
+          ? sbpStatus.status === "below_target" ? sbpStatus : dbpStatus
+          : sbpStatus;
+        list.push({
+          key: "bp_intake",
+          label: isUrdu ? "بلڈ پریشر" : isRomanUrdu ? "Blood Pressure" : "Blood Pressure",
+          value: `${sbpInt}/${dbpInt} mmHg`,
+          targetTag: combinedTag,
+        });
+      }
+
+      const g = data.glucose;
+      if (g !== null && g !== undefined && !seen.has("blood_glucose") && !seen.has("glucose")) {
+        seen.add("blood_glucose");
+        const gInt = typeof g === "number" && Number.isInteger(g) ? g : g;
+        list.push({
+          key: "glucose_intake",
+          label: isUrdu ? "خون میں گلوکوز (شوگر)" : isRomanUrdu ? "Blood Glucose" : "Blood Glucose",
+          value: `${gInt} mg/dL`,
+          targetTag: getReadingStatus("blood_glucose", g, language as any, "mg/dL"),
+        });
+      }
+    }
+
+    return list;
+  }, [isLiveMode, obsComparisons, liveCheckinResult, language, isUrdu, isRomanUrdu, sideBValue]);
 
   const screenTitle = isLiveMode
     ? isAllPlainConflicts
@@ -199,6 +307,11 @@ export const ConflictScreen = () => {
                 const itemSideBLabel = describeSide("b", c.source_b, null, liveEhrConnection?.mode, null, null, isUrdu);
                 const itemSideBVal = `${c.value_b} ${c.unit_b || ""}`.trim();
                 const itemSideBDesc = isUrdu ? `آج کا جواب: ${itemSideBVal}` : `Your answer today: ${itemSideBVal}`;
+                const itemBStatus = getReadingStatus(c.observation_type, c.value_b, language as any, c.unit_b || "mg/dL");
+                const normObsType = (c.observation_type || "").toLowerCase();
+                const otherReadings = todayReadingsList.filter(
+                  (r) => !r.key.includes(normObsType) && !normObsType.includes(r.key)
+                );
 
                 return (
                   <div key={idx} className="space-y-2 p-3 sm:p-4 rounded-2xl bg-white/70 border border-slate-200/90 shadow-xs">
@@ -239,6 +352,11 @@ export const ConflictScreen = () => {
                             <Activity className="w-3.5 h-3.5" />
                             {itemSideBLabel}
                           </span>
+                          {itemBStatus.status !== "unspecified" && (
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${itemBStatus.badgeClass}`}>
+                              {itemBStatus.label}
+                            </span>
+                          )}
                         </div>
                         <div className="text-2xl font-bold text-navy-800 pt-1 font-mono">
                           {itemSideBVal}
@@ -246,6 +364,25 @@ export const ConflictScreen = () => {
                         <p className="text-xs text-amber-950 leading-relaxed">
                           {itemSideBDesc}
                         </p>
+                        {otherReadings.length > 0 && (
+                          <div className="pt-2 mt-2 border-t border-amber-200/60 space-y-1.5">
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
+                              {isUrdu ? "آج کی دیگر ریڈنگز:" : isRomanUrdu ? "Aaj ki deegar readings:" : "Also reported today:"}
+                            </span>
+                            {otherReadings.map((r, rIdx) => (
+                              <div key={rIdx} className="flex items-center justify-between text-xs py-0.5">
+                                <span className="text-slate-700 font-medium">
+                                  {r.label}: <strong className="font-mono text-navy-800">{r.value}</strong>
+                                </span>
+                                {r.targetTag && r.targetTag.status !== "unspecified" && (
+                                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${r.targetTag.badgeClass}`}>
+                                    {r.targetTag.label}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -258,6 +395,11 @@ export const ConflictScreen = () => {
                 const itemSideBLabel = describeSide("b", c.source_b, null, liveEhrConnection?.mode, null, null, isUrdu);
                 const itemSideBVal = `${c.value_b} ${c.unit_b || ""}`.trim();
                 const itemSideBDesc = isUrdu ? `آج کا جواب: ${itemSideBVal}` : `Your answer today: ${itemSideBVal}`;
+                const itemBStatus = getReadingStatus(c.observation_type, c.value_b, language as any, c.unit_b || "mg/dL");
+                const normObsType = (c.observation_type || "").toLowerCase();
+                const otherReadings = todayReadingsList.filter(
+                  (r) => !r.key.includes(normObsType) && !normObsType.includes(r.key)
+                );
 
                 return (
                   <div key={idx} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -282,6 +424,11 @@ export const ConflictScreen = () => {
                           <Activity className="w-3.5 h-3.5" />
                           {itemSideBLabel}
                         </span>
+                        {itemBStatus.status !== "unspecified" && (
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${itemBStatus.badgeClass}`}>
+                            {itemBStatus.label}
+                          </span>
+                        )}
                       </div>
                       <div className="text-2xl font-bold text-navy-800 pt-1 font-mono">
                         {itemSideBVal}
@@ -289,6 +436,25 @@ export const ConflictScreen = () => {
                       <p className="text-xs text-amber-950 leading-relaxed">
                         {itemSideBDesc}
                       </p>
+                      {otherReadings.length > 0 && (
+                        <div className="pt-2 mt-2 border-t border-amber-200/60 space-y-1.5">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
+                            {isUrdu ? "آج کی دیگر ریڈنگز:" : isRomanUrdu ? "Aaj ki deegar readings:" : "Also reported today:"}
+                          </span>
+                          {otherReadings.map((r, rIdx) => (
+                            <div key={rIdx} className="flex items-center justify-between text-xs py-0.5">
+                              <span className="text-slate-700 font-medium">
+                                {r.label}: <strong className="font-mono text-navy-800">{r.value}</strong>
+                              </span>
+                              {r.targetTag && r.targetTag.status !== "unspecified" && (
+                                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${r.targetTag.badgeClass}`}>
+                                  {r.targetTag.label}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -321,8 +487,15 @@ export const ConflictScreen = () => {
                       {sideBLabel}
                     </span>
                   </div>
-                  <div className="text-2xl font-bold text-navy-800 pt-1 font-mono">
-                    {sideBValue}
+                  <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+                    <div className="text-2xl font-bold text-navy-800 font-mono">
+                      {sideBValue}
+                    </div>
+                    {todayReadingsList[0]?.targetTag && todayReadingsList[0].targetTag.status !== "unspecified" && (
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${todayReadingsList[0].targetTag.badgeClass}`}>
+                        {todayReadingsList[0].targetTag.label}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-amber-950 leading-relaxed">
                     {sideBDesc}

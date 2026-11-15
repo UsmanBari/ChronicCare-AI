@@ -505,9 +505,20 @@ def get_template_explanation(
     raw_sentences = template_entry.get("sentences", [])
 
     # Format placeholders
-    sbp_val = readings.get("blood_pressure_systolic", triage_result.get("systolic", "---"))
-    dbp_val = readings.get("blood_pressure_diastolic", triage_result.get("diastolic", "---"))
-    gluc_val = readings.get("glucose", triage_result.get("glucose", "---"))
+    def _format_reading_val(val: Any) -> Any:
+        if isinstance(val, float):
+            return int(val) if val.is_integer() else val
+        if isinstance(val, str):
+            try:
+                f = float(val.strip())
+                return int(f) if f.is_integer() else f
+            except Exception:
+                return val
+        return val
+
+    sbp_val = _format_reading_val(readings.get("blood_pressure_systolic", triage_result.get("systolic", "---")))
+    dbp_val = _format_reading_val(readings.get("blood_pressure_diastolic", triage_result.get("diastolic", "---")))
+    gluc_val = _format_reading_val(readings.get("glucose", triage_result.get("glucose", "---")))
     lvl_val = triage_result.get("level", "routine")
 
     top_chunk_id = candidate_chunks[0]["chunk_id"] if candidate_chunks else "ish_2020_htn_c01"

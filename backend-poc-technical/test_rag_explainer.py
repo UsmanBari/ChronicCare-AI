@@ -364,3 +364,20 @@ def test_explainer_max_tokens_is_250_and_four_sentences_fit(mock_chunk_store: Js
     estimated_tokens = word_count * 1.4
     assert estimated_tokens < 200, f"4-sentence answer estimated tokens ({estimated_tokens}) exceeds 200"
     assert len(four_sentence_json) < 1000
+
+
+def test_template_formats_integer_floats_without_decimals(mock_chunk_store: JsonlChunkStore) -> None:
+    """P2-11: Shows '148/94', not '148.0/94.0' in explanation template."""
+    triage = {
+        "level": "urgent",
+        "trigger_category": "bp_urgent",
+        "systolic": 148.0,
+        "diastolic": 94.0,
+    }
+    readings = {"blood_pressure_systolic": 148.0, "blood_pressure_diastolic": 94.0}
+    # Force template mode by passing no LLM
+    res = explain(triage, readings, language="en", store=mock_chunk_store, llm=None)
+    assert res["mode"] == "template"
+    combined_text = " ".join(s["text"] for s in res["sentences"])
+    assert "148/94" in combined_text
+    assert "148.0/94.0" not in combined_text
