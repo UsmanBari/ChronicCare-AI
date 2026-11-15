@@ -429,6 +429,225 @@ test.describe("I4-S: 17 Nov Evaluation Demo Journeys", () => {
 
     await captureKeyScreenshots(page, "ji_admin_config_flags");
   });
+
+  test("J-v3-meds: V3 interview + medication check for dual patient with 3 active medicines (Metformin, Lisinopril, Atorvastatin)", async ({ page }) => {
+    let turn = 0;
+    await page.route("**/api/**", async (route) => {
+      try {
+        const url = route.request().url();
+        if (url.includes("/api/me/notifications")) {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ notifications: [], unread_count: 0 }),
+          });
+          return;
+        }
+        if (url.includes("/api/checkins/start")) {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              checkin_id: "chk-v3-dual-test",
+              mode: "isolated",
+              is_cold_start: false,
+              step: "SUMMARY",
+              question: "Summary of your check-in: Glucose: 135 mg/dL. BP: 128/82 mmHg. Symptoms: None reported. Please confirm and submit.",
+              options: ["Confirm and submit"],
+              option_items: [{ label: "Confirm and submit", value: "Confirm and submit" }],
+              why_text: "Final clinical summary verification before processing.",
+              can_skip: false,
+              can_say_unknown: false,
+              engine: "v3",
+            }),
+          });
+          return;
+        }
+      if (url.includes("/answer")) {
+        turn++;
+        const postData = JSON.parse(route.request().postData() || "{}");
+        if (turn === 1) {
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              question: "Your record lists Metformin 500mg Oral Tablet. Are you still taking it?",
+              complete: false,
+              emergency: false,
+              emergency_reason: null,
+              step: "medication_check:0:0",
+              why_text: "Checking your current medications to reconcile hospital records with what you actually take.",
+              options: ["yes", "changed_dose", "stopped"],
+              option_items: [
+                { label: "Yes, same dose", value: "yes" },
+                { label: "Changed dose", value: "changed_dose" },
+                { label: "No, I stopped it", value: "stopped" },
+              ],
+              can_skip: false,
+              can_say_unknown: true,
+              engine: "v3",
+            }),
+          });
+        }
+        if (turn === 2) {
+          expect(postData.answer).toBe("yes");
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              question: "Your record lists Lisinopril 10mg Oral Tablet. Are you still taking it?",
+              complete: false,
+              emergency: false,
+              emergency_reason: null,
+              step: "medication_check:1:1",
+              why_text: "Checking your current medications to reconcile hospital records with what you actually take.",
+              options: ["yes", "changed_dose", "stopped"],
+              option_items: [
+                { label: "Yes, same dose", value: "yes" },
+                { label: "Changed dose", value: "changed_dose" },
+                { label: "No, I stopped it", value: "stopped" },
+              ],
+              can_skip: false,
+              can_say_unknown: true,
+              engine: "v3",
+            }),
+          });
+        }
+        if (turn === 3) {
+          expect(postData.answer).toContain("20mg");
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              question: "Your record lists Atorvastatin 20mg Oral Tablet. Are you still taking it?",
+              complete: false,
+              emergency: false,
+              emergency_reason: null,
+              step: "medication_check:2:2",
+              why_text: "Checking your current medications to reconcile hospital records with what you actually take.",
+              options: ["yes", "changed_dose", "stopped"],
+              option_items: [
+                { label: "Yes, same dose", value: "yes" },
+                { label: "Changed dose", value: "changed_dose" },
+                { label: "No, I stopped it", value: "stopped" },
+              ],
+              can_skip: false,
+              can_say_unknown: true,
+              engine: "v3",
+            }),
+          });
+        }
+        if (turn === 4) {
+          expect(postData.answer).toMatch(/no|stopped/i);
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              question: null,
+              complete: true,
+              emergency: false,
+              emergency_reason: null,
+              step: "COMPLETE",
+              engine: "v3",
+            }),
+          });
+        }
+      }
+      if (url.includes("/complete")) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            checkin_id: "chk-v3-dual-test",
+            emergency: false,
+            requires_review: true,
+            triage_level: "review",
+            triage_colour: "yellow",
+            reconciliation: {
+              medication_comparisons: [
+                { medication_name: "Metformin 500mg Oral Tablet", comparison_status: "agree" },
+                { medication_name: "Lisinopril 10mg Oral Tablet", comparison_status: "conflict" },
+                { medication_name: "Atorvastatin 20mg Oral Tablet", comparison_status: "conflict" },
+              ],
+            },
+            verification: {
+              medication_verifications: [
+                { medication_name: "Metformin 500mg Oral Tablet", status: "verified" },
+                { medication_name: "Lisinopril 10mg Oral Tablet", status: "unverified" },
+                { medication_name: "Atorvastatin 20mg Oral Tablet", status: "unverified" },
+              ],
+            },
+          }),
+        });
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          user_id: "demo-user-dual",
+          email: "demo_patient_dual@demo.care",
+          role: "patient",
+          status: "active",
+          mode: "isolated",
+          conditions: ["type_2_diabetes", "hypertension"],
+          consent_granted_at: "2026-01-01T00:00:00Z",
+          provider_notification_consent_at: "2026-01-01T00:00:00Z",
+          date_of_birth: "1975-01-01",
+          inclusion_confirmed_at: "2026-01-01T00:00:00Z",
+        }),
+      });
+    } catch (err: any) {
+      console.log(`[ROUTE ERROR]: ${err.message}`);
+    }
+  });
+
+    // Navigate directly to live Adaptive Interview
+    await page.goto("/?portal=patient&screen=adaptive_interview&live=true");
+    await dismissPreloader(page);
+
+    // 1. Verify Summary Question is visible
+    await expect(page.locator("text=Summary of your check-in")).toBeVisible({ timeout: 10000 });
+
+    // Click "Confirm and submit" chip button
+    const confirmBtn = page.locator("button:has-text('Confirm and submit')");
+    await expect(confirmBtn).toBeVisible({ timeout: 5000 });
+    await confirmBtn.click();
+
+    // 2. Med 1 question: Metformin 500mg
+    await expect(page.locator("text=Your record lists Metformin 500mg Oral Tablet")).toBeVisible({ timeout: 8000 });
+    // Click "Yes, same dose" chip button (#med-check-yes-btn)
+    const medYesBtn = page.locator("#med-check-yes-btn, button:has-text('Yes, same dose')").first();
+    await expect(medYesBtn).toBeVisible({ timeout: 5000 });
+    await medYesBtn.click();
+
+    // 3. Med 2 question: Lisinopril 10mg
+    await expect(page.locator("text=Your record lists Lisinopril 10mg Oral Tablet")).toBeVisible({ timeout: 8000 });
+    // Verify input box was cleared immediately after chip click
+    const answerInput = page.locator('input[placeholder*="Type your response"]');
+    await expect(answerInput).toHaveValue("");
+    // User types changed dose into input box
+    await answerInput.fill("I'm taking 20mg now");
+    await page.click("#live-send-answer-btn");
+
+    // 4. Med 3 question: Atorvastatin 20mg
+    await expect(page.locator("text=Your record lists Atorvastatin 20mg Oral Tablet")).toBeVisible({ timeout: 8000 });
+    // Click "No, I stopped it" chip button (#med-check-no-btn)
+    const medNoBtn = page.locator("#med-check-no-btn, button:has-text('No, I stopped it')").first();
+    await expect(medNoBtn).toBeVisible({ timeout: 5000 });
+    await medNoBtn.click();
+
+    // 5. Check-in finishes and navigates to conflict / review screen without getting stuck
+    await expect(
+      page.locator("h1:has-text('Needs clinician review'), h1:has-text('Reconciliation Alert'), h1:has-text('Clinical Review'), h1:has-text('Daily Health Analysis'), h1:has-text('آپ کے روزانہ نتائج'), h2:has-text('Review Needed'), h1:has-text('Check-in')").first()
+    ).toBeVisible({ timeout: 10000 });
+
+    // Assert that Metformin is confirmed and Lisinopril/Atorvastatin are flagged for review
+    await expect(page.locator("text=Metformin 500mg Oral Tablet").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=Lisinopril 10mg Oral Tablet").first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=Atorvastatin 20mg Oral Tablet").first()).toBeVisible({ timeout: 5000 });
+
+    await captureKeyScreenshots(page, "j_v3_meds_complete");
+  });
 });
 
 // =============================================================================

@@ -66,6 +66,11 @@ export const AdaptiveInterviewScreen = () => {
   const [isPregnancyIneligible, setIsPregnancyIneligible] = useState<boolean>(false);
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([]);
   const [currentStep, setCurrentStep] = useState<string | null>(activeLiveCheckin?.step || null);
+  const currentStepRef = useRef<string | null>(activeLiveCheckin?.step || null);
+  const updateCurrentStep = (step: string | null) => {
+    currentStepRef.current = step;
+    setCurrentStep(step);
+  };
   const [lastFailedAnswer, setLastFailedAnswer] = useState<string | null>(null);
   const [liveOptions, setLiveOptions] = useState<string[] | null>(activeLiveCheckin?.options || null);
   const [liveOptionItems, setLiveOptionItems] = useState<OptionItem[] | null>(activeLiveCheckin?.option_items || null);
@@ -143,11 +148,11 @@ export const AdaptiveInterviewScreen = () => {
           currentCheckin = await api.startCheckin();
           if (!isMounted) return;
           setActiveLiveCheckin(currentCheckin);
-          setCurrentStep(currentCheckin.step || null);
+          updateCurrentStep(currentCheckin.step || null);
           setIsSending(false);
           isSendingRef.current = false;
         } else {
-          setCurrentStep(currentCheckin.step || null);
+          updateCurrentStep(currentCheckin.step || null);
         }
 
         if (currentCheckin.options !== undefined) setLiveOptions(currentCheckin.options);
@@ -204,6 +209,7 @@ export const AdaptiveInterviewScreen = () => {
 
     return () => {
       isMounted = false;
+      isStartingRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLiveMode]);
@@ -222,13 +228,17 @@ export const AdaptiveInterviewScreen = () => {
     setLiveError(null);
     setLastFailedAnswer(null);
 
-    // Keep the typed input in case of error; only clear on success/handling
+    // Keep typed input in case of error; detect whether answer came from chip vs typed input
     const previousInput = liveAnswerInput;
+    const isChipClick = cleanAnswer !== previousInput.trim();
+
+    // Clear input immediately upon send (chips submit directly and leave input empty; input cleared after send)
+    setLiveAnswerInput("");
 
     // Append user message to history
     setConversationHistory((prev) => [...prev, { role: "user", text: cleanAnswer }]);
 
-    const currentStepValue = stepToSend !== undefined ? stepToSend : currentStep;
+    const currentStepValue = stepToSend !== undefined ? stepToSend : currentStepRef.current;
 
     try {
       const answerRes: CheckinAnswerResponse = await api.answerCheckin(
@@ -236,9 +246,6 @@ export const AdaptiveInterviewScreen = () => {
         cleanAnswer,
         currentStepValue
       );
-
-      // Successfully processed by server: clear the input
-      setLiveAnswerInput("");
 
       if (answerRes.emergency) {
         setEscalationRecorded(answerRes.escalation_recorded === true);
@@ -250,7 +257,7 @@ export const AdaptiveInterviewScreen = () => {
         setSafetyNoteBanner(answerRes.safety_note);
       }
       if (answerRes.step) {
-        setCurrentStep(answerRes.step);
+        updateCurrentStep(answerRes.step);
       }
       if (answerRes.options !== undefined) setLiveOptions(answerRes.options);
       if (answerRes.option_items !== undefined) setLiveOptionItems(answerRes.option_items);
@@ -288,20 +295,22 @@ export const AdaptiveInterviewScreen = () => {
       setIsSending(false);
       isSendingRef.current = false;
 
-      // Handle 409 stale_step: do not show error, replace shown question with response question, keep typed text
+      // Handle 409 stale_step: do not show error, replace shown question with response question, keep typed text if typed
       if (err instanceof ApiError && err.status === 409) {
         const errorData = err.data;
         if (errorData?.detail === "stale_step" || err.detail === "stale_step") {
-          const newQ = errorData?.question || "Please answer the current question:";
+          const newQ = errorData?.question || liveQuestion || (isUrdu ? "براہ کرم موجودہ سوال کا جواب دیں:" : "Please answer the current question:");
           const newStep = errorData?.step || null;
-          setCurrentStep(newStep);
+          updateCurrentStep(newStep);
           setLiveQuestion(newQ);
           setConversationHistory((prev) => [
             ...prev,
             { role: "system", text: newQ },
           ]);
-          // Retain user's input text in input box
-          setLiveAnswerInput(cleanAnswer);
+          // Retain user's input text in input box ONLY if user typed it (chips leave input clean)
+          if (!isChipClick) {
+            setLiveAnswerInput(previousInput);
+          }
           return;
         }
 
@@ -311,7 +320,7 @@ export const AdaptiveInterviewScreen = () => {
             const updatedDetail = await api.getUserCheckinDetail(targetCheckinId);
             const updatedState = updatedDetail.state || {};
             if (updatedState.step) {
-              setCurrentStep(updatedState.step);
+              updateCurrentStep(updatedState.step);
             }
           } catch {
             // Refetch error fallback
@@ -319,9 +328,11 @@ export const AdaptiveInterviewScreen = () => {
         }
       }
 
-      // Keep typed text and record last failed answer for retry
+      // Record last failed answer for retry; restore input only if user typed it
       setLastFailedAnswer(cleanAnswer);
-      setLiveAnswerInput(cleanAnswer);
+      if (!isChipClick) {
+        setLiveAnswerInput(previousInput);
+      }
 
       // Check for pregnancy ineligibility error from answer
       if (err instanceof ApiError) {
@@ -667,7 +678,7 @@ export const AdaptiveInterviewScreen = () => {
             )}
 
             {/* Localized Option Items Buttons (v3 option_items with v2 options fallback) */}
-            {liveOptionItems && liveOptionItems.length > 0 ? (
+            {liveOptionItems && liveOptionItems.length > 0 && !currentStep?.startsWith("medication_check") ? (
               <div className="grid grid-cols-2 gap-2 pt-1" dir={isUrdu ? "rtl" : "ltr"}>
                 {liveOptionItems.map((opt, idx) => (
                   <button

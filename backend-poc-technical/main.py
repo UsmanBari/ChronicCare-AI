@@ -4320,6 +4320,27 @@ def _compute_age_years(dob_str: Optional[str]) -> Optional[int]:
         return None
 
 
+def get_medication_check_ui_metadata(lang: str = "en") -> Dict[str, Any]:
+    is_ur = (lang or "").lower().startswith("ur")
+    if is_ur:
+        return {
+            "why_text": "آپ کی فعال ادویات کی تصدیق سے یہ یقینی بنانے میں مدد ملتی ہے کہ آپ کا علاج محفوظ اور درست ہے۔",
+            "options": ["ہاں، وہی مقدار", "نہیں، میں نے بند کر دی ہے"],
+            "option_items": [
+                {"label": "ہاں، وہی مقدار", "value": "yes"},
+                {"label": "نہیں، میں نے بند کر دی ہے", "value": "no, stopped"},
+            ],
+        }
+    return {
+        "why_text": "Confirming your active medications helps ensure your treatment plan is safe and up to date.",
+        "options": ["Yes, same dose", "No, I stopped it"],
+        "option_items": [
+            {"label": "Yes, same dose", "value": "yes"},
+            {"label": "No, I stopped it", "value": "no, stopped"},
+        ],
+    }
+
+
 @app.post("/api/checkins/{checkin_id}/answer", response_model=CheckinAnswerResponse, tags=["Check-in"])
 def answer_checkin_endpoint(
     checkin_id: str,
@@ -4550,7 +4571,10 @@ def answer_checkin_endpoint(
             )
 
     # 2. MEDICATION CHECK PHASE
-    in_med_phase = (not is_v3_session and current_state.step == INTERVIEW_COMPLETE and (protocol_state is None or protocol_state.complete) and med_state is not None and not med_state.complete)
+    is_v3_complete = is_v3_session and (current_state.get("completed") is True or current_state.get("step") == "COMPLETE" or str(current_state.get("step", "")).startswith("medication_check"))
+    is_v2_complete = not is_v3_session and (getattr(current_state, "step", None) == INTERVIEW_COMPLETE)
+    interview_complete = is_v3_complete if is_v3_session else is_v2_complete
+    in_med_phase = (interview_complete and (protocol_state is None or protocol_state.complete) and med_state is not None and not med_state.complete)
 
     if in_med_phase:
         expected_step = f"medication_check:{med_state.index}:{med_state.attempts}"
@@ -4566,6 +4590,7 @@ def answer_checkin_endpoint(
 
         answer_text = (body.answer or "").strip()
         if not answer_text:
+            med_meta = get_medication_check_ui_metadata(lang)
             return CheckinAnswerResponse(
                 question=current_medication_question(med_state),
                 complete=False,
@@ -4575,6 +4600,9 @@ def answer_checkin_endpoint(
                 version=current_version,
                 phase="medication",
                 triage=protocol_state.result if protocol_state else None,
+                why_text=med_meta["why_text"],
+                options=med_meta["options"],
+                option_items=med_meta["option_items"],
             )
 
         # Stage-1 red-flag screen on medication answer (R7: span- and category-scoped)
@@ -4593,15 +4621,21 @@ def answer_checkin_endpoint(
                         # R7 F5: Base-screen negation & remote-past conservative downgrade to review
                         triggered = False
                         reason = None
-                        lang = getattr(current_state, "language", None) or "en"
+                        lang = (current_state.get("language") if is_v3_session else getattr(current_state, "language", None)) or "en"
                         from agents.danger_wordgroups import get_safety_note
                         med_safety_note = get_safety_note(lang)
-                        if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
-                            current_state.answers = {}
-                        current_state.answers.setdefault("_wordgroup_hits", []).append({
-                            "group": "negated_red_flag_needs_review",
-                            "step": getattr(current_state, "step", "medication")
-                        })
+                        if is_v3_session:
+                            current_state.setdefault("wordgroup_hits", []).append({
+                                "group": "negated_red_flag_needs_review",
+                                "step": current_state.get("step", "medication")
+                            })
+                        else:
+                            if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
+                                current_state.answers = {}
+                            current_state.answers.setdefault("_wordgroup_hits", []).append({
+                                "group": "negated_red_flag_needs_review",
+                                "step": getattr(current_state, "step", "medication")
+                            })
                         append_audit(
                             actor_user_id=current_user["user_id"],
                             action="danger_wordgroup_hit",
@@ -4626,11 +4660,14 @@ def answer_checkin_endpoint(
             except Exception:
                 wg_hit = WordGroupResult(is_danger=True, group="detector_error")
             if wg_hit.is_danger:
-                lang = getattr(current_state, "language", None) or "en"
+                lang = (current_state.get("language") if is_v3_session else getattr(current_state, "language", None)) or "en"
                 med_safety_note = get_safety_note(lang)
-                if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
-                    current_state.answers = {}
-                current_state.answers.setdefault("_wordgroup_hits", []).append({"group": wg_hit.group, "step": getattr(current_state, "step", "medication")})
+                if is_v3_session:
+                    current_state.setdefault("wordgroup_hits", []).append({"group": wg_hit.group, "step": current_state.get("step", "medication")})
+                else:
+                    if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
+                        current_state.answers = {}
+                    current_state.answers.setdefault("_wordgroup_hits", []).append({"group": wg_hit.group, "step": getattr(current_state, "step", "medication")})
                 outcome_val = "error" if wg_hit.group == "detector_error" else "flagged"
                 append_audit(
                     actor_user_id=current_user["user_id"],
@@ -4643,14 +4680,14 @@ def answer_checkin_endpoint(
             rf_level = get_red_flag_level(reason)
             is_emerg = (rf_level == "emergency")
             status_val = "emergency" if is_emerg else "complete"
-            last_cond = current_state.active_condition or "general"
-            intakes = current_state.intakes if current_state.intakes else [{"condition": last_cond, "emergency": is_emerg, "level": rf_level, "reason": reason}]
+            last_cond = (current_state.get("conditions_on_file", ["general"])[0] if is_v3_session else (current_state.active_condition or "general"))
+            intakes = (current_state.get("intakes") if is_v3_session else current_state.intakes) or [{"condition": last_cond, "emergency": is_emerg, "level": rf_level, "reason": reason}]
             completed_at = _utc_now_iso()
             try:
                 success = apply_checkin_answer_atomic(
                     checkin_id=checkin_id,
                     expected_version=current_version,
-                    state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
+                    state_dict=current_state if is_v3_session else (current_state.to_dict() if hasattr(current_state, "to_dict") else current_state),
                     status=status_val,
                     completed_at=completed_at,
                     emergency=is_emerg,
@@ -4690,11 +4727,27 @@ def answer_checkin_endpoint(
         new_status = "complete" if is_med_complete else "in_progress"
         completed_at = _utc_now_iso() if is_med_complete else None
 
+        if is_v3_session:
+            if is_med_complete:
+                current_state["step"] = "COMPLETE"
+                current_state["current_question"] = None
+                current_state["why_text"] = None
+                current_state["options"] = None
+                current_state["option_items"] = None
+            else:
+                next_med_step = f"medication_check:{next_med_state.index}:{next_med_state.attempts}"
+                current_state["step"] = next_med_step
+                current_state["current_question"] = current_medication_question(next_med_state)
+                med_meta = get_medication_check_ui_metadata(current_state.get("language") or lang or "en")
+                current_state["why_text"] = med_meta["why_text"]
+                current_state["options"] = med_meta["options"]
+                current_state["option_items"] = med_meta["option_items"]
+
         try:
             success = apply_checkin_answer_atomic(
                 checkin_id=checkin_id,
                 expected_version=current_version,
-                state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
+                state_dict=current_state if is_v3_session else (current_state.to_dict() if hasattr(current_state, "to_dict") else current_state),
                 status=new_status,
                 completed_at=completed_at,
                 emergency=False,
@@ -4716,6 +4769,7 @@ def answer_checkin_endpoint(
             )
 
         next_version = current_version + 1
+        med_meta = get_medication_check_ui_metadata(lang)
         if is_med_complete:
             return CheckinAnswerResponse(
                 question=None,
@@ -4739,6 +4793,9 @@ def answer_checkin_endpoint(
                 phase="medication",
                 triage=protocol_state.result if protocol_state else None,
                 safety_note=med_safety_note,
+                why_text=med_meta["why_text"],
+                options=med_meta["options"],
+                option_items=med_meta["option_items"],
             )
 
     # 3. INTERVIEW PHASE
@@ -4859,6 +4916,12 @@ def answer_checkin_endpoint(
                     next_step_str = f"medication_check:{med_state.index}:{med_state.attempts}"
                     next_question_str = current_medication_question(med_state)
                     next_phase = "medication"
+                    next_state["step"] = next_step_str
+                    next_state["current_question"] = next_question_str
+                    med_meta = get_medication_check_ui_metadata(next_state.get("language") or lang or "en")
+                    next_state["why_text"] = med_meta["why_text"]
+                    next_state["options"] = med_meta["options"]
+                    next_state["option_items"] = med_meta["option_items"]
                 else:
                     new_status = "complete"
                     completed_at = _utc_now_iso()
@@ -5065,6 +5128,7 @@ def answer_checkin_endpoint(
     if is_emergency and not v2_safety_note:
         v2_safety_note = get_safety_note(lang)
     is_urgent_stage1 = bool(next_state.stage1_red_flag and rf_level == "urgent")
+    has_med_items = False
 
     if is_emergency or is_urgent_stage1:
         new_status = "emergency" if is_emergency else "complete"
@@ -5160,6 +5224,7 @@ def answer_checkin_endpoint(
 
     next_version = current_version + 1
 
+    med_meta = get_medication_check_ui_metadata(lang)
     return CheckinAnswerResponse(
         engine="v2",
         question=next_question_str,
@@ -5171,6 +5236,9 @@ def answer_checkin_endpoint(
         escalation_recorded=True if is_emergency else None,
         phase=next_phase,
         safety_note=v2_safety_note,
+        why_text=med_meta["why_text"] if has_med_items else None,
+        options=med_meta["options"] if has_med_items else None,
+        option_items=med_meta["option_items"] if has_med_items else None,
     )
 
 
