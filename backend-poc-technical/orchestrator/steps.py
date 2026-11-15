@@ -844,19 +844,21 @@ def step_decide_triage(
         if triage_dict is not None and isinstance(triage_dict, dict):
             triage_dict["triage_colour"] = triage_colour
 
-        if triage_dict is None:
-            triage_dict = {"level": final_triage_level, "triage_colour": triage_colour}
-
-        t_reasons = list(triage_dict.get("reasons") or [])
+        t_reasons = []
         if verif_requires_review:
             med_discreps = [mv for mv in getattr(verif_result, "medication_verifications", []) if getattr(mv, "requires_review", False)]
             if med_discreps:
+                if triage_dict is None:
+                    triage_dict = {"level": final_triage_level, "triage_colour": triage_colour}
+                t_reasons = list(triage_dict.get("reasons") or [])
                 t_reasons.append("medication_discrepancy")
                 for md in med_discreps:
                     m_name = getattr(md, "medication_name", "") or getattr(md, "name", "")
                     m_type = getattr(md, "discrepancy_type", "")
                     t_reasons.append(f"medication discrepancy: {m_name} {m_type}".strip())
-        triage_dict["reasons"] = t_reasons
+                triage_dict["reasons"] = t_reasons
+        elif triage_dict is not None and isinstance(triage_dict, dict):
+            t_reasons = list(triage_dict.get("reasons") or [])
 
         return {
             "final_triage_level": final_triage_level,

@@ -619,7 +619,7 @@ def build_soap(
             p_lines.append(f"Provider decision: Approved system recommendation ({level.title()})")
         elif act_type == "adjust":
             sys_lvl = (prov_dec.get("system_level") or level).title()
-            prov_lvl = (prov_dec.get("provider_level") or prov_dec.get("action")).title()
+            prov_lvl = (prov_dec.get("provider_level") or prov_dec.get("action")).lower()
             reason = prov_dec.get("reason") or prov_dec.get("note") or "Clinician assessment"
             p_lines.append(f"Provider decision: Adjusted triage level (System: {sys_lvl} -> Provider: {prov_lvl}) - Reason: {reason}")
 

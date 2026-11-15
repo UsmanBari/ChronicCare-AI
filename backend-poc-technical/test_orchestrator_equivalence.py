@@ -126,6 +126,7 @@ def _clean(obj: Any) -> Any:
     elif isinstance(obj, str):
         s = re.sub(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?", "<TS>", obj)
         s = re.sub(r"CHECKIN-[^\s\'\"]+", "<CHECKIN_RECORD_ID>", s)
+        s = re.sub(r"appt-[0-9a-fA-F-]+", "<APPT_ID>", s)
         s = re.sub(r"(dir|grp)_[a-zA-Z0-9_-]+", "<UID>", s)
         s = re.sub(r"local-(dir|grp)_[a-zA-Z0-9_-]+", "<LOCAL_PATIENT>", s)
         return s
