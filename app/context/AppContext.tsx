@@ -221,7 +221,7 @@ export function computeNextPatientScreen(
 }
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const e2eHooksEnabled = process.env.NEXT_PUBLIC_E2E_HOOKS === "1" || process.env.NODE_ENV !== "production";
+  const e2eHooksEnabled = process.env.NEXT_PUBLIC_E2E_HOOKS === "1";
 
   const [portal, setPortalState] = useState<PortalType>("landing");
   const [screen, setScreenState] = useState<PatientScreenType>("home");

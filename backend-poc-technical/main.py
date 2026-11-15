@@ -655,9 +655,9 @@ class PatientRecordResponse(BaseModel):
     ocr_enabled: bool = False
 
 class OcrConfirmItem(BaseModel):
-    model_config = {"extra": "forbid"}
+    model_config = {"extra": "ignore"}
     id: Optional[str] = None
-    type: str  # "medication" | "observation" | "allergy"
+    type: Optional[str] = "medication"  # "medication" | "observation" | "allergy"
     name: Optional[str] = None
     dosage: Optional[str] = None
     status: Optional[str] = "active"
@@ -665,13 +665,16 @@ class OcrConfirmItem(BaseModel):
     value: Optional[float] = None
     unit: Optional[str] = None
     measured_at: Optional[str] = None
+    date: Optional[str] = None
+    evidence: Optional[Any] = None
     substance: Optional[str] = None
     reaction: Optional[str] = None
+    severity: Optional[str] = None
     confirmed: Optional[bool] = True
 
 
 class OcrConfirmRequest(BaseModel):
-    model_config = {"extra": "forbid"}
+    model_config = {"extra": "ignore"}
     confirmed_items: Optional[List[OcrConfirmItem]] = None
     items: Optional[List[OcrConfirmItem]] = None
 
@@ -3151,12 +3154,14 @@ async def upload_record_image_endpoint(
         },
     )
 
+    raw_lines = [l.strip() for l in extracted.get("raw_text", "").splitlines() if l.strip()]
     return {
         "upload_id": upload_id,
         "extracted": {
             "medications": extracted.get("medications", []),
             "observations": extracted.get("observations", []),
             "allergies": extracted.get("allergies", []),
+            "raw_lines": raw_lines,
         },
         "notice": extracted.get("notice"),
         "has_urdu": extracted.get("has_urdu", False),
@@ -3213,12 +3218,22 @@ def confirm_ocr_upload_endpoint(
     # Re-validate all items before any DB writes
     validated_items = []
     for idx, item in enumerate(items_to_save):
-        itype = str(item.type).strip().lower()
+        itype = str(item.type or "").strip().lower()
+        if itype not in ("medication", "observation", "allergy"):
+            if item.name:
+                itype = "medication"
+            elif item.substance:
+                itype = "allergy"
+            elif item.value is not None or item.observation_type or itype in ("blood_glucose", "blood_pressure", "fasting_blood_glucose", "glucose", "hba1c"):
+                itype = "observation"
+            else:
+                itype = "medication"
+
         if itype == "medication":
             try:
                 m_name, m_dose, m_status = _validate_medication_entry(
                     name=item.name or "",
-                    dosage=item.dosage or "",
+                    dosage=item.dosage or "as directed",
                     status_val=item.status or "active",
                     patient_id=patient_id,
                     current_meds=current_meds + [v for v in validated_items if v["type"] == "medication"],
@@ -3259,10 +3274,12 @@ def confirm_ocr_upload_endpoint(
             })
         elif itype == "observation":
             try:
+                obs_type = item.observation_type or (item.type if item.type not in ("observation", "medication", "allergy") else "glucose")
+                obs_ts = item.measured_at or item.date or now_ts
                 o_type, val, unit, ts = _validate_ocr_observation(
-                    obs_type=item.observation_type or "",
+                    obs_type=obs_type,
                     value=item.value,
-                    measured_at=item.measured_at,
+                    measured_at=obs_ts,
                     item_index=idx,
                 )
             except HTTPException as he:

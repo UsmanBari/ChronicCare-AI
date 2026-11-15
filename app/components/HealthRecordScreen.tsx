@@ -327,6 +327,13 @@ export const HealthRecordScreen = () => {
             allergies: [
               { id: "all-0", substance: "Penicillin", reaction: "Rash", severity: "moderate", status: "active", evidence: "Allergic to Penicillin" },
             ],
+            raw_lines: [
+              "CLINICAL PRESCRIPTION NOTE",
+              "Date: 2026-11-15",
+              "Rx: Tab Glimepiride 2mg daily",
+              "FBS: 142 mg/dL",
+              "Allergic to Penicillin",
+            ],
           },
         };
       }

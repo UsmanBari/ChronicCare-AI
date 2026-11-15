@@ -426,6 +426,8 @@ def extract_fields(ocr_text: str) -> Dict[str, Any]:
     )
 
     for line in clean_lines:
+        if re.match(r"^(?:date\s*[:\-]?\s*|\d{4}[/-]|\d{1,2}[/-])", line.strip(), re.IGNORECASE):
+            continue
         matched = match_medication_name(line)
         if matched:
             med_name, _ = matched

@@ -179,17 +179,20 @@ export interface OcrUploadResponse {
 
 export interface ConfirmOcrItem {
   id?: string;
-  type?: string;
+  type: "medication" | "observation" | "allergy" | string;
   name?: string;
   substance?: string;
   dosage?: string;
+  observation_type?: string;
   value?: number;
   unit?: string;
+  measured_at?: string;
   reaction?: string | null;
   severity?: string | null;
   status?: string | null;
   date?: string | null;
   evidence?: string | null;
+  confirmed?: boolean;
 }
 
 export interface ConfirmOcrUploadResponse {

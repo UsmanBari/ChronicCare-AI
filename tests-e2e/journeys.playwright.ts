@@ -397,9 +397,14 @@ test.describe("I4-S: 17 Nov Evaluation Demo Journeys", () => {
     const confirmScreen = page.locator('[data-testid="ocr-confirm-screen"]');
     await expect(confirmScreen).toBeVisible({ timeout: 10000 });
 
+    // Verify header date was detected (Date: 2026-11-15)
+    const dateStatus = page.locator('[data-testid="header-date-status"]');
+    await expect(dateStatus).toContainText("2026-11-15");
+
     // Click Save Confirmed Items
     const saveBtn = page.locator('[data-testid="ocr-save-confirmed-btn"]');
     await expect(saveBtn).toBeVisible({ timeout: 8000 });
+    await expect(saveBtn).toBeEnabled();
     await saveBtn.click();
 
     // Redirected back to Health Record with Unverified / OCR badge
