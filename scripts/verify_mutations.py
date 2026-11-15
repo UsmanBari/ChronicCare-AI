@@ -346,7 +346,7 @@ MUTATIONS = [
         "id": "M-H7-1",
         "name": "Server-side re-validation removed in OCR confirm endpoint",
         "file": BACKEND_DIR / "main.py",
-        "target": '                o_type, val, unit, ts = _validate_ocr_observation(\n                    obs_type=item.observation_type or "",\n                    value=item.value,\n                    measured_at=item.measured_at,\n                    item_index=idx,\n                )',
+        "target": '                o_type, val, unit, ts = _validate_ocr_observation(\n                    obs_type=obs_type,\n                    value=item.value,\n                    measured_at=obs_ts,\n                    item_index=idx,\n                )',
         "replacement": '                o_type, val, unit, ts = (item.observation_type or "glucose", float(item.value or 0), "mg/dL", _utc_now_iso())',
         "test_node": "backend-poc-technical/test_ocr_upload.py::test_confirm_revalidation_rejects_out_of_range_values",
     },
