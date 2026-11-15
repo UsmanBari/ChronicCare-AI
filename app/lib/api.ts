@@ -1226,9 +1226,10 @@ export const api = {
   },
 
   // 4. Check-in Pipeline
-  startCheckin: async (): Promise<CheckinStartResponse> => {
+  startCheckin: async (note?: string): Promise<CheckinStartResponse> => {
     return request<CheckinStartResponse>("/api/checkins/start", {
       method: "POST",
+      body: note ? JSON.stringify({ note }) : undefined,
     });
   },
 

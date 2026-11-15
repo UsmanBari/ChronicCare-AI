@@ -142,10 +142,11 @@ export const AdaptiveInterviewScreen = () => {
       setLiveError(null);
       try {
         let currentCheckin = activeLiveCheckin;
+        const openingNote = checkIn.note && checkIn.note.trim() ? checkIn.note.trim() : null;
         if (!currentCheckin || !currentCheckin.checkin_id) {
           setIsSending(true);
           isSendingRef.current = true;
-          currentCheckin = await api.startCheckin();
+          currentCheckin = await api.startCheckin(openingNote || undefined);
           if (!isMounted) return;
           setActiveLiveCheckin(currentCheckin);
           updateCurrentStep(currentCheckin.step || null);
@@ -168,12 +169,15 @@ export const AdaptiveInterviewScreen = () => {
             ? "آج آپ اپنی علامات اور ادویات کے ساتھ کیسا محسوس کر رہے ہیں؟"
             : "How are you feeling today with your symptoms and medications?");
         setLiveQuestion(firstQ);
-        setConversationHistory([{ role: "system", text: firstQ }]);
 
-        // If user provided a note in CheckInEntryScreen, send it as initial answer
-        if (checkIn.note && checkIn.note.trim()) {
-          const initialAnswer = checkIn.note.trim();
-          await handleLiveSendAnswerInternal(initialAnswer, currentCheckin.checkin_id, currentCheckin.step || null);
+        // If user provided a note in CheckInEntryScreen, show it in conversation history
+        if (openingNote) {
+          setConversationHistory([
+            { role: "user", text: openingNote },
+            { role: "system", text: firstQ },
+          ]);
+        } else {
+          setConversationHistory([{ role: "system", text: firstQ }]);
         }
       } catch (err: any) {
         if (!isMounted) return;

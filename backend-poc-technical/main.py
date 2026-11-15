@@ -886,6 +886,11 @@ class ConfigStatusResponse(BaseModel):
 
 # --- Check-in & Review Schemas ---
 
+class CheckinStartRequest(BaseModel):
+    model_config = {"extra": "ignore"}
+    note: Optional[str] = None
+
+
 class CheckinStartResponse(BaseModel):
     checkin_id: str
     question: Optional[str] = None
@@ -4121,7 +4126,10 @@ def _compute_age_years(dob_str: Optional[str]) -> Optional[float]:
 # =============================================================================
 
 @app.post("/api/checkins/start", response_model=CheckinStartResponse, tags=["Check-in"])
-def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("patient"))):
+def start_checkin_endpoint(
+    body: Optional[CheckinStartRequest] = None,
+    current_user: Dict[str, Any] = Depends(require_role("patient")),
+):
     """
     Initializes a new server-side check-in session for the authenticated patient.
     Requires active consent and an existing clinical profile.
@@ -4178,39 +4186,42 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
             detail="Complete your profile first",
         )
 
-    # 3. Start Idempotency Check (re-use recent in-progress checkin if no answers provided yet)
-    now_dt = datetime.now(timezone.utc)
-    recent_checkins = get_user_checkins(user_id, limit=5)
-    for c_summary in recent_checkins:
-        if c_summary.get("status") == "in_progress":
-            c_detail = get_checkin_by_id(c_summary["checkin_id"])
-            if c_detail and c_detail.get("status") == "in_progress":
-                c_state = c_detail.get("state", {})
-                answers = c_state.get("answers", {})
-                if len(answers) == 0:
-                    started_str = c_detail.get("started_at", "")
-                    try:
-                        started_dt = datetime.fromisoformat(started_str.replace("Z", "+00:00"))
-                        if (now_dt - started_dt).total_seconds() <= 900:
-                            st = InterviewState.from_dict(c_state)
-                            med_st_dict = c_detail.get("med_state")
-                            med_st = MedicationCheckState.from_dict(med_st_dict) if med_st_dict else None
-                            if st.step == INTERVIEW_COMPLETE and med_st and not med_st.complete:
-                                res_step = f"medication_check:{med_st.index}:{med_st.attempts}"
-                                res_question = current_medication_question(med_st)
-                            else:
-                                res_step = st.step
-                                res_question = get_current_question(st)
-                            return CheckinStartResponse(
-                                checkin_id=c_detail["checkin_id"],
-                                question=res_question,
-                                mode=c_detail["mode"],
-                                is_cold_start=st.is_cold_start,
-                                step=res_step,
-                                version=c_detail.get("version", 0),
-                            )
-                    except Exception:
-                        pass
+    opening_note = body.note.strip() if (body and body.note and body.note.strip()) else None
+
+    # 3. Start Idempotency Check (re-use recent in-progress checkin if no answers provided yet and no opening note)
+    if not opening_note:
+        now_dt = datetime.now(timezone.utc)
+        recent_checkins = get_user_checkins(user_id, limit=5)
+        for c_summary in recent_checkins:
+            if c_summary.get("status") == "in_progress":
+                c_detail = get_checkin_by_id(c_summary["checkin_id"])
+                if c_detail and c_detail.get("status") == "in_progress":
+                    c_state = c_detail.get("state", {})
+                    answers = c_state.get("answers", {})
+                    if len(answers) == 0:
+                        started_str = c_detail.get("started_at", "")
+                        try:
+                            started_dt = datetime.fromisoformat(started_str.replace("Z", "+00:00"))
+                            if (now_dt - started_dt).total_seconds() <= 900:
+                                st = InterviewState.from_dict(c_state)
+                                med_st_dict = c_detail.get("med_state")
+                                med_st = MedicationCheckState.from_dict(med_st_dict) if med_st_dict else None
+                                if st.step == INTERVIEW_COMPLETE and med_st and not med_st.complete:
+                                    res_step = f"medication_check:{med_st.index}:{med_st.attempts}"
+                                    res_question = current_medication_question(med_st)
+                                else:
+                                    res_step = st.step
+                                    res_question = get_current_question(st)
+                                return CheckinStartResponse(
+                                    checkin_id=c_detail["checkin_id"],
+                                    question=res_question,
+                                    mode=c_detail["mode"],
+                                    is_cold_start=st.is_cold_start,
+                                    step=res_step,
+                                    version=c_detail.get("version", 0),
+                                )
+                        except Exception:
+                            pass
 
     # 4. Derive mode and record patient id
     active_conn = get_active_ehr_connection(user_id)
@@ -4261,6 +4272,7 @@ def start_checkin_endpoint(current_user: Dict[str, Any] = Depends(require_role("
             is_cold_start=is_cold_start,
             baseline=baseline.to_dict() if hasattr(baseline, "to_dict") else baseline,
             language=profile.get("preferred_language") or profile.get("language") or "en",
+            opening_note=opening_note,
         )
         create_checkin(
             checkin_id=checkin_id,

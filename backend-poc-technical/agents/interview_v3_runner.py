@@ -127,6 +127,11 @@ def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots
     R8: Constructs a structured summary listing captured readings and values
     for both diabetes and hypertension in the session language.
     """
+    if "known_slots" in known_slots and isinstance(known_slots["known_slots"], dict):
+        if asked_slots is None and "asked_slots" in known_slots:
+            asked_slots = known_slots["asked_slots"]
+        known_slots = known_slots["known_slots"]
+
     if asked_slots is None:
         asked_slots = []
     """
@@ -166,10 +171,16 @@ def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots
     if known_slots.get("foot_problems") is True:
         symptoms.append("foot numbness or sores")
 
-    symptoms_asked = any(
-        k in known_slots for k in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems")
+    symptoms_denied = (
+        known_slots.get("symptoms_denied") is True
+        or known_slots.get("hyperglycemia_symptoms") is False
+        or known_slots.get("associated_symptoms") is False
+        or known_slots.get("foot_problems") is False
+    )
+    symptoms_asked = symptoms_denied or any(
+        k in known_slots for k in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems", "symptoms_denied")
     ) or any(
-        s in asked_slots for s in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems")
+        s in asked_slots for s in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems", "core_symptoms", "symptoms")
     )
 
     if symptoms:
@@ -222,6 +233,7 @@ def start_v3_session(
     baseline: Optional[Dict[str, Any]] = None,
     language: str = "en",
     answered_by: str = "patient",
+    opening_note: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Initializes a new v3 check-in session using the Question Bank and Adaptive Planner.
@@ -243,6 +255,13 @@ def start_v3_session(
     findings: List[Dict[str, Any]] = []
     contradictions: List[Dict[str, Any]] = []
     recent_checkins = (baseline.get("recent_history", []) if isinstance(baseline, dict) else getattr(baseline, "recent_history", [])) if baseline else []
+    readings: Dict[str, Any] = {}
+
+    clean_note = opening_note.strip() if (opening_note and isinstance(opening_note, str) and opening_note.strip()) else None
+    if clean_note:
+        temp_state = {"known_slots": known_slots, "readings": readings}
+        _extract_early_slots(clean_note, temp_state, lang)
+        known_slots["greeting"] = True
 
     # Get first question from planner
     decision: PlanDecision = plan_next_step(
@@ -304,7 +323,8 @@ def start_v3_session(
         "findings": findings,
         "contradictions": contradictions,
         "recent_checkins": recent_checkins,
-        "readings": {},
+        "readings": readings,
+        "opening_note": clean_note,
         "raw_answers": {},
         "patient_questions": [],
         "possible_severe_low": False,
@@ -479,6 +499,27 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
         if "insulin" in lower_ans or "metformin" in lower_ans or "sugar" in lower_ans:
             known_slots["adherence_diabetes"] = False
         has_adh_reported = True
+
+    # 6. Early Symptoms Denial & Recognition
+    symptom_denial_patterns = [
+        r"\bno\s+symptoms?\b",
+        r"\ball\s+good\b",
+        r"\bfeeling\s+(?:fine|good|well|great|okay)\b",
+        r"\bno\s+(?:issues?|trouble|problems?|complaints?)\b",
+        r"\bkoi\s+(?:alamaat|masla|takleef|pareshani)\s+nahi\b",
+        r"\bsab\s+theek\b",
+        r"\btheek\s+hoon\b",
+        r"\btheek\s+thaak\b",
+        r"(?:کوئی\s+علامت\s+نہیں|کوئی\s+مسئلہ\s+نہیں|سب\s+ٹھیک\s+ہے|بالکل\s+ٹھیک)",
+    ]
+    if any(re.search(pat, lower_ans) for pat in symptom_denial_patterns):
+        known_slots["symptoms_denied"] = True
+        if "hyperglycemia_symptoms" not in known_slots:
+            known_slots["hyperglycemia_symptoms"] = False
+        if "associated_symptoms" not in known_slots:
+            known_slots["associated_symptoms"] = False
+        if "foot_problems" not in known_slots:
+            known_slots["foot_problems"] = False
 
 
 def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]:
@@ -877,6 +918,23 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
                 known_slots[f"{target_slot}__partial"] = yn_res.get("partial", False)
         # B3: Safety-class item answered unknown -> re-ask ONCE with clarification
         elif bank_item and bank_item.priority_class == "safety" and parse_yes_no(clean_answer, lang=lang)["value"] == "unknown":
+            # P2-4: If opening free-text message with multi-intent readings arrived on first turn,
+            # do not trigger safety clarify; handle as slot extraction and ask safety item normally.
+            is_opening_free_text = (
+                (len(session_state.get("asked_slots", [])) <= 1 or session_state.get("turn_count", 0) <= 1)
+                and (readings or any(k in known_slots for k in ("glucose_reading", "bp_reading", "adherence", "adherence_diabetes")))
+            )
+            if is_opening_free_text and session_state.get("safety_clarify_slot") != current_slot:
+                known_slots["greeting"] = True
+                session_state["step"] = bank_item.slot or bank_item.id
+                session_state["current_question"] = _get_localized_text(bank_item, lang)
+                session_state["why_text"] = _get_localized_why_text(bank_item, lang)
+                session_state["options"] = bank_item.choices
+                session_state["option_items"] = _build_option_items(bank_item, lang)
+                session_state["can_skip"] = False
+                session_state["can_say_unknown"] = True
+                return session_state
+
             if session_state.get("safety_clarify_slot") == current_slot:
                 # Second time unknown -> keep unknown, set needs_clinician_flag, move on
                 session_state["safety_clarify_slot"] = None
