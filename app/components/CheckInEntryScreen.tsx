@@ -2,14 +2,16 @@
 
 import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
+import { api } from "../lib/api";
 import { Mic, ArrowRight, ArrowLeft, Sparkles, MessageSquare, Volume2, Square, X, Loader2, AlertCircle } from "lucide-react";
 import { getConditionFlags } from "../lib/conditions";
 import { useVoiceRecorder } from "../lib/useVoiceRecorder";
 
 export const CheckInEntryScreen = () => {
-  const { setScreen, returnToHomeAndClearRun, checkIn, setCheckIn, profile, liveProfile, isLiveMode, t, isUrdu } = useApp();
+  const { setScreen, returnToHomeAndClearRun, checkIn, setCheckIn, profile, liveProfile, isLiveMode, t, isUrdu, setActiveLiveCheckin, setEscalationRecorded } = useApp();
   const [note, setNote] = useState(checkIn.note || "");
   const [isListening, setIsListening] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     isRecording,
@@ -67,11 +69,40 @@ export const CheckInEntryScreen = () => {
     }, 2000);
   };
 
-  const handleContinue = (e: React.FormEvent) => {
+  const handleContinue = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    const cleanNote = note.trim();
+    if (isLiveMode) {
+      setIsSubmitting(true);
+      try {
+        const startRes = await api.startCheckin(cleanNote || undefined);
+        setActiveLiveCheckin(startRes);
+        if (startRes.emergency) {
+          setEscalationRecorded(startRes.escalation_recorded === true);
+          setScreen("emergency");
+          return;
+        }
+        setCheckIn((prev) => ({
+          ...prev,
+          note: cleanNote,
+        }));
+        setScreen("adaptive_interview");
+      } catch (err: any) {
+        setCheckIn((prev) => ({
+          ...prev,
+          note: cleanNote,
+        }));
+        setScreen("adaptive_interview");
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     setCheckIn((prev) => ({
       ...prev,
-      note: note.trim(),
+      note: cleanNote,
     }));
     setScreen("adaptive_interview");
   };
@@ -220,10 +251,17 @@ export const CheckInEntryScreen = () => {
           <button
             type="submit"
             id="continue-to-interview-btn"
-            className="flex-1 min-h-[48px] py-3 px-5 bg-navy-800 hover:bg-navy-900 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+            disabled={isSubmitting}
+            className="flex-1 min-h-[48px] py-3 px-5 bg-navy-800 hover:bg-navy-900 disabled:opacity-70 active:scale-[0.99] text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
           >
-            <span>{t.continue}</span>
-            <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <span>{t.continue}</span>
+                <ArrowRight className={`w-4 h-4 ${isUrdu ? "rotate-180" : ""}`} />
+              </>
+            )}
           </button>
         </div>
       </form>

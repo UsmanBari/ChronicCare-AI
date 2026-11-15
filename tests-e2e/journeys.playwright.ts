@@ -925,4 +925,73 @@ test.describe("H3-5-01: Five End-to-End User Journeys", () => {
     await expect(page.locator("#admin-login-btn")).toBeHidden();
     await expect(page.locator("#admin-session-notice-banner")).toBeHidden();
   });
+
+  test("J-opening-note-emergency: Red-flag opening note immediately routes to 1122 emergency screen", async ({ page }) => {
+    // Mock the checkins/start API endpoint to return emergency=true on red-flag note
+    await page.route("**/api/checkins/start", async (route) => {
+      const postData = route.request().postDataJSON() || {};
+      if (postData.note && postData.note.includes("crushing chest pain")) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            checkin_id: "chk-emergency-opening-test",
+            emergency: true,
+            emergency_reason: "cardiac",
+            escalation_recorded: true,
+            step: "COMPLETE",
+            version: 1,
+            engine: "v3",
+          }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          checkin_id: "chk-normal-test",
+          emergency: false,
+          question: "Did you check your fasting blood sugar this morning?",
+          step: "fasting_blood_sugar",
+          version: 1,
+          engine: "v3",
+        }),
+      });
+    });
+
+    await page.route("**/api/me/profile", async (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          user_id: "demo-user-1",
+          email: "ali.khan@demo.care",
+          role: "patient",
+          status: "active",
+          mode: "isolated",
+          conditions: ["diabetes"],
+          consent_granted_at: "2026-01-01T00:00:00Z",
+          provider_notification_consent_at: "2026-01-01T00:00:00Z",
+          date_of_birth: "1980-01-01",
+          inclusion_confirmed_at: "2026-01-01T00:00:00Z",
+        }),
+      });
+    });
+
+    await page.goto("/?portal=patient&screen=checkin_entry");
+    await dismissPreloader(page);
+
+    const noteBox = page.locator("#opening-symptom-input, textarea");
+    await expect(noteBox.first()).toBeVisible({ timeout: 10000 });
+    await noteBox.first().fill("I have severe crushing chest pain radiating to my left arm");
+
+    const continueBtn = page.locator("#continue-checkin-btn, button:has-text('Continue to Check-In'), button:has-text('چیک ان جاری رکھیں')").first();
+    await expect(continueBtn).toBeVisible({ timeout: 8000 });
+    await continueBtn.click();
+
+    // Verify 1122 emergency screen appears immediately without asking any interview questions
+    await expect(page.locator("text=1122, text=Call 1122, text=Emergency, text=ہنگامی").first()).toBeVisible({ timeout: 10000 });
+    const pageText = await page.innerText("body");
+    expect(pageText).not.toContain("Did you check your fasting blood sugar");
+  });
 });

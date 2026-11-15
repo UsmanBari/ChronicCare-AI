@@ -143,12 +143,24 @@ export const AdaptiveInterviewScreen = () => {
       try {
         let currentCheckin = activeLiveCheckin;
         const openingNote = checkIn.note && checkIn.note.trim() ? checkIn.note.trim() : null;
+
+        if (currentCheckin?.emergency) {
+          setEscalationRecorded(currentCheckin.escalation_recorded === true);
+          setScreen("emergency");
+          return;
+        }
+
         if (!currentCheckin || !currentCheckin.checkin_id) {
           setIsSending(true);
           isSendingRef.current = true;
           currentCheckin = await api.startCheckin(openingNote || undefined);
           if (!isMounted) return;
           setActiveLiveCheckin(currentCheckin);
+          if (currentCheckin.emergency) {
+            setEscalationRecorded(currentCheckin.escalation_recorded === true);
+            setScreen("emergency");
+            return;
+          }
           updateCurrentStep(currentCheckin.step || null);
           setIsSending(false);
           isSendingRef.current = false;

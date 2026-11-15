@@ -325,6 +325,9 @@ export interface CheckinStartResponse {
   can_say_unknown?: boolean | null;
   engine?: string | null;
   safety_note?: string | null;
+  emergency?: boolean;
+  emergency_reason?: string | null;
+  escalation_recorded?: boolean | null;
 }
 
 export interface CheckinAnswerResponse {
