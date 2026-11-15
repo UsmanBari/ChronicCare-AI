@@ -231,7 +231,7 @@ export const Header = () => {
                   }`}
                 >
                   <Stethoscope className="w-4 h-4" />
-                  <span>{t.providerPortal}{!isLiveMode ? " (Guided Demo: Dr. Sana)" : ""}</span>
+                  <span>{t.providerPortal}{!isLiveMode ? " (Dr. Sana)" : ""}</span>
                 </button>
 
                 <button
@@ -389,7 +389,7 @@ export const Header = () => {
                 >
                   <div className="flex items-center gap-3">
                     <Stethoscope className="w-5 h-5 text-teal-400" />
-                    <span>{t.providerPortal}{!isLiveMode ? " (Guided Demo: Dr. Sana)" : ""}</span>
+                    <span>{t.providerPortal}{!isLiveMode ? " (Dr. Sana)" : ""}</span>
                   </div>
                   <ArrowRight className={`w-4 h-4 text-slate-400 ${isUrdu ? "rotate-180" : ""}`} />
                 </button>

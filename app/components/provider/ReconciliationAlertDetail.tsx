@@ -1824,7 +1824,7 @@ export const ReconciliationAlertDetail = () => {
                             return null;
                           })()}
                           <p className="text-xs text-amber-950 leading-relaxed">
-                            Self-reported telemetry via today's adaptive symptom check-in.
+                            Self-reported telemetry via today&apos;s adaptive symptom check-in.
                           </p>
                         </div>
                       </div>

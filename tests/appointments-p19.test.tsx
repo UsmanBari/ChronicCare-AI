@@ -76,6 +76,7 @@ describe("P2-19: Provider Scheduling, Priority Elevation, and Clean Names", () =
     const mockAppointments: Appointment[] = [
       {
         id: "apt-urg-1",
+        checkin_id: "chk-123",
         patient_id: "sim-bilal",
         provider_id: "prov-demo-im",
         specialty: "cardiology_im",

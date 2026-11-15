@@ -166,7 +166,11 @@ export const ConnectionScreen = () => {
           );
           setMismatchWarning(null);
           if (patientIdInput) {
-            setLocallyLinkedIds((prev) => new Set([...prev, patientIdInput.trim()]));
+            setLocallyLinkedIds((prev) => {
+              const next = new Set(prev);
+              next.add(patientIdInput.trim());
+              return next;
+            });
           }
         } else if (err instanceof ApiError) {
           setError(err.getFriendlyMessage(isUrdu));

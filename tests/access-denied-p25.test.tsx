@@ -53,6 +53,7 @@ describe("P3-25 Admin portal refusal writes ACCESS_DENIED audit row", () => {
       email: "provider.demo@demo.care",
       role: "provider",
       status: "active",
+      display_name: "Dr. Provider",
     });
 
     vi.mocked(api.reportAccessDenied).mockResolvedValue(undefined);

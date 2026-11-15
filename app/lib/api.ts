@@ -86,6 +86,7 @@ export interface PatientBackgroundResponse {
   diagnosis_year_hypertension?: number | null;
   comorbidities?: Record<string, boolean> | null;
   disclaimer?: string | null;
+  metrics_source?: string | null;
 }
 
 export interface VoiceTranscribeResponse {

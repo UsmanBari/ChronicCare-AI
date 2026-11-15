@@ -51,7 +51,7 @@ describe("P2-18: Provider Queue and Dashboard Robustness", () => {
     }));
 
     vi.spyOn(api, "getProviderReviewQueue").mockResolvedValue(mockQueue);
-    vi.spyOn(api, "getProviderNotifications").mockResolvedValue({ notifications: [], total: 0, unread: 0 });
+    vi.spyOn(api, "getProviderNotifications").mockResolvedValue({ notifications: [], unread_count: 0 });
 
     render(<ProviderDashboardScreen />);
 
@@ -80,7 +80,7 @@ describe("P2-18: Provider Queue and Dashboard Robustness", () => {
     }));
 
     vi.spyOn(api, "getProviderReviewQueue").mockResolvedValue(mockQueue);
-    vi.spyOn(api, "getProviderNotifications").mockResolvedValue({ notifications: [], total: 0, unread: 0 });
+    vi.spyOn(api, "getProviderNotifications").mockResolvedValue({ notifications: [], unread_count: 0 });
 
     render(<ProviderDashboardScreen />);
 

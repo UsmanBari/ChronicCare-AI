@@ -478,7 +478,7 @@ export function titleCaseName(name?: string | null): string {
 /**
  * Maps raw API status codes and detail strings to user-safe English message keys.
  */
-export function mapApiError(status?: number | null, detail?: string | null): string {
+export function mapApiError(status?: number | null, detail?: string | null, isUrdu: boolean = false): string {
   const normDetail = (detail || "").toLowerCase();
 
   if (status === 401) {
