@@ -4045,6 +4045,7 @@ def get_config_status_endpoint(current_user: Dict[str, Any] = Depends(require_ro
         "EXPLAIN_LLM_LANGUAGES": os.environ.get("EXPLAIN_LLM_LANGUAGES", "en,ur,roman_ur").strip().lower(),
         "OCR_ENABLED": os.environ.get("OCR_ENABLED", "").strip().lower() == "true",
         "DANGER_WORDGROUPS_ENABLED": os.environ.get("DANGER_WORDGROUPS_ENABLED", "").strip().lower() == "true",
+        "DANGER_SAFETY_NET": os.environ.get("DANGER_SAFETY_NET", "true").strip().lower() in ("true", "1", "yes"),
         "ORCHESTRATOR": os.environ.get("ORCHESTRATOR", "direct").strip().lower(),
         "INTERVIEW_ENGINE": os.environ.get("INTERVIEW_ENGINE", "v2").strip().lower(),
         "LLM_PROVIDER": os.environ.get("LLM_PROVIDER", "auto").strip().lower(),
@@ -4604,10 +4605,15 @@ def answer_checkin_endpoint(
             except Exception:
                 pass
         med_safety_note = None
-        from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note, WordGroupResult
-        if not triggered and is_danger_wordgroups_enabled() and body.answer:
+        from agents.danger_wordgroups import is_danger_wordgroups_enabled, is_danger_safety_net_enabled, detect as detect_wordgroups, detect_safety_net, get_safety_note, WordGroupResult
+        if not triggered and (is_danger_wordgroups_enabled() or is_danger_safety_net_enabled()) and body.answer:
             try:
-                wg_hit = detect_wordgroups(body.answer)
+                if is_danger_wordgroups_enabled():
+                    wg_hit = detect_wordgroups(body.answer)
+                elif is_danger_safety_net_enabled():
+                    wg_hit = detect_safety_net(body.answer)
+                else:
+                    wg_hit = WordGroupResult(is_danger=False)
             except Exception:
                 wg_hit = WordGroupResult(is_danger=True, group="detector_error")
             if wg_hit.is_danger:
@@ -4973,10 +4979,15 @@ def answer_checkin_endpoint(
         except Exception:
             pass
 
-    from agents.danger_wordgroups import is_danger_wordgroups_enabled, detect as detect_wordgroups, get_safety_note, WordGroupResult
-    if not next_state.stage1_red_flag and is_danger_wordgroups_enabled() and body.answer:
+    from agents.danger_wordgroups import is_danger_wordgroups_enabled, is_danger_safety_net_enabled, detect as detect_wordgroups, detect_safety_net, get_safety_note, WordGroupResult
+    if not next_state.stage1_red_flag and (is_danger_wordgroups_enabled() or is_danger_safety_net_enabled()) and body.answer:
         try:
-            wg_hit = detect_wordgroups(body.answer)
+            if is_danger_wordgroups_enabled():
+                wg_hit = detect_wordgroups(body.answer)
+            elif is_danger_safety_net_enabled():
+                wg_hit = detect_safety_net(body.answer)
+            else:
+                wg_hit = WordGroupResult(is_danger=False)
         except Exception:
             wg_hit = WordGroupResult(is_danger=True, group="detector_error")
         if wg_hit.is_danger:

@@ -573,6 +573,14 @@ MUTATIONS = [
         "replacement": "    if True and (state is not None or symptoms is not None):",
         "test_node": "backend-poc-technical/test_symptom_finding_raise.py::test_flag_off_preserves_routine",
     },
+    {
+        "id": "M-SN-1",
+        "name": "Yellow Safety Net disabled (R5.4)",
+        "file": BACKEND_DIR / "agents" / "danger_wordgroups.py",
+        "target": '    return val in ("true", "1", "yes")',
+        "replacement": "    return False",
+        "test_node": "backend-poc-technical/test_red_flag_r5.py::test_mutation_killed_safety_net_disabled",
+    },
 ]
 
 

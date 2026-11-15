@@ -41,6 +41,12 @@ def is_danger_wordgroups_enabled() -> bool:
     return os.getenv("DANGER_WORDGROUPS_ENABLED", "").strip().lower() == "true"
 
 
+def is_danger_safety_net_enabled() -> bool:
+    """Flag guard: DANGER_SAFETY_NET='true' (case-insensitive). ON by default (R5.4)."""
+    val = os.getenv("DANGER_SAFETY_NET", "true").strip().lower()
+    return val in ("true", "1", "yes")
+
+
 # =============================================================================
 # DATA STRUCTURES
 # =============================================================================
@@ -390,6 +396,20 @@ def detect(text: str | None) -> WordGroupResult:
                 if is_dental and ("منہ" in m.group(0) or "mouth" in m.group(0).lower() or "munh" in m.group(0).lower()):
                     if not any(k in clause.lower() for k in ["bazu", "haath", "taang", "arm", "leg", "speech", "bol", "آواز", "بازو", "ٹانگ", "ہاتھ"]):
                         continue
+                # Benign posture / activity trigger guard (e.g. mobile, typing, sleeping on arm) without acute stroke cues
+                is_posture = bool(re.search(
+                    r"\b(?:jab|when|after)\s+(?:\w+\s+){0,5}(?:mobile|phone|typing|computer|screen|chalata|chalatay|chalati|baithta|baithtay|sota|sotay|sone|sleep\w*|sitting)\b|"
+                    r"\b(?:der\s+tak\s+(?:mobile|phone|baith|computer)|zyada\s+der\s+(?:baith|mobile)|cross\s*legged)\b|"
+                    r"\b(?:slept\s+on\s+(?:it|my\s+arm)|sleeping\s+on\s+(?:it|my\s+arm))\b|"
+                    r"جب\s*(?:\S+\s*){0,4}(?:موبائل|فون|بیٹھ|سو)",
+                    clause
+                ))
+                has_stroke_focal = bool(re.search(
+                    r"\b(?:face|mouth|chehra|droop|speech|bol|awaz|falij|paraly\w*|ladkhada|فالج|چہرہ|بول|آواز)\b",
+                    clause
+                )) or bool(re.search(r"\b(?:achanak|sudden|aik\s*dam)\b|اچانک", clause))
+                if is_posture and not has_stroke_focal:
+                    continue
                 if _is_negated_clause(clause, m.start(), m.end()):
                     suppressed_info = ("negation", "stroke_fast_cue")
                     continue
@@ -473,6 +493,17 @@ def detect(text: str | None) -> WordGroupResult:
                 # Benign mild heartburn / indigestion guard
                 is_mild = bool(_MILD_QUALIFIER_RE.search(clause))
                 has_sev = bool(_SEVERE_QUALIFIER_RE.search(clause))
+                # Benign spicy food / meal heartburn guard (jalan / acidity / heartburn from khana / mirch / spicy food)
+                is_food_jalan = bool(re.search(
+                    r"\b(?:mirch|spicy|masala|masalay|khana|khane|after\s+eating|post-?meal|biryani|salan|oil|oily|tala\s+hua)\b",
+                    clause
+                )) and bool(re.search(r"\b(?:jalan|heartburn|acidity|acid|جلن|کھانا|مرچ)\b", clause))
+                has_cardiac_crush = bool(re.search(
+                    r"\b(?:dabao|pressure|crushing|tight|bhari|bojh|left\s+arm|bazu|radiation|pasina|sweat)\b",
+                    clause
+                ))
+                if is_food_jalan and not has_cardiac_crush:
+                    continue
                 if is_mild and not has_sev:
                     pass
                 elif _is_negated_clause(clause, start_pos, end_pos):
@@ -486,6 +517,80 @@ def detect(text: str | None) -> WordGroupResult:
                 else:
                     return WordGroupResult(is_danger=True, group="cardiac_chest_pain")
 
+    # Check R5.4 Yellow Safety Net for acute unclassified near-misses
+    if is_danger_safety_net_enabled():
+        sn_res = detect_safety_net(clean_text)
+        if sn_res.is_danger:
+            return sn_res
+
     if suppressed_info:
         return WordGroupResult(is_danger=False, group=suppressed_info[1], suppressed_by=suppressed_info[0])
+    return WordGroupResult(is_danger=False)
+
+
+# =============================================================================
+# R5.4 YELLOW SAFETY NET PATTERNS & DETECTOR
+# =============================================================================
+
+_SAFETY_NET_BODY_RE = re.compile(
+    r"\b(?:chest|breastbone|sternum|ribs|heart|seena|seenay|seene|sina|sine|chhati|chaati|dil)\b|"
+    r"\b(?:breath|breathe|breathing|breathless|breathlessness|lungs?|air|sans|saans|dam|dum|ghutan)\b|"
+    r"\b(?:face|mouth|tongue|lips?|chehra|munh|muh|zaban|hont)\b|"
+    r"\b(?:arm|leg|hand|foot|bazu|haath|hath|taang|tang|pair|pairo)\b|"
+    r"\b(?:conscious|consciousness|faint|fainted|fainting|hosh|behosh|chakkar|ghashi)\b|"
+    r"\b(?:vomit|vomiting|throw\s+up|throwing\s+up|threw\s+up|ulti|ultiyan|qay)\b|"
+    + U_PRE + r"(?:سینہ|سینے|چھاتی|دل|سانس|دم|گھٹن|پھیپھڑے|چہرہ|منہ|زبان|ہونٹ|بازو|ہاتھ|ٹانگ|پیر|ہوش|بے\s*ہوش|چکر|غشی|الٹی|الٹیاں|قے)" + U_POST,
+    re.IGNORECASE,
+)
+
+_SAFETY_NET_ACUTE_RE = re.compile(
+    r"\b(?:achanak|sudden|suddenly|acute|severe|severely|worst|right\s+now|now|abhi)\b|"
+    r"\b(?:bohat|shadeed|sakht|musalsal|lagatar|nonstop)\b|"
+    r"\b(?:cant|cannot|unable\s+to|nahi\s+pa\s+rah[iyea]*)\b|"
+    r"\b(?:since\s+\d+\s+hours?|\d+\s+ghant[ay]e?\s+se|since\s+yesterday|kal\s+se)\b|"
+    + U_PRE + r"(?:اچانک|شدید|بہت|ابھی|سخت|مسلسل|لگاتار|نہیں\s*پا\s*رہ|گھنٹے\s*سے)" + U_POST,
+    re.IGNORECASE,
+)
+
+_SAFETY_NET_BENIGN_RE = re.compile(
+    r"\b(?:mirch|spicy|biryani|antacid|eating|meal|mobile|sleeping|slept\s+on|so\s+gaya|cross\s+legged|chokri)\b|"
+    + U_PRE + r"(?:مرچ|بریانی|موبائل|سو\s*گیا)" + U_POST,
+    re.IGNORECASE,
+)
+
+
+def detect_safety_net(text: str | None) -> WordGroupResult:
+    """
+    R5.4 Yellow Safety Net for acute unclassified near-misses.
+    Raises to REVIEW (Yellow) through group 'acute_unclassified' if an acute or severe
+    symptom involves critical organ systems and is not negated, remote-past, or benign.
+    """
+    if not is_danger_safety_net_enabled():
+        return WordGroupResult(is_danger=False)
+
+    if not text or not isinstance(text, str):
+        return WordGroupResult(is_danger=False)
+
+    clean_text = _normalize_text(text.strip())
+    if not clean_text:
+        return WordGroupResult(is_danger=False)
+
+    clauses = _split_into_clauses(clean_text)
+    for clause in clauses:
+        m_body = _SAFETY_NET_BODY_RE.search(clause)
+        m_acute = _SAFETY_NET_ACUTE_RE.search(clause)
+        if m_body and m_acute:
+            start_pos = min(m_body.start(), m_acute.start())
+            end_pos = max(m_body.end(), m_acute.end())
+            # Guards: benign triggers, negations, past, resolved
+            if _SAFETY_NET_BENIGN_RE.search(clause):
+                continue
+            if _is_negated_clause(clause, start_pos, end_pos):
+                continue
+            if _is_remote_past_clause(clause):
+                continue
+            if _is_resolved_clause(clause):
+                continue
+            return WordGroupResult(is_danger=True, group="acute_unclassified")
+
     return WordGroupResult(is_danger=False)
