@@ -6912,18 +6912,27 @@ def get_provider_appointments(current_user: Dict[str, Any] = Depends(require_rol
 
     raw_list = list_provider_appointments()
     enhanced = [compute_escalation_state(a) for a in raw_list]
+    from data_sources.app_store import DEFAULT_FICTIONAL_PROVIDERS
+    prov_map = {p["id"]: p.get("display_name", p["id"]) for p in DEFAULT_FICTIONAL_PROVIDERS}
+    from data_sources.ehr_test_patients import ALL_EHR_TEST_PATIENTS
+    ehr_pat_map = {p["id"]: p.get("label", p["id"]) for p in ALL_EHR_TEST_PATIENTS}
     for a in enhanced:
         pid = a.get("patient_id", "")
         clean_pid = str(pid).removeprefix("local-")
         label = None
-        try:
-            prof = get_patient_profile(clean_pid)
-            if prof and prof.get("display_name"):
-                label = prof["display_name"]
-            elif prof and prof.get("name"):
-                label = prof["name"]
-        except Exception:
-            pass
+        if clean_pid in ehr_pat_map:
+            label = ehr_pat_map[clean_pid]
+        elif pid in ehr_pat_map:
+            label = ehr_pat_map[pid]
+        if not label:
+            try:
+                prof = get_patient_profile(clean_pid)
+                if prof and prof.get("display_name"):
+                    label = prof["display_name"]
+                elif prof and prof.get("name"):
+                    label = prof["name"]
+            except Exception:
+                pass
         if not label:
             try:
                 usr = get_user_by_id(clean_pid)
@@ -6933,7 +6942,22 @@ def get_provider_appointments(current_user: Dict[str, Any] = Depends(require_rol
                     label = usr["email"]
             except Exception:
                 pass
+        if not label and len(clean_pid) >= 32 and "-" in clean_pid:
+            label = f"Hospital Patient ({clean_pid[:8]})"
         a["patient_label"] = label or clean_pid
+
+        prv_id = a.get("provider_id", "")
+        if prv_id in prov_map:
+            a["provider_name"] = prov_map[prv_id]
+        else:
+            try:
+                p_usr = get_user_by_id(prv_id)
+                if p_usr and p_usr.get("display_name"):
+                    a["provider_name"] = p_usr["display_name"]
+            except Exception:
+                pass
+        if not a.get("provider_name") and prv_id:
+            a["provider_name"] = prov_map.get(prv_id, prv_id)
     return {"appointments": enhanced}
 
 

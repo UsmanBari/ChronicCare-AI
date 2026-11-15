@@ -318,7 +318,7 @@ def evaluate_and_create_appointment(
     if level == "routine":
         return None
 
-    # Idempotency check:
+    # Idempotency check / Priority Elevation:
     existing = get_appointment_by_checkin(
         checkin_id=checkin_id,
         backend=backend,
@@ -327,6 +327,37 @@ def evaluate_and_create_appointment(
         ssl_ca=ssl_ca,
     )
     if existing:
+        now_str = now_iso or _utc_now_iso()
+        if level in ("urgent", "emergency") and existing.get("urgency") != "urgent":
+            update_appointment(
+                appointment_id=existing["id"],
+                urgency="urgent",
+                status="booked" if existing.get("status") == "offered" else existing.get("status"),
+                slot_date=now_str[:10],
+                mode="in_person",
+                backend=backend,
+                db_path=db_path,
+                mysql_url=mysql_url,
+                ssl_ca=ssl_ca,
+            )
+            append_audit(
+                actor_user_id=patient_id,
+                action="appointment_urgency_elevated",
+                target=existing["id"],
+                outcome="ok",
+                detail={"checkin_id": checkin_id, "from": existing.get("urgency"), "to": "urgent"},
+                backend=backend,
+                db_path=db_path,
+                mysql_url=mysql_url,
+                ssl_ca=ssl_ca,
+            )
+            existing = get_appointment_by_checkin(
+                checkin_id=checkin_id,
+                backend=backend,
+                db_path=db_path,
+                mysql_url=mysql_url,
+                ssl_ca=ssl_ca,
+            )
         return compute_escalation_state(
             existing,
             backend=backend,

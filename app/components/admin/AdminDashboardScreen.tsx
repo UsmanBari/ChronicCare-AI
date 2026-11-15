@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
 import { api, ProviderDirectoryEntry, Appointment, EHRSystemResponse } from "../../lib/api";
+import { resolveHumanName } from "../../lib/presentation";
 import { AdminConfigStatusSection } from "./AdminConfigStatusSection";
 import {
   Shield,
@@ -302,8 +303,8 @@ export const AdminDashboardScreen = () => {
       return {
         id: apt.id,
         patientId: apt.patient_id,
-        patientName: patientUser?.display_name || patientUser?.email || apt.patient_id,
-        providerId: apt.provider_id || "On-Call Clinical Team",
+        patientName: patientUser?.display_name || patientUser?.email || (apt as any).patient_label || resolveHumanName(apt.patient_id),
+        providerId: (apt as any).provider_name || resolveHumanName(apt.provider_id) || "On-Call Clinical Team",
         slot: apt.slot_date || apt.slot || "Earliest Available",
         specialty: apt.specialty || "general",
         urgency: apt.urgency || "routine",
@@ -589,7 +590,7 @@ export const AdminDashboardScreen = () => {
                     </span>
                   </div>
                   <div className="text-xs text-slate-700">
-                    <span className="font-semibold">Patient:</span> {apt.patient_id} • <span className="font-semibold">Doctor:</span> {apt.provider_id || "Unassigned"}
+                    <span className="font-semibold">Patient:</span> {(apt as any).patient_label || resolveHumanName(apt.patient_id)} • <span className="font-semibold">Doctor:</span> {(apt as any).provider_name || resolveHumanName(apt.provider_id)}
                   </div>
                   <div className="text-xs text-slate-600 italic">
                     Reason: {apt.reason || "Clinical follow-up required"}

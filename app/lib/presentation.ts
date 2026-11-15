@@ -715,3 +715,37 @@ export function describeBlockedAction(
     target: "retry",
   };
 }
+
+export const KNOWN_PERSON_NAMES: Record<string, string> = {
+  "prov-demo-im": "Dr. Demo Internal Med (fictional)",
+  "prov-demo-cardio": "Dr. Demo Cardiology (fictional)",
+  "prov-demo-gen-1": "Dr. Demo General 1 (fictional)",
+  "prov-demo-gen-2": "Dr. Demo General 2 (fictional)",
+  "PRV-001": "Dr. Sana Malik",
+  "PRV-002": "Dr. Tariq Mahmood",
+  "PRV-003": "Dr. Ayesha Raza",
+  "sim-ayesha": "Ayesha K. (age 52)",
+  "sim-bilal": "Bilal A. (age 67)",
+  "sim-sana": "Sana M. (age 45)",
+  "sim-imran": "Imran Q. (age 71)",
+  "sim-newpatient": "Nadia R. (age 38)",
+  "sim-syn-recent-geriatric": "Khadija Bibi (age 78)",
+  "sim-syn-recent-t2d-insulin": "Nasreen Zainab (age 49)",
+  "12edb5a0-ec71-45b7-aff6-0fef1c382881": "SMART Patient (Age 75, Dual)",
+  "9bf59715-246f-4ce2-85a6-58c1757f8d21": "SMART Patient (Age 78, Dual)",
+  "948e608d-e408-4788-8cf2-8157c49c2940": "SMART Patient (Age 55, Dual)",
+  "bd6f9f37-7295-4cd6-b212-134afcef1253": "SMART Patient (Age 70, Dual)",
+  "fa064acf-b7f1-4279-83d3-7a94686da7ba": "SMART Patient (Age 106, Centenarian)",
+};
+
+export function resolveHumanName(idOrName?: string | null): string {
+  if (!idOrName) return "Unassigned";
+  const trimmed = String(idOrName).trim();
+  const clean = trimmed.startsWith("local-") ? trimmed.slice(6) : trimmed;
+  if (KNOWN_PERSON_NAMES[clean]) return KNOWN_PERSON_NAMES[clean];
+  if (KNOWN_PERSON_NAMES[trimmed]) return KNOWN_PERSON_NAMES[trimmed];
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean)) {
+    return `Hospital Patient (${clean.slice(0, 8)})`;
+  }
+  return trimmed;
+}
