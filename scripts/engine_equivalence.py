@@ -100,8 +100,14 @@ def answer_for_scenario(sc: dict, q_text: str, step: str) -> str:
     if sc["id"] == "CS-7":
         return "I have crushing chest pain"
 
+    if "confirm" in q_lower or "submit" in q_lower or "summary" in step_lower or "recorded today" in q_lower:
+        return "Yes, submit"
+
     if "how are you feeling" in q_lower or "greeting" in step_lower:
         return "Doing well"
+
+    if "episode" in q_lower or "past 7 days" in q_lower or "hypo_events" in step_lower:
+        return "no"
 
     if "blood sugar" in q_lower or "glucose" in q_lower or "glucose_reading" in step_lower:
         return sc.get("glucose_str", "120 mg/dL")
@@ -125,10 +131,7 @@ def answer_for_scenario(sc: dict, q_text: str, step: str) -> str:
             return "yes, I ate a large meal"
         return "no"
 
-    if "confirm" in q_lower or "submit" in q_lower or "summary_confirm" in step_lower:
-        return "Yes, submit"
-
-    if "fasting" in q_lower or "fast" in q_lower or "is_fasting" in step_lower:
+    if "glucose_context" in step_lower or "before breakfast" in q_lower or "after a meal" in q_lower:
         return "fasting"
 
     return "no"

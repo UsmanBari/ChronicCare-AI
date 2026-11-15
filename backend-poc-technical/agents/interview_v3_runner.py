@@ -500,26 +500,16 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
             known_slots["adherence_diabetes"] = False
         has_adh_reported = True
 
-    # 6. Early Symptoms Denial & Recognition
+    # 6. Early Symptoms Denial & Recognition (P2-5)
     symptom_denial_patterns = [
         r"\bno\s+symptoms?\b",
-        r"\ball\s+good\b",
-        r"\bfeeling\s+(?:fine|good|well|great|okay)\b",
+        r"\bno\s+symptoms?,\s*all\s+good\b",
         r"\bno\s+(?:issues?|trouble|problems?|complaints?)\b",
-        r"\bkoi\s+(?:alamaat|masla|takleef|pareshani)\s+nahi\b",
-        r"\bsab\s+theek\b",
-        r"\btheek\s+hoon\b",
-        r"\btheek\s+thaak\b",
-        r"(?:کوئی\s+علامت\s+نہیں|کوئی\s+مسئلہ\s+نہیں|سب\s+ٹھیک\s+ہے|بالکل\s+ٹھیک)",
+        r"\bkoi\s+(?:alamaat|masla|takleef)\s+nahi\b",
+        r"(?:کوئی\s+علامت\s+نہیں|کوئی\s+مسئلہ\s+نہیں|کوئی\s+تکلیف\s+نہیں)",
     ]
     if any(re.search(pat, lower_ans) for pat in symptom_denial_patterns):
         known_slots["symptoms_denied"] = True
-        if "hyperglycemia_symptoms" not in known_slots:
-            known_slots["hyperglycemia_symptoms"] = False
-        if "associated_symptoms" not in known_slots:
-            known_slots["associated_symptoms"] = False
-        if "foot_problems" not in known_slots:
-            known_slots["foot_problems"] = False
 
 
 def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]:

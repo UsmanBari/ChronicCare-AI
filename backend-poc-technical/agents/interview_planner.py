@@ -196,7 +196,12 @@ def plan_next_step(
     if bank is None:
         bank = get_default_bank()
 
-    clean_known = {k for k in known_slots.keys() if not k.endswith("__evidence") and not k.endswith("__partial")}
+    clean_known = {
+        k for k in known_slots.keys()
+        if not k.endswith("__evidence")
+        and not k.endswith("__partial")
+        and k != "symptoms_denied"
+    }
     if asked_slots is None:
         asked_slots = clean_known
     else:
@@ -228,6 +233,7 @@ def plan_next_step(
         and not s.endswith("__evidence") 
         and not s.endswith("__partial") 
         and s != "summary_confirmation"
+        and s != "symptoms_denied"
     ])
 
     # Hard cap check
