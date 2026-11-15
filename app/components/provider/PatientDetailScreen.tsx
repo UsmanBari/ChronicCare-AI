@@ -270,7 +270,7 @@ export const PatientDetailScreen = () => {
             <div className="flex items-center justify-between text-xs font-bold text-navy-800">
               <span>{t.glucoseChartTitle}</span>
               <span className="text-[10px] text-teal-800 bg-teal-100/60 px-2 py-0.5 rounded font-bold" data-testid="provider-glucose-range-label">
-                Normal: 70–180 mg/dL
+                Target: 90–125 fasting / 125–200 after meals mg/dL
               </span>
             </div>
             <div className="h-44 w-full pt-1">
@@ -287,8 +287,8 @@ export const PatientDetailScreen = () => {
                   <YAxis domain={[60, 190]} tick={{ fontSize: 10, fill: "#64748B" }} />
                   <Tooltip />
                   <ReferenceArea
-                    y1={70}
-                    y2={180}
+                    y1={90}
+                    y2={200}
                     fill="#0B6E70"
                     fillOpacity={0.08}
                     strokeDasharray="3 3"
@@ -299,6 +299,9 @@ export const PatientDetailScreen = () => {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+            <p className="text-[10px] text-slate-400 mt-1 px-1">
+              Targets are for people with diabetes/high BP, from ADA/AHA guidance; your doctor may set different targets.
+            </p>
           </div>
 
           {/* Blood Pressure Chart */}
@@ -306,7 +309,7 @@ export const PatientDetailScreen = () => {
             <div className="flex items-center justify-between text-xs font-bold text-navy-800">
               <span>{t.bloodPressureChartTitle}</span>
               <span className="text-[10px] text-slate-500 font-semibold" data-testid="provider-bp-range-label">
-                Normal: 90–139 / 60–89 mmHg
+                Target: 90–139 / 60–89 mmHg
               </span>
             </div>
             <div className="h-44 w-full pt-1">
@@ -339,6 +342,9 @@ export const PatientDetailScreen = () => {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+            <p className="text-[10px] text-slate-400 mt-1 px-1">
+              Targets are for people with diabetes/high BP, from ADA/AHA guidance; your doctor may set different targets.
+            </p>
           </div>
         </div>
       </div>

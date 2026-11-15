@@ -67,85 +67,89 @@ describe("F2: Physiological Reference Ranges & Normal Parameters", () => {
   });
 
   describe("1. Reference Range Helper Logic (All 3 Languages)", () => {
-    it("returns correct normal range strings in English", () => {
-      expect(getNormalRangeText("blood_pressure_systolic", "en")).toBe("Normal: 90–139 mmHg");
-      expect(getNormalRangeText("blood_pressure_diastolic", "en")).toBe("Normal: 60–89 mmHg");
-      expect(getNormalRangeText("blood_pressure", "en")).toBe("Normal: 90–139 / 60–89 mmHg");
-      expect(getNormalRangeText("glucose", "en", "mg/dL")).toBe("Normal: 70–130 fasting / 70–180 post-meal mg/dL");
-      expect(getNormalRangeText("glucose", "en", "mmol/L")).toBe("Normal: 3.9–7.2 fasting / 3.9–10.0 post-meal mmol/L");
+    it("returns correct target range strings in English", () => {
+      expect(getNormalRangeText("blood_pressure_systolic", "en")).toBe("Target: 90–139 mmHg");
+      expect(getNormalRangeText("blood_pressure_diastolic", "en")).toBe("Target: 60–89 mmHg");
+      expect(getNormalRangeText("blood_pressure", "en")).toBe("Target: 90–139 / 60–89 mmHg");
+      expect(getNormalRangeText("glucose", "en", "mg/dL")).toBe("Target: 90–125 fasting / 125–200 after meals mg/dL");
+      expect(getNormalRangeText("glucose", "en", "mmol/L")).toBe("Target: 5.0–6.9 fasting / 6.9–11.1 post-meal mmol/L");
     });
 
-    it("returns correct normal range strings in Urdu Script", () => {
-      expect(getNormalRangeText("blood_pressure_systolic", "ur")).toBe("نارمل: 90–139 ملی میٹر ایچ جی");
-      expect(getNormalRangeText("blood_pressure_diastolic", "ur")).toBe("نارمل: 60–89 ملی میٹر ایچ جی");
-      expect(getNormalRangeText("blood_pressure", "ur")).toBe("نارمل: 90–139 / 60–89 ملی میٹر ایچ جی");
-      expect(getNormalRangeText("glucose", "ur", "mg/dL")).toContain("نارمل: 70–130 نہار منہ");
-      expect(getNormalRangeText("glucose", "ur", "mmol/L")).toContain("نارمل: 3.9–7.2 نہار منہ");
+    it("returns correct target range strings in Urdu Script", () => {
+      expect(getNormalRangeText("blood_pressure_systolic", "ur")).toBe("ہدف: 90–139 ملی میٹر ایچ جی");
+      expect(getNormalRangeText("blood_pressure_diastolic", "ur")).toBe("ہدف: 60–89 ملی میٹر ایچ جی");
+      expect(getNormalRangeText("blood_pressure", "ur")).toBe("ہدف: 90–139 / 60–89 ملی میٹر ایچ جی");
+      expect(getNormalRangeText("glucose", "ur", "mg/dL")).toContain("ہدف: 90–125 نہار منہ");
+      expect(getNormalRangeText("glucose", "ur", "mmol/L")).toContain("ہدف: 5.0–6.9 نہار منہ");
     });
 
-    it("returns correct normal range strings in Roman Urdu", () => {
+    it("returns correct target range strings in Roman Urdu", () => {
       expect(getNormalRangeText("glucose", "roman_ur", "mg/dL")).toBe(
-        "Normal: 70–130 nihar munh / 70–180 khaney ke baad mg/dL"
+        "Target: 90–125 nihar munh / 125–200 khaney ke baad mg/dL"
       );
       expect(getNormalRangeText("glucose", "roman_ur", "mmol/L")).toBe(
-        "Normal: 3.9–7.2 nihar munh / 3.9–10.0 khaney ke baad mmol/L"
+        "Target: 5.0–6.9 nihar munh / 6.9–11.1 khaney ke baad mmol/L"
       );
     });
 
-    it("correctly classifies Systolic BP as below, normal, or above", () => {
+    it("correctly classifies Systolic BP as below, in target, or above", () => {
       const below = getReadingStatus("blood_pressure_systolic", 85, "en");
-      expect(below.status).toBe("below");
-      expect(below.label).toBe("Below normal");
+      expect(below.status).toBe("below_target");
+      expect(below.label).toBe("Below target");
 
-      const normal = getReadingStatus("blood_pressure_systolic", 120, "en");
-      expect(normal.status).toBe("normal");
-      expect(normal.label).toBe("Normal");
+      const inTarget = getReadingStatus("blood_pressure_systolic", 120, "en");
+      expect(inTarget.status).toBe("in_target");
+      expect(inTarget.label).toBe("In target");
 
       const above = getReadingStatus("blood_pressure_systolic", 145, "en");
-      expect(above.status).toBe("above");
-      expect(above.label).toBe("Above normal");
+      expect(above.status).toBe("above_target");
+      expect(above.label).toBe("Above target");
     });
 
-    it("correctly classifies Diastolic BP as below, normal, or above", () => {
+    it("correctly classifies Diastolic BP as below, in target, or above", () => {
       const below = getReadingStatus("blood_pressure_diastolic", 55, "en");
-      expect(below.status).toBe("below");
-      expect(below.label).toBe("Below normal");
+      expect(below.status).toBe("below_target");
+      expect(below.label).toBe("Below target");
 
-      const normal = getReadingStatus("blood_pressure_diastolic", 75, "en");
-      expect(normal.status).toBe("normal");
-      expect(normal.label).toBe("Normal");
+      const inTarget = getReadingStatus("blood_pressure_diastolic", 75, "en");
+      expect(inTarget.status).toBe("in_target");
+      expect(inTarget.label).toBe("In target");
 
       const above = getReadingStatus("blood_pressure_diastolic", 95, "en");
-      expect(above.status).toBe("above");
-      expect(above.label).toBe("Above normal");
+      expect(above.status).toBe("above_target");
+      expect(above.label).toBe("Above target");
     });
 
-    it("correctly classifies Blood Glucose in mg/dL and mmol/L", () => {
-      // mg/dL: low < 70, normal 70-180, above > 180
-      expect(getReadingStatus("glucose", 65, "en", "mg/dL").status).toBe("below");
-      expect(getReadingStatus("glucose", 110, "en", "mg/dL").status).toBe("normal");
-      expect(getReadingStatus("glucose", 210, "en", "mg/dL").status).toBe("above");
+    it("correctly classifies Blood Glucose in mg/dL and mmol/L (Doctor Decision D6)", () => {
+      // mg/dL: low < 90, in-target 90-200 (post-meal/overall), above > 200
+      expect(getReadingStatus("glucose", 85, "en", "mg/dL").status).toBe("below_target");
+      expect(getReadingStatus("glucose", 110, "en", "mg/dL").status).toBe("in_target");
+      expect(getReadingStatus("glucose", 210, "en", "mg/dL").status).toBe("above_target");
 
-      // mmol/L: low < 3.9, normal 3.9-10.0, above > 10.0
-      expect(getReadingStatus("glucose", 3.2, "en", "mmol/L").status).toBe("below");
-      expect(getReadingStatus("glucose", 6.5, "en", "mmol/L").status).toBe("normal");
-      expect(getReadingStatus("glucose", 12.0, "en", "mmol/L").status).toBe("above");
+      // Fasting context: low < 90, in-target 90-125, above > 125
+      expect(getReadingStatus("glucose", 130, "en", "mg/dL", "fasting").status).toBe("above_target");
+      expect(getReadingStatus("glucose", 100, "en", "mg/dL", "fasting").status).toBe("in_target");
+
+      // mmol/L: low < 5.0, in-target 5.0-11.1, above > 11.1
+      expect(getReadingStatus("glucose", 4.2, "en", "mmol/L").status).toBe("below_target");
+      expect(getReadingStatus("glucose", 6.5, "en", "mmol/L").status).toBe("in_target");
+      expect(getReadingStatus("glucose", 12.0, "en", "mmol/L").status).toBe("above_target");
     });
 
     it("returns accessible status labels in Urdu and Roman Urdu", () => {
-      expect(getReadingStatus("glucose", 60, "ur").label).toBe("نارمل سے کم");
-      expect(getReadingStatus("glucose", 100, "ur").label).toBe("نارمل");
-      expect(getReadingStatus("glucose", 220, "ur").label).toBe("نارمل سے زیادہ");
+      expect(getReadingStatus("glucose", 60, "ur").label).toBe("ہدف سے کم");
+      expect(getReadingStatus("glucose", 100, "ur").label).toBe("ہدف کے مطابق");
+      expect(getReadingStatus("glucose", 220, "ur").label).toBe("ہدف سے زیادہ");
 
-      expect(getReadingStatus("glucose", 60, "roman_ur").label).toBe("Normal se kam");
-      expect(getReadingStatus("glucose", 100, "roman_ur").label).toBe("Normal");
-      expect(getReadingStatus("glucose", 220, "roman_ur").label).toBe("Normal se zyada");
+      expect(getReadingStatus("glucose", 60, "roman_ur").label).toBe("Target se kam");
+      expect(getReadingStatus("glucose", 100, "roman_ur").label).toBe("Target ke mutabiq");
+      expect(getReadingStatus("glucose", 220, "roman_ur").label).toBe("Target se zyada");
     });
 
     it("ensures wording is strictly non-diagnostic", () => {
-      expect(translations.en.normalRangeDisclaimer).toBe("Normal range used by this app");
-      expect(translations.ur.normalRangeDisclaimer).toBe("اس ایپ میں استعمال ہونے والی نارمل رینج");
-      expect(translations.roman_ur.normalRangeDisclaimer).toBe("Is app mein istemal hone wali normal range");
+      expect(translations.en.normalRangeDisclaimer).toBe("Target range used by this app");
+      expect(translations.ur.normalRangeDisclaimer).toBe("اس ایپ میں استعمال ہونے والی ہدف کی رینج");
+      expect(translations.roman_ur.normalRangeDisclaimer).toBe("Is app mein istemal hone wali target range");
       expect(translations.en.normalRangeDisclaimer).not.toContain("healthy");
     });
   });
@@ -156,8 +160,8 @@ describe("F2: Physiological Reference Ranges & Normal Parameters", () => {
       render(<HealthRecordScreen />);
       const rangeHint = screen.getByTestId("obs-normal-range-text");
       expect(rangeHint).toBeDefined();
-      expect(rangeHint.textContent).toContain("Normal: 70–130 fasting");
-      expect(screen.getByText("(Normal range used by this app)")).toBeDefined();
+      expect(rangeHint.textContent).toContain("Target: 90–125 fasting");
+      expect(screen.getByText("(Target range used by this app)")).toBeDefined();
     });
 
     it("AdaptiveInterviewScreen displays normal range hint when BP/Glucose question is asked", () => {
@@ -176,7 +180,7 @@ describe("F2: Physiological Reference Ranges & Normal Parameters", () => {
       render(<AdaptiveInterviewScreen />);
       const hint = screen.getByTestId("interview-normal-range-hint");
       expect(hint).toBeDefined();
-      expect(hint.textContent).toContain("Normal: 70–130 fasting");
+      expect(hint.textContent).toContain("Target: 90–125 fasting");
     });
 
     it("RiskResultScreen displays accessible reading status tags on reported comparisons", () => {
@@ -207,11 +211,11 @@ describe("F2: Physiological Reference Ranges & Normal Parameters", () => {
       render(<RiskResultScreen />);
       const tag0 = screen.getByTestId("result-reading-status-0");
       expect(tag0).toBeDefined();
-      expect(tag0.textContent).toBe("Normal");
+      expect(tag0.textContent).toBe("In target");
 
       const tag1 = screen.getByTestId("result-reading-status-1");
       expect(tag1).toBeDefined();
-      expect(tag1.textContent).toBe("Above normal");
+      expect(tag1.textContent).toBe("Above target");
     });
 
     it("TrendScreen renders reference area normal bands and disclaimer", () => {
@@ -225,8 +229,8 @@ describe("F2: Physiological Reference Ranges & Normal Parameters", () => {
       mockAppContext.acknowledgedPatients = [];
       mockAppContext.selectedPatient = "Ahmed";
       render(<PatientDetailScreen />);
-      expect(screen.getByTestId("provider-glucose-range-label").textContent).toContain("Normal: 70–180 mg/dL");
-      expect(screen.getByTestId("provider-bp-range-label").textContent).toContain("Normal: 90–139 / 60–89 mmHg");
+      expect(screen.getByTestId("provider-glucose-range-label").textContent).toContain("Target: 90–125 fasting / 125–200 after meals mg/dL");
+      expect(screen.getByTestId("provider-bp-range-label").textContent).toContain("Target: 90–139 / 60–89 mmHg");
     });
   });
 });

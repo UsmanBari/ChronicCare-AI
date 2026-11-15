@@ -26,10 +26,11 @@ The evaluation demo runs locally on pure SQLite with full pipeline flags active.
 | `ORCHESTRATOR` | `"graph"` | Sec 23 | Check-in orchestrator (`graph` mode default; `direct` mode 100% equivalent across 78/78 cases). |
 | `INTERVIEW_ENGINE` | `"v3"` | Sec 13.1 Agent 2 | Clinically structured adaptive interview engine (v3 dynamic planner). |
 | `RISK_ENABLED` | `"true"` | Sec 13.1 Agent 9 | Provider cardiometabolic risk panel (NHANES diabetes + Framingham CHD10). |
-| `RISK_CAN_RAISE` | `"true"` | Sec 15 | Stage-2 Final Triage: High risk band raises routine to review (Yellow). |
+| `RISK_CAN_RAISE` | `"true"` | Sec 15 | Stage-2 Final Triage: High risk band raises routine to review (Yellow) ONLY when accompanied by reported symptoms (Doctor decision D2). |
 | `RISK_PATIENT_VISIBLE`| `"true"` | Sec 15 | Patient sees plain-language categorical band sentence only; raw scores/SHAP strictly hidden. |
 | `TREND_CAN_RAISE` | `"true"` | Sec 16 | Longitudinal trend escalation: 5+ worsening points above target raises to Yellow. |
-| `NO_READING_SYMPTOM_RAISE` | `"true"` | Sec 15 | Symptomatic check-in without vital readings escalates safely to review. |
+| `NO_READING_SYMPTOM_RAISE` | `"true"` | Sec 15 | Symptomatic check-in without vital readings escalates safely to review (approved by the doctor on record). |
+| `SYMPTOM_FINDING_RAISE` | `"true"` | Sec 15 | Clinical symptom finding raise: positive foot problem, hypo in past week, sick day flags, dose change requests, or orthostatic dizziness raises to Yellow (Doctor decision D7, approved by the doctor on record). |
 | `DANGER_WORDGROUPS_ENABLED`| `"true"` | Sec 13.1 Agent 1 | Vernacular Urdu composable danger word groups detector. |
 | `EXPLAIN_ENABLED` | `"true"` | Sec 13.2 | Asynchronous background explainer citing WHO 2021 & ISH 2020 guidelines. |
 | `EXPLAIN_MODE` | `"background"` | Sec 13.2 | Non-blocking /complete response; polls up to 90s, instant template fallback. |
@@ -63,9 +64,9 @@ flowchart LR
   3. Enter today's reading: BP $146/90\text{ mmHg}$, no acute symptoms.
   4. Submit check-in $\rightarrow$ Observe Stage-2 escalation to 🟡 **"Review" (Yellow)**.
   5. Expand explanation: observe plain-language guidance citing ISH 2020 guideline references (`[ish_2020_htn_c01]`).
-  6. Switch to trend view: point to the 6-point rising systolic BP chart ($122 \rightarrow 146\text{ mmHg}$).
+  6. Switch to trend view: point to the 6-point rising systolic BP chart ($122 \rightarrow 146\text{ mmHg}$) with clearly marked target band (Target: 90–139 mmHg) and under-chart disclaimer: *"Target range used by this app. Individual targets may differ; follow your doctor's advice."*
 - **Key Spoken Line**:
-  > *"Notice that although 146/90 is not a hypertensive crisis on a single reading, our longitudinal trend agent detects 6 consecutive worsening check-ins above target range and automatically escalates the patient to Yellow review status."*
+  > *"Notice that although 146/90 is not a hypertensive crisis on a single reading, our longitudinal trend agent detects 6 consecutive worsening check-ins above target range and automatically escalates the patient to Yellow review status. All physiological bounds are explicitly labeled as app targets with clinical disclaimer."*
 - **Fallback**: If explainer background worker takes $>10\text{s}$, point to the instant deterministic template explanation already present.
 
 ---
@@ -118,23 +119,25 @@ flowchart LR
 
 ---
 
-### Scene 5: Provider Portal, Dual Risk Models & SOAP Summary [5:30 – 7:30]
+### Scene 5: Provider Portal, Dual Risk Models, Approve/Adjust & SOAP Summary [5:30 – 7:30]
 - **Portal & Persona**: Provider Portal (`provider.demo@demo.care`).
 - **Benchmark Persona & Seed Patient**: `demo_patient_dm` (maps to `p36_severe_hypo_urgent` / NHANES DM risk model) and `demo_patient_dual` (maps to `p34_dual_normal_readings` / NHANES DM + Framingham CHD10).
-- **Active Demo Flags**: `RISK_ENABLED=true`, `RISK_CAN_RAISE=true`, `RISK_PATIENT_VISIBLE=true`, `RISK_RAISE_COOLDOWN_DAYS=30`.
+- **Active Demo Flags**: `RISK_ENABLED=true`, `RISK_CAN_RAISE=true`, `RISK_PATIENT_VISIBLE=true`, `RISK_RAISE_COOLDOWN_DAYS=30`, `SYMPTOM_FINDING_RAISE=true`.
 - **Proposal Reference**: Sec 13.1 Agents 9 & 10, Sec 15, Sec 17, LA-13, LA-21, LA-23, LA-24, LA-26.
 - **Actions**:
   1. Sign in as `provider.demo@demo.care` $\rightarrow$ View prioritized clinical triage queue (Emergencies $\rightarrow$ Urgent $\rightarrow$ Review).
   2. Open `demo_patient_dm@demo.care`:
-     - Point to the **Stage-2 Clinical Escalation**: routine vital readings elevated to Yellow due to **High DM Risk Band**.
+     - Point to the **Stage-2 Clinical Escalation**: routine vital readings elevated to Yellow due to **High DM Risk Band with Symptoms** (Doctor decision D2).
+     - Point to the **Doctor-Approved Target Ranges** (Doctor decision D6: Fasting 90–125 mg/dL, After meals 125–200 mg/dL; <90 mg/dL goes to review).
      - Point to the **Doctor-Only Risk Panel**: probability (0.35) and SHAP drivers (age, BMI 33.7, waist 110 cm, smoking).
      - Emphasize that the patient sees only: *"Your 3-year diabetes risk is high. Please discuss lifestyle adjustments with your doctor."*
   3. Open `demo_patient_dual@demo.care`:
      - Observe **both risk models** evaluated simultaneously (NHANES Diabetes + Framingham CHD10).
      - Click **"Generate Clinical SOAP Note"** (`/api/provider/review/{id}/soap`).
      - Inspect structured clinical synthesis: Subjective, Objective, Assessment, Plan with 100% numerical traceability.
+     - Demonstrate **Provider Approve / Adjust Action**: Clinician can approve or adjust the triage classification to Green with an audited clinical rationale (`/api/provider/review/{id}/decision`), moving the case out of the active queue.
 - **Key Spoken Line**:
-  > *"Physicians receive full explainability: exact SHAP contributing factors, simultaneous evaluation of multiple risk classifiers, and an automated SOAP clinical summary where every vital number is traceable to verified patient inputs."*
+  > *"Physicians receive full explainability: exact SHAP contributing factors, simultaneous evaluation of multiple risk classifiers, doctor-approved target ranges, and the clinical agency to approve or adjust triage decisions with full audit logging."*
 - **Fallback**: SOAP note plain text can be copied to clipboard via one click.
 
 ---
@@ -193,6 +196,12 @@ The following features were developed in dedicated feature branches and are sche
 3. **Single-LLM Baseline Benchmark Suite (PR #144)**:
    - Benchmark across 52 clinical scenarios comparing Full Pipeline against raw Single-LLM baseline (`qwen/qwen3.8-27b`).
    - Results: Full Pipeline achieves 100% emergency recall (0 missed emergencies) vs Single-LLM 11.1% recall (8 missed emergencies).
+   - Under-triage on Full Pipeline is 3.9% (2/51: `p13` medication affordability barrier, `p30` greeting harness termination; 0 missed emergencies, 0 missed urgent cases, 0 Category B symptom gaps). Exact-match accuracy is 88.2% (45/51).
+4. **Model Performance & TRIPOD-AI Reporting (`docs/eval/MODEL_EVIDENCE_COMPLETENESS.md`)**:
+   - Cardiovascular risk model (`chd10_framingham`): Pre-registered external test AUROC is **0.7527** (honest test split, not the exploratory 0.835 in-sample baseline).
+5. **Red-Flag Coverage Transparency (`docs/eval/RED_FLAG_EVALUATION.md`)**:
+   - Developer suite: 713/713 test cases passed (100%).
+   - Reviewer independent hidden set: 12/22 (54.5% initial, improved to ~65–70% with token-distance and negation architecture). Honest presentation during viva.
 
 ---
 

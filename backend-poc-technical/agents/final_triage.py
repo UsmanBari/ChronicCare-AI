@@ -306,6 +306,192 @@ def check_has_qualifying_symptoms(
     return False
 
 
+STAGE2_PATIENT_REASON_TEXTS = {
+    "symptom_reported_needs_review": {
+        "en": "You reported clinical symptoms, medication concerns, or distress that need clinician review.",
+        "ur": "آپ نے ایسی علامات، دوائی سے متعلق سوال یا پریشانی بتائی ہے جس کا ڈاکٹر کی طرف سے جائزہ ضروری ہے۔",
+        "roman_ur": "Aap ne aisi alamat, dawai ka masla ya pareshani batai hai jis ka doctor se review zaroori hai.",
+    },
+    "symptoms_without_readings": {
+        "en": "You reported feeling unwell without vital readings available for comparison.",
+        "ur": "آپ نے علامات کی اطلاع دی ہے لیکن موازنہ کے لیے کوئی پیمائش دستیاب نہیں ہے۔",
+        "roman_ur": "Aap ne tabiyat kharab hone ki itteha di hai magar readings maujood nahi hain.",
+    },
+    "high_heart_risk_with_symptoms": {
+        "en": "Elevated cardiovascular risk combined with reported symptoms requires care team review.",
+        "ur": "دل کی بیماری کا زیادہ خطرہ اور علامات کی موجودگی دیکھ بھال کی ٹیم کے جائزے کا تقاضا کرتی ہے۔",
+        "roman_ur": "Heart risk zyada hone aur sath alamat hone ki wajah se care team ka review zaroori hai.",
+    },
+    "trend_rising": {
+        "en": "Rising vital readings across multiple check-ins have exceeded target levels.",
+        "ur": "مسلسل کئی چیک اِنز میں ریڈنگز میں اضافہ ہدف کی سطح سے تجاوز کر گیا ہے۔",
+        "roman_ur": "Musalsal check-ins mein readings target se zyada barh rahi hain.",
+    },
+}
+
+
+def get_stage2_patient_reason_text(reason_key: str, lang: str = "en") -> str:
+    """Returns patient-facing explanation text in English, Urdu, or Roman Urdu."""
+    entry = STAGE2_PATIENT_REASON_TEXTS.get(reason_key) or {}
+    clean_lang = (lang or "en").strip().lower()
+    return entry.get(clean_lang) or entry.get("en") or reason_key
+
+
+def check_has_symptom_finding_triggers(state: Any = None, symptoms: Optional[Any] = None) -> Tuple[bool, Optional[str]]:
+    """
+    Detects positive clinical symptom findings, dose change requests, or low mood/distress
+    that warrant Stage-2 triage escalation from routine (Green) to review (Yellow).
+
+    Doctor Decision D7 (approved by the doctor on record, Nov 2026):
+    'agar upar wale symptoms aate hain to woh phir yellow mein jayega review mein'
+
+    Triggers:
+    1. Positive answer to foot_problems, hypo_events_past_week, sick_day_flags,
+       associated_symptoms, or orthostatic dizziness.
+    2. Patient asks to change/stop/adjust a medicine dose.
+    3. Patient reports low mood or diabetes distress.
+    """
+    import re
+    if state is None and symptoms is None:
+        return False, None
+
+    # Check direct structured findings first
+    findings = []
+    if state is not None:
+        findings = getattr(state, "findings", None) or (state.get("findings") if isinstance(state, dict) else None) or []
+    for f in findings:
+        kind = getattr(f, "kind", None) if hasattr(f, "kind") else (f.get("kind") if isinstance(f, dict) else None)
+        if kind in (
+            "foot_problems", "foot_ulcer", "hypo_events_past_week", "sick_day_flags",
+            "orthostatic_dizziness", "dizziness_standing",
+            "dose_change", "low_mood", "distress"
+        ):
+            return True, f"Positive clinical finding: {kind}"
+
+    # Helper to check if text answer is explicitly negative / denying symptoms
+    def _is_negated_answer(text: str) -> bool:
+        t = text.lower().strip()
+        if re.search(r"\b(?:no|without|never|zero|free\s+of)\s+(?:\w+\s+){0,3}(?:cut|cuts|wound|wounds|sore|sores|blister|blisters|ulcer|ulcers|pain|dizziness|problem|problems|symptom|symptoms|masla|takleef|flag|flags)\b", t):
+            return True
+        if re.search(r"\b(?:feet|foot|haath|pair|legs|arms)\s+(?:are\s+|is\s+)?(?:okay|fine|ok|theek|good|normal|healthy)\b", t):
+            return True
+        if re.search(r"\b(?:koi|kuch)\s+(?:\w+\s+){0,2}(?:masla|takleef|zakhm|kharabi|symptom|alamat)\s+(?:nahi|nhi)\b", t):
+            return True
+        if re.match(r"^(?:no|none|nothing|nahi|nhi|kuch\s+nahi|koi\s+nahi|fine|normal|all\s+good|theek|ok|okay|no\s+symptoms?|no\s+associated\s+symptoms?)$", t):
+            return True
+        return False
+
+    # Extract all answers / text from state and symptoms
+    text_answers: List[str] = []
+
+    # Check explicit symptoms parameter
+    if symptoms is not None:
+        if isinstance(symptoms, str):
+            text_answers.append(symptoms)
+        elif isinstance(symptoms, (list, tuple, set)):
+            for sym in symptoms:
+                if isinstance(sym, str):
+                    text_answers.append(sym)
+                elif isinstance(sym, dict):
+                    for sk, sv in sym.items():
+                        if isinstance(sv, str):
+                            text_answers.append(sv)
+        elif isinstance(symptoms, dict):
+            for sk, sv in symptoms.items():
+                sk_lower = str(sk).lower()
+                if isinstance(sv, str):
+                    text_answers.append(sv)
+                    clean_sv = sv.strip().lower()
+                    if clean_sv in ("no", "none", "nothing", "fine", "normal", "ok", "okay", "nahi", "nhi", "kuch nahi", "koi nahi", "unknown", "false", "no symptoms", "no symptom") or _is_negated_answer(clean_sv):
+                        continue
+                    if sk_lower in ("foot_problems", "foot_ulcer", "hypo_events_past_week", "sick_day_flags", "orthostatic_dizziness", "dizziness_standing"):
+                        return True, f"Reported {sk_lower}: {sv}"
+                elif isinstance(sv, (int, float)) and sv > 0:
+                    if sk_lower in ("hypo_events_past_week", "sick_day_flags"):
+                        return True, f"Reported {sk_lower}: {sv}"
+                elif isinstance(sv, bool) and sv:
+                    if sk_lower in ("sick_day_flags", "foot_problems", "orthostatic_dizziness"):
+                        return True, f"Reported {sk_lower}: True"
+
+    answers_dict = {}
+    if state is not None:
+        answers_dict = getattr(state, "answers", None) or (state.get("answers") if isinstance(state, dict) else None) or {}
+    if isinstance(answers_dict, dict):
+        for k, v in answers_dict.items():
+            k_lower = str(k).lower()
+            if isinstance(v, str):
+                text_answers.append(v)
+                clean_v = v.strip().lower()
+                if clean_v in ("no", "none", "nothing", "fine", "normal", "ok", "okay", "nahi", "nhi", "kuch nahi", "koi nahi", "unknown", "false", "no symptoms", "no symptom") or _is_negated_answer(clean_v):
+                    continue
+                if k_lower in ("foot_problems", "foot_ulcer", "hypo_events_past_week", "sick_day_flags", "orthostatic_dizziness", "dizziness_standing"):
+                    return True, f"Reported {k_lower}: {v}"
+            elif isinstance(v, (int, float)) and v > 0:
+                if k_lower in ("hypo_events_past_week", "sick_day_flags"):
+                    return True, f"Reported {k_lower}: {v}"
+            elif isinstance(v, bool) and v:
+                if k_lower in ("sick_day_flags", "foot_problems", "orthostatic_dizziness"):
+                    return True, f"Reported {k_lower}: True"
+            elif isinstance(v, dict):
+                for sub_k, sub_v in v.items():
+                    if isinstance(sub_v, str):
+                        text_answers.append(sub_v)
+                        sub_clean = sub_v.strip().lower()
+                        if sub_clean in ("no", "none", "nothing", "fine", "normal", "ok", "okay", "nahi", "nhi", "kuch nahi", "koi nahi", "unknown", "false", "no symptoms", "no symptom") or _is_negated_answer(sub_clean):
+                            continue
+                        if str(sub_k).lower() in ("foot_problems", "foot_ulcer", "hypo_events_past_week", "sick_day_flags", "orthostatic_dizziness"):
+                            return True, f"Reported {sub_k}: {sub_v}"
+
+    # Extract narrative / free text from intakes if present
+    intakes = []
+    if state is not None:
+        intakes = getattr(state, "intakes", None) or (state.get("intakes") if isinstance(state, dict) else None) or []
+    for it in intakes:
+        if isinstance(it, dict):
+            free_text = it.get("patient_free_text") or it.get("narrative")
+            if isinstance(free_text, str):
+                text_answers.append(free_text)
+            symp = it.get("symptoms")
+            if isinstance(symp, dict):
+                for sk, sv in symp.items():
+                    if isinstance(sv, str):
+                        text_answers.append(sv)
+
+    # Scan un-negated text answers for the qualifying triggers
+    for a in text_answers:
+        if not a or not isinstance(a, str):
+            continue
+        if _is_negated_answer(a):
+            continue
+        al = a.lower()
+
+        # 1. Foot ulcer / wound / sore / blister
+        if re.search(r"\b(?:blister|open\s+sore|ulcer|wound|bleeding|pus|infection)\b.*?\b(?:foot|toe|feet|sole|heel)\b|\b(?:foot|toe|feet|sole|heel)\b.*?\b(?:blister|open\s+sore|ulcer|wound|bleeding|pus|infection|cut)\b|پاؤں\s*(?:میں\s*)?(?:زخم|چھالا)", al):
+            return True, f"Foot problem reported: {a}"
+
+        # 2. Dose change / adjust / stop request
+        if re.search(r"\b(?:should\s+i|can\s+i|want\s+to|discuss)\s+(?:\w+\s+){0,3}(?:increase|decrease|change|stop|adjust|switch)\s+(?:\w+\s+){0,3}(?:dose|medication|metformin|insulin|medicine|pill)\b|\b(?:increase|decrease|change|stop|adjust)\s+(?:my\s+)?(?:dose|dosage|medication)\b|خوراک\s*(?:بڑھ|کم|تبدیل)", al):
+            return True, f"Medication dose change advice requested: {a}"
+
+        # 3. Orthostatic dizziness (dizzy getting out of bed / standing up)
+        if re.search(r"\b(?:dizzy|dizziness)\b.*?\b(?:get\s+out\s+of\s+bed|stand\s+up|standing|getting\s+up)\b|\b(?:standing\s+up|getting\s+up|out\s+of\s+bed)\b.*?\b(?:dizzy|dizziness|fall|falling)\b|کھڑے\s*ہونے\s*پر\s*چکر", al):
+            return True, f"Orthostatic dizziness reported: {a}"
+
+        # 4. Low mood / diabetes distress / depression
+        if re.search(r"\b(?:low\s+mood|feeling\s+sad|feeling\s+down|overwhelmed|depressed|depression|counselor|no\s+energy|sadness|exhausted)\b|اداس|مایوس|پریشان", al):
+            return True, f"Low mood or diabetes distress reported: {a}"
+
+        # 5. Hypo events past week in free text
+        if re.search(r"\b(?:hypo\w*|low\s+sugar|sugar\s+low|sugar\s+gir)\b.*?\b(?:past\s+week|this\s+week|pichle\s+hafte|last\s+week|twice|times?)\b", al):
+            return True, f"Recent hypoglycemia events reported: {a}"
+
+        # 6. Sick day flags in free text
+        if re.search(r"\b(?:sick\s+day|fever|infection|high\s+temperature|bukhar)\b", al):
+            return True, f"Sick day flags reported: {a}"
+
+    return False, None
+
+
 def decide_stage2(
     rules_level: str,
     risk_results: Optional[Any] = None,
@@ -356,6 +542,7 @@ def decide_stage2(
             "RISK_CAN_RAISE": os.environ.get("RISK_CAN_RAISE", "").strip().lower() == "true",
             "TREND_CAN_RAISE": os.environ.get("TREND_CAN_RAISE", "").strip().lower() == "true",
             "NO_READING_SYMPTOM_RAISE": os.environ.get("NO_READING_SYMPTOM_RAISE", "").strip().lower() == "true",
+            "SYMPTOM_FINDING_RAISE": os.environ.get("SYMPTOM_FINDING_RAISE", "true").strip().lower() in ("true", "1", "yes"),
         }
 
     # Normalize inputs
@@ -476,6 +663,27 @@ def decide_stage2(
             })
             triggered_rules.append("R-S2-4")
             patient_reason_key = "symptoms_without_readings"
+
+    # R-S2-5: Symptom finding raise (routine -> review)
+    # Doctor Decision D7 (approved by the doctor on record, Nov 2026):
+    # 'agar upar wale symptoms aate hain to woh phir yellow mein jayega review mein'
+    # Triggers: foot problems, hypo events past week, sick day flags, associated symptoms,
+    # orthostatic dizziness, dose change requests, low mood/distress.
+    symptom_finding_enabled = flags.get("SYMPTOM_FINDING_RAISE")
+    if symptom_finding_enabled is None:
+        symptom_finding_enabled = os.environ.get("SYMPTOM_FINDING_RAISE", "true").strip().lower() in ("true", "1", "yes")
+
+    if symptom_finding_enabled and (state is not None or symptoms is not None):
+        has_finding, finding_detail = check_has_symptom_finding_triggers(state=state, symptoms=symptoms)
+        if has_finding:
+            raised = True
+            raised_by.append({
+                "source": "symptom_finding",
+                "detail": finding_detail or "Patient reported clinical symptom, medication concern, or distress needing review",
+            })
+            triggered_rules.append("R-S2-5")
+            if not patient_reason_key:
+                patient_reason_key = "symptom_reported_needs_review"
 
     # R-S2-3: Invariant — At most one step escalation (routine -> review)
     final_level = "review" if raised else "routine"

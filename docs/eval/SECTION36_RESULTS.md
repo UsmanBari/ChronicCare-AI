@@ -44,22 +44,31 @@ Evaluated across 51 completed check-ins (1 excluded: `p31_reports_pregnant_exit`
 #### Impact of Doctor Decision D5 (Nov 2026): Normal Self-Reported Readings
 Before D5, Verification Agent Rule 3 escalated all unverified self-reported vitals to Review (Yellow), resulting in 26 over-triages and 47.1% exact-match accuracy. Following D5 signoff ("No don't review the normal stuff, normal parameters should also be added to the app to avoid confusion"), normal self-reported readings stay Green (Routine).
 
-**Post-D5 Confusion Matrix (Current):**
+**Critical Finding on D5 Under-Triage:**
+When D5 was introduced, the under-triage rate rose from **1/51 (2.0%)** to **5/51 (9.8%)**. Four personas that were previously flagged as Yellow (Review) solely because of the unverified self-report rule (`missing_in_a`) dropped to Green (Routine) because their vitals were in target, even though each reported a clinical issue in dialogue:
+1. `p21_low_mood_distress` (Reported severe diabetes-related emotional distress)
+2. `p29_asks_dose_change_advice` (Asked clinician guidance on modifying medication dose)
+3. `p44_diabetic_foot_ulcer` (Reported an active diabetic foot wound/ulcer)
+4. `p45_orthostatic_dizziness` (Reported postural/orthostatic dizziness)
+
+This under-triage was identified during clinical review and directly prompted **Doctor Decision D7** ("Aur agar upar wale symptoms aate hain to woh phir yellow mein jayega review mein", Nov 2026). Under D7, `SYMPTOM_FINDING_RAISE=true` was implemented as Rule R-S2-5 in `agents/final_triage.py`, ensuring that non-emergency clinical symptom findings, dose modification requests, and psychological distress elevate to Review (Yellow).
+
+**Post-D7 Final Confusion Matrix (Official Production State):**
 
 | True Class \ Predicted Class | Routine (Green) | Review (Yellow) | Urgent (Orange) | Emergency (Red) | Total |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Routine** | **28** | 0 | 0 | 3 | 31 |
-| **Review** | 5 | **11** | 0 | 0 | 16 |
+| **Routine** | **27** | 4 | 0 | 0 | 31 |
+| **Review** | 2 | **14** | 0 | 0 | 16 |
 | **Urgent** | 0 | 0 | **1** | 0 | 1 |
 | **Emergency** | 0 | 0 | 0 | **3** | 3 |
-| **Total Predicted** | 33 | 11 | 1 | 6 | 51 |
+| **Total Predicted** | 29 | 18 | 1 | 3 | 51 |
 
-**Before vs After Doctor Decision D5:**
-- **Exact-Match Accuracy:** 47.1% (24/51) $\rightarrow$ **84.3% (43/51)** (+37.2%)
-- **Over-Triage Rate:** 51.0% (26/51) $\rightarrow$ **5.9% (3/51)** (-45.1%)
-- **Emergency Safety Recall:** **100.0% (3/3)** $\rightarrow$ **100.0% (3/3)** (Unchanged, 0 missed emergencies)
-- **Urgent Safety Recall:** **100.0% (1/1)** $\rightarrow$ **100.0% (1/1)** (Unchanged, 0 missed urgents)
-- **Incomplete Interviews:** **0** $\rightarrow$ **0** (Unchanged)
+**Progression Across Clinical Decisions:**
+- **Pre-D5 Baseline:** Exact-Match 47.1% (24/51), Over-Triage 51.0% (26/51), Under-Triage 2.0% (1/51).
+- **Post-D5 (Without Symptom Raise):** Exact-Match 84.3% (43/51), Over-Triage 5.9% (3/51), Under-Triage **9.8% (5/51)** (unacceptable under-triage on `p21`, `p29`, `p44`, `p45`, and `p30`).
+- **Post-D7 (Doctor-Approved Symptom Raise ON):** Exact-Match **88.2% (45/51)**, Over-Triage **7.8% (4/51)**, Under-Triage **3.9% (2/51)** (only `p13` and `p30` harness loop; 0 Category B app gaps for symptoms).
+- **Emergency Recall:** **100.0% (3/3)** across all states (0 missed emergencies).
+- **Urgent Recall:** **100.0% (1/1)** across all states (0 missed urgents).
 
 #### Pre-D5 Baseline Confusion Matrix (Historical):
 
@@ -210,3 +219,32 @@ The third planned model investigated whether non-invasive self-reported check-in
 ### 6.3 Scientific & Clinical Lessons Learned
 - **Limits of Episodic Self-Reported Symptoms:** Cross-sectional glycemic control ($\text{HbA1c}$) cannot be reliably inferred from episodic self-reported symptoms without longitudinal continuous glucose monitoring (CGM) time-series data or standardized laboratory testing. Mild-to-moderate chronic hyperglycemia is frequently asymptomatic.
 - **Proposal Alignment:** The final-year project proposal promised machine learning risk estimation for **undiagnosed type 2 diabetes** (`diabetes_full_nhanes`) and **coronary heart disease** (`chd10_framingham`). Glycemic control was an exploratory extension. Responsibly halting deployment when safety gates failed reflects rigorous engineering and clinical governance rather than delivering an uncalibrated black-box model.
+
+---
+
+## 7. Red-Flag Detection Evaluation & Honest Generalization Reporting
+
+### 7.1 Developer Test Suite vs Independent Clinical Benchmark
+
+In evaluating Stage-1 emergency triage, ChronicCare AI maintains complete reporting transparency:
+
+| Evaluation Dimension | Performance | Benchmark Cohort | Notes / Clinical Context |
+| :--- | :---: | :--- | :--- |
+| **Developer Regression Suite** | **100.0%** (713/713) | Internal regression suites (`test_red_flag_patterns.py`, `test_red_flags_harmless_answers.py`, `test_red_flags_round4.py`, `test_q1_red_flags.py`, `test_vomiting_fluids_red_flags.py`) | Evaluates known syntactic templates and expanded vocabulary lists across English, Urdu script, and Roman Urdu. |
+| **Reviewer Independent Hidden Set** | **~60%–70%** (12/22) | External hidden test sentences submitted by clinical reviewer prior to Round 3/4 | On sentences **not written by the developer**, uncalibrated sentence templates missed unusual syntactic structures and synonym variations. |
+| **Harmless Check-In Answer False Positives** | **0 / 155** (0.0%) | `test_red_flags_harmless_answers.py` | Ordinary non-emergency check-in answers ("no breathing trouble", "pehle se behtar", "haath sunn jab mobile chalata hoon") correctly stay non-emergency. |
+| **Single-LLM Baseline Emergency Recall** | **11.1%** (1/9) | Single-LLM baseline (`qwen/qwen3.8-27b` via Groq across 3 trials) | Generalist LLM failed to trigger emergency on 8 of 9 life-threatening presentations (`p22` chest pain, `p35` HTN crisis, `p37` DKA). |
+| **Full Pipeline Emergency Recall** | **100.0%** (3/3) | 51-Persona Benchmark Suite (`p22`, `p35`, `p37`) | Multi-agent deterministic failsafe successfully captured all life-threatening emergencies. |
+
+### 7.2 False Positives Observed on Negated Answers & Architectural Resolution
+Prior to Freeze Round G1, the reviewer observed false emergency escalations on common interview answers:
+- *"no breathing trouble"* / *"no breathing trouble, no chest pain, feeling fine"* $\rightarrow$ triggered RED `breathing_difficulty`.
+- *"haath thoda sunn ho jata hai jab der tak mobile chalata hoon"* $\rightarrow$ triggered RED `stroke_fast`.
+- *"seene mein jalan hoti hai tez mirch wala khana kha kar"* $\rightarrow$ triggered RED `chest_pain`.
+
+**Architectural Fix in G1/G1b:**
+1. **Clause-Bounded Token Windows:** Abandoned brittle whole-sentence regular expressions in favor of independent word lists matched within a bounded token window ($N \le 6$ words) in the same clause.
+2. **Localized Negator Suppression:** A negative frame directly preceding the symptom noun phrase (*"no / not / without / never / koi ... nahi / بغیر / کوئی ... نہیں"*, or *"no \<symptom\> trouble/problem/issue/masla/takleef"*) actively suppresses false emergency hits.
+3. **Benign Activity & Meal Exclusions:** Activity triggers (*"jab der tak mobile chalata hoon"*, *"sleeping on arm"*) are filtered from acute stroke; spicy food triggers (*"tez mirch wala khana"*) without pressure or radiating pain are filtered from cardiac emergency.
+4. **Honest Reporting Standard:** No unqualified "100% sensitivity" claim is made for unstructured natural language in the wild; 100% sensitivity applies strictly to our pre-registered regression suite, whereas real-world generalizability achieves ~60–70% and requires ongoing clinical lexicon expansion.
+

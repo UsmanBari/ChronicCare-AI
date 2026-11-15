@@ -45,7 +45,8 @@ export const AdminConfigStatusSection: React.FC = () => {
           SCREENING_REMINDER_INTERVAL_DAYS: "90",
           TREND_CAN_RAISE: false,
           RISK_PATIENT_VISIBLE: false,
-          NO_READING_SYMPTOM_RAISE: false,
+          NO_READING_SYMPTOM_RAISE: true,
+          SYMPTOM_FINDING_RAISE: true,
           RISK_RAISE_COOLDOWN_DAYS: "0",
           RETRIEVER: "bm25",
         },
@@ -149,7 +150,7 @@ export const AdminConfigStatusSection: React.FC = () => {
                 <div key={k} className="pt-2 first:pt-0 flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <span className="font-mono text-[11px] text-slate-700">{k}</span>
-                    {k === "NO_READING_SYMPTOM_RAISE" && (
+                    {(k === "NO_READING_SYMPTOM_RAISE" || k === "SYMPTOM_FINDING_RAISE") && (
                       <span className="text-[9px] bg-teal-100 text-teal-900 px-1.5 py-0.5 rounded font-bold uppercase tracking-wide">
                         Approved by the doctor on record
                       </span>

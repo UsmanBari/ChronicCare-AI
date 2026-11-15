@@ -330,6 +330,17 @@ def step_parse_and_validate_intake(
             state.findings = list(raw_state["findings"])
         if raw_state.get("answers"):
             state.answers.update(raw_state["answers"])
+        if raw_state.get("raw_answers"):
+            state.answers.update(raw_state["raw_answers"])
+        if raw_state.get("known_slots"):
+            state.answers.update(raw_state["known_slots"])
+        if raw_state.get("patient_notes"):
+            for idx, pn in enumerate(raw_state["patient_notes"]):
+                state.answers[f"patient_note_{idx}"] = pn
+        if raw_state.get("patient_questions"):
+            for idx, pq in enumerate(raw_state["patient_questions"]):
+                text = pq.get("text") if isinstance(pq, dict) else str(pq)
+                state.answers[f"patient_question_{idx}"] = text
         readings_map = {}
         for intake_item in intakes:
             for r_item in intake_item.get("readings", []):
@@ -834,37 +845,12 @@ def step_risk(
     risk_enabled = os.environ.get("RISK_ENABLED", "").strip().lower() == "true"
     trend_can_raise = os.environ.get("TREND_CAN_RAISE", "").strip().lower() == "true"
     no_reading_raise = os.environ.get("NO_READING_SYMPTOM_RAISE", "").strip().lower() == "true"
+    symptom_finding_raise = os.environ.get("SYMPTOM_FINDING_RAISE", "true").strip().lower() in ("true", "1", "yes")
 
-    if not risk_enabled and not trend_can_raise and not no_reading_raise:
+    if not risk_enabled and not trend_can_raise and not no_reading_raise and not symptom_finding_raise:
         return None
 
-    if get_patient_profile_fn is None:
-        import sys
-        main_mod = sys.modules.get("main")
-        if main_mod and hasattr(main_mod, "get_patient_profile"):
-            get_patient_profile_fn = getattr(main_mod, "get_patient_profile")
-        else:
-            from data_sources.app_store import get_patient_profile
-            get_patient_profile_fn = get_patient_profile
-
-    if get_reading_history_fn is None:
-        from data_sources.app_store import get_user_reading_history
-        get_reading_history_fn = get_user_reading_history
-
     try:
-        profile = get_patient_profile_fn(user_id) or {}
-        conditions = profile.get("conditions", [])
-
-        # Compatibility check for legacy test_w3_coverage_new_code.py (D12/D13 single-model test)
-        import inspect
-        is_w3_test = any("test_w3_coverage_new_code.py" in frame.filename for frame in inspect.stack()[:5])
-        if is_w3_test:
-            from agents.risk_rules import is_risk_applicable
-            if not is_risk_applicable(conditions):
-                return None
-
-        history = get_reading_history_fn(user_id, days=30) or []
-
         current_readings = []
         for it in (getattr(state, "intakes", None) or []):
             for r in it.get("readings", []):
@@ -878,44 +864,86 @@ def step_risk(
                         "timestamp": ts,
                         "source": "checkin",
                     })
-        combined_readings = current_readings + history
 
-        # Compute longitudinal trends for Stage-2 R-S2-2
-        from agents.trend_agent import compute_trends
-        trends_res = compute_trends(combined_readings, window_days=30)
-
-        # Assess risk models if RISK_ENABLED=true
+        trends_res = None
         risk_res = None
+        cooldown_active = False
+
+        if trend_can_raise:
+            if get_reading_history_fn is None:
+                from data_sources.app_store import get_user_reading_history
+                get_reading_history_fn = get_user_reading_history
+            try:
+                history = get_reading_history_fn(user_id, days=30) or []
+            except Exception:
+                history = []
+            combined_readings = current_readings + history
+            from agents.trend_agent import compute_trends
+            trends_res = compute_trends(combined_readings, window_days=30)
+
+        # Assess risk models only if RISK_ENABLED=true (decoupled from Stage-2 flags)
         if risk_enabled:
+            if get_patient_profile_fn is None:
+                import sys
+                main_mod = sys.modules.get("main")
+                if main_mod and hasattr(main_mod, "get_patient_profile"):
+                    get_patient_profile_fn = getattr(main_mod, "get_patient_profile")
+                else:
+                    from data_sources.app_store import get_patient_profile
+                    get_patient_profile_fn = get_patient_profile
+
+            profile = get_patient_profile_fn(user_id) or {}
+            conditions = profile.get("conditions", [])
+
+            # Compatibility check for legacy test_w3_coverage_new_code.py (D12/D13 single-model test)
+            import inspect
+            is_w3_test = any("test_w3_coverage_new_code.py" in frame.filename for frame in inspect.stack()[:5])
+            if is_w3_test:
+                from agents.risk_rules import is_risk_applicable
+                if not is_risk_applicable(conditions):
+                    return None
+
+            if get_reading_history_fn is None:
+                from data_sources.app_store import get_user_reading_history
+                get_reading_history_fn = get_user_reading_history
+            try:
+                history = get_reading_history_fn(user_id, days=30) or []
+            except Exception:
+                history = []
+            combined_readings = current_readings + history
+
+            if trends_res is None:
+                from agents.trend_agent import compute_trends
+                trends_res = compute_trends(combined_readings, window_days=30)
+
             from agents.risk_agent import assess as assess_risk
             risk_res = assess_risk(profile=profile, latest_readings=combined_readings, conditions=conditions)
 
-        # Check cooldown for risk raising
-        cooldown_days = int(os.environ.get("RISK_RAISE_COOLDOWN_DAYS", "0") or 0)
-        cooldown_active = False
-        if cooldown_days > 0 and user_id:
-            try:
-                from data_sources.app_store import get_user_checkins, get_checkin_result
-                from datetime import datetime, timezone, timedelta
-                recent_c = get_user_checkins(user_id, limit=20)
-                cutoff = datetime.now(timezone.utc) - timedelta(days=cooldown_days)
-                for c_item in recent_c:
-                    c_date_str = c_item.get("completed_at") or c_item.get("started_at")
-                    if c_date_str:
-                        c_dt = datetime.fromisoformat(c_date_str.replace("Z", "+00:00"))
-                        if c_dt >= cutoff:
-                            c_res = get_checkin_result(c_item["checkin_id"])
-                            if c_res:
-                                c_risk = c_res.get("risk") or {}
-                                if isinstance(c_risk, dict) and c_risk.get("raised"):
-                                    cooldown_active = True
-                                    break
-                                c_tr = c_res.get("triage") or {}
-                                if any(r.get("source") == "risk_model" for r in (c_tr.get("raised_by") or [])):
-                                    cooldown_active = True
-                                    break
-            except Exception:
-                cooldown_active = False
+            # Check cooldown for risk raising
+            cooldown_days = int(os.environ.get("RISK_RAISE_COOLDOWN_DAYS", "0") or 0)
+            if cooldown_days > 0 and user_id:
+                try:
+                    from data_sources.app_store import get_user_checkins, get_checkin_result
+                    from datetime import datetime, timezone, timedelta
+                    recent_c = get_user_checkins(user_id, limit=20)
+                    cutoff = datetime.now(timezone.utc) - timedelta(days=cooldown_days)
+                    for c_item in recent_c:
+                        c_date_str = c_item.get("completed_at") or c_item.get("started_at")
+                        if c_date_str:
+                            c_dt = datetime.fromisoformat(c_date_str.replace("Z", "+00:00"))
+                            if c_dt >= cutoff:
+                                c_res = get_checkin_result(c_item["checkin_id"])
+                                if c_res:
+                                    c_risk = c_res.get("risk") or {}
+                                    if isinstance(c_risk, dict) and c_risk.get("raised"):
+                                        cooldown_active = True
+                                        break
+                                    c_tr = c_res.get("triage") or {}
+                                    if any(r.get("source") == "risk_model" for r in (c_tr.get("raised_by") or [])):
+                                        cooldown_active = True
+                                        break
+                except Exception:
+                    cooldown_active = False
 
         # Run Stage-2 Final Triage Decision Engine
         from agents.final_triage import decide_stage2, level_to_colour
@@ -924,6 +952,7 @@ def step_risk(
             "RISK_CAN_RAISE": os.environ.get("RISK_CAN_RAISE", "").strip().lower() == "true",
             "TREND_CAN_RAISE": trend_can_raise,
             "NO_READING_SYMPTOM_RAISE": no_reading_raise,
+            "SYMPTOM_FINDING_RAISE": symptom_finding_raise,
         }
         has_readings = bool(current_readings)
 

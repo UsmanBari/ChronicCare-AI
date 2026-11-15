@@ -275,6 +275,40 @@ def test_step_risk_flag_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     assert res is None
 
 
+def test_step_risk_disabled_symptom_finding_raises_to_review(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verifies RISK_ENABLED=false + SYMPTOM_FINDING_RAISE=true raises to review without calling profile/DB."""
+    monkeypatch.setenv("RISK_ENABLED", "false")
+    monkeypatch.setenv("SYMPTOM_FINDING_RAISE", "true")
+    state = InterviewState(patient_id="p1", conditions_on_file=["diabetes"], answers={"foot_problems": "open sore on toe"})
+    triage = {"final_triage_level": "routine", "emergency": False}
+
+    def dummy_profile_fn(uid: str) -> None:
+        raise AssertionError("get_patient_profile_fn should not be called when RISK_ENABLED is false")
+
+    res = step_risk(user_id="u1", state=state, triage_decision=triage, get_patient_profile_fn=dummy_profile_fn)
+    assert res is None
+    assert triage["final_triage_level"] == "review"
+    assert triage.get("final_requires_review") is True
+
+
+def test_step_risk_all_flags_disabled_gives_none_and_unchanged_level(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verifies all Stage-2 flags disabled returns None and keeps level routine without calling profile/DB."""
+    monkeypatch.setenv("RISK_ENABLED", "false")
+    monkeypatch.setenv("TREND_CAN_RAISE", "false")
+    monkeypatch.setenv("NO_READING_SYMPTOM_RAISE", "false")
+    monkeypatch.setenv("SYMPTOM_FINDING_RAISE", "false")
+    state = InterviewState(patient_id="p1", conditions_on_file=["diabetes"], answers={"foot_problems": "open sore on toe"})
+    triage = {"final_triage_level": "routine", "emergency": False}
+
+    def dummy_profile_fn(uid: str) -> None:
+        raise AssertionError("get_patient_profile_fn should not be called when all flags are false")
+
+    res = step_risk(user_id="u1", state=state, triage_decision=triage, get_patient_profile_fn=dummy_profile_fn)
+    assert res is None
+    assert triage["final_triage_level"] == "routine"
+    assert triage.get("final_requires_review") is not True
+
+
 def test_step_risk_diabetes_ineligible(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verifies step_risk returns None when conditions include diabetes (D12/D13 policy)."""
     monkeypatch.setenv("RISK_ENABLED", "true")

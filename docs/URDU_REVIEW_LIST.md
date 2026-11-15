@@ -236,6 +236,29 @@ Reviewer correction K3 for PR #134 updated Sentence 2 of the `routine_no_reading
 | `emergencyCannotAdjustTooltip` | Emergencies follow protocol 1122 | ہنگامی صورتحال کے لیے 1122 پروٹوکول پر عمل کریں | Emergencies follow protocol 1122 | Marked for review | Emergency rule safety notice |
 | `reviewHistoryTitle` | Review Actions History | جائزہ کارروائیوں کی تاریخ | Jaiza karwaiyon ki tareekh | Marked for review | History list title |
 
+## 10. Target Range Naming & Status Tags (G3 / Doctor Decisions D5 & D6, Nov 2026)
+
+**PR:** #162 (`fix/i4-freeze-g`)  
+**Target:** `app/translations/index.ts`, `app/lib/referenceRanges.ts`, `backend-poc-technical/agents/reference_ranges.py`  
+**Status:** **MARKED FOR REVIEW** (Clinical wording and patient physiological indicators)  
+**Scope:** Replaces "Normal range" with "Target range used by this app", sets target glucose numbers (90–125 fasting / 125–200 after meals), and provides three-tier tags ("In target", "Above target", "Below target").
+
+### 10.1 Target Range Tags & Disclaimers Marked for Review
+
+| Key / Term | English | Urdu Script | Roman Urdu | Review Status | Notes |
+|---|---|---|---|---|---|
+| `normalRangeLabel` | In target | ہدف کے مطابق | Target ke mutabiq | Marked for review | Status tag for reading within target range |
+| `aboveNormalLabel` | Above target | ہدف سے زیادہ | Target se zyada | Marked for review | Status tag for reading above target range |
+| `belowNormalLabel` | Below target | ہدف سے کم | Target se kam | Marked for review | Status tag for reading below target range |
+| `normalRangeDisclaimer` | Target range used by this app | اس ایپ میں استعمال ہونے والی ہدف کی رینج | Is app mein istemal hone wali target range | Marked for review | Non-diagnostic disclaimer under reading input & charts |
+| `chartTargetsDisclaimer` | Targets are for people with diabetes/high BP, from ADA/AHA guidance; your doctor may set different targets. | اہداف ذیابیطس/ہائی بلڈ پریشر کے مریضوں کے لیے ADA/AHA رہنمائی کے مطابق ہیں؛ آپ کے معالج مختلف اہداف مقرر کر سکتے ہیں۔ | Targets diabetes/high BP ke mareezon ke liye ADA/AHA guidance ke mutabiq hain; aap ke doctor mukhtalif targets muqarrar kar sakte hain. | Marked for review | Guidance disclaimer under trend charts |
+| `normalRangeSystolic` | Target: 90–139 mmHg | ہدف: 90–139 ملی میٹر ایچ جی | Target: 90–139 mmHg | Marked for review | Systolic BP target display |
+| `normalRangeDiastolic` | Target: 60–89 mmHg | ہدف: 60–89 ملی میٹر ایچ جی | Target: 60–89 mmHg | Marked for review | Diastolic BP target display |
+| `normalRangeBP` | Target: 90–139 / 60–89 mmHg | ہدف: 90–139 / 60–89 ملی میٹر ایچ جی | Target: 90–139 / 60–89 mmHg | Marked for review | Combined BP target display |
+| `normalRangeGlucoseMgDl` | Target: 90–125 fasting / 125–200 after meals mg/dL | ہدف: 90–125 نہار منہ / 125–200 کھانے کے بعد mg/dL | Target: 90–125 nihar munh / 125–200 khaney ke baad mg/dL | Marked for review | Glucose target display (mg/dL) |
+| `normalRangeGlucoseMmol` | Target: 5.0–6.9 fasting / 6.9–11.1 post-meal mmol/L | ہدف: 5.0–6.9 نہار منہ / 6.9–11.1 کھانے کے بعد mmol/L | Target: 5.0–6.9 nihar munh / 6.9–11.1 khaney ke baad mmol/L | Marked for review | Glucose target display (mmol/L) |
+
+
 
 
 
