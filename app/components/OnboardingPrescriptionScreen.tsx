@@ -76,7 +76,7 @@ export default function OnboardingPrescriptionScreen() {
     try {
       const res = await api.uploadOcrImage(file);
       setStagedOcrUpload(res);
-      setOcrReturnScreen("home");
+      setOcrReturnScreen("health_record");
       setScreen("ocr_confirm");
     } catch {
       // Never show server error text to patients (K6)
@@ -145,7 +145,7 @@ export default function OnboardingPrescriptionScreen() {
   };
 
   const handleSkipOrDone = () => {
-    setScreen("home");
+    setScreen("health_record");
   };
 
   const isRomanUrdu = liveProfile?.language === "roman_ur" || liveProfile?.language === "ur_roman";

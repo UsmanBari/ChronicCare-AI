@@ -70,16 +70,16 @@ describe("Onboarding Prescription Step (Section 18 & 21.1)", () => {
     expect(screen.getByText(translations["en"].onboardingPrescriptionUploadBtn)).toBeTruthy();
   });
 
-  it("clicking skip navigates directly to home screen", async () => {
+  it("clicking skip navigates to health_record screen (offering baseline readings & allergies)", async () => {
     render(<OnboardingPrescriptionScreen />);
 
     const skipBtn = screen.getByTestId("onboarding-skip-btn");
     fireEvent.click(skipBtn);
 
-    expect(mockAppContext.setScreen).toHaveBeenCalledWith("home");
+    expect(mockAppContext.setScreen).toHaveBeenCalledWith("health_record");
   });
 
-  it("successful upload sets staged upload, return screen to home, and navigates to ocr_confirm", async () => {
+  it("successful upload sets staged upload, return screen to health_record, and navigates to ocr_confirm", async () => {
     const mockUploadResp: OcrUploadResponse = {
       upload_id: "up-onboard-1",
       expires_in_seconds: 1800,
@@ -101,7 +101,7 @@ describe("Onboarding Prescription Step (Section 18 & 21.1)", () => {
 
     await waitFor(() => {
       expect(mockAppContext.setStagedOcrUpload).toHaveBeenCalledWith(mockUploadResp);
-      expect(mockAppContext.setOcrReturnScreen).toHaveBeenCalledWith("home");
+      expect(mockAppContext.setOcrReturnScreen).toHaveBeenCalledWith("health_record");
       expect(mockAppContext.setScreen).toHaveBeenCalledWith("ocr_confirm");
     });
   });
