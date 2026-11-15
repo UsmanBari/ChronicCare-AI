@@ -270,6 +270,71 @@ export function describeSide(
 }
 
 /**
+ * Checks whether an observation type is one of the vital chronic care telemetry
+ * types the patient is asked about (Blood Pressure, Blood Glucose, HbA1c).
+ * Routine/unasked labs (e.g., Sodium, Potassium, Chloride) return false.
+ */
+export function isObservationThatMatters(obsType?: string | null): boolean {
+  if (!obsType) return false;
+  const t = obsType.toLowerCase().replace(/[\s_-]+/g, "");
+  return (
+    t.includes("glucose") ||
+    t.includes("sugar") ||
+    t.includes("bloodpressure") ||
+    t.includes("systolic") ||
+    t.includes("diastolic") ||
+    t.includes("hba1c") ||
+    t.includes("hemoglobin")
+  );
+}
+
+/**
+ * Checks whether an observation comparison represents a genuine discrepancy
+ * between hospital/baseline record and today's check-in.
+ * Rules:
+ *  - Must be an observation that matters (BP, glucose, HbA1c).
+ *  - Must have today's reading reported (value_b != null); an observation not reported today is NOT a discrepancy.
+ *  - Must have hospital/baseline value (value_a != null).
+ *  - Must be in conflict/flagged status (not agree or auto-resolved).
+ */
+export function isObservationDiscrepancy(comp?: any): boolean {
+  if (!comp) return false;
+  if (!isObservationThatMatters(comp.observation_type)) return false;
+  // A hospital observation with no reading today is NOT a discrepancy
+  if (comp.value_b === null || comp.value_b === undefined) return false;
+  // Comparing hospital value to today's reading requires baseline value on file
+  if (comp.value_a === null || comp.value_a === undefined) return false;
+  const status = (comp.status || "").toLowerCase();
+  if (status === "agree" || status === "auto_resolved") return false;
+  if (status === "conflict" || status === "flagged") return true;
+  if (typeof comp.delta === "number" && comp.delta > 0) return true;
+  return false;
+}
+
+/**
+ * Cleanly formats observation titles in English and Urdu.
+ */
+export function formatObservationTitle(obsType?: string | null, isUrdu?: boolean): string {
+  if (!obsType) return isUrdu ? "طبی ریڈنگ" : "Clinical Observation";
+  const t = obsType.toLowerCase().replace(/[\s_-]+/g, "");
+  if (t.includes("systolic")) {
+    return isUrdu ? "بلڈ پریشر (سسٹولک)" : "Blood Pressure (Systolic)";
+  }
+  if (t.includes("diastolic")) {
+    return isUrdu ? "بلڈ پریشر (ڈائیسٹولک)" : "Blood Pressure (Diastolic)";
+  }
+  if (t.includes("glucose") || t.includes("sugar")) {
+    return isUrdu ? "خون میں گلوکوز (شوگر)" : "Blood Glucose";
+  }
+  if (t.includes("hba1c") || t.includes("hemoglobin")) {
+    return isUrdu ? "ایچ بی اے ون سی (HbA1c)" : "HbA1c";
+  }
+  return obsType
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
  * Returns UI description and badges for an EHR system based on its kind.
  */
 export function describeEhrSystem(system?: { kind?: string; display_name?: string; description?: string } | null): {

@@ -31,7 +31,14 @@ import {
 } from "lucide-react";
 import { api, ApiError, ReviewDetailResponse, SoapNoteResponse } from "../../lib/api";
 import { DecisionTimeline } from "./DecisionTimeline";
-import { describeSide, describeReviewReason, describeMedicationItem } from "../../lib/presentation";
+import {
+  describeSide,
+  describeReviewReason,
+  describeMedicationItem,
+  isObservationDiscrepancy,
+  isObservationThatMatters,
+  formatObservationTitle,
+} from "../../lib/presentation";
 import { TriageColourChip } from "../TriageColourChip";
 import { getNormalRangeText, getReadingStatus } from "../../lib/referenceRanges";
 
@@ -488,8 +495,18 @@ export const ReconciliationAlertDetail = () => {
 
   // Live comparison resolution
   let patientDisplayName = liveDetail?.patient_display || (selectedPatient && selectedPatient.includes("@") ? selectedPatient : "Ali Khan (PT-04821)");
-  let obsComparison = liveDetail?.reconciliation?.observation_comparisons?.[0];
-  let obsVerification = liveDetail?.verification?.observation_verifications?.[0];
+  
+  const allObsComparisons = liveDetail?.reconciliation?.observation_comparisons || [];
+  const allObsVerifications = liveDetail?.verification?.observation_verifications || [];
+
+  const relevantObsDiscrepancies = isLiveMode
+    ? allObsComparisons.filter(isObservationDiscrepancy)
+    : [];
+
+  let obsComparison = relevantObsDiscrepancies[0] || (isLiveMode ? null : allObsComparisons[0]);
+  let obsVerification = (obsComparison
+    ? allObsVerifications.find((v: any) => v.observation_type === obsComparison.observation_type)
+    : allObsVerifications[0]) || null;
 
   const sourceAType = obsComparison?.source_a || obsVerification?.source_a || "local";
   const sourceBType = obsComparison?.source_b || obsVerification?.source_b || "local";
@@ -510,8 +527,12 @@ export const ReconciliationAlertDetail = () => {
   let sourceBVal = obsComparison?.value_b !== null && obsComparison?.value_b !== undefined
     ? `${obsComparison.value_b} ${obsComparison.unit_b || ""}`
     : (isLiveMode ? "Not reported today" : "140 mg/dL");
-  let comparisonTitle = obsComparison?.observation_type
-    ? `${obsComparison.observation_type.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())} Review`
+  let comparisonTitle = isLiveMode
+    ? relevantObsDiscrepancies.length > 1
+      ? `Clinical Telemetry Discrepancies (${relevantObsDiscrepancies.length})`
+      : relevantObsDiscrepancies.length === 1
+      ? `${formatObservationTitle(relevantObsDiscrepancies[0].observation_type)} Review`
+      : "Clinical Telemetry Review"
     : "Clinical Telemetry Review";
 
   const isEmergencyItem = liveDetail?.emergency === true;
@@ -1668,101 +1689,192 @@ export const ReconciliationAlertDetail = () => {
             </span>
           </div>
 
-          {/* Source Comparison Grid */}
-          {(!isLiveMode || obsComparison) ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {/* Side A: Earlier / Baseline Record */}
-              <div className="p-5 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-slate-200 text-slate-800 inline-flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5" />
-                    {sideALabel}
-                  </span>
-                  <span className="text-xs text-slate-500 font-medium">
-                    {isLiveMode ? `Trust: ${trustLevelA.toUpperCase()}` : "Daily Check-in"}
-                  </span>
-                </div>
-                <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
-                  {sourceAVal}
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {isLiveMode
-                    ? sourceAType === "fhir"
-                      ? "Verified lab and observation telemetry from hospital system record."
-                      : trustLevelA === "high"
-                      ? "Clinician-entered baseline record in local clinical store."
-                      : "Prior self-reported telemetry recorded during an earlier check-in."
-                    : "Self-reported telemetry via adaptive symptom check-in survey."}
-                </p>
-              </div>
+          {/* Source Comparison Grid: ONE card per discrepancy that matters (BP, glucose, HbA1c) */}
+          {(!isLiveMode || relevantObsDiscrepancies.length > 0) ? (
+            <div className="space-y-6">
+              {isLiveMode ? (
+                relevantObsDiscrepancies.map((obsComp: any, idx: number) => {
+                  const matchingVerification = allObsVerifications.find(
+                    (v: any) => v.observation_type === obsComp.observation_type
+                  );
+                  const sourceAType = obsComp.source_a || matchingVerification?.source_a || "fhir";
+                  const sourceBType = obsComp.source_b || matchingVerification?.source_b || "local";
+                  const trustLevelA = matchingVerification?.trust_level_a || "high";
+                  const trustLevelB = matchingVerification?.trust_level_b || "low";
+                  const tsA = obsComp.timestamp_a || obsComp.timestamp;
+                  const itemSideALabel = describeSide("a", sourceAType, trustLevelA, mode, null, tsA);
+                  const itemSideBLabel = describeSide("b", sourceBType, trustLevelB, mode);
+                  const itemSourceAVal = `${obsComp.value_a} ${obsComp.unit_a || ""}`.trim();
+                  const itemSourceBVal = `${obsComp.value_b} ${obsComp.unit_b || ""}`.trim();
+                  const cardTitle = formatObservationTitle(obsComp.observation_type);
+                  const obsSev = (matchingVerification?.severity || obsComp.status || "review").toUpperCase();
 
-              {/* Side B: Today's Check-in */}
-              <div className="p-5 rounded-2xl bg-amber-50/80 border-2 border-amber-300 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-teal-100 text-teal-900 inline-flex items-center gap-1">
-                    <Hospital className="w-3.5 h-3.5" />
-                    {sideBLabel}
-                  </span>
-                  <span className="text-xs text-slate-500 font-medium">
-                    {isLiveMode ? `Trust: ${trustLevelB.toUpperCase()}` : "Lab Record"}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 pt-1 flex-wrap">
-                  <div className="text-3xl font-bold text-navy-800 font-mono">
-                    {sourceBVal}
-                  </div>
-                  {(() => {
-                    const bStatus = getReadingStatus(obsComparison?.observation_type || "", obsComparison?.value_b, "en", obsComparison?.unit_b as any);
-                    if (bStatus.status !== "unspecified") {
-                      return (
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${bStatus.badgeClass}`}>
-                          {bStatus.label}
-                        </span>
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
-                {(() => {
-                  const rangeText = getNormalRangeText(obsComparison?.observation_type || "", "en", obsComparison?.unit_b as any);
-                  if (rangeText) {
-                    return (
-                      <div className="text-[11px] text-slate-500 font-medium">
-                        {rangeText} <span className="text-[10px] text-slate-400 italic">({t.normalRangeDisclaimer})</span>
+                  return (
+                    <div key={idx} className="space-y-4 p-4 sm:p-5 rounded-2xl bg-white/70 border border-slate-200/90 shadow-xs">
+                      {relevantObsDiscrepancies.length > 1 && (
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <span className="font-heading font-bold text-sm text-navy-800 flex items-center gap-1.5">
+                            <Activity className="w-4 h-4 text-teal-700" />
+                            {cardTitle} Discrepancy
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {obsComp.delta !== null && obsComp.delta !== undefined && (
+                              <span className="text-xs font-semibold text-slate-500">
+                                Delta: {obsComp.delta} {obsComp.unit_a || obsComp.unit_b || ""}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                              {obsSev}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        {/* Side A: Earlier / Baseline Record */}
+                        <div className="p-5 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-slate-200 text-slate-800 inline-flex items-center gap-1">
+                              <FileText className="w-3.5 h-3.5" />
+                              {itemSideALabel}
+                            </span>
+                            <span className="text-xs text-slate-500 font-medium">
+                              Trust: {trustLevelA.toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
+                            {itemSourceAVal}
+                          </div>
+                          <p className="text-xs text-slate-600 leading-relaxed">
+                            {sourceAType === "fhir"
+                              ? "Verified lab and observation telemetry from hospital system record."
+                              : trustLevelA === "high"
+                              ? "Clinician-entered baseline record in local clinical store."
+                              : "Prior self-reported telemetry recorded during an earlier check-in."}
+                          </p>
+                        </div>
+
+                        {/* Side B: Today's Check-in */}
+                        <div className="p-5 rounded-2xl bg-amber-50/80 border-2 border-amber-300 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-teal-100 text-teal-900 inline-flex items-center gap-1">
+                              <Hospital className="w-3.5 h-3.5" />
+                              {itemSideBLabel}
+                            </span>
+                            <span className="text-xs text-slate-500 font-medium">
+                              Trust: {trustLevelB.toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 pt-1 flex-wrap">
+                            <div className="text-3xl font-bold text-navy-800 font-mono">
+                              {itemSourceBVal}
+                            </div>
+                            {(() => {
+                              const bStatus = getReadingStatus(obsComp.observation_type || "", obsComp.value_b, "en", obsComp.unit_b as any);
+                              if (bStatus.status !== "unspecified") {
+                                return (
+                                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${bStatus.badgeClass}`}>
+                                    {bStatus.label}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                          {(() => {
+                            const rangeText = getNormalRangeText(obsComp.observation_type || "", "en", obsComp.unit_b as any);
+                            if (rangeText) {
+                              return (
+                                <div className="text-[11px] text-slate-500 font-medium">
+                                  {rangeText} <span className="text-[10px] text-slate-400 italic">({t.normalRangeDisclaimer})</span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                          <p className="text-xs text-amber-950 leading-relaxed">
+                            Self-reported telemetry via today's adaptive symptom check-in.
+                          </p>
+                        </div>
                       </div>
-                    );
-                  }
-                  return null;
-                })()}
-                <p className="text-xs text-amber-950 leading-relaxed">
-                  {isLiveMode
-                    ? "Self-reported telemetry via today's adaptive symptom check-in."
-                    : "Verified lab and observation telemetry from hospital system record."}
-                </p>
-              </div>
+
+                      {/* AI Reconciliation Reasoning per observation */}
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1">
+                        <div className="flex items-center gap-2 font-bold text-xs text-navy-800 uppercase tracking-wider">
+                          <Sparkles className="w-3.5 h-3.5 text-teal-700" />
+                          <span>Automated Reconciliation Analysis</span>
+                        </div>
+                        <p className="text-xs text-slate-700 leading-relaxed">
+                          {describeReviewReason(
+                            obsComp.status,
+                            matchingVerification?.review_reason,
+                            { delta: obsComp.delta, unit: obsComp.unit_a || obsComp.unit_b }
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                /* Mock Mode Single Comparison Grid */
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    {/* Side A: Earlier / Baseline Record */}
+                    <div className="p-5 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-slate-200 text-slate-800 inline-flex items-center gap-1">
+                          <FileText className="w-3.5 h-3.5" />
+                          {sideALabel}
+                        </span>
+                        <span className="text-xs text-slate-500 font-medium">
+                          Daily Check-in
+                        </span>
+                      </div>
+                      <div className="text-3xl font-bold text-navy-800 pt-1 font-mono">
+                        {sourceAVal}
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Self-reported telemetry via adaptive symptom check-in survey.
+                      </p>
+                    </div>
+
+                    {/* Side B: Today's Check-in */}
+                    <div className="p-5 rounded-2xl bg-amber-50/80 border-2 border-amber-300 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-teal-100 text-teal-900 inline-flex items-center gap-1">
+                          <Hospital className="w-3.5 h-3.5" />
+                          {sideBLabel}
+                        </span>
+                        <span className="text-xs text-slate-500 font-medium">
+                          Lab Record
+                        </span>
+                      </div>
+                      <div className="text-3xl font-bold text-navy-800 font-mono">
+                        {sourceBVal}
+                      </div>
+                      <p className="text-xs text-amber-950 leading-relaxed">
+                        Verified lab and observation telemetry from hospital system record.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+                    <div className="flex items-center gap-2 font-bold text-xs text-navy-800 uppercase tracking-wider">
+                      <Sparkles className="w-4 h-4 text-teal-700" />
+                      <span>Automated Reconciliation Analysis</span>
+                    </div>
+                    <p className="text-xs text-slate-700 leading-relaxed">
+                      Cross-source validation identified delta between patient-reported input and baseline records. Clinician review is recommended to reconcile telemetry before updating longitudinal care targets.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 leading-relaxed">
               <span>No observation comparisons on file for this review item.</span>
             </div>
           )}
-
-          {/* AI Reconciliation Reasoning */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5">
-            <div className="flex items-center gap-2 font-bold text-xs text-navy-800 uppercase tracking-wider">
-              <Sparkles className="w-4 h-4 text-teal-700" />
-              <span>Automated Reconciliation Analysis</span>
-            </div>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              {isLiveMode
-                ? describeReviewReason(
-                    obsComparison?.status,
-                    obsVerification?.review_reason,
-                    { delta: obsComparison?.delta, unit: obsComparison?.unit_a || obsComparison?.unit_b }
-                  )
-                : "Cross-source validation identified delta between patient-reported input and baseline records. Clinician review is recommended to reconcile telemetry before updating longitudinal care targets."}
-            </p>
-          </div>
 
           {/* Medication Reconciliation Items (if present) */}
           {isLiveMode && liveDetail?.reconciliation?.medication_comparisons && liveDetail.reconciliation.medication_comparisons.length > 0 && (
