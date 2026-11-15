@@ -1980,7 +1980,7 @@ export const ReconciliationAlertDetail = () => {
                         <span className="font-semibold">{medDesc.reason}</span>
                         {liveDetail?.created_at && (
                           <span className="text-[11px] text-slate-400">
-                            Logged: {new Date(liveDetail.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            Logged: {new Date(liveDetail.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}, {new Date(liveDetail.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </span>
                         )}
                       </div>

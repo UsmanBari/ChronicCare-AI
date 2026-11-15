@@ -526,6 +526,14 @@ export interface ReviewQueueItemResponse {
   escalated_at?: string | null;
   triage_level?: string | null;
   triage_colour?: string | null;
+  review_status?: string | null;
+  provider_decision?: string | null;
+  provider_level?: string | null;
+  provider_reason?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  user_id?: string | null;
+  patient_id?: string | null;
 }
 
 export interface ReviewActionResponse {

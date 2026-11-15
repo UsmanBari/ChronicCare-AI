@@ -1040,6 +1040,14 @@ class ReviewQueueItemResponse(BaseModel):
     escalated_at: Optional[str] = None
     triage_level: Optional[str] = None
     triage_colour: Optional[str] = None
+    review_status: Optional[str] = None
+    provider_decision: Optional[str] = None
+    provider_level: Optional[str] = None
+    provider_reason: Optional[str] = None
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[str] = None
+    user_id: Optional[str] = None
+    patient_id: Optional[str] = None
 
 
 class ReviewActionResponse(BaseModel):

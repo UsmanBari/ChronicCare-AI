@@ -2454,6 +2454,7 @@ def get_provider_review_queue(review_status: str = "open", backend: Optional[str
             SELECT r.checkin_id, r.emergency, r.max_severity, r.review_status, r.created_at,
                    r.intakes_json, r.reconciliation_json, r.verification_json,
                    r.trigger_category, r.trigger_text, r.escalated_at, r.triage_level, r.triage_json,
+                   r.provider_decision, r.provider_level, r.provider_reason, r.reviewed_by, r.reviewed_at,
                    c.mode, c.user_id,
                    u.display_name, u.email
             FROM checkin_results r
@@ -2485,15 +2486,16 @@ def get_provider_review_queue(review_status: str = "open", backend: Optional[str
             max_severity = d.get("max_severity")
             created_at_str = d["created_at"]
             
-            # Compute overdue: emergency or high severity older than 2 hours
+            # Compute overdue: emergency or high severity older than 2 hours (only for unresolved cases)
             overdue = False
-            try:
-                created_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
-                age_seconds = (now_dt - created_dt).total_seconds()
-                if (emergency or max_severity == "high") and age_seconds > 7200:
-                    overdue = True
-            except Exception:
-                overdue = False
+            if review_status != "resolved" and d.get("review_status") != "resolved":
+                try:
+                    created_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                    age_seconds = (now_dt - created_dt).total_seconds()
+                    if (emergency or max_severity == "high") and age_seconds > 7200:
+                        overdue = True
+                except Exception:
+                    overdue = False
 
             # Compute summary counts
             counts = {"observations": 0, "discrepancies": 0, "medications": 0}
@@ -2534,6 +2536,14 @@ def get_provider_review_queue(review_status: str = "open", backend: Optional[str
                 "trigger_reading": trigger_reading,
                 "escalated_at": d.get("escalated_at"),
                 "triage_level": d.get("triage_level"),
+                "review_status": d.get("review_status"),
+                "provider_decision": d.get("provider_decision"),
+                "provider_level": d.get("provider_level"),
+                "provider_reason": d.get("provider_reason"),
+                "reviewed_by": d.get("reviewed_by"),
+                "reviewed_at": d.get("reviewed_at"),
+                "user_id": d.get("user_id"),
+                "patient_id": d.get("user_id"),
             })
         return items
 
