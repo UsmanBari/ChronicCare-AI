@@ -434,10 +434,26 @@ def book_appointment_slot(
     created_date = _parse_iso_datetime(created_iso).date()
     max_date = created_date + timedelta(days=3)
 
-    try:
-        requested_date = datetime.strptime(slot_date.strip(), "%Y-%m-%d").date()
-    except Exception as exc:
-        raise ValueError(f"Invalid slot_date format: {slot_date}, expected YYYY-MM-DD") from exc
+    clean_slot = slot_date.strip()
+    requested_date = None
+    for fmt in (
+        "%Y-%m-%dT%H:%M",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d",
+    ):
+        try:
+            requested_date = datetime.strptime(clean_slot, fmt).date()
+            break
+        except ValueError:
+            continue
+
+    if requested_date is None:
+        try:
+            requested_date = datetime.fromisoformat(clean_slot.replace("Z", "+00:00")).date()
+        except Exception as exc:
+            raise ValueError(f"Invalid slot_date format: {slot_date}, expected YYYY-MM-DD or YYYY-MM-DDTHH:MM") from exc
 
     if requested_date < created_date or requested_date > max_date:
         raise ValueError(
@@ -447,7 +463,7 @@ def book_appointment_slot(
     updated = update_appointment(
         appointment_id=appointment_id,
         status="booked",
-        slot_date=slot_date.strip(),
+        slot_date=clean_slot,
         mode=mode or appt.get("mode") or "telehealth",
         backend=backend,
         db_path=db_path,

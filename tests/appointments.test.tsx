@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { PatientAppointmentsScreen } from "../app/components/PatientAppointmentsScreen";
 import { RiskResultScreen } from "../app/components/RiskResultScreen";
+import { RoutedToReviewScreen } from "../app/components/RoutedToReviewScreen";
 import { AppointmentSchedulingScreen } from "../app/components/provider/AppointmentSchedulingScreen";
 import { AdminDashboardScreen } from "../app/components/admin/AdminDashboardScreen";
 import { translations } from "../app/translations";
@@ -301,6 +302,110 @@ describe("Appointments Workflow & Provider Directory (I4-D)", () => {
 
       await waitFor(() => {
         expect(spyToggle).toHaveBeenCalledWith("prov-demo-endo", false);
+      });
+    });
+  });
+
+  // =========================================================================
+  // P1-7: APPOINTMENT BOOKING CONTRACT & UI SLOT PICKER TESTS
+  // =========================================================================
+  describe("P1-7: Appointment Booking Shared Contract & Friendly Errors", () => {
+    it("RoutedToReviewScreen lets patient pick slot instead of inventing one, books slot, and confirms", async () => {
+      const mockLiveApt = {
+        id: "apt-review-1",
+        patient_id: "pat-1",
+        checkin_id: "chk-rev-1",
+        specialty: "endocrinology",
+        urgency: "routine",
+        status: "offered",
+        created_at: new Date().toISOString(),
+      };
+
+      const spyBook = vi.spyOn(api, "bookAppointment").mockResolvedValue({
+        ...mockLiveApt,
+        status: "booked",
+        slot_date: "2026-11-17T11:00",
+      } as any);
+
+      mockAppContext.liveCheckinResult = {
+        requires_review: true,
+        appointment: mockLiveApt,
+      };
+      mockAppContext.setAppointment = vi.fn();
+
+      const { container } = render(<RoutedToReviewScreen />);
+
+      // Verify slot picker input exists
+      const slotInput = screen.getByLabelText("Appointment Slot") as HTMLInputElement;
+      expect(slotInput).toBeTruthy();
+
+      // Change slot to 2026-11-17T11:00
+      fireEvent.change(slotInput, { target: { value: "2026-11-17T11:00" } });
+      expect(slotInput.value).toBe("2026-11-17T11:00");
+
+      // Click Book Appointment button
+      const bookBtn = screen.getByRole("button", { name: /book appointment/i });
+      fireEvent.click(bookBtn);
+
+      await waitFor(() => {
+        expect(spyBook).toHaveBeenCalledWith("apt-review-1", "2026-11-17T11:00");
+      });
+
+      await waitFor(() => {
+        expect(container.textContent?.includes("Appointment confirmed with your clinic")).toBe(true);
+      });
+    });
+
+    it("RoutedToReviewScreen displays friendly error instead of raw API Error 422", async () => {
+      const mockLiveApt = {
+        id: "apt-review-err",
+        status: "offered",
+        specialty: "general",
+      };
+
+      vi.spyOn(api, "bookAppointment").mockRejectedValue(
+        new Error("API Error 422: The selected appointment date is outside the allowed 3-day booking window")
+      );
+
+      mockAppContext.liveCheckinResult = {
+        requires_review: true,
+        appointment: mockLiveApt,
+      };
+
+      const { container } = render(<RoutedToReviewScreen />);
+      const bookBtn = screen.getByRole("button", { name: /book appointment/i });
+      fireEvent.click(bookBtn);
+
+      await waitFor(() => {
+        const text = container.textContent || "";
+        expect(text.includes("API Error 422:")).toBe(false);
+        expect(text.includes("outside the allowed 3-day booking window")).toBe(true);
+      });
+    });
+
+    it("Provider AppointmentSchedulingScreen shows Confirmed with the booked slot", async () => {
+      const mockBookedApt: Appointment = {
+        id: "apt-provider-view",
+        patient_id: "pat-sandbox-78",
+        checkin_id: "chk-sb-78",
+        provider_id: "prov-demo-endo",
+        specialty: "endocrinology",
+        urgency: "routine",
+        mode: "telehealth",
+        status: "booked",
+        slot_date: "2026-11-17 10:30",
+        created_at: new Date().toISOString(),
+      };
+
+      vi.spyOn(api, "getProviderAppointments").mockResolvedValue({
+        appointments: [mockBookedApt],
+      });
+
+      const { container } = render(<AppointmentSchedulingScreen />);
+
+      await waitFor(() => {
+        expect(container.textContent?.includes("Confirmed")).toBe(true);
+        expect(container.textContent?.includes("2026-11-17 10:30")).toBe(true);
       });
     });
   });

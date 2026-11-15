@@ -265,6 +265,49 @@ def test_booking_within_allowed_3_day_window(temp_db):
     assert booked["mode"] == "telehealth"
 
 
+def test_booking_with_datetime_slots_space_and_iso(temp_db):
+    """P1-7: Patient can book with date+time formats (both space and ISO T separator)."""
+    # 1. Test space format e.g. "2026-11-14 13:29"
+    appt1 = evaluate_and_create_appointment(
+        checkin_id="chk-book-dt-1",
+        patient_id="pat-001",
+        final_triage_level="review",
+        patient_conditions=["diabetes"],
+        backend="sqlite",
+        db_path=temp_db,
+        now_iso="2026-11-12T09:00:00Z",
+    )
+    b1 = book_appointment_slot(
+        appointment_id=appt1["id"],
+        patient_id="pat-001",
+        slot_date="2026-11-14 13:29",
+        backend="sqlite",
+        db_path=temp_db,
+    )
+    assert b1["status"] == "booked"
+    assert b1["slot_date"] == "2026-11-14 13:29"
+
+    # 2. Test datetime-local ISO format e.g. "2026-11-14T10:30"
+    appt2 = evaluate_and_create_appointment(
+        checkin_id="chk-book-dt-2",
+        patient_id="pat-001",
+        final_triage_level="review",
+        patient_conditions=["hypertension"],
+        backend="sqlite",
+        db_path=temp_db,
+        now_iso="2026-11-12T09:00:00Z",
+    )
+    b2 = book_appointment_slot(
+        appointment_id=appt2["id"],
+        patient_id="pat-001",
+        slot_date="2026-11-14T10:30",
+        backend="sqlite",
+        db_path=temp_db,
+    )
+    assert b2["status"] == "booked"
+    assert b2["slot_date"] == "2026-11-14T10:30"
+
+
 def test_booking_outside_3_day_window_rejected(temp_db):
     """Patient cannot book a date more than 3 days in the future."""
     appt = evaluate_and_create_appointment(

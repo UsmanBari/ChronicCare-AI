@@ -17,17 +17,40 @@ export const RoutedToReviewScreen = () => {
   const [aptLoading, setAptLoading] = useState(false);
   const [aptMessage, setAptMessage] = useState<string | null>(null);
 
+  // Default to tomorrow at 10:00 AM (within 3-day window)
+  const defaultSlot = (() => {
+    const d = new Date(Date.now() + 24 * 3600 * 1000);
+    d.setHours(10, 0, 0, 0);
+    return d.toISOString().slice(0, 16);
+  })();
+  const [selectedSlot, setSelectedSlot] = useState<string>(liveApt?.slot_date || defaultSlot);
+
   const handleLiveBookApt = async () => {
     const aptId = liveApt?.id || (liveApt as any)?.appointment_id;
     if (!aptId) return;
+    if (!selectedSlot || !selectedSlot.trim()) {
+      setAptMessage(isUrdu ? "براہ کرم ملاقات کے لیے وقت کا انتخاب کریں۔" : "Please select an appointment date and time.");
+      return;
+    }
     setAptLoading(true);
+    setAptMessage(null);
     try {
-      const slot = liveApt?.slot_date || new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 16).replace("T", " ");
-      await api.bookAppointment(aptId, slot);
+      const updated = await api.bookAppointment(aptId, selectedSlot.trim());
       setAptStatus("booked");
       setAptMessage(isUrdu ? "ملاقات کامیابی سے طے ہو گئی ہے۔" : "Appointment successfully booked.");
+      if (setAppointment) {
+        setAppointment((prev: any) => ({
+          ...prev,
+          isBooked: true,
+          status: "Confirmed",
+          slot: updated?.slot_date || selectedSlot.trim(),
+        }));
+      }
     } catch (e: any) {
-      setAptMessage(e?.message || "Failed to book appointment");
+      // Friendly errors only - never show raw API Error 422: ...
+      const rawMsg = e?.message || "";
+      const cleanMsg = rawMsg.replace(/^API Error\s*\d*:\s*/i, "").trim();
+      setAptMessage(cleanMsg || (isUrdu ? "ملاقات طے کرنے میں مسئلہ پیش آیا۔ براہ کرم دوبارہ کوشش کریں۔" : "Unable to book this slot. Please choose another time within 3 days."));
     } finally {
       setAptLoading(false);
     }
@@ -295,32 +318,54 @@ export const RoutedToReviewScreen = () => {
               </div>
             )}
             {aptStatus === "offered" ? (
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleLiveBookApt}
-                  disabled={aptLoading}
-                  id="book-offered-appointment-btn"
-                  className="flex-1 min-h-[40px] py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5"
-                >
-                  {aptLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  <span>{t.bookAppointmentBtn}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLiveCancelApt}
-                  disabled={aptLoading}
-                  id="cancel-offered-appointment-btn"
-                  className="flex-1 min-h-[40px] py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5"
-                >
-                  {aptLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                  <span>{t.cancelAppointmentBtn}</span>
-                </button>
+              <div className="space-y-3 pt-1">
+                <div className="space-y-1 text-left" dir="ltr">
+                  <label htmlFor="review-slot-picker" className="text-xs font-bold text-navy-800 block">
+                    {t.selectSlotLabel || (isUrdu ? "ملاقات کا وقت منتخب کریں:" : "Select Appointment Slot (within 3 days):")}
+                  </label>
+                  <input
+                    id="review-slot-picker"
+                    type="datetime-local"
+                    aria-label="Appointment Slot"
+                    value={selectedSlot}
+                    onChange={(e) => setSelectedSlot(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-navy-800 focus:ring-2 focus:ring-emerald-600 shadow-2xs font-mono"
+                  />
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleLiveBookApt}
+                    disabled={aptLoading}
+                    id="book-offered-appointment-btn"
+                    className="flex-1 min-h-[40px] py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5"
+                  >
+                    {aptLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    <span>{t.bookAppointmentBtn}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLiveCancelApt}
+                    disabled={aptLoading}
+                    id="cancel-offered-appointment-btn"
+                    className="flex-1 min-h-[40px] py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5"
+                  >
+                    {aptLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                    <span>{t.cancelAppointmentBtn}</span>
+                  </button>
+                </div>
               </div>
             ) : aptStatus === "booked" ? (
-              <div className="p-3 rounded-xl bg-emerald-100 text-emerald-900 text-xs font-bold flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-                <span>{isUrdu ? "ملاقات کامیابی سے طے ہو گئی ہے۔" : "Appointment confirmed with your clinic."}</span>
+              <div className="p-3 rounded-xl bg-emerald-100 text-emerald-900 text-xs font-bold flex flex-col sm:flex-row items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span>{isUrdu ? "ملاقات کامیابی سے طے ہو گئی ہے۔" : "Appointment confirmed with your clinic."}</span>
+                </div>
+                {selectedSlot && (
+                  <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-emerald-200/80 text-emerald-950 font-semibold">
+                    {selectedSlot.replace("T", " ")}
+                  </span>
+                )}
               </div>
             ) : (
               <div className="p-3 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold flex items-center gap-2">
