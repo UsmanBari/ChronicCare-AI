@@ -437,7 +437,9 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
                     except Exception:
                         pass
                 else:
-                    mmol_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:mmol(?:/l)?)', lower_ans)
+                    from agents.answer_understanding import strip_duration_phrases, detect_glucose_context
+                    ans_no_dur = strip_duration_phrases(lower_ans)
+                    mmol_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:mmol(?:/l)?)', ans_no_dur)
                     if mmol_match:
                         try:
                             mmol_val = float(mmol_match.group(1))
@@ -446,10 +448,11 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
                                 known_slots["glucose_reading"] = mg_val
                                 readings["glucose"] = mg_val
                                 session_state["readings"] = readings
+                                known_slots.pop("missing_reading", None)
                         except Exception:
                             pass
                     else:
-                        mg_match = re.search(r'(\d{2,3})\s*(?:mg(?:/dl)?)', lower_ans)
+                        mg_match = re.search(r'(\d{2,3})\s*(?:mg(?:/dl)?)', ans_no_dur)
                         if mg_match:
                             try:
                                 g_val = float(mg_match.group(1))
@@ -457,12 +460,13 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
                                     known_slots["glucose_reading"] = g_val
                                     readings["glucose"] = g_val
                                     session_state["readings"] = readings
+                                    known_slots.pop("missing_reading", None)
                             except Exception:
                                 pass
                         else:
-                            past_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز)\s*(?:was|thi|tha)?\s*(\d{2,3})\s*(?:last\s+week|yesterday|pichle\s+hafte|kal\b)', lower_ans)
+                            past_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز)\s*(?:was|thi|tha)?\s*(\d{2,3})\s*(?:last\s+week|yesterday|pichle\s+hafte|kal\b)', ans_no_dur)
                             if not past_match:
-                                sug_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز).*?(\d{2,3})\b', lower_ans)
+                                sug_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز|lunch|dinner|breakfast|meal|khana|khane|nashta|nashtay|khali\s*pait|khali\s*pet|nahar|fasting|کھانے|ناشتے|خالی\s*پیٹ|نہار).*?(\d{2,3})\b', ans_no_dur)
                                 if sug_match:
                                     try:
                                         g_val = float(sug_match.group(1))
@@ -470,12 +474,17 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
                                             known_slots["glucose_reading"] = g_val
                                             readings["glucose"] = g_val
                                             session_state["readings"] = readings
+                                            known_slots.pop("missing_reading", None)
                                     except Exception:
                                         pass
 
     # 3. Early Glucose Context (Fasting / After meal)
     if "glucose_context" not in known_slots and "diabetes_glucose_context" not in known_slots:
-        if any(w in lower_ans for w in ["fasting", "nahar munh", "nahar", "before meal", "khali pet", "before eating", "نہار منہ"]):
+        from agents.answer_understanding import detect_glucose_context
+        ctx = detect_glucose_context(lower_ans)
+        if ctx:
+            known_slots["glucose_context"] = ctx
+        elif any(w in lower_ans for w in ["fasting", "nahar munh", "nahar", "before meal", "khali pet", "before eating", "نہار منہ"]):
             known_slots["glucose_context"] = "fasting"
         elif any(w in lower_ans for w in ["after meal", "after eating", "post meal", "khany k baad", "khane ke baad", "کھانے کے بعد"]):
             known_slots["glucose_context"] = "after_meal"
@@ -1039,12 +1048,27 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
 
             readings["glucose"] = glucose_val
             known_slots["glucose_reading"] = glucose_val
+            known_slots.pop("missing_reading", None)
+
+            # P1-3: Extract glucose_context if attached to reading answer
+            from agents.answer_understanding import detect_glucose_context
+            attached_ctx = detect_glucose_context(eff_answer)
+            if attached_ctx and "glucose_context" not in known_slots and "diabetes_glucose_context" not in known_slots:
+                known_slots["glucose_context"] = attached_ctx
+
             if val_res.is_possible_severe_low:
                 session_state["possible_severe_low"] = True
                 session_state["possible_severe_low_guidance"] = val_res.safety_guidance
                 session_state["needs_clinician_flag"] = True
         else:
             known_slots["missing_reading"] = True
+
+    elif "glucose_context" in current_slot or current_slot == "diabetes_glucose_context":
+        from agents.answer_understanding import detect_glucose_context
+        ctx = detect_glucose_context(eff_answer)
+        if ctx:
+            known_slots["glucose_context"] = ctx
+            known_slots["diabetes_glucose_context"] = ctx
 
     elif "bp_reading" in current_slot or current_slot == "hypertension_bp_reading":
         p_bp = parse_bp(eff_answer)

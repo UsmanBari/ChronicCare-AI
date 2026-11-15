@@ -653,6 +653,70 @@ _DATE_TIME_PATTERNS = [
     re.compile(r"\b(subah|shaam|dopahar|raat)\s+\d{1,2}\b", re.IGNORECASE),  # subah 8
 ]
 
+_DURATION_PATTERN = re.compile(
+    r'(?:(?:\b(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|half|ek|aik|do|teen|chaar|char|paanch|panch|chheh|che|saat|aath|nau|das|aadha|adha|derh|dhai)\b|[0-9٠-٩۰-۹]+(?:\.[0-9٠-٩۰-۹]+)?|ایک|دو|تین|چار|پانچ|چھ|سات|آٹھ|نو|دس|آدھا|ڈیڑھ|ڈھائی)'
+    r'(?:\s*(?:to|-|ya|سے|یا|تا)\s*(?:\b(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|half|ek|aik|do|teen|chaar|char|paanch|panch|chheh|che|saat|aath|nau|das|aadha|adha|derh|dhai)\b|[0-9٠-٩۰-۹]+(?:\.[0-9٠-٩۰-۹]+)?|ایک|دو|تین|چار|پانچ|چھ|سات|آٹھ|نو|دس|آدھا|ڈیڑھ|ڈھائی))?'
+    r'\s*(?:hours?|hrs?|mins?|minutes?|secs?|seconds?|ghante?|ghantay|ghanto|ghanton|ghanta|minuts?|minut|گھنٹے|گھنٹوں|گھنٹہ|منٹ|سیکنڈ)(?:\b|(?=[^\w]|$)))',
+    re.IGNORECASE
+)
+
+
+def strip_duration_phrases(text: str) -> str:
+    """
+    Strips duration qualifiers (e.g. '2 hours', '2 ghante', 'دو گھنٹے', '30 mins')
+    from text to prevent duration numbers from confounding vital reading extraction (P1-3).
+    """
+    if not text:
+        return ""
+    return _DURATION_PATTERN.sub(" ", text).strip()
+
+
+def detect_glucose_context(text: str) -> Optional[str]:
+    """
+    Detects fasting or after_meal glucose context in English, Roman Urdu, and Urdu script (P1-3).
+    - Fasting: 'fasting', 'before breakfast', 'before meal', 'nahar munh', 'khali pet', 'khali pait', 'خالی پیٹ', 'نہار منہ'
+    - After meal: 'after meal', 'after lunch', 'after dinner', 'after breakfast', 'post meal',
+      'khane ke baad', 'nashtay ke baad', 'lunch ke baad', 'dinner ke baad', 'کھانے کے بعد', 'ناشتے کے بعد'
+    """
+    if not text:
+        return None
+    t = text.lower()
+
+    # Fasting cues
+    fasting_cues = [
+        "fasting", "before breakfast", "before meal", "before eating", "before lunch", "before dinner",
+        "nahar munh", "nahar", "khali pet", "khali pait", "nashte se pehle", "nashta se pehle",
+        "nashtay se pehle", "khane se pehle", "lunch se pehle", "dinner se pehle",
+        "نہار منہ", "خالی پیٹ", "ناشتے سے پہلے", "کھانے سے پہلے"
+    ]
+    if any(c in t for c in fasting_cues):
+        return "fasting"
+
+    # After meal cues
+    after_meal_cues = [
+        "after meal", "after eating", "post meal", "after lunch", "after dinner", "after breakfast",
+        "post lunch", "post dinner",
+        "khane ke baad", "khany k baad", "khana khane ke baad", "khana ke baad",
+        "nashtay ke baad", "nashte ke baad", "nashta ke baad",
+        "lunch ke baad", "dinner ke baad",
+        "کھانے کے بعد", "ناشتے کے بعد", "دوپہر کے کھانے کے بعد", "رات کے کھانے کے بعد"
+    ]
+    if any(c in t for c in after_meal_cues):
+        return "after_meal"
+
+    if re.search(r'\b(?:lunch|dinner|breakfast|meal|khana|khane|nashta|nashtay|nashte|roti)\b.*?\b(?:baad|bad)\b', t):
+        return "after_meal"
+    if re.search(r'\b(?:after)\b.*?\b(?:lunch|dinner|breakfast|meal|food|eating)\b', t):
+        return "after_meal"
+    if re.search(r'(?:کھانے|ناشتے|ناشتہ|روٹی).*?بعد', t):
+        return "after_meal"
+    if re.search(r'\b(?:baad|bad)\b|بعد', t):
+        return "after_meal"
+    if re.search(r'\bafter\b', t):
+        return "after_meal"
+
+    return None
+
 
 def _is_date_or_time(text: str) -> bool:
     for pat in _DATE_TIME_PATTERNS:
@@ -679,11 +743,16 @@ def parse_number(text: str) -> Dict[str, Any]:
     if not trimmed:
         return {"value": None, "evidence": "", "kind": None, "direction": None}
 
-    # 1. Date and Time rejection
-    if _is_date_or_time(trimmed):
+    # P1-3: Strip duration phrases before parsing numbers
+    trimmed_no_duration = strip_duration_phrases(trimmed)
+    if not trimmed_no_duration:
         return {"value": None, "evidence": evidence, "kind": None, "direction": None}
 
-    norm = normalise_text(trimmed)
+    # 1. Date and Time rejection
+    if _is_date_or_time(trimmed_no_duration):
+        return {"value": None, "evidence": evidence, "kind": None, "direction": None}
+
+    norm = normalise_text(trimmed_no_duration)
     tokens = _tokenize(norm)
 
     # 1b. Yes/No rejection guard: a bare yes/no token or phrase is never a number
