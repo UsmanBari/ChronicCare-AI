@@ -246,6 +246,7 @@ export interface EHRSystemResponse {
   description?: string;
   sample_patients?: SamplePatient[] | null;
   suggested_patient_ids?: string[] | null;
+  linked_patient_ids?: string[] | null;
 }
 
 export interface EHRTestResponse {
@@ -778,6 +779,11 @@ export class ApiError extends Error {
         : "The requested resource or record was not found.";
     }
     if (this.status === 409) {
+      if (this.detail && (this.detail.toLowerCase().includes("already linked") || this.detail.toLowerCase().includes("already connected"))) {
+        return isUrdu
+          ? "یہ ہسپتال ریکارڈ پہلے سے کسی دوسرے اکاؤنٹ سے منسلک ہے۔"
+          : "This EHR patient is already linked to another account";
+      }
       return isUrdu
         ? "موجودہ ڈیٹا کے ساتھ تضاد پیش آیا ہے۔"
         : "A conflict occurred with existing data or state.";

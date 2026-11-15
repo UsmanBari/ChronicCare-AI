@@ -514,6 +514,11 @@ export function mapApiError(status?: number | null, detail?: string | null): str
     if (normDetail.includes("record_managed_by_ehr")) {
       return "Your record is managed by your hospital EHR.";
     }
+    if (normDetail.includes("already linked") || normDetail.includes("already connected")) {
+      return isUrdu
+        ? "یہ ہسپتال ریکارڈ پہلے سے کسی دوسرے اکاؤنٹ سے منسلک ہے۔"
+        : "This EHR patient is already linked to another account";
+    }
     if (normDetail.includes("duplicate_medication")) {
       return "A medication with this name already exists in your record.";
     }

@@ -816,6 +816,7 @@ class EHRSystemResponse(BaseModel):
     description: str = ""
     sample_patients: Optional[List[SamplePatient]] = None
     suggested_patient_ids: Optional[List[str]] = None
+    linked_patient_ids: Optional[List[str]] = None
 
 
 class EHRTestRequest(BaseModel):
@@ -3606,6 +3607,12 @@ def get_ehr_systems_endpoint():
             for p in get_sample_patients_for_system(s["ehr_system_id"])
         ] if kind == "simulated" else None
         suggested_ids = get_suggested_patient_ids_for_system(s["ehr_system_id"]) if kind == "public_sandbox" else None
+        linked_ids = None
+        if suggested_ids:
+            linked_ids = [
+                pid for pid in suggested_ids
+                if get_active_connection_by_external_id(s["ehr_system_id"], pid)
+            ]
         res.append(
             EHRSystemResponse(
                 ehr_system_id=s["ehr_system_id"],
@@ -3614,6 +3621,7 @@ def get_ehr_systems_endpoint():
                 description=s.get("description", ""),
                 sample_patients=sample_patients,
                 suggested_patient_ids=suggested_ids,
+                linked_patient_ids=linked_ids,
             )
         )
     return res
