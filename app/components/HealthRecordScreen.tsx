@@ -1244,8 +1244,8 @@ export const HealthRecordScreen = () => {
               >
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-navy-900 capitalize">
-                      {obs.observation_type.replace(/_/g, " ")}: {obs.value} {obs.unit}
+                    <span className="font-bold text-navy-900">
+                      <span className="capitalize">{obs.observation_type.replace(/_/g, " ")}</span>: {obs.value} {obs.unit}
                     </span>
                     {readingStatus.status !== "unspecified" && (
                       <span

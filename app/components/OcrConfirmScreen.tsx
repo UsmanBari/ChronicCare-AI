@@ -719,8 +719,8 @@ export default function OcrConfirmScreen() {
                   </div>
                 ) : (
                   <div>
-                    <div className="font-bold text-sm text-navy-900 capitalize">
-                      {obs.type.replace(/_/g, " ")}:{" "}
+                    <div className="font-bold text-sm text-navy-900">
+                      <span className="capitalize">{obs.type.replace(/_/g, " ")}</span>:{" "}
                       <bdi className="font-mono text-purple-900">
                         {obs.value} {obs.unit}
                       </bdi>
