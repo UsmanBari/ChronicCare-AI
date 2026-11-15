@@ -547,8 +547,8 @@ _SAFETY_NET_ACUTE_RE = re.compile(
     r"\b(?:achanak|sudden|suddenly|acute|severe|severely|worst|right\s+now|now|abhi)\b|"
     r"\b(?:bohat|shadeed|sakht|musalsal|lagatar|nonstop)\b|"
     r"\b(?:cant|cannot|unable\s+to|nahi\s+pa\s+rah[iyea]*)\b|"
-    r"\b(?:since\s+\d+\s+hours?|\d+\s+ghant[ay]e?\s+se|since\s+yesterday|kal\s+se)\b|"
-    + U_PRE + r"(?:اچانک|شدید|بہت|ابھی|سخت|مسلسل|لگاتار|نہیں\s*پا\s*رہ|گھنٹے\s*سے)" + U_POST,
+    r"\b(?:since\s+\d+\s+(?:hours?|days?)|for\s+(?:the\s+last\s+)?\d+\s+(?:hours?|days?)|\d+\s+(?:ghant[ay]e?|din)\s+se|(?:ek|do|teen|char|panch|\d+)\s+(?:din|ghant[ay]e?|days?|hours?)\s+se|since\s+yesterday|kal\s+se|subah\s+se|aaj\s+se)\b|"
+    + U_PRE + r"(?:اچانک|شدید|بہت|ابھی|سخت|مسلسل|لگاتار|نہیں\s*پا\s*رہ|گھنٹے\s*سے|دن\s*سے|صبح\s*سے|کل\s*سے)" + U_POST,
     re.IGNORECASE,
 )
 

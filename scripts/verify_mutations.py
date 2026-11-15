@@ -527,8 +527,8 @@ MUTATIONS = [
         "id": "M-RF-2",
         "name": "Red Flag Patterns: Disable symptom negation guard",
         "file": BACKEND_DIR / "agents" / "red_flag_patterns.py",
-        "target": "    if is_symptom_negated(norm):",
-        "replacement": "    if False and is_symptom_negated(norm):",
+        "target": "        if is_symptom_negated(raw_text):",
+        "replacement": "        if False and is_symptom_negated(raw_text):",
         "test_node": "backend-poc-technical/test_red_flag_patterns.py::test_mutation_killed_negation_guard",
     },
     {
@@ -580,6 +580,14 @@ MUTATIONS = [
         "target": '    return val in ("true", "1", "yes")',
         "replacement": "    return False",
         "test_node": "backend-poc-technical/test_red_flag_r5.py::test_mutation_killed_safety_net_disabled",
+    },
+    {
+        "id": "M-NRF-1",
+        "name": "Negated base red-flag hit still triggers Red emergency (R6 F5)",
+        "file": BACKEND_DIR / "main.py",
+        "target": "    if (next_state.stage1_red_flag or (hasattr(next_state, " + '"intake")' + " and isinstance(next_state.intake, dict) and next_state.intake.get(" + '"emergency")' + ")) and body.answer and is_negated_red_flag_to_review_enabled():",
+        "replacement": "    if False and (next_state.stage1_red_flag or (hasattr(next_state, " + '"intake")' + " and isinstance(next_state.intake, dict) and next_state.intake.get(" + '"emergency")' + ")) and body.answer and is_negated_red_flag_to_review_enabled():",
+        "test_node": "backend-poc-technical/test_red_flag_r6.py::test_mutation_killed_negated_base_hit_still_red",
     },
 ]
 

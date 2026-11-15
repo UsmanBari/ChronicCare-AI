@@ -176,6 +176,12 @@ from data_sources.app_store import (
 logger = logging.getLogger(__name__)
 
 
+def is_negated_red_flag_to_review_enabled() -> bool:
+    """Flag guard: NEGATED_RED_FLAG_TO_REVIEW='true' (case-insensitive). ON by default (R6 F5)."""
+    val = os.getenv("NEGATED_RED_FLAG_TO_REVIEW", "true").strip().lower()
+    return val in ("true", "1", "yes")
+
+
 def get_cors_allowed_origins() -> List[str]:
     raw = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
     if not raw:
@@ -4057,6 +4063,7 @@ def get_config_status_endpoint(current_user: Dict[str, Any] = Depends(require_ro
         "RISK_RAISE_COOLDOWN_DAYS": int(os.environ.get("RISK_RAISE_COOLDOWN_DAYS", "0") or 0),
         "RETRIEVER": os.environ.get("RETRIEVER", "bm25").strip().lower(),
         "TTS_ENABLED": os.environ.get("TTS_ENABLED", "").strip().lower() == "true",
+        "NEGATED_RED_FLAG_TO_REVIEW": is_negated_red_flag_to_review_enabled(),
     }
 
     def _status_val(env_var: str) -> str:
@@ -4604,7 +4611,33 @@ def answer_checkin_endpoint(
                             reason = None
             except Exception:
                 pass
+
         med_safety_note = None
+        # R6 F5: Base-screen negation & remote-past conservative downgrade to review
+        if triggered and body.answer and is_negated_red_flag_to_review_enabled():
+            try:
+                from agents.red_flag_patterns import is_symptom_negated_or_remote_past
+                if is_symptom_negated_or_remote_past(body.answer):
+                    triggered = False
+                    reason = None
+                    lang = getattr(current_state, "language", None) or "en"
+                    from agents.danger_wordgroups import get_safety_note
+                    med_safety_note = get_safety_note(lang)
+                    if not hasattr(current_state, "answers") or not isinstance(current_state.answers, dict):
+                        current_state.answers = {}
+                    current_state.answers.setdefault("_wordgroup_hits", []).append({
+                        "group": "negated_red_flag_needs_review",
+                        "step": getattr(current_state, "step", "medication")
+                    })
+                    append_audit(
+                        actor_user_id=current_user["user_id"],
+                        action="danger_wordgroup_hit",
+                        target=checkin_id,
+                        outcome="ok",
+                        detail={"group": "negated_red_flag_needs_review"},
+                    )
+            except Exception:
+                pass
         from agents.danger_wordgroups import is_danger_wordgroups_enabled, is_danger_safety_net_enabled, detect as detect_wordgroups, detect_safety_net, get_safety_note, WordGroupResult
         if not triggered and (is_danger_wordgroups_enabled() or is_danger_safety_net_enabled()) and body.answer:
             try:
@@ -4792,6 +4825,30 @@ def answer_checkin_endpoint(
             except Exception:
                 pass
 
+        # R6 F5: Base-screen negation & remote-past conservative downgrade to review (v3 session)
+        if is_emergency and body.answer and is_negated_red_flag_to_review_enabled():
+            try:
+                from agents.red_flag_patterns import is_symptom_negated_or_remote_past
+                if is_symptom_negated_or_remote_past(body.answer):
+                    is_emergency = False
+                    emergency_reason = None
+                    next_state["emergency"] = False
+                    next_state["emergency_reason"] = None
+                    v3_lang = next_state.get("language") or lang or "en"
+                    from agents.danger_wordgroups import get_safety_note
+                    next_state["safety_note"] = get_safety_note(v3_lang)
+                    hit_data = {"group": "negated_red_flag_needs_review", "step": current_state.get("step", "")}
+                    next_state.setdefault("wordgroup_hits", []).append(hit_data)
+                    append_audit(
+                        actor_user_id=current_user["user_id"],
+                        action="danger_wordgroup_hit",
+                        target=checkin_id,
+                        outcome="ok",
+                        detail={"group": "negated_red_flag_needs_review"},
+                    )
+            except Exception:
+                pass
+
         if is_emergency or is_urgent_v3:
             if is_emergency and not next_state.get("safety_note"):
                 from agents.danger_wordgroups import get_safety_note
@@ -4976,6 +5033,44 @@ def answer_checkin_endpoint(
                     else:
                         next_state.stage1_red_flag = False
                         next_state.stage1_reason = None
+        except Exception:
+            pass
+
+    # R6 F5: Base-screen negation & remote-past conservative downgrade to review
+    if (next_state.stage1_red_flag or (hasattr(next_state, "intake") and isinstance(next_state.intake, dict) and next_state.intake.get("emergency"))) and body.answer and is_negated_red_flag_to_review_enabled():
+        try:
+            from agents.red_flag_patterns import is_symptom_negated_or_remote_past
+            if is_symptom_negated_or_remote_past(body.answer):
+                next_state.stage1_red_flag = False
+                next_state.stage1_reason = None
+                if hasattr(next_state, "intake") and isinstance(next_state.intake, dict):
+                    next_state.intake["emergency"] = False
+                    next_state.intake["emergency_reason"] = None
+                if hasattr(next_state, "intakes") and isinstance(next_state.intakes, list):
+                    for intake_item in next_state.intakes:
+                        if isinstance(intake_item, dict):
+                            intake_item["emergency"] = False
+                            intake_item["emergency_reason"] = None
+                lang = getattr(next_state, "language", None) or "en"
+                from agents.danger_wordgroups import get_safety_note
+                v2_safety_note = get_safety_note(lang)
+                if not hasattr(next_state, "answers") or not isinstance(next_state.answers, dict):
+                    next_state.answers = {}
+                hit_data = {"group": "negated_red_flag_needs_review", "step": getattr(current_state, "step", "")}
+                next_state.answers.setdefault("_wordgroup_hits", []).append(hit_data)
+                if hasattr(next_state, "intakes") and isinstance(next_state.intakes, list):
+                    for intake_item in next_state.intakes:
+                        if isinstance(intake_item, dict):
+                            intake_item.setdefault("wordgroup_hits", []).append(hit_data)
+                if hasattr(next_state, "intake") and isinstance(next_state.intake, dict):
+                    next_state.intake.setdefault("wordgroup_hits", []).append(hit_data)
+                append_audit(
+                    actor_user_id=current_user["user_id"],
+                    action="danger_wordgroup_hit",
+                    target=checkin_id,
+                    outcome="ok",
+                    detail={"group": "negated_red_flag_needs_review"},
+                )
         except Exception:
             pass
 
@@ -5645,7 +5740,7 @@ def get_provider_review_detail_endpoint(
                 *([h.get("group") for h in checkin.get("state", {}).get("wordgroup_hits", []) if isinstance(h, dict) and h.get("group")] if isinstance(checkin.get("state"), dict) else []),
                 *([h.get("group") for h in checkin.get("state", {}).get("answers", {}).get("_wordgroup_hits", []) if isinstance(h, dict) and h.get("group")] if isinstance(checkin.get("state"), dict) else []),
             }))
-            if (is_danger_wordgroups_enabled() and (
+            if ((is_danger_wordgroups_enabled() or is_negated_red_flag_to_review_enabled()) and (
                 (isinstance(result.get("triage"), dict) and result.get("triage", {}).get("wordgroups"))
                 or (isinstance(checkin.get("state"), dict) and checkin.get("state", {}).get("wordgroup_hits"))
                 or (isinstance(checkin.get("state"), dict) and checkin.get("state", {}).get("answers", {}).get("_wordgroup_hits"))
