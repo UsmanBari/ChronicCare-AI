@@ -150,10 +150,17 @@ def _build_dual_summary_text(
     gluc = known_slots.get("glucose_reading")
     if gluc is not None:
         ctx = known_slots.get("glucose_context", "")
-        ctx_str = f" ({ctx})" if ctx else ""
-        gluc_en = f"Blood Glucose: {gluc:g} mg/dL{ctx_str}"
-        gluc_ur = f"شوگر: {gluc:g} mg/dL{ctx_str}"
-        gluc_ro = f"Sugar: {gluc:g} mg/dL{ctx_str}"
+        ctx_map_en = {"after_meal": "after meal", "fasting": "fasting", "random": "random", "bedtime": "bedtime"}
+        ctx_map_ur = {"after_meal": "کھانے کے بعد", "fasting": "نہار منہ", "random": "کسی بھی وقت", "bedtime": "سونے سے پہلے"}
+        ctx_map_ro = {"after_meal": "khane ke baad", "fasting": "nihar munh", "random": "aam waqt", "bedtime": "sone se pehle"}
+
+        ctx_en = f" ({ctx_map_en.get(ctx, ctx.replace('_', ' '))})" if ctx else ""
+        ctx_ur = f" ({ctx_map_ur.get(ctx, ctx)})" if ctx else ""
+        ctx_ro = f" ({ctx_map_ro.get(ctx, ctx.replace('_', ' '))})" if ctx else ""
+
+        gluc_en = f"Blood Glucose: {gluc:g} mg/dL{ctx_en}"
+        gluc_ur = f"شوگر: {gluc:g} mg/dL{ctx_ur}"
+        gluc_ro = f"Sugar: {gluc:g} mg/dL{ctx_ro}"
     else:
         gluc_en = "Blood Glucose: Not provided"
         gluc_ur = "شوگر: درج نہیں کی گئی"
@@ -216,7 +223,7 @@ def _build_dual_summary_text(
         else:
             symp_en = "Symptoms: not asked"
             symp_ur = "علامات: پوچھی نہیں گئیں"
-            symp_ro = "Symptoms: nahi poochay gaye"
+            symp_ro = "Alamaat: nahi poochay gaye"
 
     # 4. Adherence
     adh = known_slots.get("adherence_diabetes")
@@ -1268,7 +1275,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         lower_raw = clean_answer.lower()
         is_confirm_intent = (
             yn_res.get("value") in (True, "yes")
-            or any(w in lower_raw for w in ["confirm", "submit", "all good", "correct", "theek", "theek hai", "ji haan", "done", "haan", "ٹھیک", "صحیح", "ہاں"])
+            or any(w in lower_raw for w in ["confirm", "submit", "all good", "correct", "theek", "theek hai", "ji haan", "done", "haan", "tasdeeq", "ٹھیک", "صحیح", "ہاں", "تصدیق"])
         )
         is_change_intent = (
             not is_confirm_intent and (
@@ -1351,7 +1358,10 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         step_id = "summary_confirmation"
         question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots, session_state=session_state)
         why_text = get_message("summary_confirm_why", lang)
-        options = ["Confirm and submit", "Need to change something"]
+        options = [
+            get_message("summary_confirm_option_submit", lang),
+            get_message("summary_confirm_option_change", lang),
+        ]
         option_items = [
             {"value": "Confirm and submit", "label": get_message("summary_confirm_option_submit", lang)},
             {"value": "Need to change something", "label": get_message("summary_confirm_option_change", lang)},
@@ -1406,7 +1416,10 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         step_id = "summary_confirmation"
         question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots, session_state=session_state)
         why_text = get_message("summary_confirm_why", lang)
-        options = ["Confirm and submit", "Need to change something"]
+        options = [
+            get_message("summary_confirm_option_submit", lang),
+            get_message("summary_confirm_option_change", lang),
+        ]
         option_items = [
             {"value": "Confirm and submit", "label": get_message("summary_confirm_option_submit", lang)},
             {"value": "Need to change something", "label": get_message("summary_confirm_option_change", lang)},
