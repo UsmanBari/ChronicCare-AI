@@ -44,14 +44,20 @@ def temp_sqlite_db():
     orig_backend = os.environ.get("DB_BACKEND")
     orig_local_db = os.environ.get("LOCAL_DB_PATH")
     orig_mysql_url = os.environ.get("MYSQL_URL")
+    orig_engine = os.environ.get("INTERVIEW_ENGINE")
 
     os.environ["DB_BACKEND"] = "sqlite"
     os.environ["LOCAL_DB_PATH"] = t_path
+    os.environ["INTERVIEW_ENGINE"] = "v3"
     os.environ.pop("MYSQL_URL", None)
 
     yield t_path
 
     # Cleanup
+    if orig_engine is not None:
+        os.environ["INTERVIEW_ENGINE"] = orig_engine
+    else:
+        os.environ.pop("INTERVIEW_ENGINE", None)
     if orig_backend is not None:
         os.environ["DB_BACKEND"] = orig_backend
     else:
@@ -158,6 +164,9 @@ def test_seed_demo_data_hermetic_pipeline(temp_sqlite_db):
     dual_checkins = app_store.get_user_checkins(dual_uid, limit=5, db_path=temp_sqlite_db)
     assert len(dual_checkins) >= 1
     latest_dual_cid = dual_checkins[0]["checkin_id"]
+    latest_dual_res = app_store.get_checkin_result(latest_dual_cid, db_path=temp_sqlite_db)
+    assert latest_dual_res is not None
+    assert latest_dual_res.get("triage_level") in ("routine", "review")
 
     import main
     from fastapi.testclient import TestClient
@@ -178,6 +187,8 @@ def test_seed_demo_data_hermetic_pipeline(temp_sqlite_db):
     assert len(ur_checkins) >= 1
     latest_ur_cid = ur_checkins[0]["checkin_id"]
     latest_ur_res = app_store.get_checkin_result(latest_ur_cid, db_path=temp_sqlite_db)
+    assert latest_ur_res is not None
+    assert latest_ur_res.get("triage_level") in ("routine", "review")
     ur_expl = latest_ur_res.get("explanation") or {}
     ur_sentences = ur_expl.get("sentences") or []
     assert len(ur_sentences) > 0
@@ -192,6 +203,8 @@ def test_seed_demo_data_hermetic_pipeline(temp_sqlite_db):
     assert len(roman_checkins) >= 1
     latest_roman_cid = roman_checkins[0]["checkin_id"]
     latest_roman_res = app_store.get_checkin_result(latest_roman_cid, db_path=temp_sqlite_db)
+    assert latest_roman_res is not None
+    assert latest_roman_res.get("triage_level") in ("routine", "review")
     roman_expl = latest_roman_res.get("explanation") or {}
     assert len(roman_expl.get("sentences", [])) > 0
 
@@ -208,6 +221,18 @@ def test_seed_demo_data_hermetic_pipeline(temp_sqlite_db):
     norx_uid = seeded_users["norx"]
     norx_checkins = app_store.get_user_checkins(norx_uid, limit=5, db_path=temp_sqlite_db)
     assert len(norx_checkins) >= 1
+    latest_norx_cid = norx_checkins[0]["checkin_id"]
+    latest_norx_res = app_store.get_checkin_result(latest_norx_cid, db_path=temp_sqlite_db)
+    assert latest_norx_res is not None
+    assert latest_norx_res.get("triage_level") in ("routine", "review")
+
+    # 7b. FHIR connected patient: connected check-in completed
+    fhir_uid = seeded_users["fhir"]
+    fhir_checkins = app_store.get_user_checkins(fhir_uid, limit=5, db_path=temp_sqlite_db)
+    assert len(fhir_checkins) >= 1
+    latest_fhir_res = app_store.get_checkin_result(fhir_checkins[0]["checkin_id"], db_path=temp_sqlite_db)
+    assert latest_fhir_res is not None
+    assert latest_fhir_res.get("triage_level") in ("routine", "review")
 
     # 8. Cold start patient: strictly 0 check-ins
     new_uid = seeded_users["new"]

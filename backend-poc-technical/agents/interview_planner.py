@@ -246,22 +246,14 @@ def plan_next_step(
         concerning = True
 
     effective_budget = min(12 if concerning else base_budget, hard_cap)
-    distinct_asked = set()
-    for s in asked_slots:
-        if (
-            not s.startswith("probe_")
-            and not s.endswith("__evidence")
-            and not s.endswith("__partial")
-            and s != "summary_confirmation"
-            and s != "symptoms_denied"
-        ):
-            canon = s
-            for k_canon, eq_set in SLOT_EQUIVALENCES.items():
-                if s in eq_set:
-                    canon = min(eq_set)
-                    break
-            distinct_asked.add(canon)
-    current_count = len(distinct_asked)
+    current_count = len([
+        s for s in asked_slots 
+        if not s.startswith("probe_") 
+        and not s.endswith("__evidence") 
+        and not s.endswith("__partial") 
+        and s != "summary_confirmation"
+        and s != "symptoms_denied"
+    ])
 
     # Hard cap check
     if current_count >= effective_budget:
