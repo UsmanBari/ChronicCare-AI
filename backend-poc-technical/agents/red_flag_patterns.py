@@ -555,7 +555,7 @@ _FAILURE_VERB_PATTERNS = [
     r"(?<!بے\s)ہوش\s*میں\s*نہیں",
 
     # Stroke / Speech / Limb failure
-    r"\b(?:bol|bolna|baat)\s+(?:\w+\s+){0,3}nahi\s+(?:pa\s+rah|sak|ho\s+rah)\b",
+    r"\b(?:bol|bolna|baat|bat)\b\s*(?:\w+\s+){0,3}?nahi\s+(?:pa\s*rah|sak|ho\s*rah)\w*",
     r"\bawaz\s+(?:\w+\s+){0,2}nahi\s+nikal\s+rah[iyea]\b",
     r"\b(?:haath|hath|bazu|tang|taang|pair|arm|leg)\s+(?:\w+\s+){0,3}(?:nahi\s+(?:hila|uth)|kaam\s+nahi\s+kar)\b",
     r"\b(?:cannot|cant|unable\s+to)\s+(?:speak|talk|move\s+(?:arm|leg|hand)|walk)\b",
@@ -1072,6 +1072,30 @@ _BREATHING_INABILITY_PATTERNS = [
     r"\b(?:saans|sans)\s+(?:\w+\s+){0,4}k[ei]\s+(?:ek|aik)\s+jumla\s+(?:bhi\s+)?(?:poora|pura)\s+nahi\s+(?:bol|keh)\b",
     r"سانس\s*(?:اتنی\s*تیز|اتنی\s*خراب|اتنی\s*تکلیف).*?ایک\s*جملہ\s*(?:بھی\s*)?پورا\s*نہیں\s*بول\s*پا\s*رہ\w*",
     r"ایک\s*جملہ\s*(?:بھی\s*)?پورا\s*نہیں\s*بول\s*پا\s*رہ\w*",
+    # Breathless speech inability (English, Roman Urdu, Urdu script)
+    r"\b(?:so|too|tu)\s+breathless(?:\s+to)?\s+(?:talk|speak|finish\s+words?)\b",
+    r"\b(?:so\s+breathless|to+u?\s+breathless(?:\s+to)?|to+u?\s+short\s+of\s+breath(?:\s+to)?)\s*(?:cant|cannot|unable\s+to\s+)?(?:speak|talk|finish\s+words?)\b",
+    r"\b(?:cant|cannot|unable\s+to)\s+(?:speak|talk)\s+(?:due\s+to|because\s+of|from)\s+(?:breathless\w*|shortness\s+of\s+breath|breathing)\b",
+    r"\bstruggling\s+to\s+(?:speak|talk)\s+due\s+to\s+(?:shortness\s+of\s+breath|breathless\w*)\b",
+    r"\bcan\s+barely\s+(?:speak|talk)\s+because\s+of\s+(?:breathing|shortness\s+of\s+breath|breathless\w*)\b",
+    r"\bbreathing\s+so\s+heavy\s+(?:cant|cannot|unable\s+to)\s+(?:speak|talk)\b",
+    r"\bcannot\s+get\s+enough\s+air\s+to\s+(?:speak|talk)\b",
+    r"\b(?:sans|saans)\s+(?:itni\s+)?(?:phu+l\s*rah\w*|phu+li?\s+hai)\s*(?:hai\s*)?(?:k[ei]\s*)?(?:ba?t|bol)\s+nahi\s+(?:kar\s+pa|ho\s+pa|pa|sakt)",
+    r"\b(?:sans|saans)\s+(?:ki\s+wajah\s+se|se)\s+(?:ba?t\s+nahi\s+ho\s*rah\w*|bol\s+nahi\s+pa\s*rah\w*|ba?t\s+karna\s+muh?a?l|bolna\s+muh?a?l)\b",
+    r"\b(?:sans|saans)\s+(?:itni\s+)?chadh\s+ga[yei]+\s*(?:hai\s*)?(?:k[ei]\s*)?(?:ba?t|bol)\s*nahi\s+ho\s*rah\w*",
+    r"\bbolte\s+hue\s+(?:sans|saans)\s+(?:phu+l\s*ja\w*|ukhad\s*rah\w*|ruk\s*rah\w*)",
+    r"\bbolte\s+hue\s+(?:sans|saans)\s+phu+l.*?\blafz\s+nahi\s+nikal",
+    r"\b(?:ek|aik)\s+(?:lafz|jumla)\s+(?:bhi\s+)?(?:bolna\s+muh?a?l|nahi\s+(?:nikal|keh|bol))\s*(?:sans|saans|ki\s+wajah\s+se)?",
+    r"\b(?:sans|saans)\s+phu+lne\s+ki\s+wajah\s+se\s+(?:ek|aik)\s+jumla\s+nahi\s+(?:keh|bol)\s*sakt",
+    r"\b(?:sans|saans)\s+ruk\s+rahi\s+hai\s+(?:bol|baat|bat)\s+nahi\s+(?:sakt[aei]|ho\s+rah\w*)",
+    r"سانس\s*(?:اتنی\s*)?(?:پھول\s*رہ\w*|پھولی\s*ہے)\s*(?:ہے\s*)?(?:کہ\s*)?(?:بات|بول)\s*نہیں\s*(?:کر\s*پا|ہو\s*پا|پا|سکت)",
+    r"سانس\s*(?:کی\s*وجہ\s*سے|سے)\s*(?:بات\s*نہیں\s*ہو\s*رہ\w*|بول\s*نہیں\s*پا\s*رہ\w*|بولنا\s*(?:مشکل|محال))",
+    r"سانس\s*(?:اتنی\s*)?چڑھ\s*گ[ئےیا]+\s*(?:ہے\s*)?(?:کہ\s*)?(?:بات|بول)\s*نہیں\s*ہو\s*رہ\w*",
+    r"بولتے\s*ہوئے\s*سانس\s*(?:پھول\s*جا\w*|اکھڑ\s*رہ\w*|رک\s*رہ\w*)",
+    r"سانس\s*پھولنے\s*کی\s*وجہ\s*سے\s*(?:ایک|کوئی)\s*جملہ\s*نہیں\s*(?:کہہ|بول)\s*سکت",
+    r"(?:ایک|کوئی)\s*(?:لفظ|جملہ)\s*(?:بھی\s*)?(?:بولنا\s*(?:مشکل|محال)|نہیں\s*(?:نکل|کہہ|بول))\s*(?:سانس|کی\s*وجہ\s*سے)?",
+    r"سانس\s*رک\s*رہی\s*ہے\s*(?:بول|بات)\s*نہیں\s*(?:سکت[ےیا]|ہو\s*رہی)",
+    r"سانس\s*کی\s*تنگی\s*کی\s*وجہ\s*سے\s*بات\s*نہیں\s*کر\s*پا\s*رہ\w*",
     # R8: Breathing impossible (na-mumkin / namumkin / impossible to breathe)
     r"\b(?:saans|sans)\s+lena\s+(?:\w+\s+){0,3}(?:na-?mumkin|na\s+mumkin)\b",
     r"\b(?:na-?mumkin|na\s+mumkin)\s+(?:ho\s+gaya|hai)\s+(?:saans|sans)\s+lena\b",
@@ -1195,6 +1219,12 @@ _BREATHING_NEGATIONS = [
     r"سانس\s*(?:کی\s*)?(?:تنگی|دشواری|مشکل)\s*(?:\S+\s*){0,2}نہیں",
     r"بغیر\s*(?:کسی\s*)?(?:سانس\s*)?(?:\S+\s*){0,2}(?:تکلیف|دشواری|تنگی|مسئلے)",
     r"بغیر\s*سانس\s*(?:کی\s*)?تکلیف",
+    r"\bcan\s+speak\s+in\s+full\s+sentences?\s*(?:without\s+(?:trouble|difficulty|issue)|fine|normally)?\b",
+    r"\bnot\s+having\s+trouble\s+speaking\s+(?:due\s+to|from)\s+breath\w*\b",
+    r"\bbaat\s+karne\s+mein\s+koi\s+masla\s+nahi\s+hai\b",
+    r"\bsaans\s+theek\s+hai\s+baat\s+kar\s+pa\s+rahe\s+hain\b",
+    r"بات\s*کرنے\s*میں\s*کوئی\s*مسئلہ\s*نہیں\s*ہے",
+    r"سانس\s*ٹھیک\s*ہے\s*بات\s*کر\s*پا\s*رہے\s*ہیں",
 ]
 
 
@@ -1683,6 +1713,25 @@ _UNRESPONSIVE_PATTERNS = [
     r"\bhosh\s+kho\s+baith\w*\b",
     r"\bunko\s+hosh\s+nah?in\b",
     r"(?:بالکل\s*بے\s*ہوش|کوئی\s*حرکت\s*نہیں|ہوش\s*کھو\s*بیٹھے)",
+    # Unconscious / hosh nahi / behosh pada / be-hosh
+    r"\b(?:koi\s+|bilkul\s+|abhi\s+tak\s+)?hosh\s+(?:mein\s+)?nah?in(?:\s+(?:hai|hain|raha|rahi|aaya|aya))?\b",
+    r"\b(?:unko|usey|usse|unhein|unhe|mariz|patient)\s+(?:koi\s+)?hosh\s+nah?in\b",
+    r"\bhosh\s+nahi(?!\s+khoy)\b",
+    r"\b(?:behosh|be[\s\-]hosh)\s+pa[rd][aiey](?:\s+(?:hai|hain|hua|hui|hue))?\b",
+    r"\b(?:zameen|farsh)\s+par\s+(?:behosh|be[\s\-]hosh)\s+pa[rd][aiey]\b",
+    r"\b(?:woh|wo)\s+(?:bilkul\s+)?(?:behosh|be[\s\-]hosh)\s+(?:hain|hai)\b",
+    r"\bachanak\s+(?:behosh|be[\s\-]hosh)\s+ho\s+ga[yeia]\b",
+    r"\b(?:is|are|remains?|became|lying|found)\s+unconscious\b",
+    r"\bhas\s+no\s+consciousness\b",
+    r"\blost\s+consciousness\s+and\s+(?:is\s+)?not\s+(?:waking|responding)\b",
+    r"\bpassed\s+out\s+and\s+(?:is\s+)?not\s+(?:waking|responding|moving)\b",
+    r"(?:کوئی\s+|بالکل\s+|ابھی\s*تک\s*)?ہوش\s*(?:میں\s*)?نہیں(?:\s*(?:ہے|ہیں|رہا|رہی|آیا))?",
+    r"(?:ان\s*کو|انہیں|مریض)\s*(?:کوئی\s*)?ہوش\s*نہیں",
+    r"ہوش\s*نہیں(?!\s*کھوی)",
+    r"بے\s*ہوش\s*(?:پڑا|پڑے|پڑی)(?:\s*(?:ہے|ہیں))?",
+    r"(?:فرش|زمین)\s*پر\s*بے\s*ہوش\s*(?:پڑا|پڑے|پڑی)",
+    r"(?:وہ|مریض)\s*(?:بالکل\s*)?بے\s*ہوش\s*(?:ہیں|ہے)",
+    r"اچانک\s*بے\s*ہوش\s*ہو\s*گ[ئےیا]",
 ]
 
 _SYNCOPE_RECOVERY_PATTERNS = [
@@ -1722,11 +1771,13 @@ def _is_syncope_negated(norm: str) -> bool:
     if re.search(
         r"\b(?:aankh|ankh)\w*\s+(?:\w+\s+){0,3}nahi\s+(?:khol|khul)\b|"
         r"\b(?:jaag|jag|uth)\s+nahi\s+rah[iyea]*\b|"
-        r"(?<!be\s)(?<!bay\s)\bhosh\s+(?:mein\s+)?nahi\s+(?:aa\s+rah|hai)\b|"
+        r"(?<!be\s)(?<!bay\s)(?<!be-)(?<!be)\bhosh\s+(?:mein\s+)?nah?in(?:\s+(?:aa\s+rah|hai|raha|hain))?\b|"
+        r"(?<!be\s)(?<!bay\s)(?<!be-)(?<!be)\bkoi\s+hosh\s+nah?in\b|"
         r"\b(?:not|cant|cannot|will\s+not|wont|unable\s+to|is\s+not|are\s+not)\s+(?:wak\w*(?:\s+up)?|open\s+eyes?|respond\w*)\b|"
         r"(?:آنکھ|آنکھیں)\s*(?:\S+\s*){0,3}نہیں\s*(?:کھول|کھل)|"
         r"(?:جاگ|اٹھ)\s*نہیں\s*رہ[یےا]|"
-        r"ہوش\s*میں\s*نہیں|(?<!بے\s)ہوش\s*نہیں\s*آ\s*رہ",
+        r"(?<!بے\s)ہوش\s*(?:میں\s*)?نہیں(?:\s*(?:آ\s*رہ|ہے|رہا|ہیں))?|"
+        r"(?<!بے\s)کوئی\s*ہوش\s*نہیں",
         norm
     ):
         return False
@@ -1770,7 +1821,71 @@ def _is_syncope_negated(norm: str) -> bool:
         return True
     if re.search(r"نہیں\s*(?:\S+\s*){0,2}(?:بے\s*ہوش|غشی|چکر)", norm):
         return True
+    if re.search(r"\bhosh\s+mein\s+(?:hai|hain|hoon|hun)\b|ہوش\s*میں\s*(?:ہے|ہیں|ہوں)", norm):
+        return True
+    if re.search(r"\bhosh\s+(?:nahi|nahin)\s+khoy\w*\b|ہوش\s*(?:نہیں|نہ)\s*کھوی\w*", norm):
+        return True
+    if re.search(r"\b(?:did\s*not|didn\s*t|never)\s+(?:lose|lost)\s+consciousness\b", norm):
+        return True
+    if re.search(r"\b(?:not|never|no)\s+(?:longer\s+)?unconscious\b", norm):
+        return True
     return False
+
+
+# Seizure & Convulsion acute patterns (Category: loss_of_consciousness)
+_SEIZURE_PATTERNS = [
+    # English
+    r"\b(?:having\s+a\s+|had\s+a\s+|active\s+|severe\s+)?seizures?\b",
+    r"\b(?:convulsing|convulsions?|epileptic\s+fits?|having\s+a\s+fit)\b",
+    r"\bwhole\s+body\s+(?:is\s+)?(?:shaking|jerking)\s+uncontrollably\b",
+    r"\buncontrolled\s+shaking\s+and\s+(?:stiffness|loss\s+of\s+consciousness)\b",
+    # Roman Urdu
+    r"\b(?:mirgi\s+ka\s+)?do?ra\s+(?:pa[rd][aiey]?\s*(?:gaya|gaye|gayi|hai|hain)?|aa\s*(?:gaya|gaye|gayi|raha|rahi)?)\b",
+    r"\b(?:mirgi\s+ke\s+)?do?re?\s+(?:pa[rd]\s*rah\w*|aa\s*rah\w*)\b",
+    r"\bmirgi\s+ka\s+do?ra\b",
+    r"\b(?:jhatke|jhatkay)\s+(?:lag\s*rah\w*|aa\s*rah\w*|pa[rd]\s*rah\w*|shuru\s+ho\s+ga[yeia]+)\b",
+    r"\b(?:poore|pure|jism\s+mein)\s+(?:shadeed\s+)?(?:jhatke|jhatkay)\b",
+    r"\b(?:jism\s+(?:mein\s+)?|haath\s+paon\s+(?:mein\s+)?)(?:shadeed\s+)?(?:jhatke|jhatkay)\b",
+    r"\bfit\s+(?:pa[rd]\s*(?:gaya|raha|rah\w*)|aa\s*(?:gaya|raha|rah\w*))\b",
+    r"\b(?:epilepsy\s+ka\s+)?fit\s+pa[rd]\s+gaya\b",
+    r"\bshadeed\s+(?:do?ra|jhatke|jhatkay)\b",
+    # Urdu script
+    r"(?:مرگی\s*کا\s*)?دورہ\s*(?:پڑ[اائےیا]?\s*(?:گیا|گئے|گئی|ہے|ہیں)?|آ[اائےیا]?\s*(?:گیا|گئے|رہا|رہی)?)",
+    r"(?:مرگی\s*کے\s*)?دورے?\s*(?:پڑ\s*رہ\w*|آ\s*رہ\w*)",
+    r"مرگی\s*کا\s*دورہ",
+    r"(?:جھٹکے|جھٹکا)\s*(?:لگ\s*رہ\w*|آ\s*رہ\w*|پڑ\s*رہ\w*|شروع\s*ہو)",
+    r"(?:پورے\s*جسم\s*میں|جسم\s*میں)\s*(?:شدید\s*)?جھٹکے",
+    r"(?:جسم|ہاتھ\s*پاؤں)\s*میں\s*(?:شدید\s*)?جھٹکے",
+    r"فٹ\s*(?:پڑ\s*رہ\w*|آ\s*رہ\w*|پڑ\s*گیا)",
+    r"مرگی\s*کا\s*فٹ",
+    r"شدید\s*(?:دورہ|جھٹکے)",
+]
+
+_SEIZURE_NEGATIONS = [
+    # English
+    r"\b(?:no|not|never|without|denies|denied|zero)\s+(?:\w+\s+){0,3}(?:seizures?|convulsions?|fits?|epilepsy)\b",
+    r"\b(?:do\s*not|did\s*not|have\s*not|had\s*no|has\s*no)\s+(?:\w+\s+){0,2}(?:seizures?|convulsions?|fits?)\b",
+    r"\bfree\s+of\s+seizures?\b",
+    r"\b(?:seizures?|convulsions?|fits?)\s+(?:did\s*not\s+occur|never\s+happened|resolved|not\s+an\s+issue|no\s+problem)\b",
+    # Roman Urdu
+    r"\b(?:koi\s+|kisi\s+qism\s+ke\s+)?(?:jhatke|jhatkay|dora|daura|fit)\s+(?:bhi\s+)?(?:nahi|nahin|na)\b",
+    r"\b(?:nahi|nahin|na)\s+(?:\w+\s+){0,2}(?:jhatke|jhatkay|dora|daura|fit)\b",
+    r"\b(?:dora|jhatke|jhatkay|fit)\s+(?:nahi\s+pada|nahi\s+para|nahi\s+aaya|nahi\s+lage|nahi\s+lag\s+rahe)\b",
+    r"\bkoi\s+(?:mirgi\s+ka\s+)?dora\s+nahi\b",
+    # Urdu script
+    r"(?:کوئی\s+|کسی\s*قسم\s*کے\s*)?(?:جھٹکے|دورہ|فٹ)\s*(?:بھی\s*)?(?:نہیں|نہ)",
+    r"(?:نہیں|نہ)\s*(?:\S+\s*){0,2}(?:جھٹکے|دورہ|فٹ)",
+    r"(?:دورہ|جھٹکے|فٹ)\s*(?:نہیں\s*پڑا|نہیں\s*آیا|نہیں\s*لگ\s*رہے)",
+    r"کوئی\s*(?:مرگی\s*کا\s*)?دورہ\s*نہیں",
+]
+
+
+def _match_seizure(norm: str) -> bool:
+    if not _has_any(norm, _SEIZURE_PATTERNS):
+        return False
+    if _has_any(norm, _SEIZURE_NEGATIONS):
+        return False
+    return True
 
 
 def is_fainting_recovered_or_benign(raw_text: str) -> bool:
@@ -1817,6 +1932,10 @@ def is_fainting_recovered_or_benign(raw_text: str) -> bool:
 
 
 def _match_loss_of_consciousness(norm: str) -> bool:
+    # 0. Active seizures / convulsions
+    if _match_seizure(norm):
+        return True
+
     # 1. Active unresponsiveness / inability to wake / eye opening failure is ALWAYS emergency
     if _has_any(norm, _UNRESPONSIVE_PATTERNS):
         return True
@@ -2180,6 +2299,8 @@ _CANONICAL_CATEGORY_MAP = {
     "one_sided_weakness": "confusion_and_stroke",
     "fainting": "loss_of_consciousness",
     "syncope": "loss_of_consciousness",
+    "seizure": "loss_of_consciousness",
+    "convulsion": "loss_of_consciousness",
 }
 
 

@@ -275,9 +275,9 @@ _BREATHING_PATTERNS: list[re.Pattern] = [
 # Group 4: Syncope / Unresponsiveness / Collapse
 _SYNCOPE_PATTERNS: list[re.Pattern] = [
     re.compile(
-        r"\b(?:unconscious|passed\s+out|fainted|blackout|blacked\s+out|collapsed|unresponsive)\b|"
-        r"\b(?:behosh|be\s+hosh|be\s*sudh|gash\w*|chakkar\s+kha\s+kar\s+gir)\b|"
-        + U_PRE + r"(?:بے\s*ہوش|بے\s*سدھ|غش\w*|چکر\s+کھا\s+کر\s+گر\w*)" + U_POST,
+        r"\b(?:unconscious|passed\s+out|fainted|blackout|blacked\s+out|collapsed|unresponsive|seizures?|convulsions?|fits?)\b|"
+        r"\b(?:behosh|be\s+hosh|be\s*sudh|hosh\s+nah?in|gash\w*|chakkar\s+kha\s+kar\s+gir|jhatk\w+|mirgi\s+ka\s+dora|dora\s+pa[rd])\b|"
+        + U_PRE + r"(?:بے\s*ہوش|بے\s*سدھ|ہوش\s*نہیں|غش\w*|چکر\s+کھا\s+کر\s+گر\w*|جھٹک\w*|دورہ|مرگی)" + U_POST,
         re.IGNORECASE,
     ),
 ]
