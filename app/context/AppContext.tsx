@@ -108,6 +108,10 @@ interface AppContextType {
   // Selected patient in Provider Portal
   selectedPatient: string | null;
   setSelectedPatient: (patient: string | null) => void;
+  selectedPatientDisplay: string | null;
+  setSelectedPatientDisplay: (display: string | null) => void;
+  selectedPatientId: string | null;
+  setSelectedPatientId: (id: string | null) => void;
 
   // Language & Translations
   language: Language;
@@ -230,6 +234,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showTour, setShowTour] = useState<boolean>(false);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
+  const [selectedPatientDisplay, setSelectedPatientDisplay] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 
   const [language, setLanguage] = useState<Language>("en");
   const t = translations[language];
@@ -796,6 +802,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setShowTour,
         selectedPatient,
         setSelectedPatient,
+        selectedPatientDisplay,
+        setSelectedPatientDisplay,
+        selectedPatientId,
+        setSelectedPatientId,
         language,
         setLanguage,
         t,

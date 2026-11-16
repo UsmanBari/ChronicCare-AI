@@ -1,15 +1,20 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useApp } from "../../context/AppContext";
 import { api, Appointment } from "../../lib/api";
 import { resolveHumanName } from "../../lib/presentation";
+import { generateConsultationSlots } from "../../lib/slots";
 import { Calendar, Clock, CheckCircle2, User, Stethoscope, ArrowLeft, AlertCircle, AlertTriangle, ShieldCheck, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 
 export const AppointmentSchedulingScreen = () => {
   const {
     selectedPatient,
+    selectedPatientDisplay,
+    selectedPatientId,
+    setSelectedPatientDisplay,
+    setSelectedPatientId,
     setProviderScreen,
     setAppointment,
     demoScenario,
@@ -26,7 +31,36 @@ export const AppointmentSchedulingScreen = () => {
     ? (providerDisplayName || providerIdentifier || fallbackProvider)
     : "Dr. Sana Malik";
 
-  const casePatientName = selectedPatient ? resolveHumanName(selectedPatient) : (isLiveMode ? "the patient" : "Ali Khan");
+  const [fetchedDisplay, setFetchedDisplay] = useState<string | null>(null);
+  const [fetchedId, setFetchedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedPatient && !selectedPatientDisplay && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selectedPatient)) {
+      api.getProviderReviewDetail(selectedPatient)
+        .then((detail) => {
+          if (detail?.patient_display) {
+            setFetchedDisplay(detail.patient_display);
+            if (setSelectedPatientDisplay) setSelectedPatientDisplay(detail.patient_display);
+          }
+          if (detail?.patient_id) {
+            setFetchedId(detail.patient_id);
+            if (setSelectedPatientId) setSelectedPatientId(detail.patient_id);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [selectedPatient, selectedPatientDisplay, setSelectedPatientDisplay, setSelectedPatientId]);
+
+  const rawResolved = selectedPatient ? resolveHumanName(selectedPatient) : null;
+  const isGenericHospital = rawResolved && /^Hospital Patient \([0-9a-f]{8}\)$/i.test(rawResolved);
+
+  const casePatientName =
+    selectedPatientDisplay ||
+    fetchedDisplay ||
+    (!isGenericHospital && rawResolved ? rawResolved : null) ||
+    (selectedPatient && !isGenericHospital ? resolveHumanName(selectedPatient) : (isLiveMode ? (selectedPatient || "the patient") : "Ali Khan"));
+
+  const casePatientId = selectedPatientId || fetchedId || selectedPatient || "local_patient_001";
   const [activeTab, setActiveTab] = useState<"queue" | "manual">(selectedPatient ? "manual" : "queue");
   const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,19 +107,12 @@ export const AppointmentSchedulingScreen = () => {
     }
   };
 
-  // Mock slot selection state
-  const slots = [
-    "Mon, Sep 7 • 9:00 AM",
-    "Mon, Sep 7 • 2:00 PM",
-    "Tue, Sep 8 • 10:30 AM",
-    "Wed, Sep 9 • 3:15 PM",
-    "Thu, Sep 10 • 11:00 AM",
-  ];
-
-  const [selectedSlot, setSelectedSlot] = useState(slots[0]);
+  // Dynamic slots for next 3 working days (9:00 to 16:00 in 1-hour increments)
+  const slots = useMemo(() => generateConsultationSlots(), []);
+  const [selectedSlot, setSelectedSlot] = useState(slots[0] || "Tomorrow • 10:00 AM");
   const [isBooked, setIsBooked] = useState(false);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const reasonText =
       demoScenario === "conflict"
         ? "Follow-up: reconciliation review (glucose discrepancy)"
@@ -100,7 +127,22 @@ export const AppointmentSchedulingScreen = () => {
       provider: activeProviderName,
       status: "Confirmed",
       bookedAt: "Just now",
+      patientName: casePatientName,
+      patientId: casePatientId,
     });
+
+    try {
+      await api.createAppointment({
+        patient_id: casePatientId,
+        slot: selectedSlot,
+        slot_date: selectedSlot,
+        provider_id: providerIdentifier || "prov-demo-im",
+        reason: reasonText,
+        checkin_id: (selectedPatient && selectedPatient.includes("-")) ? selectedPatient : undefined,
+      });
+    } catch (err) {
+      console.warn("API appointment booking fallback:", err);
+    }
 
     setIsBooked(true);
   };
@@ -311,7 +353,7 @@ export const AppointmentSchedulingScreen = () => {
                 <span>{t.selectSlotLabel}</span>
               </label>
 
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                 {slots.map((slot, index) => (
                   <label
                     key={index}

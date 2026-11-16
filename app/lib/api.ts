@@ -1641,6 +1641,22 @@ export const api = {
     });
   },
 
+  createAppointment: async (data: {
+    patient_id: string;
+    slot?: string;
+    slot_date?: string;
+    provider_id?: string;
+    specialty?: string;
+    urgency?: string;
+    reason?: string;
+    checkin_id?: string;
+  }): Promise<Appointment> => {
+    return request<Appointment>("/api/appointments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
   getProviderAppointments: async (): Promise<{ appointments: Appointment[] }> => {
     return request<{ appointments: Appointment[] }>("/api/provider/appointments");
   },

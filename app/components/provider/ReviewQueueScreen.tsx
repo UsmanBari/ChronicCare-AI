@@ -24,6 +24,8 @@ export const ReviewQueueScreen = () => {
   const {
     setProviderScreen,
     setSelectedPatient,
+    setSelectedPatientDisplay,
+    setSelectedPatientId,
     isLiveMode,
     demoScenario,
     resolvedCases,
@@ -274,6 +276,8 @@ export const ReviewQueueScreen = () => {
                         key={item.checkin_id}
                         onClick={() => {
                           setSelectedPatient(item.checkin_id);
+                          if (setSelectedPatientDisplay) setSelectedPatientDisplay(item.patient_display || null);
+                          if (setSelectedPatientId) setSelectedPatientId(item.patient_id || null);
                           setProviderScreen("reconciliation_alert");
                         }}
                         id={`queue-row-${item.checkin_id}`}
@@ -380,6 +384,8 @@ export const ReviewQueueScreen = () => {
                     <tr
                       onClick={() => {
                         setSelectedPatient("Ali Khan");
+                        if (setSelectedPatientDisplay) setSelectedPatientDisplay("Ali Khan (PT-04821)");
+                        if (setSelectedPatientId) setSelectedPatientId("PT-04821");
                         setProviderScreen("reconciliation_alert");
                       }}
                       id="queue-row-ali-khan-conflict"
@@ -430,6 +436,8 @@ export const ReviewQueueScreen = () => {
                     <tr
                       onClick={() => {
                         setSelectedPatient("Ali Khan");
+                        if (setSelectedPatientDisplay) setSelectedPatientDisplay("Ali Khan (PT-04821)");
+                        if (setSelectedPatientId) setSelectedPatientId("PT-04821");
                         setProviderScreen("reconciliation_alert");
                       }}
                       id="queue-row-ali-khan-emergency"
