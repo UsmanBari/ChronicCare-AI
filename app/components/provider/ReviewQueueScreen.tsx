@@ -150,7 +150,7 @@ export const ReviewQueueScreen = () => {
           )}
           <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-teal-700" />
-            <span>City General Triage Engine</span>
+            <span>ChronicCare Triage Engine</span>
           </span>
         </div>
       </div>

@@ -165,7 +165,7 @@ def warmup_models() -> None:
     def _do_warmup() -> None:
         try:
             logger.info("Warming up MMS-TTS models in background thread...")
-            synthesize_speech("warmup", language="ur")
+            synthesize_speech("سلام", language="ur")
             synthesize_speech("warmup", language="en")
             logger.info("MMS-TTS background warmup complete.")
         except Exception as exc:  # noqa: BLE001

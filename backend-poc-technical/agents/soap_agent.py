@@ -501,6 +501,17 @@ def build_soap(
         a_lines.append("Stage-2 escalation: None (rules level maintained)")
 
     # 3. Risk models
+    def _format_risk_prob(p_val: Any) -> str:
+        if p_val is None:
+            return "Unknown"
+        try:
+            val = float(p_val)
+            if 0.0 <= val <= 1.0:
+                val = val * 100
+            return f"{round(val)}%"
+        except Exception:
+            return f"{p_val}%"
+
     risk_data = result.get("risk") if result else None
     if risk_data and isinstance(risk_data, dict):
         models_dict = risk_data.get("models")
@@ -511,7 +522,8 @@ def build_soap(
                     if status == "ok":
                         band = m_info.get("band", "Unknown")
                         prob = m_info.get("probability")
-                        a_lines.append(f"Risk model ({model_name}): Band {band}, Probability {prob}")
+                        prob_str = _format_risk_prob(prob)
+                        a_lines.append(f"Risk model ({model_name}): {prob_str} (10-year CHD), band {band}")
                         drivers = m_info.get("drivers", [])[:3]
                         if drivers:
                             drv_strs = [
@@ -529,7 +541,8 @@ def build_soap(
             if status == "ok":
                 band = risk_data.get("band", "Unknown")
                 prob = risk_data.get("probability")
-                a_lines.append(f"Risk model: Band {band}, Probability {prob}")
+                prob_str = _format_risk_prob(prob)
+                a_lines.append(f"Risk model: {prob_str} (10-year CHD), band {band}")
                 drivers = risk_data.get("drivers", [])[:3]
                 if drivers:
                     drv_strs = [
