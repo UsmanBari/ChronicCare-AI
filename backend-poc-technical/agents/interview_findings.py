@@ -65,60 +65,91 @@ class Finding:
 # =============================================================================
 SYMPTOM_KEYWORD_RULES: List[Tuple[str, List[str]]] = [
     ("dizziness", [
-        "dizzy", "dizziness", "lightheaded", "light-headed", "spinning", "room spinning",
-        "chakkar", "sir ghoom", "sar ghoom", "sar ghum", "چکر", "سر گھوم"
+        r"\bdizzy\b", r"\bdizziness\b", r"\blightheaded\b", r"\blight-headed\b", r"\bspinning\b", r"\broom\s+spinning\b",
+        r"\bchakkar\b", r"\b(?:sir|sar)\s+ghoom\w*\b", r"\b(?:sir|sar)\s+ghum\w*\b", r"چکر", r"سر\s+گھوم"
     ]),
     ("headache", [
-        "headache", "head ache", "head hurts", "throbbing head", "head pressure",
-        "sar dard", "sar me dard", "sir dard", "sar mein dard", "سر درد", "سر میں درد"
+        r"\bheadache\b", r"\bhead\s*ache\b", r"\bhead\s+hurts?\b", r"\bthrobbing\s+head\b", r"\bhead\s+pressure\b",
+        r"\bpain\s+in\s+(?:my\s+)?head\b",
+        r"\b(?:sar|sir)\s+(?:mein\s+|me\s+)?[^,.;!?\n]{0,30}dard\b",
+        r"\b(?:sar|sir)\s+dard\b", r"\b(?:sar|sir)\s+dukh\w*\b", r"\b(?:sar|sir)\s+phat\w*\b",
+        r"سر\s+(?:میں\s+)?[^,.;!?\n]{0,30}درد", r"سر\s+درد", r"سر\s+دکھ"
     ]),
     ("breathlessness", [
-        "shortness of breath", "short of breath", "breathless", "hard to breathe", "winded",
-        "saans phool", "saans phoolna", "saans fool", "saans lene", "saans nahi aa rahi", "سانس پھول", "سانس میں دشواری"
+        r"\bshortness\s+of\s+breath\b", r"\bshort\s+of\s+breath\b", r"\bbreathless\w*\b", r"\bhard\s+to\s+breathe\b", r"\bwinded\b",
+        r"\btrouble\s+breathing\b", r"\bdifficulty\s+breathing\b",
+        r"\bsaans\s+phool\w*\b", r"\bsaans\s+fool\w*\b", r"\bsaans\s+lene\s+mein\s+[^,.;!?\n]{0,30}(?:takleef|mushkil|dushwari)\b",
+        r"\bsaans\s+nahi\s+aa\s+rahi\b", r"\bdum\s+ghut\w*\b",
+        r"سانس\s+پھول", r"سانس\s+(?:لینے\s+)?میں\s+[^,.;!?\n]{0,30}(?:دشواری|تکلیف|مشکل)", r"دم\s+گھٹ"
     ]),
     ("chest_discomfort", [
-        "chest discomfort", "chest aching", "chest soreness", "chest pain", "chest tightness",
-        "seene me dard", "seene mein dard", "chhati me dard", "سینے میں درد", "سینے میں بوجھ"
+        r"\bchest\s+discomfort\b", r"\bchest\s+aching\b", r"\bchest\s+soreness\b", r"\bchest\s+pain\b", r"\bchest\s+tightness\b",
+        r"\bpressure\s+in\s+(?:my\s+)?chest\b",
+        r"\bseen[ae]\s+(?:mein\s+|me\s+)?[^,.;!?\n]{0,30}(?:dard|bojh|dabao|jalan|takleef)\b",
+        r"\bchhati\s+(?:mein\s+|me\s+)?[^,.;!?\n]{0,30}dard\b",
+        r"سینے\s+(?:میں\s+)?[^,.;!?\n]{0,30}(?:درد|بوجھ|دباؤ|جلن|تکلیف)", r"چھاتی\s+(?:میں\s+)?[^,.;!?\n]{0,30}درد"
     ]),
     ("vision_change", [
-        "blurry vision", "blurred vision", "can't see clearly", "vision spots", "floaters",
-        "dhundla", "dhundhli", "nazar kamzor", "aankhon ke aage andhera", "دھندلا", "نظر کی کمزوری"
+        r"\bblurry\s+vision\b", r"\bblurred\s+vision\b", r"\bcan'?t\s+see\s+clearly\b", r"\bvision\s+spots\b", r"\bfloaters\b",
+        r"\btrouble\s+seeing\b",
+        r"\bdhundla\b", r"\bdhundhli\b", r"\bnazar\s+kamzor\b", r"\baankhon\s+ke\s+aage\s+andhera\b",
+        r"دھندلا", r"نظر\s+کی\s+کمزوری", r"آنکھوں\s+کے\s+آگے\s+اندھیرا"
     ]),
     ("thirst_or_urination", [
-        "thirsty", "more thirsty", "dry mouth", "frequent urination", "peeing a lot", "passing urine often",
-        "pyas ziada", "bar bar peshab", "peshab ziada", "پیاس زیادہ", "بار بار پیشاب"
+        r"\bthirsty\b", r"\bmore\s+thirsty\b", r"\bdry\s+mouth\b", r"\bfrequent\s+urination\b", r"\bpeeing\s+a\s+lot\b", r"\bpassing\s+urine\s+often\b",
+        r"\bpyas\s+ziada\b", r"\bziada\s+pyas\b", r"\bbar\s+bar\s+peshab\b", r"\bpeshab\s+ziada\b",
+        r"پیاس\s+زیادہ", r"زیادہ\s+پیاس", r"بار\s+بار\s+پیشاب", r"پیشاب\s+زیادہ"
     ]),
     ("foot_problem", [
-        "foot pain", "sore on foot", "cut on foot", "blister on foot", "numb feet", "tingling feet",
-        "paon me dard", "paon mein dard", "paon sunn", "paon par zakham", "پاؤں میں درد", "پاؤں سن", "پاؤں پر زخم"
+        r"\bfoot\s+pain\b", r"\bsore\s+on\s+foot\b", r"\bcut\s+on\s+foot\b", r"\bblister\s+on\s+foot\b", r"\bnumb\s+feet\b", r"\btingling\s+feet\b",
+        r"\bfoot\s+numbness\b",
+        r"\bpaon\s+(?:mein\s+|me\s+)?[^,.;!?\n]{0,30}(?:dard|sojan|jalan|zakham|takleef)\b", r"\bpaon\s+sunn\b", r"\bpaon\s+par\s+zakham\b",
+        r"پاؤں\s+(?:میں\s+)?[^,.;!?\n]{0,30}(?:درد|سوجن|جلن|زخم|تکلیف)", r"پاؤں\s+سن", r"پاؤں\s+پر\s+زخم"
     ]),
     ("low_sugar_episode", [
-        "shaky", "shakiness", "cold sweat", "low sugar", "hypo", "sugar drop",
-        "sugar low", "kapkapahat", "thanday paseenay", "شوگر لو", "کپکپاہٹ", "ٹھنڈے پسینے"
+        r"\bshaky\b", r"\bshakiness\b", r"\bcold\s+sweat\b", r"\blow\s+sugar\b", r"\bhypo\b", r"\bsugar\s+drop\b",
+        r"\bsugar\s+low\b", r"\bkapkapahat\b", r"\bthanday\s+paseenay\b",
+        r"شوگر\s+لو", r"کپکپاہٹ", r"ٹھنڈے\s+پسینے"
     ]),
     ("missed_dose", [
-        "missed medicine", "forgot dose", "skipped pill", "ran out of medicine", "didn't take medicine",
-        "dawa bhool", "dawa chhoot", "dawai nahi li", "دوا بھول", "دوا نہیں لی"
+        r"\bmissed\s+(?:my\s+)?(?:medicine|meds|dose|pill)\b", r"\bforgot\s+(?:my\s+)?(?:dose|medicine|meds|pill)\b",
+        r"\bskipped\s+(?:my\s+)?pill\b", r"\bran\s+out\s+of\s+medicine\b", r"\bdidn'?t\s+take\s+medicine\b",
+        r"\bdawa\s+bhool\b", r"\bdawa\s+chhoot\b", r"\bdawai\s+nahi\s+li\b",
+        r"دوا\s+بھول", r"دوا\s+نہیں\s+لی"
     ]),
     ("swelling", [
-        "swelling", "swollen ankles", "swollen feet", "puffy legs", "fluid in legs",
-        "sojan", "paon soojh", "takhno par sojan", "سوجن", "پاؤں پر سوجن"
+        r"\bswelling\b", r"\bswollen\s+(?:ankles|feet|legs)\b", r"\bpuffy\s+legs\b", r"\bfluid\s+in\s+legs\b",
+        r"\bsojan\b", r"\bpaon\s+soojh\b", r"\btakhno\s+par\s+sojan\b",
+        r"سوجن", r"پاؤں\s+پر\s+سوجن"
     ]),
     ("tiredness", [
-        "tired", "tiredness", "exhausted", "fatigue", "no energy", "weakness",
-        "thakawat", "kamzori", "bejaan", "تھکاوٹ", "کمزوری"
+        r"\btired\b", r"\btiredness\b", r"\bexhausted\b", r"\bfatigue\b", r"\bno\s+energy\b", r"\bweakness\b",
+        r"\bthakawat\b", r"\bkamzori\b", r"\bbejaan\b",
+        r"تھکاوٹ", r"کمزوری"
     ]),
     ("nausea_or_vomiting", [
-        "nausea", "nauseous", "vomiting", "throwing up", "threw up", "upset stomach",
-        "ulti", "matli", "الٹی", "متلی"
+        r"\bnausea\b", r"\bnauseous\b", r"\bvomiting\b", r"\bthrowing\s+up\b", r"\bthrew\s+up\b", r"\bupset\s+stomach\b",
+        r"\bulti\b", r"\bmatli\b",
+        r"الٹی", r"متلی"
     ]),
     ("sleep_disturbance", [
-        "poor sleep", "can't sleep", "insomnia", "waking up at night", "sleep trouble",
-        "neend nahi aati", "neend kharab", "نیند نہ آنا", "نیند خراب"
+        r"\bpoor\s+sleep\b", r"\bcan'?t\s+sleep\b", r"\binsomnia\b", r"\bwaking\s+up\s+at\s+night\b", r"\bsleep\s+trouble\b",
+        r"\bneend\s+nahi\s+aati\b", r"\bneend\s+kharab\b",
+        r"نیند\s+نہ\s+آنا", r"نیند\s+خراب"
     ]),
     ("low_mood", [
-        "feeling down", "depressed", "hopeless", "sad", "no motivation", "unhappy",
-        "udas", "mayoos", "dil nahi lagta", "اداس", "مایوس", "دل اداس"
+        r"\bfeeling\s+down\b", r"\bdepressed\b", r"\bhopeless\b", r"\bsad\b", r"\bno\s+motivation\b", r"\bunhappy\b",
+        r"\budas\b", r"\bmayoos\b", r"\bdil\s+nahi\s+lagta\b",
+        r"اداس", r"مایوس", r"دل\s+اداس"
+    ]),
+    ("pain_elsewhere", [
+        r"\bback\s+pain\b", r"\bbody\s+ache\b", r"\bjoint\s+pain\b", r"\bmuscle\s+ache\b", r"\bpain\s+in\s+(?:my\s+)?(?:back|joints|legs|arms|body)\b",
+        r"\bkamar\s+(?:mein\s+|me\s+)?[^,.;!?\n]{0,30}dard\b",
+        r"\bjism\s+(?:mein\s+|me\s+)?[^,.;!?\n]{0,30}dard\b",
+        r"\bjoron\s+(?:mein\s+|me\s+)?[^,.;!?\n]{0,30}dard\b",
+        r"\bpait\s+(?:mein\s+|me\s+)?[^,.;!?\n]{0,30}dard\b",
+        r"کمر\s+(?:میں\s+)?[^,.;!?\n]{0,30}درد", r"جسم\s+(?:میں\s+)?[^,.;!?\n]{0,30}درد",
+        r"جوڑوں\s+(?:میں\s+)?[^,.;!?\n]{0,30}درد", r"پیٹ\s+(?:میں\s+)?[^,.;!?\n]{0,30}درد"
     ]),
 ]
 
@@ -146,7 +177,7 @@ ONSET_PATTERNS: List[Tuple[str, List[str]]] = [
     ("few_days", ["few days", "for a few days", "2-3 days", "3 days", "chand dino se", "kuch dino se", "چند دنوں سے", "کچھ دنوں سے"]),
     ("over_a_week", ["for a week", "over a week", "weeks", "haftay se", "aik haftay se", "کئی ہفتوں سے", "ایک ہفتے سے"]),
     ("sudden", ["suddenly", "sudden", "all of a sudden", "achanak", "ek dam", "اچانک", "ایک دم"]),
-    ("gradual", ["gradually", "slowly", "aahista aahista", "rafta rafta", "آہستہ آہستہ"]),
+    ("gradual", ["gradually", "gradual", "slowly", "aahista aahista", "rafta rafta", "آہستہ آہستہ"]),
 ]
 
 PATTERN_PATTERNS: List[Tuple[str, List[str]]] = [
@@ -201,6 +232,97 @@ def _extract_attributes_from_text(text: str) -> Dict[str, Any]:
     return attrs
 
 
+def _is_finding_match_negated(text: str, start: int, end: int) -> bool:
+    """Checks whether a matched symptom keyword is negated in the immediate clause."""
+    pre = text[max(0, start - 30):start].lower()
+    post = text[end:min(len(text), end + 30)].lower()
+
+    # Isolate the clause before and after the match (stop at clause boundaries)
+    pre_clause = re.split(r'[,;]|\b(?:but|magar|lekin|lekan|per|par)\b', pre)[-1]
+    post_clause = re.split(r'[,;]|\b(?:but|magar|lekin|lekan|per|par)\b', post)[0]
+
+    # Preceding negation: 'no headache', 'without headache', 'don't have headache', 'koi sar dard nahi'
+    if re.search(r'\b(?:no|without|never|deny|denies|not|dont|doesn\'t|don\'t|didnt|didn\'t)\b', pre_clause):
+        return True
+    if re.search(r'\b(?:nahi|nahin|na)\b', pre_clause):
+        return True
+    if re.search(r'نہیں', pre_clause):
+        return True
+
+    # Trailing negation: 'sar dard nahi hai', 'headache was absent/none'
+    if re.search(r'\b(?:nahi|nahin|na)\b', post_clause):
+        return True
+    if re.search(r'نہیں', post_clause):
+        return True
+    if re.search(r'\b(?:absent|none|not present)\b', post_clause):
+        return True
+
+    return False
+
+
+def format_finding_label(finding: Finding | Dict[str, Any], lang: str = "en") -> str:
+    """
+    Formats a Finding into a human-readable clinical summary string,
+    e.g. 'Headache (mild, gradual)' or 'سر درد (ہلکا، آہستہ آہستہ)'.
+    """
+    if isinstance(finding, dict):
+        kind = finding.get("kind", "")
+        attrs = finding.get("attributes", {}) or {}
+        label = finding.get("label") or kind.replace("_", " ").title()
+    else:
+        kind = finding.kind
+        attrs = finding.attributes or {}
+        label = finding.label or kind.replace("_", " ").title()
+
+    FINDING_LABELS: Dict[str, Dict[str, str]] = {
+        "headache": {"en": "Headache", "ur": "سر درد", "roman_ur": "Sar dard"},
+        "dizziness": {"en": "Dizziness", "ur": "چکر", "roman_ur": "Chakkar"},
+        "breathlessness": {"en": "Shortness of breath", "ur": "سانس کی تکلیف", "roman_ur": "Saans ki takleef"},
+        "chest_discomfort": {"en": "Chest discomfort", "ur": "سینے میں تکلیف", "roman_ur": "Seene mein takleef"},
+        "vision_change": {"en": "Vision change", "ur": "نظر میں تبدیلی", "roman_ur": "Nazar mein tabdeeli"},
+        "thirst_or_urination": {"en": "Excessive thirst/urination", "ur": "زیادہ پیاس/پیشاب", "roman_ur": "Ziada pyas ya peshab"},
+        "foot_problem": {"en": "Foot problem", "ur": "پاؤں کا مسئلہ", "roman_ur": "Paon ka masla"},
+        "low_sugar_episode": {"en": "Low sugar symptoms", "ur": "شوگر کم ہونے کی علامات", "roman_ur": "Low sugar ki alamaat"},
+        "missed_dose": {"en": "Missed medication", "ur": "دوا چھوٹ جانا", "roman_ur": "Dawai chhootna"},
+        "swelling": {"en": "Swelling", "ur": "سوجن", "roman_ur": "Sojan"},
+        "tiredness": {"en": "Tiredness/Weakness", "ur": "تھکاوٹ/کمزوری", "roman_ur": "Thakawat ya kamzori"},
+        "nausea_or_vomiting": {"en": "Nausea/Vomiting", "ur": "متلی/الٹی", "roman_ur": "Matli ya ulti"},
+        "sleep_disturbance": {"en": "Sleep trouble", "ur": "نیند کا مسئلہ", "roman_ur": "Neend ka masla"},
+        "low_mood": {"en": "Low mood", "ur": "اداس کیفیت", "roman_ur": "Udaasi"},
+        "pain_elsewhere": {"en": "Body ache/Pain", "ur": "جسمانی درد", "roman_ur": "Jism mein dard"},
+        "other_symptom": {"en": "Other symptom", "ur": "دیگر علامات", "roman_ur": "Deegar alamaat"},
+    }
+
+    ATTR_LABELS: Dict[str, Dict[str, str]] = {
+        "mild": {"en": "mild", "ur": "ہلکا", "roman_ur": "mild"},
+        "moderate": {"en": "moderate", "ur": "درمیانہ", "roman_ur": "moderate"},
+        "severe": {"en": "severe", "ur": "شدید", "roman_ur": "severe"},
+        "gradual": {"en": "gradual", "ur": "آہستہ آہستہ", "roman_ur": "gradual"},
+        "sudden": {"en": "sudden", "ur": "اچانک", "roman_ur": "sudden"},
+        "today": {"en": "since morning", "ur": "صبح سے", "roman_ur": "since morning"},
+        "since_yesterday": {"en": "since yesterday", "ur": "کل سے", "roman_ur": "since yesterday"},
+        "constant": {"en": "constant", "ur": "مسلسل", "roman_ur": "constant"},
+        "intermittent": {"en": "intermittent", "ur": "کبھی کبھی", "roman_ur": "intermittent"},
+    }
+
+    name = FINDING_LABELS.get(kind, {}).get(lang) or FINDING_LABELS.get(kind, {}).get("en") or label
+
+    parts = []
+    sev = attrs.get("severity")
+    if sev and sev in ATTR_LABELS:
+        parts.append(ATTR_LABELS[sev].get(lang) or ATTR_LABELS[sev]["en"])
+
+    onset = attrs.get("onset")
+    pattern = attrs.get("pattern")
+    second_attr = onset or pattern
+    if second_attr and second_attr in ATTR_LABELS:
+        parts.append(ATTR_LABELS[second_attr].get(lang) or ATTR_LABELS[second_attr]["en"])
+
+    if parts:
+        return f"{name} ({', '.join(parts)})"
+    return name
+
+
 def extract_findings_from_answer(answer_text: str, step_id: str = "") -> List[Finding]:
     """
     Parses a patient's answer into zero or more normalized Finding objects with quotes and attributes.
@@ -209,30 +331,33 @@ def extract_findings_from_answer(answer_text: str, step_id: str = "") -> List[Fi
         return []
 
     clean_text = answer_text.strip()
-    lowered = clean_text.lower()
     findings: List[Finding] = []
     extracted_kinds: Set[str] = set()
 
     for kind, patterns in SYMPTOM_KEYWORD_RULES:
         for pat in patterns:
-            if pat in lowered and kind not in extracted_kinds:
-                extracted_kinds.add(kind)
-                attrs = _extract_attributes_from_text(clean_text)
-                finding_id = f"fnd_{kind}_{len(findings) + 1}"
-                findings.append(
-                    Finding(
-                        id=finding_id,
-                        kind=kind,
-                        label=kind.replace("_", " ").title(),
-                        raw_quote=clean_text,
-                        attributes=attrs,
-                        probe_count=0,
-                        probed_slots=[],
-                        confidence="High",
-                        source_step=step_id,
-                    )
-                )
+            if kind in extracted_kinds:
                 break
+            m = re.search(pat, clean_text, re.IGNORECASE)
+            if m:
+                if not _is_finding_match_negated(clean_text, m.start(), m.end()):
+                    extracted_kinds.add(kind)
+                    attrs = _extract_attributes_from_text(clean_text)
+                    finding_id = f"fnd_{kind}_{len(findings) + 1}"
+                    findings.append(
+                        Finding(
+                            id=finding_id,
+                            kind=kind,
+                            label=kind.replace("_", " ").title(),
+                            raw_quote=clean_text,
+                            attributes=attrs,
+                            probe_count=0,
+                            probed_slots=[],
+                            confidence="High",
+                            source_step=step_id,
+                        )
+                    )
+                    break
 
     return findings
 

@@ -220,8 +220,9 @@ export const Header = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    const isProviderSignedIn = Boolean(providerIdentifier);
                     setPortal("provider");
-                    setProviderScreen("dashboard");
+                    setProviderScreen(isProviderSignedIn ? "dashboard" : "login");
                     setShowPortalMenu(false);
                   }}
                   id="switch-to-provider-btn"
@@ -374,8 +375,9 @@ export const Header = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    const isProviderSignedIn = Boolean(providerIdentifier);
                     setPortal("provider");
-                    setProviderScreen("dashboard");
+                    setProviderScreen(isProviderSignedIn ? "dashboard" : "login");
                     setMobileMenuOpen(false);
                   }}
                   id="mobile-nav-provider-btn"
@@ -387,7 +389,7 @@ export const Header = () => {
                 >
                   <div className="flex items-center gap-3">
                     <Stethoscope className="w-5 h-5 text-teal-400" />
-                    <span>{t.providerPortal}{!isLiveMode ? " (Dr. Sana Malik)" : ""}</span>
+                    <span>{t.providerPortal}{!isLiveMode ? " (Dr. Sana)" : ""}</span>
                   </div>
                   <ArrowRight className={`w-4 h-4 text-slate-400 ${isUrdu ? "rotate-180" : ""}`} />
                 </button>

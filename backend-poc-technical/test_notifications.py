@@ -451,3 +451,147 @@ def test_provider_and_admin_notifications_api(api_client, temp_db):
 
     resp_a_read = api_client.post(f"/api/admin/notifications/{n_admin['id']}/read")
     assert resp_a_read.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# 7. P1-8: Provider Emergency Notifications & Real Timeouts
+# ---------------------------------------------------------------------------
+
+def test_p18_emergency_notifications_to_demo_role_map_and_db_providers(monkeypatch, temp_db):
+    """
+    Emergency alerts go to every provider-role user including DEMO_ROLE_MAP providers.
+    Verifies that hassaan@gmail.com (role via DEMO_ROLE_MAP) receives the notification.
+    """
+    monkeypatch.setenv("DEMO_ROLE_MAP", "hassaan@gmail.com:provider,doctor.lead@hospital.org:doctor")
+
+    # Seed patient user and profile
+    app_store.create_user(
+        user_id="pat-p18-demo",
+        email="demo.emg@patient.org",
+        role="patient",
+        display_name="Demo Patient Emergency",
+        backend="sqlite",
+        db_path=temp_db,
+    )
+    app_store.upsert_patient_profile(
+        user_id="pat-p18-demo",
+        conditions=["hypertension"],
+        backend="sqlite",
+        db_path=temp_db,
+    )
+
+    notif = notify_urgent_checkin(
+        checkin_id="chk-p18-emg",
+        patient_id="pat-p18-demo",
+        triage_level="emergency",
+        db_path=temp_db,
+    )
+
+    assert notif is not None
+    all_notifs = list_notifications(role="provider", db_path=temp_db)
+
+    # Both DEMO_ROLE_MAP provider recipients received a notification
+    recipients = {n["recipient_id"] for n in all_notifs}
+    assert "hassaan@gmail.com" in recipients
+    assert "doctor.lead@hospital.org" in recipients
+
+    # Every notification names the patient and describes emergency
+    for n in all_notifs:
+        assert "Demo Patient Emergency" in n["title"]
+        assert "Demo Patient Emergency" in n["body"]
+        assert "Emergency" in n["title"]
+        assert n["reference_id"] == "chk-p18-emg"
+
+
+def test_p18_escalation_renotify_text_uses_real_timeout_and_patient_name(monkeypatch, temp_db):
+    """
+    Escalation re-notify text uses real configured timeout ('over 5 minutes', not 'over 2 hours')
+    when ESCALATION_TIMEOUT_MINUTES=5, and names the patient.
+    """
+    monkeypatch.setenv("ESCALATION_TIMEOUT_MINUTES", "5")
+    monkeypatch.delenv("ESCALATION_RENOTIFY_MINUTES", raising=False)
+
+    app_store.create_user(
+        user_id="pat-p18-timeout",
+        email="patient.test16@demo.org",
+        role="patient",
+        display_name="patient.test16",
+        backend="sqlite",
+        db_path=temp_db,
+    )
+    app_store.upsert_patient_profile(
+        user_id="pat-p18-timeout",
+        conditions=["diabetes"],
+        backend="sqlite",
+        db_path=temp_db,
+    )
+
+    n_renotify = notify_escalation_renotify(
+        appointment_id="appt-p18-001",
+        provider_id="hassaan@gmail.com",
+        patient_id="pat-p18-timeout",
+        checkin_id="chk-p18-timeout",
+        db_path=temp_db,
+    )
+
+    assert n_renotify is not None
+    assert "patient.test16" in n_renotify["title"]
+    assert "patient.test16" in n_renotify["body"]
+    assert "over 5 minutes" in n_renotify["body"]
+    assert "over 2 hours" not in n_renotify["body"]
+
+
+def test_p18_dispatch_due_escalations_worker(monkeypatch, temp_db):
+    """
+    dispatch_due_escalations scans urgent appointments in background, finds overdue items,
+    and dispatches re-notifications naming the patient with real timeout.
+    """
+    from services.appointment_service import dispatch_due_escalations, evaluate_and_create_appointment
+
+    monkeypatch.setenv("ESCALATION_TIMEOUT_MINUTES", "5")
+    monkeypatch.setenv("DEMO_ROLE_MAP", "hassaan@gmail.com:provider")
+
+    app_store.create_user(
+        user_id="pat-p18-scan",
+        email="tariq@demo.org",
+        role="patient",
+        display_name="Tariq Mahmood",
+        backend="sqlite",
+        db_path=temp_db,
+    )
+    app_store.upsert_patient_profile(
+        user_id="pat-p18-scan",
+        conditions=["hypertension"],
+        backend="sqlite",
+        db_path=temp_db,
+    )
+
+    base_time = datetime(2026, 11, 15, 12, 0, 0, tzinfo=timezone.utc)
+    now_iso = base_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    appt = evaluate_and_create_appointment(
+        checkin_id="chk-p18-scan-01",
+        patient_id="pat-p18-scan",
+        final_triage_level="urgent",
+        patient_conditions=["hypertension"],
+        backend="sqlite",
+        db_path=temp_db,
+        now_iso=now_iso,
+    )
+
+    # 1. At 2 minutes (< 5 min threshold): no escalation dispatched
+    t_2m = base_time + timedelta(minutes=2)
+    count_2m = dispatch_due_escalations(now_dt=t_2m, backend="sqlite", db_path=temp_db)
+    assert count_2m == 0
+
+    # 2. At 6 minutes (>= 5 min threshold): escalation dispatched
+    t_6m = base_time + timedelta(minutes=6)
+    count_6m = dispatch_due_escalations(now_dt=t_6m, backend="sqlite", db_path=temp_db)
+    assert count_6m >= 1
+
+    notifs = list_notifications(role="provider", db_path=temp_db)
+    renotifs = [n for n in notifs if n["event_type"] == "escalation_renotify"]
+    assert len(renotifs) >= 1
+    assert "Tariq Mahmood" in renotifs[0]["body"]
+    assert "over 5 minutes" in renotifs[0]["body"]
+

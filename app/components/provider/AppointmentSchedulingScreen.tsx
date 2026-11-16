@@ -3,11 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
 import { api, Appointment } from "../../lib/api";
+import { resolveHumanName } from "../../lib/presentation";
 import { Calendar, Clock, CheckCircle2, User, Stethoscope, ArrowLeft, AlertCircle, AlertTriangle, ShieldCheck, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 
 export const AppointmentSchedulingScreen = () => {
   const {
+    selectedPatient,
     setProviderScreen,
     setAppointment,
     demoScenario,
@@ -24,7 +26,8 @@ export const AppointmentSchedulingScreen = () => {
     ? (providerDisplayName || providerIdentifier || fallbackProvider)
     : "Dr. Sana Malik";
 
-  const [activeTab, setActiveTab] = useState<"queue" | "manual">("queue");
+  const casePatientName = selectedPatient ? resolveHumanName(selectedPatient) : (isLiveMode ? "the patient" : "Ali Khan");
+  const [activeTab, setActiveTab] = useState<"queue" | "manual">(selectedPatient ? "manual" : "queue");
   const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -88,7 +91,7 @@ export const AppointmentSchedulingScreen = () => {
         ? "Follow-up: reconciliation review (glucose discrepancy)"
         : demoScenario === "emergency"
         ? "Follow-up: urgent case review"
-        : "Routine chronic care follow-up";
+        : (selectedPatient ? `Follow-up consultation for ${casePatientName}` : "Routine chronic care follow-up");
 
     setAppointment({
       isBooked: true,
@@ -117,8 +120,10 @@ export const AppointmentSchedulingScreen = () => {
         <h1 className="font-heading text-xl md:text-2xl font-bold tracking-tight text-white mb-1">
           {t.scheduleTitle}
         </h1>
-        <p className="text-xs text-slate-300 font-medium">
-          {t.scheduleSubtitle}
+        <p className="text-xs text-slate-300 font-medium" data-testid="schedule-subtitle">
+          {isUrdu
+            ? `${casePatientName} کے لیے کلینک کنسلٹیشن سلاٹ منتخب کریں۔`
+            : `Select an available clinic consultation slot for ${casePatientName}.`}
         </p>
 
         {/* Tab switcher */}
@@ -126,6 +131,7 @@ export const AppointmentSchedulingScreen = () => {
           <button
             type="button"
             onClick={() => setActiveTab("queue")}
+            id="tab-appointments-roster"
             className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
               activeTab === "queue"
                 ? "bg-teal-600 text-white shadow-xs"
@@ -134,19 +140,18 @@ export const AppointmentSchedulingScreen = () => {
           >
             {isUrdu ? "ملاقاتوں کی فہرست" : "Appointments Queue"} ({liveAppointments.length})
           </button>
-          {!isLiveMode && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("manual")}
-              className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                activeTab === "manual"
-                  ? "bg-teal-600 text-white shadow-xs"
-                  : "bg-navy-700 text-slate-300 hover:text-white"
-              }`}
-            >
-              {isUrdu ? "مینوئل بکنگ" : "Schedule Follow-up"}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveTab("manual")}
+            id="tab-schedule-slot"
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "manual"
+                ? "bg-teal-600 text-white shadow-xs"
+                : "bg-navy-700 text-slate-300 hover:text-white"
+            }`}
+          >
+            {isUrdu ? "سلاٹ کا انتخاب" : "Schedule Slot"}
+          </button>
         </div>
       </div>
 
@@ -204,7 +209,7 @@ export const AppointmentSchedulingScreen = () => {
                             {apt.urgency === "urgent" ? t.urgencyUrgent : t.urgencyRoutine}
                           </span>
                           <span className="text-xs font-bold text-navy-800">
-                            Patient: {(apt as any).patient_label || (apt as any).patient_name || apt.patient_id}
+                            Patient: {(apt as any).patient_label || (apt as any).patient_name || resolveHumanName(apt.patient_id)}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5">
@@ -224,6 +229,7 @@ export const AppointmentSchedulingScreen = () => {
                           <span className="text-[10px] uppercase font-bold text-slate-400 block">{t.appointmentSpecialty}</span>
                           <span className="font-semibold text-navy-800">
                             {apt.specialty === "endocrinology" ? t.specialtyEndocrinology : apt.specialty === "cardiology_im" ? t.specialtyCardiology : apt.specialty === "internal_medicine" ? t.specialtyInternalMedicine : t.specialtyGeneral}
+                            {((apt as any).provider_name || apt.provider_id) && ` • ${resolveHumanName((apt as any).provider_name || apt.provider_id)}`}
                           </span>
                         </div>
                         <div>
@@ -233,7 +239,7 @@ export const AppointmentSchedulingScreen = () => {
                       </div>
 
                       <div className="text-xs text-slate-500">
-                        <span className="font-semibold text-slate-700">{t.appointmentReason}:</span> {apt.reason || "Routine clinical review"}
+                        <span className="font-semibold text-slate-700">{t.appointmentReason}:</span> {apt.reason || (isUrgent ? "Urgent clinical review required" : "Routine clinical review")}
                       </div>
 
                       {/* Action buttons */}
@@ -283,14 +289,14 @@ export const AppointmentSchedulingScreen = () => {
         ) : !isBooked ? (
           <div className="space-y-5">
             {/* Patient Context Tag */}
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs" data-testid="schedule-patient-context">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-teal-100 flex items-center justify-center text-teal-800 font-bold text-xs">
-                  AK
+                  {casePatientName.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <span className="font-bold text-navy-800 block">Ali Khan (58y M)</span>
-                  <span className="text-[11px] text-slate-500">MRN-78429 • Type 2 Diabetes</span>
+                  <span className="font-bold text-navy-800 block" data-testid="schedule-patient-name">{casePatientName}</span>
+                  <span className="text-[11px] text-slate-500">Case Follow-up Consultation</span>
                 </div>
               </div>
               <span className="text-[10px] px-2.5 py-1 rounded-md bg-teal-100 text-teal-900 font-bold">
@@ -376,7 +382,7 @@ export const AppointmentSchedulingScreen = () => {
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-left space-y-2.5">
               <div className="flex justify-between">
                 <span className="text-slate-500">Patient:</span>
-                <span className="font-bold text-navy-800">Ali Khan</span>
+                <span className="font-bold text-navy-800">{casePatientName}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Consultation Slot:</span>

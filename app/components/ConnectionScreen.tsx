@@ -62,6 +62,7 @@ export const ConnectionScreen = () => {
   // Connection testing state
   const [testingSystemId, setTestingSystemId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, EHRTestResponse>>({});
+  const [locallyLinkedIds, setLocallyLinkedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isLiveMode) {
@@ -157,11 +158,25 @@ export const ConnectionScreen = () => {
         if (err instanceof ApiError && err.status === 409 && (err.data?.mismatch || (err.detail && err.detail.toLowerCase().includes("mismatch")))) {
           setMismatchWarning(err.detail || "Demographic mismatch detected between your profile and this hospital record.");
           setError(null);
+        } else if (err instanceof ApiError && err.status === 409 && err.detail && (err.detail.toLowerCase().includes("already linked") || err.detail.toLowerCase().includes("already connected"))) {
+          setError(
+            isUrdu
+              ? "یہ ہسپتال ریکارڈ پہلے سے کسی دوسرے اکاؤنٹ سے منسلک ہے۔"
+              : (err.detail || "This EHR patient is already linked to another account")
+          );
+          setMismatchWarning(null);
+          if (patientIdInput) {
+            setLocallyLinkedIds((prev) => {
+              const next = new Set(prev);
+              next.add(patientIdInput.trim());
+              return next;
+            });
+          }
         } else if (err instanceof ApiError) {
           setError(err.getFriendlyMessage(isUrdu));
           setMismatchWarning(null);
         } else {
-          setError(mapApiError(err?.status, err?.message || "ehr_unreachable"));
+          setError(mapApiError(err?.status, err?.message || "ehr_unreachable", isUrdu));
           setMismatchWarning(null);
         }
       } finally {
@@ -571,20 +586,38 @@ export const ConnectionScreen = () => {
                             Verified Adult Test IDs:
                           </span>
                           <div className="flex flex-wrap gap-1.5">
-                            {activeSystem.suggested_patient_ids.map((sugId) => (
-                              <button
-                                key={sugId}
-                                type="button"
-                                onClick={() => setPatientIdInput(sugId)}
-                                className={`px-2 py-0.5 text-[10px] font-mono rounded-lg border transition-all ${
-                                  patientIdInput === sugId
-                                    ? "bg-blue-600 text-white border-blue-600"
-                                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                                }`}
-                              >
-                                {sugId.slice(0, 8)}...
-                              </button>
-                            ))}
+                            {activeSystem.suggested_patient_ids.map((sugId) => {
+                              const isLinked = Boolean(
+                                (activeSystem.linked_patient_ids && activeSystem.linked_patient_ids.includes(sugId)) ||
+                                locallyLinkedIds.has(sugId)
+                              );
+                              return (
+                                <button
+                                  key={sugId}
+                                  type="button"
+                                  onClick={() => setPatientIdInput(sugId)}
+                                  data-testid={`suggested-id-${sugId.slice(0, 8)}`}
+                                  className={`px-2 py-0.5 text-[10px] font-mono rounded-lg border transition-all flex items-center gap-1 ${
+                                    patientIdInput === sugId
+                                      ? "bg-blue-600 text-white border-blue-600"
+                                      : isLinked
+                                      ? "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100"
+                                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                                  }`}
+                                  title={isLinked ? "This EHR patient is already linked to another account" : "Click to select"}
+                                >
+                                  <span>{sugId.slice(0, 8)}...</span>
+                                  {isLinked && (
+                                    <span
+                                      data-testid={`badge-linked-${sugId.slice(0, 8)}`}
+                                      className="text-[9px] font-sans font-bold px-1 py-0.2 rounded bg-amber-200 text-amber-900"
+                                    >
+                                      Already linked
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       )}

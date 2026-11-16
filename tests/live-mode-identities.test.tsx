@@ -171,6 +171,65 @@ describe("Live Mode Demo Identities Gating (Part E)", () => {
       expect(container.textContent).toContain("Dr. Sana Malik");
       expect(container.textContent).toContain("Northside Community Clinic");
     });
+
+    it("in live mode wires real users, ehr systems, and appointments from APIs (P1-9)", async () => {
+      mockAppContext.isLiveMode = true;
+      vi.spyOn(api, "getAdminUsers").mockResolvedValue({
+        users: [
+          {
+            user_id: "prov-live-1",
+            email: "attending.doc@care.org",
+            role: "provider",
+            display_name: "Dr. Hamza Tariq",
+            created_at: "2026-11-01T10:00:00Z",
+          },
+          {
+            user_id: "pat-live-1",
+            email: "patient.one@care.org",
+            role: "patient",
+            display_name: "Zainab Bibi",
+            created_at: "2026-11-02T10:00:00Z",
+          },
+        ],
+      });
+      vi.spyOn(api, "getEHRSystems").mockResolvedValue([
+        {
+          ehr_system_id: "ehr-live-national",
+          display_name: "National Medical Center FHIR",
+          kind: "epic",
+        },
+      ]);
+      vi.spyOn(api, "getProviderAppointments").mockResolvedValue({
+        appointments: [
+          {
+            id: "apt-live-101",
+            patient_id: "pat-live-1",
+            checkin_id: "chk-101",
+            provider_id: "prov-live-1",
+            specialty: "endocrinology",
+            urgency: "urgent",
+            mode: "telehealth",
+            status: "offered",
+            slot_date: "2026-11-16 09:30 AM",
+            created_at: "2026-11-15T12:00:00Z",
+          },
+        ],
+      });
+
+      const { container } = render(<AdminDashboardScreen />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText("National Medical Center FHIR").length).toBeGreaterThan(0);
+        expect(screen.getByText("Dr. Hamza Tariq")).toBeTruthy();
+        expect(screen.getAllByText("Zainab Bibi").length).toBe(2);
+        expect(screen.getByText("2026-11-16 09:30 AM")).toBeTruthy();
+      });
+
+      expect(container.textContent).not.toContain("City General Hospital");
+      expect(container.textContent).not.toContain("No providers registered yet");
+      expect(container.textContent).not.toContain("No patients enrolled yet");
+      expect(container.textContent).not.toContain("No appointments scheduled");
+    });
   });
 
   describe("Header Portal Labels", () => {

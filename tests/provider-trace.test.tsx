@@ -208,13 +208,13 @@ describe("Provider Check-in Risk, Explanation & Decision Trace (I3 Day 3)", () =
       const checkinText = checkinBlock.textContent || "";
       const liveText = liveBlock.textContent || "";
 
-      // 1. Zero % character
-      expect(checkinText.includes("%")).toBe(false);
-      expect(liveText.includes("%")).toBe(false);
+      // 1. Formatted probability next to band (P2-17)
+      expect(checkinText).toContain("31% 10-year Diabetes risk");
+      expect(liveText).toContain("29% 10-year Diabetes risk");
 
-      // 2. Zero floating-point decimals matching probabilities
-      expect(/\b0\.\d+\b/.test(checkinText)).toBe(false);
-      expect(/\b0\.\d+\b/.test(liveText)).toBe(false);
+      // 2. Zero raw floating-point decimals matching probabilities
+      expect(/\b0\.\d{3,}\b/.test(checkinText)).toBe(false);
+      expect(/\b0\.\d{3,}\b/.test(liveText)).toBe(false);
       expect(checkinText).not.toContain("0.3129");
       expect(liveText).not.toContain("0.2854");
     });

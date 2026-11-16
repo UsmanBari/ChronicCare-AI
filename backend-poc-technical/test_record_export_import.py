@@ -7,6 +7,7 @@ import json
 import os
 import time
 from typing import Dict, Any, Optional
+import uuid
 import pytest
 import jwt
 from fastapi.testclient import TestClient
@@ -478,14 +479,15 @@ def test_import_all_or_nothing_rollback_on_failure(rsa_key_pair, monkeypatch):
     5. Asserts the row counts of medications, observations, allergies, and record_edits are identical to before the import.
     """
     client = TestClient(app)
-    headers = _setup_patient(client, rsa_key_pair, "p-rollback-1", "p_rollback_1@demo.com")
+    uid = f"p-rollback-{uuid.uuid4().hex[:8]}"
+    headers = _setup_patient(client, rsa_key_pair, uid, f"{uid}@demo.com")
 
     # Initial counts
-    patient_id = "local-p-rollback-1"
+    patient_id = f"local-{uid}"
     initial_meds = len(local_store.get_local_medications(patient_id))
     initial_obs = len(local_store.get_local_observations(patient_id))
-    initial_allergies = len(app_store.get_allergies("p-rollback-1"))
-    initial_edits = len(app_store.get_record_edits("p-rollback-1"))
+    initial_allergies = len(app_store.get_allergies(uid))
+    initial_edits = len(app_store.get_record_edits(uid))
 
     # Monkeypatch the 3rd insert (create_allergy) to fail
     def fake_create_allergy(*args, **kwargs):

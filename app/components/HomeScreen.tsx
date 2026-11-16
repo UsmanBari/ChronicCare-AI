@@ -490,9 +490,9 @@ export const HomeScreen = () => {
           <div className="p-3.5 rounded-2xl bg-teal-50 border border-teal-200 text-xs flex items-start gap-2.5 animate-fadeIn">
             <RefreshCw className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold text-teal-800 block">Updated from your recent visit</span>
+              <span className="font-bold text-teal-800 block">[Guided Demo Scenario] Updated from clinic record</span>
               <span className="text-teal-700 leading-relaxed">
-                Dr. Sana Malik updated your prescription on {new Date().toLocaleDateString()} — Lisinopril dosage changed to 20mg (1+0). Synced from City General Hospital&apos;s FHIR record.
+                Care team updated prescription on {new Date().toLocaleDateString()} — Lisinopril dosage changed to 20mg (1+0). Synced from connected hospital EHR record.
               </span>
             </div>
           </div>

@@ -89,7 +89,8 @@ def main():
     args = parser.parse_args()
 
     default_sqlite_path = get_sqlite_path()
-    target_path = args.db_path or default_sqlite_path
+    target_path = os.path.abspath(args.db_path) if args.db_path else default_sqlite_path
+    os.environ["LOCAL_DB_PATH"] = target_path
 
     selected_backend = args.backend or get_db_backend()
 

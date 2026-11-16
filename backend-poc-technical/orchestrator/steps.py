@@ -724,6 +724,17 @@ def step_decide_triage(
         triage_colour = level_to_colour(final_triage_level)
         triage_res["triage_colour"] = triage_colour
 
+        t_reasons = list(triage_res.get("reasons") or [])
+        if verif_requires_review:
+            med_discreps = [mv for mv in getattr(verif_result, "medication_verifications", []) if getattr(mv, "requires_review", False)]
+            if med_discreps:
+                t_reasons.append("medication_discrepancy")
+                for md in med_discreps:
+                    m_name = getattr(md, "medication_name", "") or getattr(md, "name", "")
+                    m_type = getattr(md, "discrepancy_type", "")
+                    t_reasons.append(f"medication discrepancy: {m_name} {m_type}".strip())
+        triage_res["reasons"] = t_reasons
+
         return {
             "final_triage_level": final_triage_level,
             "final_requires_review": final_requires_review,
@@ -731,6 +742,7 @@ def step_decide_triage(
             "review_status": review_status,
             "triage_dict": triage_res,
             "triage_colour": triage_colour,
+            "reasons": t_reasons,
         }
     else:
         stroke_eval = None
@@ -832,6 +844,22 @@ def step_decide_triage(
         if triage_dict is not None and isinstance(triage_dict, dict):
             triage_dict["triage_colour"] = triage_colour
 
+        t_reasons = []
+        if verif_requires_review:
+            med_discreps = [mv for mv in getattr(verif_result, "medication_verifications", []) if getattr(mv, "requires_review", False)]
+            if med_discreps:
+                if triage_dict is None:
+                    triage_dict = {"level": final_triage_level, "triage_colour": triage_colour}
+                t_reasons = list(triage_dict.get("reasons") or [])
+                t_reasons.append("medication_discrepancy")
+                for md in med_discreps:
+                    m_name = getattr(md, "medication_name", "") or getattr(md, "name", "")
+                    m_type = getattr(md, "discrepancy_type", "")
+                    t_reasons.append(f"medication discrepancy: {m_name} {m_type}".strip())
+                triage_dict["reasons"] = t_reasons
+        elif triage_dict is not None and isinstance(triage_dict, dict):
+            t_reasons = list(triage_dict.get("reasons") or [])
+
         return {
             "final_triage_level": final_triage_level,
             "final_requires_review": final_requires_review,
@@ -839,6 +867,7 @@ def step_decide_triage(
             "review_status": review_status,
             "triage_dict": triage_dict,
             "triage_colour": triage_colour,
+            "reasons": t_reasons,
         }
 
 
@@ -908,6 +937,29 @@ def step_risk(
 
             profile = get_patient_profile_fn(user_id) or {}
             conditions = profile.get("conditions", [])
+
+            # Use latest FHIR height/weight/BMI when patient gave none (P2-15)
+            if profile.get("height_cm") is None or profile.get("weight_kg") is None:
+                try:
+                    from data_sources.app_store import get_active_ehr_connection, get_ehr_system_by_id
+                    conn = get_active_ehr_connection(user_id)
+                    if conn and conn.get("status") in ("active", "connected"):
+                        ext_pid = conn.get("external_patient_id")
+                        ehr_sys = get_ehr_system_by_id(conn.get("ehr_system_id"))
+                        base_url = ehr_sys.get("fhir_base_url") if ehr_sys else None
+                        from data_sources.fhir_adapter import get_fhir_patient_physical_metrics
+                        fhir_metrics = get_fhir_patient_physical_metrics(ext_pid, base_url=base_url)
+                        if profile.get("height_cm") is None and fhir_metrics.get("height_cm"):
+                            profile["height_cm"] = fhir_metrics["height_cm"]
+                            profile["height_source"] = "fhir"
+                        if profile.get("weight_kg") is None and fhir_metrics.get("weight_kg"):
+                            profile["weight_kg"] = fhir_metrics["weight_kg"]
+                            profile["weight_source"] = "fhir"
+                        if fhir_metrics.get("bmi"):
+                            profile["bmi"] = fhir_metrics["bmi"]
+                            profile["bmi_source"] = "fhir"
+                except Exception:
+                    pass
 
             # Compatibility check for legacy test_w3_coverage_new_code.py (D12/D13 single-model test)
             import inspect
@@ -1122,6 +1174,21 @@ def step_explain(
         from rag.query_map import build_query_from_triage
 
         triage_copy = copy.deepcopy(triage_decision.get("triage_dict") or {"level": triage_decision.get("final_triage_level", "routine")})
+        # Forward reasons, raised_by, and triggered_rules from triage_decision
+        reasons_accum = list(triage_copy.get("reasons") or [])
+        if triage_decision.get("reasons"):
+            reasons_accum.extend(triage_decision["reasons"])
+        if triage_decision.get("raised_by"):
+            for rb in triage_decision["raised_by"]:
+                if isinstance(rb, dict):
+                    reasons_accum.append(rb.get("detail") or rb.get("source") or "")
+                elif isinstance(rb, str):
+                    reasons_accum.append(rb)
+        if "raised_by" in triage_decision and "raised_by" not in triage_copy:
+            triage_copy["raised_by"] = triage_decision["raised_by"]
+        if reasons_accum:
+            triage_copy["reasons"] = list(dict.fromkeys(r for r in reasons_accum if r))
+
         active_explain_mode = get_explain_mode()
 
         query_mapping = build_query_from_triage(triage_copy, readings)

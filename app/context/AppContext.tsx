@@ -573,6 +573,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             setProviderDisplayName(name);
           } else if (targetPortal === "admin") {
             if (role !== "admin") {
+              try {
+                await api.reportAccessDenied("admin");
+              } catch {}
               await signOut(auth);
               setUserRole(null);
               setAdminScreenState("login");
@@ -644,6 +647,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setUserIdentifier("");
     setProviderIdentifier("");
     setProviderDisplayName(null);
+    setProviderScreenState("login");
     setAdminIdentifier("");
     setSelectedPatient(null);
     setLiveProfile(null);
@@ -697,8 +701,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (p === "landing") {
       signOutUser().catch(() => {});
     }
+    if (p === "provider" && !providerIdentifier) {
+      setProviderScreenState("login");
+    }
     setPortalState(p);
-    pushNavState(p, screen, providerScreen, adminScreen);
+    pushNavState(p, screen, p === "provider" && !providerIdentifier ? "login" : providerScreen, adminScreen);
   };
 
   const setScreen = (s: PatientScreenType) => {

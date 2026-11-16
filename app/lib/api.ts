@@ -86,6 +86,7 @@ export interface PatientBackgroundResponse {
   diagnosis_year_hypertension?: number | null;
   comorbidities?: Record<string, boolean> | null;
   disclaimer?: string | null;
+  metrics_source?: string | null;
 }
 
 export interface VoiceTranscribeResponse {
@@ -246,6 +247,7 @@ export interface EHRSystemResponse {
   description?: string;
   sample_patients?: SamplePatient[] | null;
   suggested_patient_ids?: string[] | null;
+  linked_patient_ids?: string[] | null;
 }
 
 export interface EHRTestResponse {
@@ -325,6 +327,9 @@ export interface CheckinStartResponse {
   can_say_unknown?: boolean | null;
   engine?: string | null;
   safety_note?: string | null;
+  emergency?: boolean;
+  emergency_reason?: string | null;
+  escalation_recorded?: boolean | null;
 }
 
 export interface CheckinAnswerResponse {
@@ -522,6 +527,14 @@ export interface ReviewQueueItemResponse {
   escalated_at?: string | null;
   triage_level?: string | null;
   triage_colour?: string | null;
+  review_status?: string | null;
+  provider_decision?: string | null;
+  provider_level?: string | null;
+  provider_reason?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  user_id?: string | null;
+  patient_id?: string | null;
 }
 
 export interface ReviewActionResponse {
@@ -775,6 +788,11 @@ export class ApiError extends Error {
         : "The requested resource or record was not found.";
     }
     if (this.status === 409) {
+      if (this.detail && (this.detail.toLowerCase().includes("already linked") || this.detail.toLowerCase().includes("already connected"))) {
+        return isUrdu
+          ? "یہ ہسپتال ریکارڈ پہلے سے کسی دوسرے اکاؤنٹ سے منسلک ہے۔"
+          : "This EHR patient is already linked to another account";
+      }
       return isUrdu
         ? "موجودہ ڈیٹا کے ساتھ تضاد پیش آیا ہے۔"
         : "A conflict occurred with existing data or state.";
@@ -1147,12 +1165,27 @@ async function requestBlob(
 }
 
 const inFlightCompleteRequests = new Map<string, Promise<CheckinCompleteResponse>>();
+let inFlightAuthSession: Promise<SessionResponse> | null = null;
+const inFlightSoapRequests = new Map<string, Promise<SoapNoteResponse>>();
 
 export const api = {
   // 1. Auth & Session
   authSession: async (): Promise<SessionResponse> => {
-    return request<SessionResponse>("/api/auth/session", {
+    if (inFlightAuthSession) return inFlightAuthSession;
+    inFlightAuthSession = request<SessionResponse>("/api/auth/session", {
       method: "POST",
+    }).finally(() => {
+      setTimeout(() => {
+        inFlightAuthSession = null;
+      }, 1500);
+    });
+    return inFlightAuthSession;
+  },
+
+  reportAccessDenied: async (portal: string = "admin"): Promise<void> => {
+    await request<void>("/api/auth/access-denied", {
+      method: "POST",
+      body: JSON.stringify({ portal }),
     });
   },
 
@@ -1467,9 +1500,17 @@ export const api = {
   getProviderSoapNote: async (
     checkin_id: string
   ): Promise<SoapNoteResponse> => {
-    return request<SoapNoteResponse>(`/api/provider/review/${encodeURIComponent(checkin_id)}/soap`, {
+    const existing = inFlightSoapRequests.get(checkin_id);
+    if (existing) return existing;
+    const p = request<SoapNoteResponse>(`/api/provider/review/${encodeURIComponent(checkin_id)}/soap`, {
       method: "GET",
+    }).finally(() => {
+      setTimeout(() => {
+        inFlightSoapRequests.delete(checkin_id);
+      }, 2000);
     });
+    inFlightSoapRequests.set(checkin_id, p);
+    return p;
   },
 
   postProviderReviewAction: async (
@@ -1642,7 +1683,7 @@ export const api = {
     return request("/api/admin/stats");
   },
 
-  getAdminUsers: async (): Promise<{ users: Array<{ user_id: string; email: string; role: string; created_at: string }> }> => {
+  getAdminUsers: async (): Promise<{ users: Array<{ user_id: string; email: string; role: string; display_name?: string; created_at: string }> }> => {
     return request("/api/admin/users");
   },
 

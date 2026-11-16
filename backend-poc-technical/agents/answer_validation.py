@@ -191,15 +191,19 @@ def validate_glucose_input(text: str, previously_asked_unit: bool = False) -> Va
             )
         return ValidationResult(valid=False, is_unclear=True, needs_review=True, confidence="Low", raw_quote=clean)
 
+    # P1-3: Strip duration phrases before extracting numbers/verbal words
+    from agents.answer_understanding import strip_duration_phrases
+    lowered_no_dur = strip_duration_phrases(lowered)
+
     # Verbal number words check
-    num_from_words = _parse_number_words(lowered)
+    num_from_words = _parse_number_words(lowered_no_dur)
 
     has_mmol = "mmol" in lowered
     has_mgdl = "mg/dl" in lowered or "mgdl" in lowered or "mg" in lowered
 
     # Find numeric float tokens
     # Replace decimal comma with dot (e.g. "6,5" -> 6.5)
-    normalized_digits = re.sub(r"(?<=\d),(?=\d)", ".", lowered)
+    normalized_digits = re.sub(r"(?<=\d),(?=\d)", ".", lowered_no_dur)
     numbers = [float(n) for n in re.findall(r"\d+(?:\.\d+)?", normalized_digits)]
     if not numbers and num_from_words is not None:
         numbers = [num_from_words]

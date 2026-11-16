@@ -75,6 +75,13 @@ def test_nameless_records_are_skipped():
     ("I take 2 tablets now", "active", True),
     ("500mg once a day", "active", True),
     ("Yes, since 2020", "active", False),                 # a year is not a dose
+    ("yeh do hafte se band kar di hai", "stopped", False),
+    ("band kar di", "stopped", False),
+    ("chhor di", "stopped", False),
+    ("ab nahi leta", "stopped", False),
+    ("بند کر دی", "stopped", False),
+    ("چھوڑ دی", "stopped", False),
+    ("اب نہیں لیتا", "stopped", False),
 ])
 def test_answer_interpretation(answer, status, changed):
     state = feed(check([METFORMIN]), answer)
@@ -254,3 +261,25 @@ def test_store_invariant_still_applies():
     b = {"patient": NormalizedPatient("P-1", "T"), "observations": [], "medications": items}
     with pytest.raises(ValueError, match="Store Invariant"):
         reconcile_bundles(a, b)
+
+
+def test_item_5_medication_confirmation_cases():
+    """
+    Explicit test cases required by FIX4 Item 5:
+    - 'haan, lekin ab 1000 mg' is read as a dose change (status active, changed True, stripped leading yes)
+    - 'nahi' is read as stopped (status stopped, changed False)
+    """
+    state_change = feed(check([METFORMIN]), "haan, lekin ab 1000 mg")
+    assert state_change.complete is True
+    res_change = state_change.results[0]
+    assert res_change["status"] == "active"
+    assert res_change["changed"] is True
+    assert "haan" not in res_change["dosage"].lower()
+    assert "1000 mg" in res_change["dosage"]
+
+    state_stopped = feed(check([METFORMIN]), "nahi")
+    assert state_stopped.complete is True
+    res_stopped = state_stopped.results[0]
+    assert res_stopped["status"] == "stopped"
+    assert res_stopped["changed"] is False
+

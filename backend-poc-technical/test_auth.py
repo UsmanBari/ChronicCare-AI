@@ -473,3 +473,74 @@ def test_audit_logs_contain_no_tokens_or_raw_emails(rsa_key_pair):
         assert "Bearer" not in detail_str
         assert "eyJ" not in detail_str
         assert "sensitive_patient@example.com" not in detail_str
+
+
+def test_login_and_soap_generated_audit_deduplication():
+    """P3-25: Verifies LOGIN and SOAP_GENERATED are deduplicated on rapid double calls."""
+    user_id = f"test-dedup-user-{int(time.time() * 1000)}"
+    id1 = app_store.append_audit(
+        actor_user_id=user_id,
+        action="login",
+        target=user_id,
+        outcome="ok",
+    )
+    id2 = app_store.append_audit(
+        actor_user_id=user_id,
+        action="login",
+        target=user_id,
+        outcome="ok",
+    )
+    assert id1 == id2, f"Rapid double login call was not deduplicated: {id1} vs {id2}"
+
+    logs = app_store.get_audit_logs(limit=20)
+    user_logins = [l for l in logs if l["actor_user_id"] == user_id and l["action"] == "login"]
+    assert len(user_logins) == 1, f"Expected exactly 1 login audit row, got {len(user_logins)}"
+
+    # Test deduplication of SOAP_GENERATED
+    chk_id = f"chk-dedup-{int(time.time() * 1000)}"
+    s_id1 = app_store.append_audit(
+        actor_user_id=user_id,
+        action="soap_generated",
+        target=chk_id,
+        outcome="ok",
+    )
+    s_id2 = app_store.append_audit(
+        actor_user_id=user_id,
+        action="soap_generated",
+        target=chk_id,
+        outcome="ok",
+    )
+    assert s_id1 == s_id2, f"Rapid double soap_generated call was not deduplicated: {s_id1} vs {s_id2}"
+
+    soap_logs = [l for l in app_store.get_audit_logs(limit=20) if l["target"] == chk_id and l["action"] == "soap_generated"]
+    assert len(soap_logs) == 1, f"Expected exactly 1 soap_generated audit row, got {len(soap_logs)}"
+
+
+def test_provider_signing_into_admin_portal_writes_access_denied_audit(rsa_key_pair):
+    """P3-25: Verifies a provider signing into admin portal writes an ACCESS_DENIED audit row."""
+    prov_token = create_test_token(rsa_key_pair, sub="uid-prov-p25", email="provider@demo.com")
+    client = TestClient(app)
+
+    # 1. Provider signs in
+    res_sess = client.post("/api/auth/session", headers={"Authorization": f"Bearer {prov_token}"})
+    assert res_sess.status_code == 200
+    assert res_sess.json()["role"] == "provider"
+
+    # 2. Refusal report when provider attempts admin portal entry
+    res_refusal = client.post(
+        "/api/auth/access-denied",
+        headers={"Authorization": f"Bearer {prov_token}"},
+        json={"portal": "admin"},
+    )
+    assert res_refusal.status_code == 200
+
+    # 3. Verify access_denied row is present
+    logs = app_store.get_audit_logs(limit=20)
+    denied = [
+        l for l in logs
+        if l["actor_user_id"] == "uid-prov-p25"
+        and l["action"] == "access_denied"
+        and l["outcome"] == "denied"
+    ]
+    assert len(denied) >= 1, f"Expected access_denied audit row, found: {logs}"
+

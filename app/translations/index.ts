@@ -471,6 +471,8 @@ export interface Translations {
   riskCaveatsTitle: string;
   riskCaveatHomeBp: string;
   riskCaveatNotValidatedPakistan: string;
+  riskCaveatFramingham?: string;
+  riskCaveatNhanes?: string;
   riskMissingDataTitle: string;
   riskMissingDataDescription: string;
   riskMissingBp: string;
@@ -601,6 +603,7 @@ export interface Translations {
   listenToExplanationBtn: string;
   listeningToExplanation: string;
   speechLoading: string;
+  speechPreparingWarmup: string;
   speechError: string;
   listenToEmergencyInstructions: string;
   adminConfigTitle: string;
@@ -1043,7 +1046,7 @@ const enTranslations: Translations = {
     serverTyping: "Processing response...",
     overdueBadge: "OVERDUE",
     emergencyPriority: "EMERGENCY",
-    actionNoteLabel: "Clinical Review Note (Required)",
+    actionNoteLabel: "Clinical Review Note",
     actionNotePlaceholder: "Enter clinical observation, rationale, or instructions for care team...",
     actionResolveBtn: "Resolve & Close Alert",
     actionEscalateBtn: "Escalate to Care Team",
@@ -1129,6 +1132,8 @@ const enTranslations: Translations = {
     riskCaveatsTitle: "Clinical Caveats",
     riskCaveatHomeBp: "Home blood pressure readings are self-reported and have not been validated against clinic measurements.",
     riskCaveatNotValidatedPakistan: "This model was developed on US NHANES data and has not been validated on a Pakistani population.",
+    riskCaveatFramingham: "This model was developed on US Framingham Heart Study data and has not been validated on a Pakistani population.",
+    riskCaveatNhanes: "This model was developed on US NHANES data and has not been validated on a Pakistani population.",
     riskMissingDataTitle: "Not Enough Information",
     riskMissingDataDescription: "Risk assessment requires complete baseline measurements:",
     riskMissingBp: "Blood pressure reading in the last 30 days",
@@ -1259,6 +1264,7 @@ const enTranslations: Translations = {
     listenToExplanationBtn: "Listen",
     listeningToExplanation: "Playing...",
     speechLoading: "Generating voice...",
+    speechPreparingWarmup: "Preparing voice, the first time can take up to a minute",
     speechError: "Voice output unavailable",
     listenToEmergencyInstructions: "Listen to Instructions",
     adminConfigTitle: "System Configuration & Guards Status",
@@ -1702,7 +1708,7 @@ const urTranslations: Translations = {
     serverTyping: "جواب کا تجزیہ ہو رہا ہے...",
     overdueBadge: "وقت گزر چکا ہے",
     emergencyPriority: "ایمرجنسی",
-    actionNoteLabel: "کلینیکل نوٹ (لازمی)",
+    actionNoteLabel: "کلینیکل نوٹ",
     actionNotePlaceholder: "طبی مشاہدہ، وجہ یا نگہداشت کے لیے ہدایات درج کریں...",
     actionResolveBtn: "حل کریں اور الرٹ بند کریں",
     actionEscalateBtn: "نگہداشت کی ٹیم کو ایسکلیٹ کریں",
@@ -1789,6 +1795,8 @@ const urTranslations: Translations = {
     riskCaveatsTitle: "طبی تنبیہات",
     riskCaveatHomeBp: "گھر پر لیے گئے بلڈ پریشر کے نتائج مریض کے خود درج کردہ ہیں اور کلینک کے امتحانی بلڈ پریشر سے تصدیق شدہ نہیں ہیں۔",
     riskCaveatNotValidatedPakistan: "یہ ماڈل امریکی این ایچ اے این ای ایس (NHANES) ڈیٹا پر بنایا گیا ہے اور اس کی پاکستانی آبادی پر توثیق نہیں کی گئی ہے۔",
+    riskCaveatFramingham: "یہ ماڈل امریکی فریمنگھم ہارٹ اسٹڈی (Framingham) ڈیٹا پر بنایا گیا ہے اور اس کی پاکستانی آبادی پر توثیق نہیں کی گئی ہے۔",
+    riskCaveatNhanes: "یہ ماڈل امریکی این ایچ اے این ای ایس (NHANES) ڈیٹا پر بنایا گیا ہے اور اس کی پاکستانی آبادی پر توثیق نہیں کی گئی ہے۔",
     riskMissingDataTitle: "معلومات ناکافی ہیں",
     riskMissingDataDescription: "خطرے کے جائزے کے لیے درج ذیل مکمل پیمائشیں درکار ہیں:",
     riskMissingBp: "پچھلے ۳۰ دنوں کے اندر بلڈ پریشر کی ریڈنگ",
@@ -1919,6 +1927,7 @@ const urTranslations: Translations = {
     listenToExplanationBtn: "وضاحت سنیں",
     listeningToExplanation: "آواز چل رہی ہے...",
     speechLoading: "آواز تیار ہو رہی ہے...",
+    speechPreparingWarmup: "آواز تیار کی جا رہی ہے، پہلی بار ایک منٹ تک لگ سکتا ہے",
     speechError: "آواز دستیاب نہیں ہے",
     listenToEmergencyInstructions: "ایمرجنسی ہدایات سنیں",
     adminConfigTitle: "سسٹم کنفیگریشن اور گارڈز کی حالت",
@@ -1997,6 +2006,8 @@ const romanUrTranslations: Translations = {
   adjustConfirmBtn: "Tabdeeli ki tasdeeq karein",
   adjustCancelBtn: "Mansookh karein",
   emergencyCannotAdjustTooltip: "Emergencies follow protocol 1122",
+  riskCaveatFramingham: "Yeh model US Framingham Heart Study data par banaya gaya hai aur is ki Pakistani population par tasdeeq nahi ki gayi.",
+  riskCaveatNhanes: "Yeh model US NHANES data par banaya gaya hai aur is ki Pakistani population par tasdeeq nahi ki gayi.",
   reviewHistoryTitle: "Jaiza karwaiyon ki tareekh",
   chartTargetsDisclaimer: "Targets diabetes/high BP ke mareezon ke liye ADA/AHA guidance ke mutabiq hain; aap ke doctor mukhtalif targets muqarrar kar sakte hain.",
   normalRangeDisclaimer: "Is app mein istemal hone wali target range",
@@ -2030,6 +2041,27 @@ const romanUrTranslations: Translations = {
   routedToReviewTitle: "Doctor ke Jaize ke Liye Bheja Gaya",
   routedToReviewHeadline: "Doctor ke Jaize ke Liye Bheja Gaya",
   routedToReviewExplanation: "Doctor ise apni jaiza qataar mein dekhein ge.",
+  whyAmIAskedThisBtn: "Yeh kyun poocha ja raha hai?",
+  dontKnowBtn: "Maloom nahi",
+  skipQuestionBtn: "Chhor dein",
+  someoneElseAnsweringBtn: "Koi aur jawab de raha hai",
+  dontHaveInfoBtn: "Mere paas yeh maloomat nahi hain",
+  sendBtnLabel: "Bheinjein",
+  micSpeakLabel: "Bol kar jawab dein",
+  micDisabledLabel: "Voice feature Settings mein on karein",
+  interviewRetryBtn: "Dobara koshish karein",
+  interviewEmergencyCall: "Emergency ki soorat mein apne muqami emergency number 1122 par call karein.",
+  interviewNetworkError: "Aap ka jawab nahi bheja ja saka. Agar emergency hai toh foran 1122 par call karein.",
+  submitCheckInBtn: "Check-in jama karein",
+  confirmationTitle: "Check-in jama ho gaya!",
+  confirmationSubtitle: "Aap ka rozana ka health check-in kamyabi se mehfooz kar liya gaya hai.",
+  confirmationMessage: "Rozana check-in mukammal karne ka shukriya. Aap ke jawabaat profile mein darj ho gaye hain.",
+  submittedAt: "Jama karne ka waqt",
+  viewResultsBtn: "Nateeja Dekhein",
+  finishBtn: "Mukammal karein",
+  checkinSummaryTitle: "Check-in mehfooz aur tasdeeq shuda",
+  checkinSummarySubtitle: "Aap ki rozana ki sehat ki maloomat ka jaiza le liya gaya hai.",
+  noReadingsEntered: "Aaj koi reading darj nahi ki gayi",
 };
 
 export const translations: Record<Language, Translations> = {

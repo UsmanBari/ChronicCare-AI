@@ -53,6 +53,9 @@ export const AdminLoginScreen = () => {
         // In Live Mode: Validate strictly from backend session
         const session = await api.authSession();
         if (session.role !== "admin") {
+          try {
+            await api.reportAccessDenied("admin");
+          } catch {}
           await signOut(auth);
           setError(t.authRoleMismatch);
           setIsLoading(false);

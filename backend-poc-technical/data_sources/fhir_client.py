@@ -226,21 +226,21 @@ def get_fhir_patient(patient_id: str, base_url: Optional[str] = None, timeout: i
     return fhir_get(base_url, f"Patient/{patient_id}", timeout_read=float(timeout))
 
 
-def get_fhir_observations(patient_id: str, base_url: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_fhir_observations(patient_id: str, base_url: Optional[str] = None, timeout: float = 3.0) -> List[Dict[str, Any]]:
     """
     Retrieves Observation resources for a given patient ID.
     """
-    bundle = fhir_get(base_url, "Observation", params={"patient": patient_id, "_count": 100, "_sort": "-date"})
+    bundle = fhir_get(base_url, "Observation", params={"patient": patient_id, "_count": 100, "_sort": "-date"}, timeout_read=float(timeout))
     entries = bundle.get("entry", []) if isinstance(bundle, dict) else []
     return [entry["resource"] for entry in entries if "resource" in entry]
 
 
-def get_fhir_medications(patient_id: str, base_url: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_fhir_medications(patient_id: str, base_url: Optional[str] = None, timeout: float = 3.0) -> List[Dict[str, Any]]:
     """
     Retrieves MedicationRequest resources for a given patient ID, following next links.
     """
     resources = []
-    bundle = fhir_get(base_url, "MedicationRequest", params={"patient": patient_id, "_count": 100})
+    bundle = fhir_get(base_url, "MedicationRequest", params={"patient": patient_id, "_count": 100}, timeout_read=float(timeout))
     seen_urls = set()
     while isinstance(bundle, dict):
         entries = bundle.get("entry", [])

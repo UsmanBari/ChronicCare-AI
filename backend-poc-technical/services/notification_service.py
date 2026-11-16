@@ -94,6 +94,89 @@ def send_fcm_push(
         return {"sent": 0, "status": "error", "error": str(exc)}
 
 
+def format_timeout_phrase(seconds: float) -> str:
+    """Formats timeout seconds as a friendly phrase, e.g. 'over 5 minutes', 'over 2 hours'."""
+    mins = round(seconds / 60.0, 1)
+    if mins < 60:
+        clean_mins = int(mins) if mins == int(mins) else mins
+        return f"over {clean_mins} minute{'s' if clean_mins != 1 else ''}"
+    hrs = round(mins / 60.0, 1)
+    clean_hrs = int(hrs) if hrs == int(hrs) else hrs
+    return f"over {clean_hrs} hour{'s' if clean_hrs != 1 else ''}"
+
+
+def get_all_provider_recipients(
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> List[str]:
+    """
+    Returns unique recipient identifiers for all clinical providers:
+    - Provider emails specified in DEMO_ROLE_MAP
+    - Provider user IDs and emails from users table
+    - Fallback on-call provider ('prov-demo-gen-1') if none found
+    """
+    recipients = set()
+
+    # 1. Providers from DEMO_ROLE_MAP env var
+    demo_map_raw = os.environ.get("DEMO_ROLE_MAP", "").strip()
+    if demo_map_raw:
+        for entry in demo_map_raw.split(","):
+            parts = entry.strip().split(":")
+            if len(parts) == 2:
+                email = parts[0].strip().lower()
+                role = parts[1].strip().lower()
+                if role in ("provider", "doctor") and email:
+                    recipients.add(email)
+
+    # 2. Provider users registered in DB
+    try:
+        from data_sources.app_store import get_db_cursor
+        with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+            cursor.execute("SELECT user_id, email FROM users WHERE role IN ('provider', 'doctor')")
+            for r in cursor.fetchall():
+                if r[0]:
+                    recipients.add(str(r[0]))
+                if r[1]:
+                    recipients.add(str(r[1]).lower())
+    except Exception as exc:
+        logger.warning(f"Error querying provider users from DB: {exc}")
+
+    if not recipients:
+        recipients.add("prov-demo-gen-1")
+
+    return sorted(list(recipients))
+
+
+def _resolve_patient_display_name(
+    patient_id: str,
+    patient_name: Optional[str] = None,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> str:
+    name = patient_name
+    clean_uid = str(patient_id).removeprefix("local-")
+    if not name and clean_uid:
+        profile = get_patient_profile(clean_uid, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+        if profile and profile.get("display_name"):
+            name = profile["display_name"]
+        elif profile and profile.get("name"):
+            name = profile["name"]
+        else:
+            usr = get_user_by_id(clean_uid, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+            if usr and usr.get("display_name"):
+                name = usr["display_name"]
+            elif usr and usr.get("email"):
+                name = usr["email"]
+    if not name and patient_id:
+        if "@" in str(patient_id) or "patient" in str(patient_id).lower() or "demo" in str(patient_id).lower():
+            name = str(patient_id)
+    return name or "A patient"
+
+
 def notify_urgent_checkin(
     checkin_id: str,
     patient_id: str,
@@ -106,7 +189,7 @@ def notify_urgent_checkin(
     ssl_ca: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
-    Generates an urgent clinical notification for the attending provider upon
+    Generates an urgent clinical notification for all attending providers upon
     completion of an urgent or emergency check-in.
     """
     level = (triage_level or "").lower().strip()
@@ -119,121 +202,169 @@ def notify_urgent_checkin(
         return None
 
     # Retrieve patient display name
-    name = patient_name
-    clean_uid = str(patient_id).removeprefix("local-")
-    if not name:
-        profile = get_patient_profile(clean_uid, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
-        if profile and profile.get("display_name"):
-            name = profile["display_name"]
-        elif profile and profile.get("name"):
-            name = profile["name"]
-        else:
-            usr = get_user_by_id(clean_uid, backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
-            if usr and usr.get("display_name"):
-                name = usr["display_name"]
-            elif usr and usr.get("email"):
-                name = usr["email"]
+    display_name = _resolve_patient_display_name(
+        patient_id=patient_id,
+        patient_name=patient_name,
+        backend=backend,
+        db_path=db_path,
+        mysql_url=mysql_url,
+        ssl_ca=ssl_ca,
+    )
 
-    display_name = name or "A patient"
-    target_provider = provider_id or "prov-demo-gen-1"
-
-    title = "Urgent Check-in Alert"
-    body = f"Urgent check-in from {display_name} requires clinical review"
+    if level == "emergency":
+        title = f"Emergency Alert: {display_name}"
+        body = f"Emergency check-in from {display_name} requires immediate clinical review"
+    else:
+        title = f"Urgent Check-in Alert: {display_name}"
+        body = f"Urgent check-in from {display_name} requires clinical review"
 
     validate_no_health_values(title)
     validate_no_health_values(body)
 
-    notif = create_notification(
-        recipient_id=target_provider,
-        role="provider",
-        event_type="urgent_checkin",
-        reference_id=checkin_id,
-        title=title,
-        body=body,
-        backend=backend,
-        db_path=db_path,
-        mysql_url=mysql_url,
-        ssl_ca=ssl_ca,
-    )
+    # Determine provider recipients (all providers + DEMO_ROLE_MAP, or explicit target)
+    if provider_id:
+        recipients = [provider_id]
+    else:
+        recipients = get_all_provider_recipients(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
 
-    send_fcm_push(
-        user_id=target_provider,
-        title=title,
-        body=body,
-        data={"checkin_id": checkin_id, "type": "urgent_checkin"},
-        backend=backend,
-        db_path=db_path,
-        mysql_url=mysql_url,
-        ssl_ca=ssl_ca,
-    )
+    last_notif = None
+    for target_provider in recipients:
+        notif = create_notification(
+            recipient_id=target_provider,
+            role="provider",
+            event_type="urgent_checkin",
+            reference_id=checkin_id,
+            title=title,
+            body=body,
+            backend=backend,
+            db_path=db_path,
+            mysql_url=mysql_url,
+            ssl_ca=ssl_ca,
+        )
+        if not last_notif or target_provider == provider_id:
+            last_notif = notif
 
-    return notif
+        send_fcm_push(
+            user_id=target_provider,
+            title=title,
+            body=body,
+            data={"checkin_id": checkin_id, "type": "urgent_checkin" if level == "urgent" else "emergency"},
+            backend=backend,
+            db_path=db_path,
+            mysql_url=mysql_url,
+            ssl_ca=ssl_ca,
+        )
+
+    return last_notif
 
 
 def notify_escalation_renotify(
     appointment_id: str,
     provider_id: str,
     patient_id: str,
+    checkin_id: Optional[str] = None,
     backend: Optional[str] = None,
     db_path: Optional[str] = None,
     mysql_url: Optional[str] = None,
     ssl_ca: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Re-notifies the provider when an urgent case has not been acknowledged for 2 hours."""
-    title = "Urgent Case Follow-up"
-    body = "An urgent case has remained unacknowledged for over 2 hours. Review required."
+    """Re-notifies clinical providers when an urgent case has remained unacknowledged beyond the escalation timeout."""
+    from services.appointment_service import get_escalation_timeouts
+
+    display_name = _resolve_patient_display_name(
+        patient_id=patient_id,
+        backend=backend,
+        db_path=db_path,
+        mysql_url=mysql_url,
+        ssl_ca=ssl_ca,
+    )
+
+    renotify_seconds, _ = get_escalation_timeouts()
+    timeout_phrase = format_timeout_phrase(renotify_seconds)
+
+    title = f"Urgent Case Follow-up: {display_name}"
+    body = f"An urgent case for {display_name} has remained unacknowledged for {timeout_phrase}. Review required."
 
     validate_no_health_values(title)
     validate_no_health_values(body)
 
-    notif = create_notification(
-        recipient_id=provider_id,
-        role="provider",
-        event_type="escalation_renotify",
-        reference_id=f"{appointment_id}_renotify",
-        title=title,
-        body=body,
-        backend=backend,
-        db_path=db_path,
-        mysql_url=mysql_url,
-        ssl_ca=ssl_ca,
-    )
+    all_providers = get_all_provider_recipients(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca)
+    recipients = set(all_providers)
+    if provider_id:
+        recipients.add(provider_id)
+    if not recipients:
+        recipients.add("prov-demo-gen-1")
 
-    send_fcm_push(
-        user_id=provider_id,
-        title=title,
-        body=body,
-        data={"appointment_id": appointment_id, "type": "escalation_renotify"},
-        backend=backend,
-        db_path=db_path,
-        mysql_url=mysql_url,
-        ssl_ca=ssl_ca,
-    )
+    ref_id = f"{checkin_id}_renotify" if checkin_id else f"{appointment_id}_renotify"
 
-    return notif
+    last_notif = None
+    for target_provider in recipients:
+        notif = create_notification(
+            recipient_id=target_provider,
+            role="provider",
+            event_type="escalation_renotify",
+            reference_id=ref_id,
+            title=title,
+            body=body,
+            backend=backend,
+            db_path=db_path,
+            mysql_url=mysql_url,
+            ssl_ca=ssl_ca,
+        )
+        if not last_notif or target_provider == provider_id:
+            last_notif = notif
+
+        send_fcm_push(
+            user_id=target_provider,
+            title=title,
+            body=body,
+            data={"appointment_id": appointment_id, "checkin_id": checkin_id or "", "type": "escalation_renotify"},
+            backend=backend,
+            db_path=db_path,
+            mysql_url=mysql_url,
+            ssl_ca=ssl_ca,
+        )
+
+    return last_notif or {}
 
 
 def notify_escalation_admin_flag(
     appointment_id: str,
     patient_id: str,
     provider_id: Optional[str] = None,
+    checkin_id: Optional[str] = None,
     backend: Optional[str] = None,
     db_path: Optional[str] = None,
     mysql_url: Optional[str] = None,
     ssl_ca: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Alerts administration when an urgent case has remained unacknowledged for over 24 hours."""
-    title = "Critical Escalation Flag"
-    body = "An urgent case has remained unacknowledged for over 24 hours. Administrative intervention required."
+    """Alerts administration when an urgent case has remained unacknowledged beyond the admin escalation timeout."""
+    from services.appointment_service import get_escalation_timeouts
+
+    display_name = _resolve_patient_display_name(
+        patient_id=patient_id,
+        backend=backend,
+        db_path=db_path,
+        mysql_url=mysql_url,
+        ssl_ca=ssl_ca,
+    )
+
+    _, admin_flag_seconds = get_escalation_timeouts()
+    timeout_phrase = format_timeout_phrase(admin_flag_seconds)
+
+    title = f"Critical Escalation Flag: {display_name}"
+    body = f"An urgent case for {display_name} has remained unacknowledged for {timeout_phrase}. Administrative intervention required."
 
     validate_no_health_values(title)
     validate_no_health_values(body)
+
+    ref_id = f"{checkin_id}_admin_flag" if checkin_id else f"{appointment_id}_admin_flag"
 
     notif = create_notification(
         recipient_id="admin",
         role="admin",
         event_type="escalation_admin_flag",
-        reference_id=f"{appointment_id}_admin_flag",
+        reference_id=ref_id,
         title=title,
         body=body,
         backend=backend,
@@ -246,7 +377,7 @@ def notify_escalation_admin_flag(
         user_id="admin",
         title=title,
         body=body,
-        data={"appointment_id": appointment_id, "type": "escalation_admin_flag"},
+        data={"appointment_id": appointment_id, "checkin_id": checkin_id or "", "type": "escalation_admin_flag"},
         backend=backend,
         db_path=db_path,
         mysql_url=mysql_url,

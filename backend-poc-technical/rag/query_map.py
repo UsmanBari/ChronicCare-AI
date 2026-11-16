@@ -134,6 +134,34 @@ TRIAGE_QUERY_TABLE: dict[str, QueryMapping] = {
         query_text="lifestyle modification physical activity health monitoring checkin routine adherence",
         min_priority=1,
     ),
+    "medication_discrepancy": QueryMapping(
+        trigger_category="medication_discrepancy",
+        condition="both",
+        topic_slugs=["medication", "review"],
+        query_text="medication discrepancy dose change adherence prescription review side effects",
+        min_priority=1,
+    ),
+    "first_checkin": QueryMapping(
+        trigger_category="first_checkin",
+        condition="both",
+        topic_slugs=["baseline", "review"],
+        query_text="initial check-in baseline evaluation health history care plan clinician review",
+        min_priority=1,
+    ),
+    "symptom_finding": QueryMapping(
+        trigger_category="symptom_finding",
+        condition="both",
+        topic_slugs=["symptoms", "review"],
+        query_text="clinical symptoms reported evaluation assessment clinician review symptoms management",
+        min_priority=1,
+    ),
+    "no_reading_unwell": QueryMapping(
+        trigger_category="no_reading_unwell",
+        condition="both",
+        topic_slugs=["symptoms", "review"],
+        query_text="feeling unwell symptoms without vital readings clinician evaluation advice",
+        min_priority=1,
+    ),
 }
 
 
@@ -154,8 +182,19 @@ def build_query_from_triage(
     if trig in TRIAGE_QUERY_TABLE:
         return TRIAGE_QUERY_TABLE[trig]
 
-    # 2. Check reasons strings
+    # 2. Check reasons strings and raised_by entries by clinical priority
     reasons = [str(r).lower() for r in triage_result.get("reasons", [])]
+    for rb in triage_result.get("raised_by", []):
+        if isinstance(rb, dict):
+            reasons.append(str(rb.get("source", "")).lower())
+            reasons.append(str(rb.get("detail", "")).lower())
+        elif isinstance(rb, str):
+            reasons.append(rb.lower())
+    summ = str(triage_result.get("summary", "")).lower()
+    if summ:
+        reasons.append(summ)
+
+    # 2a. Critical & physiological triggers first
     for r in reasons:
         if "bp_severe" in r or "180" in r or "crisis" in r:
             return TRIAGE_QUERY_TABLE["bp_severe"]
@@ -171,6 +210,26 @@ def build_query_from_triage(
             return TRIAGE_QUERY_TABLE["ramadan_fasting"]
         if "pregnancy" in r:
             return TRIAGE_QUERY_TABLE["pregnancy_hypertension"]
+
+    # 2b. Medication changes / discrepancies take precedence over routine/first check-in
+    for r in reasons:
+        if any(w in r for w in ("medication_discrepancy", "medication_change", "dose_change", "medication concern", "dawa", "medicine", "medication")):
+            return TRIAGE_QUERY_TABLE["medication_discrepancy"]
+
+    # 2c. Positive clinical symptom findings (D7)
+    for r in reasons:
+        if any(w in r for w in ("symptom_finding", "symptom_reported", "positive clinical finding", "reported symptom", "clinical symptom")):
+            return TRIAGE_QUERY_TABLE["symptom_finding"]
+
+    # 2d. Symptoms without readings (D1)
+    for r in reasons:
+        if any(w in r for w in ("no_reading_unwell", "symptoms_no_readings", "symptoms_without_readings", "unwell without")):
+            return TRIAGE_QUERY_TABLE["no_reading_unwell"]
+
+    # 2e. Initial check-in baseline
+    for r in reasons:
+        if any(w in r for w in ("first_checkin", "first check-in", "first checkin", "initial check-in", "initial checkin")):
+            return TRIAGE_QUERY_TABLE["first_checkin"]
 
     # 3. Check readings directly if provided
     if readings:

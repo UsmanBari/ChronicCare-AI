@@ -237,12 +237,37 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning("Failed to launch reminder background worker: %s", e)
 
+    escalation_task = None
+    if os.environ.get("ESCALATION_WORKER_ENABLED", "1").strip().lower() in ("true", "1", "yes"):
+        try:
+            import asyncio
+            from services.appointment_service import escalation_worker_loop
+            escalation_task = asyncio.create_task(escalation_worker_loop(interval_seconds=15))
+            logger.info("Escalation background worker launched.")
+        except Exception as e:
+            logger.warning("Failed to launch escalation background worker: %s", e)
+
+    if os.environ.get("TTS_ENABLED", "").strip().lower() in ("true", "1", "yes"):
+        try:
+            from voice import tts_service
+            tts_service.warmup_models()
+            logger.info("TTS background model warmup triggered at startup.")
+        except Exception as e:
+            logger.warning("TTS startup warmup skipped: %s", str(e))
+
     yield
 
     if reminder_task:
         reminder_task.cancel()
         try:
             await reminder_task
+        except (asyncio.CancelledError, Exception):
+            pass
+
+    if escalation_task:
+        escalation_task.cancel()
+        try:
+            await escalation_task
         except (asyncio.CancelledError, Exception):
             pass
 
@@ -791,6 +816,7 @@ class EHRSystemResponse(BaseModel):
     description: str = ""
     sample_patients: Optional[List[SamplePatient]] = None
     suggested_patient_ids: Optional[List[str]] = None
+    linked_patient_ids: Optional[List[str]] = None
 
 
 class EHRTestRequest(BaseModel):
@@ -907,6 +933,10 @@ class CheckinStartResponse(BaseModel):
     can_say_unknown: Optional[bool] = None
     engine: Optional[str] = None
     option_items: Optional[List[Dict[str, str]]] = None
+    emergency: bool = False
+    emergency_reason: Optional[str] = None
+    escalation_recorded: Optional[bool] = None
+    safety_note: Optional[str] = None
 
 
 class CheckinAnswerRequest(BaseModel):
@@ -1010,6 +1040,14 @@ class ReviewQueueItemResponse(BaseModel):
     escalated_at: Optional[str] = None
     triage_level: Optional[str] = None
     triage_colour: Optional[str] = None
+    review_status: Optional[str] = None
+    provider_decision: Optional[str] = None
+    provider_level: Optional[str] = None
+    provider_reason: Optional[str] = None
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[str] = None
+    user_id: Optional[str] = None
+    patient_id: Optional[str] = None
 
 
 class ReviewActionResponse(BaseModel):
@@ -1242,10 +1280,18 @@ def require_role(*allowed_roles: str):
     def role_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
         user_role = current_user.get("role")
         if user_role not in allowed_roles:
+            target_portal = "admin" if "admin" in allowed_roles else (allowed_roles[0] if allowed_roles else None)
+            append_audit(
+                actor_user_id=current_user.get("user_id"),
+                action="access_denied",
+                target=target_portal,
+                outcome="denied",
+                detail={"user_role": user_role, "required_roles": list(allowed_roles)},
+            )
             append_audit(
                 actor_user_id=current_user.get("user_id"),
                 action="role_denied",
-                target=None,
+                target=target_portal,
                 outcome="denied",
                 detail={"user_role": user_role, "required_roles": list(allowed_roles)},
             )
@@ -1485,6 +1531,31 @@ def auth_session_endpoint(token: str = Depends(extract_bearer_token)):
         display_name=user.get("display_name"),
         status=user.get("status", "active"),
     )
+
+
+class AccessDeniedReportRequest(BaseModel):
+    portal: str = "admin"
+    attempted_role: Optional[str] = None
+
+
+@app.post("/api/auth/access-denied", tags=["Auth"])
+def report_access_denied_endpoint(
+    body: AccessDeniedReportRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Records an immutable access_denied audit entry when a user is refused access to a portal."""
+    append_audit(
+        actor_user_id=current_user.get("user_id"),
+        action="access_denied",
+        target=body.portal,
+        outcome="denied",
+        detail={
+            "user_role": current_user.get("role"),
+            "attempted_portal": body.portal,
+            "reason": "portal_role_mismatch",
+        },
+    )
+    return {"status": "ok"}
 
 
 @app.get("/api/me", response_model=UserResponse, tags=["Auth"])
@@ -3577,6 +3648,12 @@ def get_ehr_systems_endpoint():
             for p in get_sample_patients_for_system(s["ehr_system_id"])
         ] if kind == "simulated" else None
         suggested_ids = get_suggested_patient_ids_for_system(s["ehr_system_id"]) if kind == "public_sandbox" else None
+        linked_ids = None
+        if suggested_ids:
+            linked_ids = [
+                pid for pid in suggested_ids
+                if get_active_connection_by_external_id(s["ehr_system_id"], pid)
+            ]
         res.append(
             EHRSystemResponse(
                 ehr_system_id=s["ehr_system_id"],
@@ -3585,6 +3662,7 @@ def get_ehr_systems_endpoint():
                 description=s.get("description", ""),
                 sample_patients=sample_patients,
                 suggested_patient_ids=suggested_ids,
+                linked_patient_ids=linked_ids,
             )
         )
     return res
@@ -3973,7 +4051,13 @@ def get_ehr_connection_endpoint(
             for m in norm_meds:
                 status_val = getattr(m, "status", None) or (m.get("status") if isinstance(m, dict) else None)
                 if status_val in ("active", "intended", "prescribed", None):
-                    name = getattr(m, "name", None) or (m.get("name") if isinstance(m, dict) else None) or "Medication"
+                    name = (
+                        getattr(m, "medication_name", None)
+                        or getattr(m, "name", None)
+                        or (m.get("medication_name") if isinstance(m, dict) else None)
+                        or (m.get("name") if isinstance(m, dict) else None)
+                        or "Medication"
+                    )
                     dosage = getattr(m, "dosage", None) or (m.get("dosage") if isinstance(m, dict) else None)
                     if name not in seen_med_names:
                         seen_med_names.add(name)
@@ -4122,8 +4206,206 @@ def _compute_age_years(dob_str: Optional[str]) -> Optional[float]:
 
 
 # =============================================================================
-# PATIENT CHECK-IN PIPELINE ENDPOINTS
+# PATIENT CHECK-IN PIPELINE ENDPOINTS & UNIFIED SAFETY ENGINE
 # =============================================================================
+
+def evaluate_text_safety(
+    text: str,
+    lang: str = "en",
+    current_step: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Unified clinical safety evaluation for patient free text (opening note, interview answers, med checks).
+    Runs:
+    1. Base danger screen (run_stage1_red_flag_screen, classify_input)
+    2. Authoritative red-flag pattern matcher (decide_red) with category and span scoped cancellation
+    3. R6/R7 F5 negated red-flag safety net -> conservative review downgrade
+    4. Yellow safety net (detect_wordgroups, detect_safety_net)
+    """
+    clean_text = (text or "").strip()
+    if not clean_text:
+        return {
+            "is_emergency": False,
+            "is_urgent": False,
+            "emergency_reason": None,
+            "safety_note": None,
+            "wordgroup_hits": [],
+            "audit_events": [],
+        }
+
+    # 1. Base danger screen & input triage
+    from agents.adaptive_interview_agent import run_stage1_red_flag_screen, get_red_flag_level
+    from agents.input_triage import classify_input
+
+    base_stage1_flagged, base_stage1_reason = run_stage1_red_flag_screen(clean_text)
+    triage_res = classify_input(clean_text)
+    base_is_emergency = False
+    base_reason = None
+
+    if base_stage1_flagged:
+        base_is_emergency = True
+        base_reason = base_stage1_reason
+    elif triage_res.is_emergency or triage_res.is_urgent_safety:
+        base_is_emergency = True
+        base_reason = triage_res.trigger_detail or ("self_harm_statement" if triage_res.is_urgent_safety else "danger_phrase")
+
+    # 2. Authoritative red-flag pattern matcher with category and span scoped cancellation
+    from agents.red_flag_patterns import decide_red, is_symptom_negated_or_remote_past
+
+    is_red, red_cat, cancelled_hits = decide_red(clean_text)
+    is_emergency = False
+    is_urgent = False
+    emergency_reason = None
+    safety_note = None
+    wordgroup_hits = []
+    audit_events = []
+
+    if is_red:
+        rf_level = get_red_flag_level(red_cat)
+        if rf_level == "emergency":
+            is_emergency = True
+            emergency_reason = red_cat
+        elif rf_level == "urgent":
+            is_urgent = True
+            emergency_reason = red_cat
+    elif base_is_emergency:
+        # Base screen triggered, but decide_red found no uncancelled red hits.
+        # Check F5 negation / remote-past conservative downgrade:
+        if is_negated_red_flag_to_review_enabled():
+            if cancelled_hits or is_symptom_negated_or_remote_past(clean_text):
+                from agents.danger_wordgroups import get_safety_note
+                safety_note = get_safety_note(lang)
+                wordgroup_hits.append({
+                    "group": "negated_red_flag_needs_review",
+                    "step": current_step or "opening_note",
+                })
+                audit_events.append({
+                    "action": "danger_wordgroup_hit",
+                    "outcome": "ok",
+                    "detail": {"group": "negated_red_flag_needs_review"},
+                })
+            else:
+                # Base screen triggered, not negated
+                is_emergency = True
+                emergency_reason = base_reason
+        else:
+            is_emergency = True
+            emergency_reason = base_reason
+
+    # 3. Yellow safety net (danger word groups) if not emergency
+    from agents.danger_wordgroups import (
+        is_danger_wordgroups_enabled,
+        is_danger_safety_net_enabled,
+        detect as detect_wordgroups,
+        detect_safety_net,
+        get_safety_note,
+        WordGroupResult,
+    )
+
+    if not is_emergency and not is_urgent and (is_danger_wordgroups_enabled() or is_danger_safety_net_enabled()):
+        try:
+            if is_danger_wordgroups_enabled():
+                wg_hit = detect_wordgroups(clean_text)
+            elif is_danger_safety_net_enabled():
+                wg_hit = detect_safety_net(clean_text)
+            else:
+                wg_hit = WordGroupResult(is_danger=False)
+        except Exception:
+            wg_hit = WordGroupResult(is_danger=True, group="detector_error")
+
+        if wg_hit.is_danger:
+            if not safety_note:
+                safety_note = get_safety_note(lang)
+            wordgroup_hits.append({
+                "group": wg_hit.group,
+                "step": current_step or "opening_note",
+            })
+            outcome_val = "error" if wg_hit.group == "detector_error" else "flagged"
+            audit_events.append({
+                "action": "danger_wordgroup_hit",
+                "outcome": outcome_val,
+                "detail": {"group": wg_hit.group},
+            })
+
+    if is_emergency and not safety_note:
+        from agents.danger_wordgroups import get_safety_note
+        safety_note = get_safety_note(lang)
+
+    # 4. Severe low sugar with neuro symptoms check (P0-2)
+    from agents.interview_v3_runner import evaluate_severe_low_sugar
+    low_eval = evaluate_severe_low_sugar(text=clean_text, current_step=current_step, lang=lang)
+    if low_eval.get("is_emergency"):
+        is_emergency = True
+        emergency_reason = low_eval["emergency_reason"]
+    elif low_eval.get("needs_low_guidance") and not safety_note:
+        safety_note = low_eval["guidance"]
+
+    return {
+        "is_emergency": is_emergency,
+        "is_urgent": is_urgent,
+        "emergency_reason": emergency_reason,
+        "safety_note": safety_note,
+        "wordgroup_hits": wordgroup_hits,
+        "audit_events": audit_events,
+    }
+
+
+def persist_and_alert_emergency(
+    checkin_id: str,
+    user_id: str,
+    expected_version: int,
+    state_dict: Dict[str, Any],
+    trigger_category: str,
+    trigger_text: str,
+    patient_name: Optional[str] = None,
+    med_state_dict: Optional[Dict[str, Any]] = None,
+    protocol_state_dict: Optional[Dict[str, Any]] = None,
+    triage_dict: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """
+    Atomically updates check-in to status='emergency', writes checkin_results,
+    logs 'emergency_escalated' audit event, and dispatches provider notification.
+    """
+    completed_at = _utc_now_iso()
+    t_dict = triage_dict or {"level": "emergency", "summary": trigger_category}
+    success = apply_checkin_answer_atomic(
+        checkin_id=checkin_id,
+        expected_version=expected_version,
+        state_dict=state_dict,
+        status="emergency",
+        completed_at=completed_at,
+        emergency=True,
+        trigger_category=trigger_category,
+        trigger_text=trigger_text,
+        actor_user_id=user_id,
+        med_state_dict=med_state_dict,
+        protocol_state_dict=protocol_state_dict,
+        triage_level="emergency",
+        triage_dict=t_dict,
+    )
+    if success:
+        try:
+            from services.appointment_service import evaluate_and_create_appointment
+            evaluate_and_create_appointment(
+                checkin_id=checkin_id,
+                patient_id=user_id,
+                final_triage_level="emergency",
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create urgent appointment for emergency {checkin_id}: {e}")
+
+        try:
+            from services.notification_service import notify_urgent_checkin
+            notify_urgent_checkin(
+                checkin_id=checkin_id,
+                patient_id=user_id,
+                triage_level="emergency",
+                patient_name=patient_name,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to dispatch emergency provider notification for {checkin_id}: {e}")
+    return success
+
 
 @app.post("/api/checkins/start", response_model=CheckinStartResponse, tags=["Check-in"])
 def start_checkin_endpoint(
@@ -4188,40 +4470,72 @@ def start_checkin_endpoint(
 
     opening_note = body.note.strip() if (body and body.note and body.note.strip()) else None
 
-    # 3. Start Idempotency Check (re-use recent in-progress checkin if no answers provided yet and no opening note)
-    if not opening_note:
-        now_dt = datetime.now(timezone.utc)
-        recent_checkins = get_user_checkins(user_id, limit=5)
-        for c_summary in recent_checkins:
-            if c_summary.get("status") == "in_progress":
-                c_detail = get_checkin_by_id(c_summary["checkin_id"])
-                if c_detail and c_detail.get("status") == "in_progress":
-                    c_state = c_detail.get("state", {})
-                    answers = c_state.get("answers", {})
-                    if len(answers) == 0:
-                        started_str = c_detail.get("started_at", "")
-                        try:
-                            started_dt = datetime.fromisoformat(started_str.replace("Z", "+00:00"))
-                            if (now_dt - started_dt).total_seconds() <= 900:
-                                st = InterviewState.from_dict(c_state)
-                                med_st_dict = c_detail.get("med_state")
-                                med_st = MedicationCheckState.from_dict(med_st_dict) if med_st_dict else None
-                                if st.step == INTERVIEW_COMPLETE and med_st and not med_st.complete:
-                                    res_step = f"medication_check:{med_st.index}:{med_st.attempts}"
-                                    res_question = current_medication_question(med_st)
-                                else:
-                                    res_step = st.step
-                                    res_question = get_current_question(st)
-                                return CheckinStartResponse(
-                                    checkin_id=c_detail["checkin_id"],
-                                    question=res_question,
-                                    mode=c_detail["mode"],
-                                    is_cold_start=st.is_cold_start,
-                                    step=res_step,
-                                    version=c_detail.get("version", 0),
-                                )
-                        except Exception:
-                            pass
+    # 3. Start Idempotency Check (re-use recent in-progress checkin if no answers provided yet)
+    now_dt = datetime.now(timezone.utc)
+    recent_checkins = get_user_checkins(user_id, limit=5)
+    existing_unanswered = None
+    for c_summary in recent_checkins:
+        if c_summary.get("status") == "in_progress":
+            c_detail = get_checkin_by_id(c_summary["checkin_id"])
+            if c_detail and c_detail.get("status") == "in_progress":
+                c_state = c_detail.get("state", {})
+                answers = c_state.get("answers", {}) if isinstance(c_state, dict) else {}
+                raw_answers = c_state.get("raw_answers", []) if isinstance(c_state, dict) else []
+                asked_slots = c_state.get("asked_slots", []) if isinstance(c_state, dict) else []
+                meaningful_answers = [k for k in answers.keys() if k != "language" and not str(k).startswith("_")] if isinstance(answers, dict) else []
+                is_unanswered = (len(meaningful_answers) == 0 and len(raw_answers) == 0 and len(asked_slots) == 0)
+                if is_unanswered:
+                    started_str = c_detail.get("started_at", "")
+                    try:
+                        started_dt = datetime.fromisoformat(started_str.replace("Z", "+00:00"))
+                        if (now_dt - started_dt).total_seconds() <= 900:
+                            existing_unanswered = c_detail
+                            break
+                    except Exception:
+                        pass
+
+    if not opening_note and existing_unanswered:
+        c_state = existing_unanswered.get("state", {})
+        is_v3_session = isinstance(c_state, dict) and (c_state.get("engine") == "v3" or c_state.get("is_v3") is True or "known_slots" in c_state)
+        med_st_dict = existing_unanswered.get("med_state")
+        med_st = MedicationCheckState.from_dict(med_st_dict) if med_st_dict else None
+        if is_v3_session:
+            return CheckinStartResponse(
+                engine="v3",
+                checkin_id=existing_unanswered["checkin_id"],
+                question=c_state.get("current_question"),
+                mode=existing_unanswered["mode"],
+                is_cold_start=bool(c_state.get("is_cold_start")),
+                step=c_state.get("step"),
+                version=existing_unanswered.get("version", 0),
+                why_text=c_state.get("why_text"),
+                options=c_state.get("options"),
+                system_note=c_state.get("system_note"),
+                progress_hint=c_state.get("progress_hint"),
+                language=c_state.get("language"),
+                can_skip=c_state.get("can_skip"),
+                can_say_unknown=c_state.get("can_say_unknown"),
+                option_items=c_state.get("option_items"),
+                safety_note=c_state.get("safety_note"),
+            )
+        else:
+            st = InterviewState.from_dict(c_state)
+            if st.step == INTERVIEW_COMPLETE and med_st and not med_st.complete:
+                res_step = f"medication_check:{med_st.index}:{med_st.attempts}"
+                checkin_lang = (c_state.get("language") or existing_unanswered.get("language") or "en")
+                res_question = format_medication_question_for_lang(med_st, checkin_lang)
+            else:
+                res_step = st.step
+                res_question = get_current_question(st)
+            return CheckinStartResponse(
+                engine="v2",
+                checkin_id=existing_unanswered["checkin_id"],
+                question=res_question,
+                mode=existing_unanswered["mode"],
+                is_cold_start=st.is_cold_start,
+                step=res_step,
+                version=existing_unanswered.get("version", 0),
+            )
 
     # 4. Derive mode and record patient id
     active_conn = get_active_ehr_connection(user_id)
@@ -4258,8 +4572,71 @@ def start_checkin_endpoint(
     med_state = start_medication_check(meds_for_check)
     med_state_dict = med_state.to_dict()
 
-    checkin_id = str(uuid.uuid4())
+    checkin_id = existing_unanswered["checkin_id"] if existing_unanswered else str(uuid.uuid4())
+    current_version = existing_unanswered.get("version", 0) if existing_unanswered else 0
+    is_reusing = existing_unanswered is not None
     engine_ver = os.environ.get("INTERVIEW_ENGINE", "v2").lower()
+    patient_lang = (profile.get("preferred_language") or profile.get("language") or "en") if profile else "en"
+
+    safety_eval = None
+    if opening_note:
+        safety_eval = evaluate_text_safety(opening_note, lang=patient_lang, current_step="opening_note")
+        if safety_eval["is_emergency"]:
+            rf_cat = safety_eval["emergency_reason"] or "emergency_phrase"
+            safety_note_text = safety_eval["safety_note"]
+            state_dict = {
+                "engine": engine_ver,
+                "checkin_id": checkin_id,
+                "patient_id": user_id,
+                "conditions_on_file": [c.lower() for c in conditions],
+                "language": patient_lang,
+                "step": "COMPLETE",
+                "current_question": None,
+                "completed": True,
+                "emergency": True,
+                "emergency_reason": rf_cat,
+                "opening_note": opening_note,
+                "safety_note": safety_note_text,
+                "system_note": safety_note_text,
+            }
+            if not is_reusing:
+                create_checkin(
+                    checkin_id=checkin_id,
+                    user_id=user_id,
+                    mode=mode,
+                    record_patient_id=record_patient_id,
+                    state_dict=state_dict,
+                    status="in_progress",
+                    med_state_dict=med_state_dict,
+                    ehr_system_id=active_conn["ehr_system_id"] if active_conn else None,
+                )
+                current_version = 0
+
+            persist_and_alert_emergency(
+                checkin_id=checkin_id,
+                user_id=user_id,
+                expected_version=current_version,
+                state_dict=state_dict,
+                trigger_category=rf_cat,
+                trigger_text=opening_note,
+                patient_name=current_user.get("display_name"),
+                med_state_dict=med_state_dict,
+            )
+
+            return CheckinStartResponse(
+                engine=engine_ver,
+                checkin_id=checkin_id,
+                question=None,
+                mode=mode,
+                is_cold_start=is_cold_start,
+                step="COMPLETE",
+                version=current_version + 1,
+                emergency=True,
+                emergency_reason=rf_cat,
+                escalation_recorded=True,
+                safety_note=safety_note_text,
+                system_note=safety_note_text,
+            )
 
     if engine_ver == "v3":
         history = get_user_baseline_history(user_id=user_id)
@@ -4271,19 +4648,47 @@ def start_checkin_endpoint(
             on_insulin_or_sulfonylurea=profile.get("on_insulin_or_sulfonylurea", False),
             is_cold_start=is_cold_start,
             baseline=baseline.to_dict() if hasattr(baseline, "to_dict") else baseline,
-            language=profile.get("preferred_language") or profile.get("language") or "en",
+            language=patient_lang,
             opening_note=opening_note,
         )
-        create_checkin(
-            checkin_id=checkin_id,
-            user_id=user_id,
-            mode=mode,
-            record_patient_id=record_patient_id,
-            state_dict=v3_state,
-            status="in_progress",
-            med_state_dict=med_state_dict,
-            ehr_system_id=active_conn["ehr_system_id"] if active_conn else None,
-        )
+        if opening_note and safety_eval:
+            if safety_eval.get("safety_note"):
+                v3_state["safety_note"] = safety_eval["safety_note"]
+            if safety_eval.get("wordgroup_hits"):
+                v3_state.setdefault("wordgroup_hits", []).extend(safety_eval["wordgroup_hits"])
+            for evt in safety_eval.get("audit_events", []):
+                append_audit(
+                    actor_user_id=user_id,
+                    action=evt["action"],
+                    target=checkin_id,
+                    outcome=evt["outcome"],
+                    detail=evt["detail"],
+                )
+
+        if is_reusing:
+            apply_checkin_answer_atomic(
+                checkin_id=checkin_id,
+                expected_version=current_version,
+                state_dict=v3_state,
+                status="in_progress",
+                emergency=False,
+                actor_user_id=user_id,
+                med_state_dict=med_state_dict,
+            )
+            next_version = current_version + 1
+        else:
+            create_checkin(
+                checkin_id=checkin_id,
+                user_id=user_id,
+                mode=mode,
+                record_patient_id=record_patient_id,
+                state_dict=v3_state,
+                status="in_progress",
+                med_state_dict=med_state_dict,
+                ehr_system_id=active_conn["ehr_system_id"] if active_conn else None,
+            )
+            next_version = 0
+
         return CheckinStartResponse(
             engine="v3",
             checkin_id=checkin_id,
@@ -4291,7 +4696,7 @@ def start_checkin_endpoint(
             mode=mode,
             is_cold_start=is_cold_start,
             step=v3_state.get("step"),
-            version=0,
+            version=next_version,
             why_text=v3_state.get("why_text"),
             options=v3_state.get("options"),
             system_note=v3_state.get("system_note"),
@@ -4300,10 +4705,10 @@ def start_checkin_endpoint(
             can_skip=v3_state.get("can_skip"),
             can_say_unknown=v3_state.get("can_say_unknown"),
             option_items=v3_state.get("option_items"),
+            safety_note=v3_state.get("safety_note"),
         )
 
     # 7. Initialize InterviewState and run first node (v2 default)
-    patient_lang = (profile.get("preferred_language") or profile.get("language") or "en") if profile else "en"
     state = InterviewState(
         patient_id=record_patient_id,
         conditions_on_file=conditions,
@@ -4315,16 +4720,30 @@ def start_checkin_endpoint(
     initial_state = adaptive_interview_node(state, patient_response=None)
 
     # 8. Persist session
-    create_checkin(
-        checkin_id=checkin_id,
-        user_id=user_id,
-        mode=mode,
-        record_patient_id=record_patient_id,
-        state_dict=initial_state.to_dict(),
-        status="in_progress",
-        med_state_dict=med_state_dict,
-        ehr_system_id=active_conn["ehr_system_id"] if active_conn else None,
-    )
+    if is_reusing:
+        apply_checkin_answer_atomic(
+            checkin_id=checkin_id,
+            expected_version=current_version,
+            state_dict=initial_state.to_dict(),
+            status="in_progress",
+            emergency=False,
+            actor_user_id=user_id,
+            med_state_dict=med_state_dict,
+        )
+        next_version = current_version + 1
+    else:
+        create_checkin(
+            checkin_id=checkin_id,
+            user_id=user_id,
+            mode=mode,
+            record_patient_id=record_patient_id,
+            state_dict=initial_state.to_dict(),
+            status="in_progress",
+            med_state_dict=med_state_dict,
+            ehr_system_id=active_conn["ehr_system_id"] if active_conn else None,
+        )
+        next_version = 0
+
     question = get_current_question(initial_state)
 
     return CheckinStartResponse(
@@ -4349,15 +4768,55 @@ def _compute_age_years(dob_str: Optional[str]) -> Optional[int]:
         return None
 
 
+def format_medication_question_for_lang(state: MedicationCheckState, lang: str = "en") -> Optional[str]:
+    if not state or state.complete:
+        return None
+    item = state.items[state.index]
+    label = f"{item['name']} ({item['dosage']})" if item.get("dosage") else item["name"]
+    norm_lang = (lang or "en").lower().strip()
+
+    if norm_lang == "ur" or norm_lang.startswith("ur_") or norm_lang == "urdu":
+        if state.attempts == 0:
+            return (
+                f"آپ کے ریکارڈ میں {label} درج ہے۔ کیا آپ اب بھی یہ دوا لے رہے ہیں؟ "
+                "ہاں یا نہیں میں جواب دیں، یا اب جو خوراک لیتے ہیں وہ بتائیں۔"
+            )
+        return (
+            f"معذرت، میں سمجھ نہیں سکا۔ کیا آپ اب بھی {label} لے رہے ہیں؟ "
+            "براہ کرم ہاں یا نہیں میں جواب دیں، یا خوراک بتائیں۔"
+        )
+    elif norm_lang == "roman_ur" or "roman" in norm_lang:
+        if state.attempts == 0:
+            return (
+                f"Aap ke record mein {label} darj hai. Kya aap ab bhi yeh dawa le rahe hain? "
+                "Haan ya nahi mein jawab dein, ya ab jo dose letay hain woh batayein."
+            )
+        return (
+            f"Mazzrat, samajh nahi aaya. Kya aap ab bhi {label} le rahe hain? "
+            "Barah-e-karam haan ya nahi mein jawab dein, ya dose batayein."
+        )
+    else:
+        return current_medication_question(state)
+
+
 def get_medication_check_ui_metadata(lang: str = "en") -> Dict[str, Any]:
-    is_ur = (lang or "").lower().startswith("ur")
-    if is_ur:
+    norm_lang = (lang or "en").lower().strip()
+    if norm_lang == "ur" or norm_lang.startswith("ur_") or norm_lang == "urdu":
         return {
             "why_text": "آپ کی فعال ادویات کی تصدیق سے یہ یقینی بنانے میں مدد ملتی ہے کہ آپ کا علاج محفوظ اور درست ہے۔",
             "options": ["ہاں، وہی مقدار", "نہیں، میں نے بند کر دی ہے"],
             "option_items": [
                 {"label": "ہاں، وہی مقدار", "value": "yes"},
-                {"label": "نہیں، میں نے بند کر دی ہے", "value": "no, stopped"},
+                {"label": "نہیں، میں نے بند کر دی ہے", "value": "بند کر دی"},
+            ],
+        }
+    if norm_lang == "roman_ur" or "roman" in norm_lang:
+        return {
+            "why_text": "Aap ki active dawaiyon ki tasdeeq se aap ka ilaaj mehfooz aur durust rehta hai.",
+            "options": ["Haan, wahi dose", "Nahi, band kar di hai"],
+            "option_items": [
+                {"label": "Haan, wahi dose", "value": "yes"},
+                {"label": "Nahi, band kar di hai", "value": "band kar di hai"},
             ],
         }
     return {
@@ -4466,21 +4925,17 @@ def answer_checkin_endpoint(
             res = next_protocol_state.result
             level = res.get("level")
             if level == "emergency":
-                completed_at = _utc_now_iso()
                 try:
-                    success = apply_checkin_answer_atomic(
+                    success = persist_and_alert_emergency(
                         checkin_id=checkin_id,
+                        user_id=current_user["user_id"],
                         expected_version=current_version,
                         state_dict=current_state.to_dict() if hasattr(current_state, "to_dict") else current_state,
-                        status="emergency",
-                        completed_at=completed_at,
-                        emergency=True,
                         trigger_category=f"triage:{next_protocol_state.protocol}",
-                        trigger_text=res.get("summary"),
-                        actor_user_id=current_user["user_id"],
+                        trigger_text=res.get("summary") or body.answer or "emergency_triage",
+                        patient_name=current_user.get("display_name"),
                         med_state_dict=med_state.to_dict() if med_state else None,
                         protocol_state_dict=next_protocol_state.to_dict(),
-                        triage_level="emergency",
                         triage_dict=res,
                     )
                 except Exception as e:
@@ -4515,7 +4970,7 @@ def answer_checkin_endpoint(
                     completed_at = None
                     is_complete = False
                     next_step_str = f"medication_check:{med_state.index}:{med_state.attempts}"
-                    next_question_str = current_medication_question(med_state)
+                    next_question_str = format_medication_question_for_lang(med_state, lang)
                     next_phase = "medication"
                 else:
                     new_status = "complete"
@@ -4613,7 +5068,7 @@ def answer_checkin_endpoint(
                 content={
                     "detail": "stale_step",
                     "step": expected_step,
-                    "question": current_medication_question(med_state),
+                    "question": format_medication_question_for_lang(med_state, lang),
                 },
             )
 
@@ -4621,7 +5076,7 @@ def answer_checkin_endpoint(
         if not answer_text:
             med_meta = get_medication_check_ui_metadata(lang)
             return CheckinAnswerResponse(
-                question=current_medication_question(med_state),
+                question=format_medication_question_for_lang(med_state, lang),
                 complete=False,
                 emergency=False,
                 emergency_reason=None,
@@ -4713,19 +5168,32 @@ def answer_checkin_endpoint(
             intakes = (current_state.get("intakes") if is_v3_session else current_state.intakes) or [{"condition": last_cond, "emergency": is_emerg, "level": rf_level, "reason": reason}]
             completed_at = _utc_now_iso()
             try:
-                success = apply_checkin_answer_atomic(
-                    checkin_id=checkin_id,
-                    expected_version=current_version,
-                    state_dict=current_state if is_v3_session else (current_state.to_dict() if hasattr(current_state, "to_dict") else current_state),
-                    status=status_val,
-                    completed_at=completed_at,
-                    emergency=is_emerg,
-                    trigger_category=reason,
-                    trigger_text=body.answer,
-                    actor_user_id=current_user["user_id"],
-                    med_state_dict=med_state.to_dict(),
-                    protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
-                )
+                if is_emerg:
+                    success = persist_and_alert_emergency(
+                        checkin_id=checkin_id,
+                        user_id=current_user["user_id"],
+                        expected_version=current_version,
+                        state_dict=current_state if is_v3_session else (current_state.to_dict() if hasattr(current_state, "to_dict") else current_state),
+                        trigger_category=reason,
+                        trigger_text=body.answer,
+                        patient_name=current_user.get("display_name"),
+                        med_state_dict=med_state.to_dict(),
+                        protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
+                    )
+                else:
+                    success = apply_checkin_answer_atomic(
+                        checkin_id=checkin_id,
+                        expected_version=current_version,
+                        state_dict=current_state if is_v3_session else (current_state.to_dict() if hasattr(current_state, "to_dict") else current_state),
+                        status=status_val,
+                        completed_at=completed_at,
+                        emergency=False,
+                        trigger_category=reason,
+                        trigger_text=body.answer,
+                        actor_user_id=current_user["user_id"],
+                        med_state_dict=med_state.to_dict(),
+                        protocol_state_dict=protocol_state.to_dict() if protocol_state else None,
+                    )
             except Exception as e:
                 logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
                 raise HTTPException(
@@ -4766,8 +5234,9 @@ def answer_checkin_endpoint(
             else:
                 next_med_step = f"medication_check:{next_med_state.index}:{next_med_state.attempts}"
                 current_state["step"] = next_med_step
-                current_state["current_question"] = current_medication_question(next_med_state)
-                med_meta = get_medication_check_ui_metadata(current_state.get("language") or lang or "en")
+                med_lang_eff = current_state.get("language") or lang or "en"
+                current_state["current_question"] = format_medication_question_for_lang(next_med_state, med_lang_eff)
+                med_meta = get_medication_check_ui_metadata(med_lang_eff)
                 current_state["why_text"] = med_meta["why_text"]
                 current_state["options"] = med_meta["options"]
                 current_state["option_items"] = med_meta["option_items"]
@@ -4813,7 +5282,7 @@ def answer_checkin_endpoint(
             )
         else:
             return CheckinAnswerResponse(
-                question=current_medication_question(next_med_state),
+                question=format_medication_question_for_lang(next_med_state, lang),
                 complete=False,
                 emergency=False,
                 emergency_reason=None,
@@ -4897,6 +5366,29 @@ def answer_checkin_endpoint(
             except Exception:
                 pass
 
+        # P0-2: Turn-by-turn severe low sugar with neuro symptoms check
+        from agents.interview_v3_runner import evaluate_severe_low_sugar
+        low_eval = evaluate_severe_low_sugar(
+            text=body.answer,
+            session_state=next_state,
+            current_readings=next_state.get("readings"),
+            current_question=current_state.get("current_question"),
+            current_step=current_step_id,
+            lang=lang,
+        )
+        if low_eval.get("is_emergency"):
+            is_emergency = True
+            emergency_reason = low_eval["emergency_reason"]
+            next_state["emergency"] = True
+            next_state["emergency_reason"] = low_eval["emergency_reason"]
+            next_state["completed"] = True
+            next_state["step"] = "COMPLETE"
+            next_state["current_question"] = None
+            next_state["triage"] = low_eval.get("triage_dict")
+        elif low_eval.get("needs_low_guidance") and not next_state.get("safety_note"):
+            next_state["safety_note"] = low_eval["guidance"]
+            next_state["system_note"] = low_eval["guidance"]
+
         if is_emergency or is_urgent_v3:
             if is_emergency and not next_state.get("safety_note"):
                 from agents.danger_wordgroups import get_safety_note
@@ -4943,7 +5435,7 @@ def answer_checkin_endpoint(
                     completed_at = None
                     is_complete = False
                     next_step_str = f"medication_check:{med_state.index}:{med_state.attempts}"
-                    next_question_str = current_medication_question(med_state)
+                    next_question_str = format_medication_question_for_lang(med_state, lang)
                     next_phase = "medication"
                     next_state["step"] = next_step_str
                     next_state["current_question"] = next_question_str
@@ -4968,19 +5460,32 @@ def answer_checkin_endpoint(
             next_phase = None
 
         try:
-            success = apply_checkin_answer_atomic(
-                checkin_id=checkin_id,
-                expected_version=current_version,
-                state_dict=next_state,
-                status=new_status,
-                completed_at=completed_at,
-                emergency=is_emergency,
-                trigger_category=emergency_reason,
-                trigger_text=body.answer,
-                actor_user_id=current_user["user_id"],
-                med_state_dict=med_state.to_dict() if med_state else None,
-                protocol_state_dict=new_protocol_state_dict,
-            )
+            if is_emergency:
+                success = persist_and_alert_emergency(
+                    checkin_id=checkin_id,
+                    user_id=current_user["user_id"],
+                    expected_version=current_version,
+                    state_dict=next_state,
+                    trigger_category=emergency_reason or "emergency_phrase",
+                    trigger_text=body.answer,
+                    patient_name=current_user.get("display_name"),
+                    med_state_dict=med_state.to_dict() if med_state else None,
+                    protocol_state_dict=new_protocol_state_dict,
+                )
+            else:
+                success = apply_checkin_answer_atomic(
+                    checkin_id=checkin_id,
+                    expected_version=current_version,
+                    state_dict=next_state,
+                    status=new_status,
+                    completed_at=completed_at,
+                    emergency=False,
+                    trigger_category=emergency_reason,
+                    trigger_text=body.answer,
+                    actor_user_id=current_user["user_id"],
+                    med_state_dict=med_state.to_dict() if med_state else None,
+                    protocol_state_dict=new_protocol_state_dict,
+                )
         except Exception as e:
             logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
             raise HTTPException(
@@ -5149,6 +5654,22 @@ def answer_checkin_endpoint(
                 detail={"group": wg_hit.group},
             )
 
+    # P0-2: Turn-by-turn severe low sugar with neuro symptoms check for v2
+    from agents.interview_v3_runner import evaluate_severe_low_sugar
+    v2_low_eval = evaluate_severe_low_sugar(
+        text=body.answer,
+        session_state=next_state,
+        current_readings=getattr(next_state, "readings", None),
+        current_question=get_current_question(current_state),
+        current_step=current_state.step,
+        lang=lang,
+    )
+    if v2_low_eval.get("is_emergency"):
+        next_state.stage1_red_flag = True
+        next_state.stage1_reason = v2_low_eval["emergency_reason"]
+    elif v2_low_eval.get("needs_low_guidance") and not v2_safety_note:
+        v2_safety_note = v2_low_eval["guidance"]
+
     rf_level = get_red_flag_level(next_state.stage1_reason) if next_state.stage1_red_flag else "routine"
     is_emergency = bool(
         (next_state.stage1_red_flag and rf_level == "emergency")
@@ -5206,7 +5727,7 @@ def answer_checkin_endpoint(
                 completed_at = None
                 is_complete = False
                 next_step_str = f"medication_check:{med_state.index}:{med_state.attempts}"
-                next_question_str = current_medication_question(med_state)
+                next_question_str = format_medication_question_for_lang(med_state, lang)
                 next_phase = "medication"
             else:
                 new_status = "complete"
@@ -5225,19 +5746,32 @@ def answer_checkin_endpoint(
         next_phase = None
 
     try:
-        success = apply_checkin_answer_atomic(
-            checkin_id=checkin_id,
-            expected_version=current_version,
-            state_dict=next_state.to_dict(),
-            status=new_status,
-            completed_at=completed_at,
-            emergency=is_emergency,
-            trigger_category=next_state.stage1_reason,
-            trigger_text=body.answer,
-            actor_user_id=current_user["user_id"],
-            med_state_dict=med_state.to_dict() if med_state else None,
-            protocol_state_dict=new_protocol_state_dict,
-        )
+        if is_emergency:
+            success = persist_and_alert_emergency(
+                checkin_id=checkin_id,
+                user_id=current_user["user_id"],
+                expected_version=current_version,
+                state_dict=next_state.to_dict(),
+                trigger_category=next_state.stage1_reason or "emergency_phrase",
+                trigger_text=body.answer,
+                patient_name=current_user.get("display_name"),
+                med_state_dict=med_state.to_dict() if med_state else None,
+                protocol_state_dict=new_protocol_state_dict,
+            )
+        else:
+            success = apply_checkin_answer_atomic(
+                checkin_id=checkin_id,
+                expected_version=current_version,
+                state_dict=next_state.to_dict(),
+                status=new_status,
+                completed_at=completed_at,
+                emergency=False,
+                trigger_category=next_state.stage1_reason,
+                trigger_text=body.answer,
+                actor_user_id=current_user["user_id"],
+                med_state_dict=med_state.to_dict() if med_state else None,
+                protocol_state_dict=new_protocol_state_dict,
+            )
     except Exception as e:
         logger.error(f"Persistence error during answer: {type(e).__name__}: {e}")
         raise HTTPException(
@@ -5664,6 +6198,27 @@ def _build_patient_background(user_id: str) -> Optional[Dict[str, Any]]:
         return None
     height_cm = profile.get("height_cm")
     weight_kg = profile.get("weight_kg")
+    metrics_source = "patient"
+
+    # Fallback to FHIR physical metrics if patient entered none
+    if height_cm is None or weight_kg is None:
+        try:
+            conn = get_active_ehr_connection(user_id)
+            if conn and conn.get("status") in ("active", "connected"):
+                ext_pid = conn.get("external_patient_id")
+                ehr_sys = get_ehr_system_by_id(conn.get("ehr_system_id"))
+                base_url = ehr_sys.get("fhir_base_url") if ehr_sys else None
+                from data_sources.fhir_adapter import get_fhir_patient_physical_metrics
+                fhir_metrics = get_fhir_patient_physical_metrics(ext_pid, base_url=base_url)
+                if height_cm is None and fhir_metrics.get("height_cm"):
+                    height_cm = fhir_metrics["height_cm"]
+                    metrics_source = "fhir"
+                if weight_kg is None and fhir_metrics.get("weight_kg"):
+                    weight_kg = fhir_metrics["weight_kg"]
+                    metrics_source = "fhir"
+        except Exception as exc:
+            logger.debug("Failed to fallback to FHIR physical metrics in _build_patient_background: %s", exc)
+
     bmi = None
     if height_cm and weight_kg and height_cm > 0:
         h_m = height_cm / 100.0
@@ -5673,6 +6228,7 @@ def _build_patient_background(user_id: str) -> Optional[Dict[str, Any]]:
         "weight_kg": weight_kg,
         "waist_cm": profile.get("waist_cm"),
         "bmi": bmi,
+        "metrics_source": metrics_source,
         "diagnosis_year_diabetes": profile.get("diagnosis_year_diabetes"),
         "diagnosis_year_hypertension": profile.get("diagnosis_year_hypertension"),
         "smoking_status": profile.get("smoking_status"),
@@ -6389,18 +6945,27 @@ def get_provider_appointments(current_user: Dict[str, Any] = Depends(require_rol
 
     raw_list = list_provider_appointments()
     enhanced = [compute_escalation_state(a) for a in raw_list]
+    from data_sources.app_store import DEFAULT_FICTIONAL_PROVIDERS
+    prov_map = {p["id"]: p.get("display_name", p["id"]) for p in DEFAULT_FICTIONAL_PROVIDERS}
+    from data_sources.ehr_test_patients import ALL_EHR_TEST_PATIENTS
+    ehr_pat_map = {p["id"]: p.get("label", p["id"]) for p in ALL_EHR_TEST_PATIENTS}
     for a in enhanced:
         pid = a.get("patient_id", "")
         clean_pid = str(pid).removeprefix("local-")
         label = None
-        try:
-            prof = get_patient_profile(clean_pid)
-            if prof and prof.get("display_name"):
-                label = prof["display_name"]
-            elif prof and prof.get("name"):
-                label = prof["name"]
-        except Exception:
-            pass
+        if clean_pid in ehr_pat_map:
+            label = ehr_pat_map[clean_pid]
+        elif pid in ehr_pat_map:
+            label = ehr_pat_map[pid]
+        if not label:
+            try:
+                prof = get_patient_profile(clean_pid)
+                if prof and prof.get("display_name"):
+                    label = prof["display_name"]
+                elif prof and prof.get("name"):
+                    label = prof["name"]
+            except Exception:
+                pass
         if not label:
             try:
                 usr = get_user_by_id(clean_pid)
@@ -6410,7 +6975,22 @@ def get_provider_appointments(current_user: Dict[str, Any] = Depends(require_rol
                     label = usr["email"]
             except Exception:
                 pass
+        if not label and len(clean_pid) >= 32 and "-" in clean_pid:
+            label = f"Hospital Patient ({clean_pid[:8]})"
         a["patient_label"] = label or clean_pid
+
+        prv_id = a.get("provider_id", "")
+        if prv_id in prov_map:
+            a["provider_name"] = prov_map[prv_id]
+        else:
+            try:
+                p_usr = get_user_by_id(prv_id)
+                if p_usr and p_usr.get("display_name"):
+                    a["provider_name"] = p_usr["display_name"]
+            except Exception:
+                pass
+        if not a.get("provider_name") and prv_id:
+            a["provider_name"] = prov_map.get(prv_id, prv_id)
     return {"appointments": enhanced}
 
 
@@ -6646,8 +7226,20 @@ def get_provider_notifications(
     from data_sources.app_store import list_notifications, count_unread_notifications
 
     prov_id = current_user.get("user_id") or "prov-demo-gen-1"
+    prov_email = (current_user.get("email") or "").lower()
     notifs = list_notifications(role="provider", unread_only=unread_only, limit=limit)
-    matched = [n for n in notifs if n.get("recipient_id") in (prov_id, "prov-demo-gen-1", "prov-demo-cardio", "prov-demo-endo", "prov-demo-im")]
+    matched = [
+        n for n in notifs
+        if n.get("recipient_id") in (
+            prov_id,
+            prov_email,
+            "prov-demo-gen-1",
+            "prov-demo-cardio",
+            "prov-demo-endo",
+            "prov-demo-im",
+            "all_providers",
+        )
+    ]
     unread = count_unread_notifications(role="provider")
     return {"notifications": matched, "unread_count": unread}
 

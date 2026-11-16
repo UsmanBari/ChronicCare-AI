@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, act } from "@testing-library/react";
 import { ExplanationBox } from "../app/components/ExplanationBox";
 import { EmergencyScreen } from "../app/components/EmergencyScreen";
 import { translations } from "../app/translations";
@@ -219,6 +219,53 @@ describe("TTS Listen Button & Speech Integration (Part I4-I)", () => {
       const call1122 = screen.getByRole("link", { name: /1122/i });
       expect(call1122).toBeDefined();
       expect(call1122.getAttribute("href")).toBe("tel:1122");
+    });
+
+    it("shows 'Preparing voice, the first time can take up to a minute' after 3s (P2-13)", async () => {
+      vi.spyOn(api, "getVoiceStatus").mockResolvedValue({ tts_enabled: true });
+
+      // Create a promise that does not resolve immediately
+      let resolveSpeech: (blob: Blob) => void = () => {};
+      const pendingPromise = new Promise<Blob>((resolve) => {
+        resolveSpeech = resolve;
+      });
+      vi.spyOn(api, "getCheckinSpeech").mockReturnValue(pendingPromise);
+
+      const explanation: PatientExplanation = {
+        status: "ready",
+        sentences: [{ text: "Your reading is within normal limits.", cites: [] }],
+        sources: [],
+      };
+
+      render(<ExplanationBox explanation={explanation} emergency={false} checkinId="chk-warmup" />);
+
+      const toggleBtn = screen.getByTestId("explanation-toggle-btn");
+      fireEvent.click(toggleBtn);
+
+      const listenBtn = await screen.findByTestId("explanation-speech-btn");
+
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      fireEvent.click(listenBtn);
+
+      // Initially shows Generating voice...
+      expect(listenBtn.textContent).toContain("Generating voice...");
+      expect(screen.queryByTestId("explanation-speech-warmup-hint")).toBeNull();
+
+      // Advance by 3 seconds
+      act(() => {
+        vi.advanceTimersByTime(3100);
+      });
+
+      // Now shows warmup hint
+      expect(screen.getByTestId("explanation-speech-warmup-hint")).toBeDefined();
+      expect(screen.getByTestId("explanation-speech-warmup-hint").textContent).toContain(
+        "Preparing voice, the first time can take up to a minute"
+      );
+      expect(listenBtn.textContent).toContain("Preparing voice, the first time can take up to a minute");
+
+      // Resolve speech and restore timers
+      resolveSpeech(new Blob(["RIFFdata"], { type: "audio/wav" }));
+      vi.useRealTimers();
     });
   });
 });

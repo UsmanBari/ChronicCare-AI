@@ -85,10 +85,12 @@ export function calculateAgeFromDob(dobString?: string | null, asOfDateStr?: str
 export function describeMedicationItem(
   comparison?: MedicationComparison | null,
   verification?: MedicationVerification | null,
-  isUrdu?: boolean
+  isUrdu?: boolean,
+  lang?: string
 ): MedicationItemDescription {
+  const isRoman = lang === "roman_ur" || (!isUrdu && lang?.includes("roman"));
   const medName =
-    comparison?.medication_name || verification?.medication_name || (isUrdu ? "دوا" : "Medication");
+    comparison?.medication_name || verification?.medication_name || (isUrdu ? "دوا" : isRoman ? "Dawa" : "Medication");
   const title = medName;
 
   const statusA = (comparison?.status_a || "active").toLowerCase();
@@ -109,7 +111,11 @@ export function describeMedicationItem(
   let recordDetails = "";
   let recordText = "";
   if (compStatus === "missing_in_a" || compStatus === "source_b_only") {
-    recordText = isUrdu ? "ریکارڈ: ہسپتال کے ریکارڈ میں موجود نہیں" : "Record: Not found in hospital record";
+    recordText = isUrdu
+      ? "ریکارڈ: ہسپتال کے ریکارڈ میں موجود نہیں"
+      : isRoman
+      ? "Record: Hospital ke record mein nahi mila"
+      : "Record: Not found in hospital record";
   } else if (dosageA) {
     recordDetails = `${dosageA} (${statusA})`;
     recordText = isUrdu
@@ -123,49 +129,65 @@ export function describeMedicationItem(
   }
 
   // 2. Today's Text (Side B)
-  let todayText = isUrdu ? "آج نہیں بتایا گیا" : "Not reported today";
+  let todayText = isUrdu ? "آج نہیں بتایا گیا" : isRoman ? "Aaj nahi bataya gaya" : "Not reported today";
   if (compStatus === "missing_in_b" || (!statusB && !dosageB)) {
-    todayText = isUrdu ? "آج نہیں بتایا گیا" : "Not reported today";
+    todayText = isUrdu ? "آج نہیں بتایا گیا" : isRoman ? "Aaj nahi bataya gaya" : "Not reported today";
   } else if (statusB === "stopped") {
-    todayText = isUrdu ? "آج: بند کر دی ہے" : "Today: stopped";
+    todayText = isUrdu ? "آج: بند کر دی ہے" : isRoman ? "Aaj: band kar di hai" : "Today: stopped";
   } else if (statusB === "active") {
     if (dosageB && dosageA && dosageB.toLowerCase() !== dosageA.toLowerCase()) {
       todayText = isUrdu
         ? `آج: جاری، نئی مقدار: ${dosageB}`
+        : isRoman
+        ? `Aaj: jari, nayi dose: ${dosageB}`
         : `Today: active, new dose: ${dosageB}`;
     } else if (dosageB) {
-      todayText = isUrdu ? `آج: جاری، ${dosageB}` : `Today: active, ${dosageB}`;
+      todayText = isUrdu ? `آج: جاری، ${dosageB}` : isRoman ? `Aaj: jari, ${dosageB}` : `Today: active, ${dosageB}`;
     } else if (dosageA) {
-      todayText = isUrdu ? `آج: جاری، ${dosageA}` : `Today: active, ${dosageA}`;
+      todayText = isUrdu ? `آج: جاری، ${dosageA}` : isRoman ? `Aaj: jari, ${dosageA}` : `Today: active, ${dosageA}`;
     } else {
-      todayText = isUrdu ? "آج: جاری" : "Today: active";
+      todayText = isUrdu ? "آج: جاری" : isRoman ? "Aaj: jari" : "Today: active";
     }
   } else if (dosageB) {
-    todayText = isUrdu ? `آج: ${dosageB}` : `Today: ${dosageB}`;
+    todayText = isUrdu ? `آج: ${dosageB}` : isRoman ? `Aaj: ${dosageB}` : `Today: ${dosageB}`;
   }
 
   // 3. Reason
-  let reason = isUrdu ? "طبی معالج کے جائزے کی ضرورت ہے۔" : "Requires clinician review.";
+  let reason = isUrdu
+    ? "طبی معالج کے جائزے کی ضرورت ہے۔"
+    : isRoman
+    ? "Doctor ke jaize ki zaroorat hai."
+    : "Requires clinician review.";
   if (isConfirmed) {
-    reason = isUrdu ? "ریکارڈ کے مطابق ہے۔" : "Matches the record.";
+    reason = isUrdu ? "ریکارڈ کے مطابق ہے۔" : isRoman ? "Record ke mutabiq hai." : "Matches the record.";
   } else if (compStatus === "conflict") {
     if (statusA === "active" && statusB === "stopped") {
       reason = isUrdu
         ? "ریکارڈ کے مطابق آپ یہ دوا لیتے ہیں؛ آپ نے بتایا کہ آپ نے بند کر دی ہے۔"
+        : isRoman
+        ? "Record ke mutabiq aap yeh dawa letay hain; aap ne bataya ke aap ne band kar di hai."
         : "The record says you take this medication; you said you stopped it.";
     } else if (dosageA && dosageB && dosageA.toLowerCase() !== dosageB.toLowerCase()) {
       reason = isUrdu
         ? "آپ نے ریکارڈ سے مختلف مقدار بتائی ہے۔"
+        : isRoman
+        ? "Aap ne record se mukhtalif dose batayi hai."
         : "You reported a different dose from the record.";
     } else {
       reason = isUrdu
         ? "ریکارڈ کے مطابق آپ یہ دوا لیتے ہیں؛ آپ نے بتایا کہ آپ نے بند کر دی ہے۔"
+        : isRoman
+        ? "Record ke mutabiq aap yeh dawa letay hain; aap ne bataya ke aap ne band kar di hai."
         : "The record says you take this medication; you said you stopped it.";
     }
   } else if (compStatus === "missing_in_a" || compStatus === "source_b_only") {
-    reason = isUrdu ? "ریکارڈ میں موجود نہیں، جائزے کی ضرورت ہے" : "missing in record, needs review";
+    reason = isUrdu
+      ? "ریکارڈ میں موجود نہیں، جائزے کی ضرورت ہے"
+      : isRoman
+      ? "Record mein nahi mila, jaize ki zaroorat hai"
+      : "missing in record, needs review";
   } else if (compStatus === "missing_in_b") {
-    reason = isUrdu ? "آج نہیں بتایا گیا۔" : "Not reported today.";
+    reason = isUrdu ? "آج نہیں بتایا گیا۔" : isRoman ? "Aaj nahi bataya gaya." : "Not reported today.";
   } else if (verification?.review_reason && verification.review_reason.trim()) {
     reason = verification.review_reason.trim();
   }
@@ -267,6 +289,71 @@ export function describeSide(
   }
 
   return isUrdu ? "محفوظ شدہ ریکارڈ (غیر تصدیق شدہ)" : "Saved record (unverified)";
+}
+
+/**
+ * Checks whether an observation type is one of the vital chronic care telemetry
+ * types the patient is asked about (Blood Pressure, Blood Glucose, HbA1c).
+ * Routine/unasked labs (e.g., Sodium, Potassium, Chloride) return false.
+ */
+export function isObservationThatMatters(obsType?: string | null): boolean {
+  if (!obsType) return false;
+  const t = obsType.toLowerCase().replace(/[\s_-]+/g, "");
+  return (
+    t.includes("glucose") ||
+    t.includes("sugar") ||
+    t.includes("bloodpressure") ||
+    t.includes("systolic") ||
+    t.includes("diastolic") ||
+    t.includes("hba1c") ||
+    t.includes("hemoglobin")
+  );
+}
+
+/**
+ * Checks whether an observation comparison represents a genuine discrepancy
+ * between hospital/baseline record and today's check-in.
+ * Rules:
+ *  - Must be an observation that matters (BP, glucose, HbA1c).
+ *  - Must have today's reading reported (value_b != null); an observation not reported today is NOT a discrepancy.
+ *  - Must have hospital/baseline value (value_a != null).
+ *  - Must be in conflict/flagged status (not agree or auto-resolved).
+ */
+export function isObservationDiscrepancy(comp?: any): boolean {
+  if (!comp) return false;
+  if (!isObservationThatMatters(comp.observation_type)) return false;
+  // A hospital observation with no reading today is NOT a discrepancy
+  if (comp.value_b === null || comp.value_b === undefined) return false;
+  // Comparing hospital value to today's reading requires baseline value on file
+  if (comp.value_a === null || comp.value_a === undefined) return false;
+  const status = (comp.status || "").toLowerCase();
+  if (status === "agree" || status === "auto_resolved") return false;
+  if (status === "conflict" || status === "flagged") return true;
+  if (typeof comp.delta === "number" && comp.delta > 0) return true;
+  return false;
+}
+
+/**
+ * Cleanly formats observation titles in English and Urdu.
+ */
+export function formatObservationTitle(obsType?: string | null, isUrdu?: boolean): string {
+  if (!obsType) return isUrdu ? "طبی ریڈنگ" : "Clinical Observation";
+  const t = obsType.toLowerCase().replace(/[\s_-]+/g, "");
+  if (t.includes("systolic")) {
+    return isUrdu ? "بلڈ پریشر (سسٹولک)" : "Blood Pressure (Systolic)";
+  }
+  if (t.includes("diastolic")) {
+    return isUrdu ? "بلڈ پریشر (ڈائیسٹولک)" : "Blood Pressure (Diastolic)";
+  }
+  if (t.includes("glucose") || t.includes("sugar")) {
+    return isUrdu ? "خون میں گلوکوز (شوگر)" : "Blood Glucose";
+  }
+  if (t.includes("hba1c") || t.includes("hemoglobin")) {
+    return isUrdu ? "ایچ بی اے ون سی (HbA1c)" : "HbA1c";
+  }
+  return obsType
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /**
@@ -391,7 +478,7 @@ export function titleCaseName(name?: string | null): string {
 /**
  * Maps raw API status codes and detail strings to user-safe English message keys.
  */
-export function mapApiError(status?: number | null, detail?: string | null): string {
+export function mapApiError(status?: number | null, detail?: string | null, isUrdu: boolean = false): string {
   const normDetail = (detail || "").toLowerCase();
 
   if (status === 401) {
@@ -426,6 +513,11 @@ export function mapApiError(status?: number | null, detail?: string | null): str
   if (status === 409) {
     if (normDetail.includes("record_managed_by_ehr")) {
       return "Your record is managed by your hospital EHR.";
+    }
+    if (normDetail.includes("already linked") || normDetail.includes("already connected")) {
+      return isUrdu
+        ? "یہ ہسپتال ریکارڈ پہلے سے کسی دوسرے اکاؤنٹ سے منسلک ہے۔"
+        : "This EHR patient is already linked to another account";
     }
     if (normDetail.includes("duplicate_medication")) {
       return "A medication with this name already exists in your record.";
@@ -622,4 +714,38 @@ export function describeBlockedAction(
     actionText: isUrdu ? "دوبارہ کوشش کریں" : "Retry",
     target: "retry",
   };
+}
+
+export const KNOWN_PERSON_NAMES: Record<string, string> = {
+  "prov-demo-im": "Dr. Demo Internal Med (fictional)",
+  "prov-demo-cardio": "Dr. Demo Cardiology (fictional)",
+  "prov-demo-gen-1": "Dr. Demo General 1 (fictional)",
+  "prov-demo-gen-2": "Dr. Demo General 2 (fictional)",
+  "PRV-001": "Dr. Sana Malik",
+  "PRV-002": "Dr. Tariq Mahmood",
+  "PRV-003": "Dr. Ayesha Raza",
+  "sim-ayesha": "Ayesha K. (age 52)",
+  "sim-bilal": "Bilal A. (age 67)",
+  "sim-sana": "Sana M. (age 45)",
+  "sim-imran": "Imran Q. (age 71)",
+  "sim-newpatient": "Nadia R. (age 38)",
+  "sim-syn-recent-geriatric": "Khadija Bibi (age 78)",
+  "sim-syn-recent-t2d-insulin": "Nasreen Zainab (age 49)",
+  "12edb5a0-ec71-45b7-aff6-0fef1c382881": "SMART Patient (Age 75, Dual)",
+  "9bf59715-246f-4ce2-85a6-58c1757f8d21": "SMART Patient (Age 78, Dual)",
+  "948e608d-e408-4788-8cf2-8157c49c2940": "SMART Patient (Age 55, Dual)",
+  "bd6f9f37-7295-4cd6-b212-134afcef1253": "SMART Patient (Age 70, Dual)",
+  "fa064acf-b7f1-4279-83d3-7a94686da7ba": "SMART Patient (Age 106, Centenarian)",
+};
+
+export function resolveHumanName(idOrName?: string | null): string {
+  if (!idOrName) return "Unassigned";
+  const trimmed = String(idOrName).trim();
+  const clean = trimmed.startsWith("local-") ? trimmed.slice(6) : trimmed;
+  if (KNOWN_PERSON_NAMES[clean]) return KNOWN_PERSON_NAMES[clean];
+  if (KNOWN_PERSON_NAMES[trimmed]) return KNOWN_PERSON_NAMES[trimmed];
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean)) {
+    return `Hospital Patient (${clean.slice(0, 8)})`;
+  }
+  return trimmed;
 }

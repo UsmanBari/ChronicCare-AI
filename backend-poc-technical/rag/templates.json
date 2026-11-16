@@ -312,5 +312,109 @@
       "needs_doctor_review": false,
       "needs_native_review": false
     }
+  },
+  "medication_discrepancy": {
+    "en": {
+      "sentences": [
+        "Your reported vital readings are within target levels today.",
+        "A clinician review is scheduled to evaluate your recent medication changes and ensure your treatment remains safe and effective.",
+        "Please continue taking your prescribed medications as advised by your healthcare team until your review."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "آج آپ کی فراہم کردہ وائٹل ریڈنگز ہدف کی حد کے اندر ہیں۔",
+        "آپ کی ادویات میں تبدیلیوں کے جائزے کے لیے معالج کے ریویو کا بندوبست کیا گیا ہے۔",
+        "براہ کرم ڈاکٹر کے جائزے تک اپنی تجویز کردہ ادویات معمول کے مطابق لیتے رہیں۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ki aaj ki readings normal target ke mutabiq hain.",
+        "Aap ki adwiyat mein tabdeeli ke jaize ke liye doctor ke review ka bandobast kiya gaya hai.",
+        "Bara-e-meherbani doctor ke mashwaray tak apni tajweez kardah dawai ka khayal rakhein."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "first_checkin": {
+    "en": {
+      "sentences": [
+        "Your vital readings have been recorded successfully as your initial baseline.",
+        "Because this is your first check-in, your care team will review your profile to verify your ongoing management plan.",
+        "Please continue routine self-monitoring and recording your readings daily."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "آپ کی وائٹل ریڈنگز کو ابتدائی بنیاد کے طور پر کامیابی سے محفوظ کر لیا گیا ہے۔",
+        "چونکہ یہ آپ کا پہلا چیک اِن ہے، اس لیے آپ کی میڈیکل ٹیم نگہداشت کے منصوبے کا جائزہ لے گی۔",
+        "براہ کرم روزانہ کی بنیاد پر اپنی ریڈنگز کا اندراج جاری رکھیں۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ki readings ko pehli baseline ke tor par mehfooz kar liya gaya hai.",
+        "Kyun ke yeh aap ka pehla check-in hai, care team aap ke plan ka jaiza le gi.",
+        "Bara-e-meherbani rozana ki bunyad par apni readings track karte rahein."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "symptom_finding": {
+    "en": {
+      "sentences": [
+        "Your vital measurements have been logged, but you reported symptoms that require clinical attention.",
+        "Clinical guidance advises having a healthcare professional assess newly reported symptoms to guide next steps.",
+        "A clinician review has been scheduled to evaluate your symptoms alongside your health logs."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "آپ کی پیمائشیں محفوظ کر لی گئی ہیں، لیکن آپ نے ایسی علامات بتائی ہیں جن کا طبی جائزہ ضروری ہے۔",
+        "طبی رہنمائی کے مطابق نئی علامات کی صورت میں ڈاکٹر سے جائزہ لینا ضروری ہے۔",
+        "آپ کی علامات کے جائزے اور رہنمائی کے لیے معالج کے ریویو کا بندوبست کیا گیا ہے۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ki readings record ho chuki hain, magar aap ne aisi alamat batai hain jin ka doctor se review zaroori hai.",
+        "Guidelines ke mutabiq nayi alamat par doctor ka jaiza lena behtar hota hai.",
+        "Aap ki alamat ke mutabiq rehnumai ke liye clinician review ka bandobast kiya gaya hai."
+      ],
+      "needs_doctor_review": true
+    }
+  },
+  "no_reading_unwell": {
+    "en": {
+      "sentences": [
+        "You reported feeling unwell today, and no current vital readings were recorded for comparison.",
+        "Because active measurements are unavailable, a clinician review is required to evaluate your symptoms safely.",
+        "Please rest comfortably, check your vitals if equipment is available, and seek urgent medical help if symptoms worsen."
+      ],
+      "needs_doctor_review": true
+    },
+    "ur": {
+      "sentences": [
+        "آپ نے آج طبیعت خراب ہونے کی اطلاع دی ہے اور موازنہ کے لیے کوئی پیمائش دستیاب نہیں ہے۔",
+        "حالیہ ریڈنگز نہ ہونے کے باعث آپ کی حالت کے جائزے کے لیے معالج کا ریویو درکار ہے۔",
+        "براہ کرم آرام کریں، ممکن ہو تو پیمائش کریں، اور علامات بگڑنے پر فوری ہنگامی مدد حاصل کریں۔"
+      ],
+      "needs_doctor_review": true
+    },
+    "roman_ur": {
+      "sentences": [
+        "Aap ne tabiyat kharab hone ki itteha di hai magar readings maujood nahi hain.",
+        "Readings na hone ki wajah se aap ki halat ke jaize ke liye doctor ka review zaroori hai.",
+        "Bara-e-meherbani araam karein, readings le sakein to lein, aur tabiyat zyada kharab ho to fori rabta karein."
+      ],
+      "needs_doctor_review": true
+    }
   }
 }

@@ -9,9 +9,11 @@ export const EmergencyScreen = () => {
   const { returnToHomeAndClearRun, escalationRecorded, isLiveMode, t, isUrdu } = useApp();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingSpeech, setIsLoadingSpeech] = useState(false);
+  const [isWarmingUpHint, setIsWarmingUpHint] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
   const [isTtsEnabled, setIsTtsEnabled] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const warmupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -27,8 +29,17 @@ export const EmergencyScreen = () => {
     };
   }, []);
 
+  const clearWarmup = () => {
+    if (warmupTimerRef.current) {
+      clearTimeout(warmupTimerRef.current);
+      warmupTimerRef.current = null;
+    }
+    setIsWarmingUpHint(false);
+  };
+
   useEffect(() => {
     return () => {
+      clearWarmup();
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
@@ -47,7 +58,12 @@ export const EmergencyScreen = () => {
     }
 
     setIsLoadingSpeech(true);
+    setIsWarmingUpHint(false);
     setSpeechError(null);
+    if (warmupTimerRef.current) clearTimeout(warmupTimerRef.current);
+    warmupTimerRef.current = setTimeout(() => {
+      setIsWarmingUpHint(true);
+    }, 3000);
 
     try {
       const blob = await api.getEmergencySpeech(isUrdu ? "ur" : "en");
@@ -56,14 +72,17 @@ export const EmergencyScreen = () => {
       audioRef.current = audio;
 
       audio.onplay = () => {
+        clearWarmup();
         setIsPlaying(true);
         setIsLoadingSpeech(false);
       };
       audio.onended = () => {
+        clearWarmup();
         setIsPlaying(false);
         URL.revokeObjectURL(url);
       };
       audio.onerror = () => {
+        clearWarmup();
         setIsPlaying(false);
         setIsLoadingSpeech(false);
         setSpeechError(t.speechError || "Voice output unavailable");
@@ -72,6 +91,7 @@ export const EmergencyScreen = () => {
 
       await audio.play();
     } catch {
+      clearWarmup();
       setIsLoadingSpeech(false);
       setIsPlaying(false);
       setSpeechError(t.speechError || "Voice output unavailable");
@@ -107,7 +127,7 @@ export const EmergencyScreen = () => {
               : "If you are experiencing severe shortness of breath, acute chest distress, or sudden weakness, contact emergency services (1122) immediately."}
           </p>
           {isTtsEnabled && (
-            <div className="pt-1">
+            <div className="space-y-1.5 pt-1">
               <button
                 type="button"
                 data-testid="emergency-speech-btn"
@@ -118,7 +138,7 @@ export const EmergencyScreen = () => {
                 {isLoadingSpeech ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-emergencyRed-700" />
-                    <span>{t.speechLoading || "Generating voice..."}</span>
+                    <span>{isWarmingUpHint ? (t.speechPreparingWarmup || "Preparing voice, the first time can take up to a minute") : (t.speechLoading || "Generating voice...")}</span>
                   </>
                 ) : isPlaying ? (
                   <>
@@ -132,6 +152,11 @@ export const EmergencyScreen = () => {
                   </>
                 )}
               </button>
+              {isLoadingSpeech && isWarmingUpHint && (
+                <p data-testid="emergency-speech-warmup-hint" className="text-[11px] text-slate-500 italic text-center">
+                  {t.speechPreparingWarmup || "Preparing voice, the first time can take up to a minute"}
+                </p>
+              )}
               {speechError && (
                 <p data-testid="emergency-speech-error" className="text-xs text-emergencyRed-700 font-medium text-center mt-2">
                   {speechError}

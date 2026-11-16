@@ -123,6 +123,12 @@ SLOT_EQUIVALENCES: Dict[str, Set[str]] = {
     "hypo_symptoms_acute": {"insulin_hypo_symptoms_acute", "hypo_symptoms_acute"},
     "hypo_events_past_week": {"insulin_hypo_events_past_week", "hypo_events_past_week"},
     "fasting_symptoms": {"fasting_symptoms", "fasting_ramadan"},
+    "greeting": {"core_greeting", "greeting"},
+    "core_greeting": {"core_greeting", "greeting"},
+    "has_glucometer": {"has_glucometer", "barrier_has_glucometer"},
+    "barrier_has_glucometer": {"has_glucometer", "barrier_has_glucometer"},
+    "has_bp_cuff": {"has_bp_cuff", "barrier_has_bp_cuff"},
+    "barrier_has_bp_cuff": {"has_bp_cuff", "barrier_has_bp_cuff"},
 }
 
 
@@ -139,6 +145,19 @@ def is_slot_already_satisfied(
     2. Any bank item whose also_fills includes this slot has already been asked or populated.
     Note: asked_slots contains set(asked_slots) | set(known_slots.keys()) in plan_next_step.
     """
+    # P3-24: If reading is already provided, device questions are satisfied
+    if slot in ("has_glucometer", "barrier_has_glucometer") and known_slots.get("glucose_reading") is not None:
+        return True
+    if slot in ("has_bp_cuff", "barrier_has_bp_cuff") and known_slots.get("bp_reading") is not None:
+        return True
+
+    # P3-24: If greeting or general wellbeing was given, greeting is satisfied
+    if slot in ("greeting", "core_greeting"):
+        if any(s in asked_slots for s in ("greeting", "core_greeting")):
+            return True
+        if known_slots.get("greeting"):
+            return True
+
     eq_slots = SLOT_EQUIVALENCES.get(slot, {slot})
     if any(s in asked_slots for s in eq_slots):
         return True
@@ -384,7 +403,8 @@ def plan_next_step(
 
     # 5. PRIORITY CLASS: Access Barriers
     if known_slots.get("missing_reading"):
-        if "diabetes" in conditions and not is_slot_already_satisfied("has_glucometer", asked_slots, known_slots, bank):
+        # P3-24: Only ask barrier_has_glucometer if glucose_reading is actually missing
+        if "diabetes" in conditions and known_slots.get("glucose_reading") is None and not is_slot_already_satisfied("has_glucometer", asked_slots, known_slots, bank):
             item = bank.get_by_id("barrier_has_glucometer")
             if item:
                 return PlanDecision(
@@ -395,7 +415,8 @@ def plan_next_step(
                     max_budget=effective_budget,
                     target_slot=item.slot,
                 )
-        if "hypertension" in conditions and not is_slot_already_satisfied("has_bp_cuff", asked_slots, known_slots, bank):
+        # P3-24: Only ask barrier_has_bp_cuff if bp_reading is actually missing
+        if "hypertension" in conditions and known_slots.get("bp_reading") is None and not is_slot_already_satisfied("has_bp_cuff", asked_slots, known_slots, bank):
             item = bank.get_by_id("barrier_has_bp_cuff")
             if item:
                 return PlanDecision(

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useApp } from "../../context/AppContext";
 import { api, ReviewQueueItemResponse, InAppNotification } from "../../lib/api";
 import {
@@ -58,6 +58,23 @@ export const ProviderDashboardScreen = () => {
       })
       .catch(() => {});
   }, [isLiveMode]);
+
+  // Deduplicate liveItems by patient identifier / display name to form the assigned patient cohort
+  const uniquePatients = useMemo(() => {
+    const map = new Map<string, ReviewQueueItemResponse>();
+    for (const item of liveItems) {
+      const key = item.patient_id || item.user_id || item.patient_display;
+      if (!map.has(key)) {
+        map.set(key, item);
+      } else {
+        const existing = map.get(key)!;
+        if (!existing.emergency && (item.emergency || item.triage_level === "emergency")) {
+          map.set(key, item);
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [liveItems]);
 
   // Compute live counters based on demoScenario
   const isAliResolved = resolvedCases.includes("Ali Khan");
@@ -159,9 +176,9 @@ export const ProviderDashboardScreen = () => {
               </span>
               <div className="text-2xl sm:text-3xl font-bold font-sans mt-0.5 flex items-center justify-center gap-1">
                 {urgentCasesCount > 0 ? (
-                  <span className="text-red-100 flex items-center gap-1.5 text-base">
+                  <span className="text-red-100 flex items-center gap-1.5 text-base" data-testid="urgent-cases-badge">
                     <AlertOctagon className="w-5 h-5 text-red-200 animate-pulse" />
-                    <span>1 Urgent</span>
+                    <span>{urgentCasesCount} {isUrdu ? "فوری" : (urgentCasesCount === 1 ? "Urgent Case" : "Urgent Cases")}</span>
                   </span>
                 ) : (
                   <span className="text-slate-200">0</span>
@@ -218,18 +235,18 @@ export const ProviderDashboardScreen = () => {
               <span>{t.patientListTitle}</span>
             </h3>
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
-              {isLiveMode ? (isUrdu ? `${liveItems.length} مریض تفویض شدہ` : `${liveItems.length} Assigned Patients`) : "3 Assigned Patients"}
+              {isLiveMode ? (isUrdu ? `${uniquePatients.length} مریض تفویض شدہ` : `${uniquePatients.length} Assigned Patients`) : "3 Assigned Patients"}
             </span>
           </div>
 
           <div className="space-y-3">
             {isLiveMode ? (
-              liveItems.length === 0 ? (
+              uniquePatients.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 text-sm">
                   <p className="font-medium">{isUrdu ? "ابھی کوئی مریض تفویض نہیں کیا گیا" : "No assigned patients yet"}</p>
                 </div>
               ) : (
-                liveItems.map((item) => (
+                uniquePatients.map((item) => (
                   <div
                     key={item.checkin_id}
                     onClick={() => {

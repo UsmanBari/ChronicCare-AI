@@ -37,6 +37,7 @@ from data_sources.app_store import (
     create_appointment,
     get_appointment,
     get_appointment_by_checkin,
+    get_db_cursor,
     list_providers,
     update_appointment,
 )
@@ -180,7 +181,11 @@ def get_escalation_timeouts() -> Tuple[float, float]:
         except ValueError:
             renotify_seconds = min(7200.0, admin_flag_seconds / 12.0)
     elif raw_admin:
-        renotify_seconds = min(7200.0, admin_flag_seconds / 12.0)
+        if admin_minutes <= 30.0:
+            renotify_seconds = admin_minutes * 60.0
+            admin_flag_seconds = max(admin_flag_seconds * 2.0, renotify_seconds * 2.0)
+        else:
+            renotify_seconds = min(7200.0, admin_flag_seconds / 12.0)
     else:
         renotify_seconds = 7200.0
 
@@ -260,6 +265,7 @@ def compute_escalation_state(
                 appointment_id=appt["id"],
                 patient_id=appt.get("patient_id", ""),
                 provider_id=appt.get("provider_id"),
+                checkin_id=appt.get("checkin_id"),
                 backend=backend,
                 db_path=db_path,
                 mysql_url=mysql_url,
@@ -275,6 +281,7 @@ def compute_escalation_state(
                 appointment_id=appt["id"],
                 provider_id=appt.get("provider_id", "prov-demo-gen-1"),
                 patient_id=appt.get("patient_id", ""),
+                checkin_id=appt.get("checkin_id"),
                 backend=backend,
                 db_path=db_path,
                 mysql_url=mysql_url,
@@ -311,7 +318,7 @@ def evaluate_and_create_appointment(
     if level == "routine":
         return None
 
-    # Idempotency check:
+    # Idempotency check / Priority Elevation:
     existing = get_appointment_by_checkin(
         checkin_id=checkin_id,
         backend=backend,
@@ -320,6 +327,37 @@ def evaluate_and_create_appointment(
         ssl_ca=ssl_ca,
     )
     if existing:
+        now_str = now_iso or _utc_now_iso()
+        if level in ("urgent", "emergency") and existing.get("urgency") != "urgent":
+            update_appointment(
+                appointment_id=existing["id"],
+                urgency="urgent",
+                status="booked" if existing.get("status") == "offered" else existing.get("status"),
+                slot_date=now_str[:10],
+                mode="in_person",
+                backend=backend,
+                db_path=db_path,
+                mysql_url=mysql_url,
+                ssl_ca=ssl_ca,
+            )
+            append_audit(
+                actor_user_id=patient_id,
+                action="appointment_urgency_elevated",
+                target=existing["id"],
+                outcome="ok",
+                detail={"checkin_id": checkin_id, "from": existing.get("urgency"), "to": "urgent"},
+                backend=backend,
+                db_path=db_path,
+                mysql_url=mysql_url,
+                ssl_ca=ssl_ca,
+            )
+            existing = get_appointment_by_checkin(
+                checkin_id=checkin_id,
+                backend=backend,
+                db_path=db_path,
+                mysql_url=mysql_url,
+                ssl_ca=ssl_ca,
+            )
         return compute_escalation_state(
             existing,
             backend=backend,
@@ -434,10 +472,26 @@ def book_appointment_slot(
     created_date = _parse_iso_datetime(created_iso).date()
     max_date = created_date + timedelta(days=3)
 
-    try:
-        requested_date = datetime.strptime(slot_date.strip(), "%Y-%m-%d").date()
-    except Exception as exc:
-        raise ValueError(f"Invalid slot_date format: {slot_date}, expected YYYY-MM-DD") from exc
+    clean_slot = slot_date.strip()
+    requested_date = None
+    for fmt in (
+        "%Y-%m-%dT%H:%M",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d",
+    ):
+        try:
+            requested_date = datetime.strptime(clean_slot, fmt).date()
+            break
+        except ValueError:
+            continue
+
+    if requested_date is None:
+        try:
+            requested_date = datetime.fromisoformat(clean_slot.replace("Z", "+00:00")).date()
+        except Exception as exc:
+            raise ValueError(f"Invalid slot_date format: {slot_date}, expected YYYY-MM-DD or YYYY-MM-DDTHH:MM") from exc
 
     if requested_date < created_date or requested_date > max_date:
         raise ValueError(
@@ -447,7 +501,7 @@ def book_appointment_slot(
     updated = update_appointment(
         appointment_id=appointment_id,
         status="booked",
-        slot_date=slot_date.strip(),
+        slot_date=clean_slot,
         mode=mode or appt.get("mode") or "telehealth",
         backend=backend,
         db_path=db_path,
@@ -587,3 +641,68 @@ def mark_appointment_attended(
         ssl_ca=ssl_ca,
     )
     return compute_escalation_state(updated or appt, now_dt=now_dt)
+
+
+def dispatch_due_escalations(
+    now_dt: Optional[datetime] = None,
+    backend: Optional[str] = None,
+    db_path: Optional[str] = None,
+    mysql_url: Optional[str] = None,
+    ssl_ca: Optional[str] = None,
+) -> int:
+    """
+    Scans all unacknowledged urgent appointments and evaluates their escalation state,
+    dispatching provider re-notification and admin flag notifications as required.
+    Returns the count of escalated appointments evaluated.
+    """
+    try:
+        with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+            cursor.execute(
+                f"SELECT id, patient_id, checkin_id, urgency, status, acknowledged_at, admin_flagged_at, created_at, provider_id "
+                f"FROM appointments WHERE urgency = 'urgent' AND acknowledged_at IS NULL"
+            )
+            rows = cursor.fetchall()
+    except Exception as exc:
+        logger.warning(f"Error querying urgent appointments for escalation scan: {exc}")
+        return 0
+
+    escalated_count = 0
+    for r in rows:
+        appt = {
+            "id": r[0],
+            "patient_id": r[1],
+            "checkin_id": r[2],
+            "urgency": r[3],
+            "status": r[4],
+            "acknowledged_at": r[5],
+            "admin_flagged_at": r[6],
+            "created_at": r[7],
+            "provider_id": r[8],
+        }
+        res = compute_escalation_state(
+            appt,
+            now_dt=now_dt,
+            backend=backend,
+            db_path=db_path,
+            mysql_url=mysql_url,
+            ssl_ca=ssl_ca,
+        )
+        if res.get("escalation_state") in ("re_notify", "admin_flag"):
+            escalated_count += 1
+
+    return escalated_count
+
+
+async def escalation_worker_loop(interval_seconds: int = 15) -> None:
+    """In-process periodic background task evaluating appointment escalations while the app is live."""
+    import asyncio
+    logger.info("Starting escalation background worker loop...")
+    try:
+        while True:
+            try:
+                dispatch_due_escalations()
+            except Exception as e:
+                logger.warning(f"Error during escalation evaluation pass: {e}")
+            await asyncio.sleep(interval_seconds)
+    except asyncio.CancelledError:
+        logger.info("Escalation background worker cancelled cleanly.")

@@ -303,7 +303,7 @@ export const RiskResultScreen = () => {
                 {deduplicatedMeds.map((m: any, idx: number) => {
                   const medVerifs = liveCheckinResult?.verification?.medication_verifications || [];
                   const v = medVerifs.find((ver: any) => ver.medication_name === m.medication_name);
-                  const medItem = describeMedicationItem(m, v);
+                  const medItem = describeMedicationItem(m, v, isUrdu, activeLang);
                   const isHigh = medItem.severity === "high";
                   return (
                     <li key={`med-${idx}`} className="py-1.5 border-b border-slate-200/60 last:border-none space-y-1">

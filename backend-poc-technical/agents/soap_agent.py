@@ -181,17 +181,50 @@ def build_soap(
         else:
             reported_symptoms.append(f"General condition: {val}")
 
-    symp_keys = ["hyperglycemia_symptoms", "hypoglycemia_symptoms", "symptoms", "symptom_notes"]
+    # P1-4: Check clinical findings first, format attributes (e.g. "Headache (mild, gradual)")
+    findings = state.get("findings") or (result.get("findings") if result else None) or checkin.get("findings") or []
+    if not findings and isinstance(state.get("known_slots"), dict):
+        findings = state["known_slots"].get("findings", [])
+
     found_symp = False
-    for sk in symp_keys:
-        if sk in answers and answers[sk] is not None:
-            val = str(answers[sk]).strip()
-            if val.lower() in ("skip", "skipped", "null", "none", "not provided", ""):
-                reported_symptoms.append("Reported symptoms: not answered")
-            else:
-                reported_symptoms.append(f"Reported symptoms: {val}")
+    if findings:
+        from agents.interview_findings import format_finding_label
+        formatted_findings = [format_finding_label(f, "en") for f in findings]
+        reported_symptoms.append(f"Reported symptoms: {'; '.join(formatted_findings)}")
+        found_symp = True
+    else:
+        # Check if symptoms were explicitly denied
+        symptoms_denied = (
+            state.get("symptoms_denied") is True
+            or (isinstance(state.get("known_slots"), dict) and state["known_slots"].get("symptoms_denied") is True)
+            or answers.get("hyperglycemia_symptoms") is False
+            or answers.get("associated_symptoms") is False
+            or answers.get("foot_problems") is False
+            or answers.get("symptoms_denied") is True
+        )
+        if symptoms_denied:
+            reported_symptoms.append("Reported symptoms: None reported")
             found_symp = True
-            break
+        else:
+            symp_keys = ["hyperglycemia_symptoms", "hypoglycemia_symptoms", "symptoms", "symptom_notes"]
+            for sk in symp_keys:
+                if sk in answers and answers[sk] is not None:
+                    raw_val = answers[sk]
+                    if raw_val is True or raw_val == "true":
+                        reported_symptoms.append("Reported symptoms: Present")
+                        found_symp = True
+                        break
+                    elif raw_val is False or raw_val == "false":
+                        reported_symptoms.append("Reported symptoms: None reported")
+                        found_symp = True
+                        break
+                    val = str(raw_val).strip()
+                    if val.lower() in ("skip", "skipped", "null", "none", "not provided", ""):
+                        reported_symptoms.append("Reported symptoms: not answered")
+                    else:
+                        reported_symptoms.append(f"Reported symptoms: {val}")
+                    found_symp = True
+                    break
 
     if not found_symp:
         intake_symps = []
@@ -200,11 +233,11 @@ def build_soap(
                 symps_val = it["symptoms"]
                 if isinstance(symps_val, dict):
                     for k, v in symps_val.items():
-                        if v and str(v).lower() not in ("skip", "skipped", "null", "none", "not provided", ""):
+                        if v and str(v).lower() not in ("skip", "skipped", "null", "none", "not provided", "", "false"):
                             intake_symps.append(f"{k.replace('_', ' ')}: {v}")
                 elif isinstance(symps_val, list):
                     for s in symps_val:
-                        if s and str(s).lower() not in ("skip", "skipped", "null", "none", "not provided", ""):
+                        if s and str(s).lower() not in ("skip", "skipped", "null", "none", "not provided", "", "false"):
                             intake_symps.append(str(s))
         if intake_symps:
             reported_symptoms.append(f"Reported symptoms: {'; '.join(intake_symps)}")
@@ -382,8 +415,59 @@ def build_soap(
     if not reasons and result and result.get("trigger_text"):
         cat = (result.get("trigger_category") or state.get("stage1_reason") or "Emergency Red-Flag").replace("_", " ").title()
         reasons.append(f"Emergency Red-Flag: {cat} (patient stated: \"{result['trigger_text']}\")")
+
+    # If Yellow/Urgent/Elevated, extract the real reasons from reconciliation discrepancies, readings, and findings
+    if level in ("urgent", "elevated") or colour_raw == "yellow":
+        recon = result.get("reconciliation") if isinstance(result, dict) else None
+        if isinstance(recon, dict):
+            discrepancies = recon.get("discrepancies") or []
+            for d in discrepancies:
+                if isinstance(d, dict):
+                    item = d.get("item") or d.get("type") or "Parameter"
+                    today = d.get("today_value")
+                    rec = d.get("record_value")
+                    kind = d.get("kind")
+                    if kind == "medication":
+                        reason_desc = d.get("clinical_reason") or "modified or stopped"
+                        reasons.append(f"Medication update: {item} ({reason_desc})")
+                    elif item and today is not None:
+                        reasons.append(f"Observation change: {item} ({today} vs record {rec})")
+
+        for it in intakes:
+            if isinstance(it, dict):
+                for r in it.get("readings", []):
+                    obs_t = r.get("observation_type")
+                    val = r.get("value")
+                    if obs_t == "blood_pressure_systolic" and val is not None and float(val) >= 140:
+                        reasons.append(f"Blood pressure systolic outside target ({val} mmHg)")
+                    elif obs_t == "blood_pressure_diastolic" and val is not None and float(val) >= 90:
+                        reasons.append(f"Blood pressure diastolic outside target ({val} mmHg)")
+                    elif obs_t == "glucose" and val is not None:
+                        ctx = r.get("glucose_context")
+                        v_f = float(val)
+                        if ctx == "fasting" and (v_f < 90 or v_f > 125):
+                            reasons.append(f"Fasting glucose outside target ({val} mg/dL)")
+                        elif ctx == "after_meal" and (v_f < 125 or v_f > 200):
+                            reasons.append(f"Post-meal glucose outside target ({val} mg/dL)")
+
+        findings = result.get("findings") or (state.get("findings") if isinstance(state, dict) else [])
+        if findings:
+            reasons.append(f"Reported symptoms: {', '.join([str(f) for f in findings])}")
+
+    # Deduplicate reasons while preserving order
+    seen_r = set()
+    deduped_reasons = []
+    for r in reasons:
+        if r not in seen_r:
+            seen_r.add(r)
+            deduped_reasons.append(r)
+    reasons = deduped_reasons
+
     if not reasons:
-        reasons.append("Routine check-in protocol completed within expected bounds")
+        if level in ("urgent", "elevated") or colour_raw == "yellow":
+            reasons.append("Check-in flagged for non-routine clinical review due to vital readings or medication discrepancies")
+        else:
+            reasons.append("Routine check-in protocol completed within expected bounds")
 
     a_lines.append(f"Clinical rules rationale: {'; '.join(reasons)}")
 
@@ -486,7 +570,12 @@ def build_soap(
     if not guidance and result and result.get("trigger_text"):
         guidance = result["trigger_text"]
     if not guidance:
-        guidance = "Continue routine self-monitoring and care plan."
+        if level == "emergency" or colour_raw == "red":
+            guidance = "Seek immediate emergency medical attention at 1122 or nearest emergency department."
+        elif level in ("urgent", "elevated") or colour_raw == "yellow":
+            guidance = "Clinical review scheduled with care team. Continue prescribed medications as advised and seek clinical review."
+        else:
+            guidance = "Continue routine self-monitoring and care plan."
 
     if level == "emergency":
         p_lines.append(f"Patient guidance: Immediate emergency guidance provided: {guidance}")
@@ -530,7 +619,7 @@ def build_soap(
             p_lines.append(f"Provider decision: Approved system recommendation ({level.title()})")
         elif act_type == "adjust":
             sys_lvl = (prov_dec.get("system_level") or level).title()
-            prov_lvl = (prov_dec.get("provider_level") or prov_dec.get("action")).title()
+            prov_lvl = (prov_dec.get("provider_level") or prov_dec.get("action")).lower()
             reason = prov_dec.get("reason") or prov_dec.get("note") or "Clinician assessment"
             p_lines.append(f"Provider decision: Adjusted triage level (System: {sys_lvl} -> Provider: {prov_lvl}) - Reason: {reason}")
 
@@ -558,16 +647,19 @@ def build_soap(
     # =========================================================================
     data_sources: List[str] = []
     if mode == "connected":
-        conn_name = "FHIR R4 in-process simulator (sim://demo)"
+        conn_name = "Connected EHR (live FHIR)"
         try:
-            from data_sources.app_store import get_ehr_connection
+            from data_sources.app_store import get_active_ehr_connection, get_ehr_system_by_id
             uid = checkin.get("user_id") or patient_id
             clean_uid = str(uid).removeprefix("local-")
-            conn = get_ehr_connection(clean_uid)
-            if conn and conn.get("system_name"):
-                conn_name = f"Connected EHR: {conn['system_name']}"
-                if conn.get("fhir_base_url"):
-                    conn_name += f" ({conn['fhir_base_url']})"
+            conn = get_active_ehr_connection(clean_uid)
+            if conn:
+                disp = conn.get("display_name") or conn.get("ehr_system_id") or "Connected Hospital EHR"
+                ehr_sys = get_ehr_system_by_id(conn.get("ehr_system_id"))
+                url = ehr_sys.get("fhir_base_url") if ehr_sys else None
+                conn_name = f"Connected EHR: {disp}"
+                if url:
+                    conn_name += f" ({url})"
         except Exception:
             pass
         data_sources.append(conn_name)

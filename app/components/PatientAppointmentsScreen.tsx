@@ -6,7 +6,7 @@ import { api, Appointment } from "../lib/api";
 import { Calendar, Clock, Stethoscope, ArrowLeft, CheckCircle2, AlertCircle, ShieldCheck, XCircle } from "lucide-react";
 
 export const PatientAppointmentsScreen = () => {
-  const { setScreen, appointment, t, isUrdu, isLiveMode } = useApp();
+  const { setScreen, appointment, setAppointment, t, isUrdu, isLiveMode } = useApp();
   const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -36,12 +36,22 @@ export const PatientAppointmentsScreen = () => {
 
   const handleBook = async (aptId: string) => {
     setActionError(null);
-    const chosenSlot = selectedSlots[aptId] || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16).replace("T", " ");
+    const chosenSlot = selectedSlots[aptId] || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
     try {
-      await api.bookAppointment(aptId, chosenSlot);
+      const updated = await api.bookAppointment(aptId, chosenSlot);
+      if (setAppointment) {
+        setAppointment((prev: any) => ({
+          ...prev,
+          isBooked: true,
+          status: "Confirmed",
+          slot: updated?.slot_date || chosenSlot,
+        }));
+      }
       await fetchAppointments();
     } catch (err: any) {
-      setActionError(err.message || "Failed to book appointment");
+      const rawMsg = err.message || "";
+      const cleanMsg = rawMsg.replace(/^API Error\s*\d*:\s*/i, "").trim();
+      setActionError(cleanMsg || (isUrdu ? "ملاقات طے نہیں ہو سکی۔ براہ کرم دوسرا وقت منتخب کریں۔" : "Unable to book appointment. Please select another slot."));
     }
   };
 

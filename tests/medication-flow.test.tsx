@@ -90,6 +90,7 @@ function setContext(lang: "en" | "ur", overrides: Record<string, any> = {}) {
     showSettings: false,
     userIdentifier: "patient@example.com",
     activeConditions: ["Hypertension"],
+    checkIn: { thirst: false, frequentUrination: false, missedMedication: "no", symptoms: [] },
     ...overrides,
   });
 }
@@ -408,6 +409,28 @@ describe("STAGE 10B: One Clear Medication Flow", () => {
           })
         );
       });
+    });
+  });
+
+  describe("P1-10: Roman Urdu Medication Check UI", () => {
+    it("renders Roman Urdu chip buttons and badge during medication check step", async () => {
+      setContext("en", {
+        isLiveMode: true,
+        language: "roman_ur",
+        isUrdu: false,
+        activeLiveCheckin: {
+          checkin_id: "chk-med-roman",
+          step: "medication_check:0:0",
+          version: 1,
+        },
+      });
+
+      const { AdaptiveInterviewScreen } = await import("../app/components/AdaptiveInterviewScreen");
+      render(<AdaptiveInterviewScreen />);
+
+      expect(screen.getByText("Dawaiyon ki Tasdeeq")).toBeTruthy();
+      expect(screen.getByText("Haan, wahi dose")).toBeTruthy();
+      expect(screen.getByText("Nahi, band kar di hai")).toBeTruthy();
     });
   });
 });

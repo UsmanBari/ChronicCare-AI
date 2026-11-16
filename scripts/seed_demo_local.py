@@ -275,7 +275,8 @@ def seed_demo_data(reset: bool = False, db_path: Optional[str] = None) -> Dict[s
     os.environ["EXPLAIN_ENABLED"] = "true"
     os.environ["EXPLAIN_MODE"] = "inline"
 
-    resolved_db = get_sqlite_path(db_path)
+    resolved_db = os.path.abspath(get_sqlite_path(db_path))
+    os.environ["LOCAL_DB_PATH"] = resolved_db
     print(f"\n[INFO] Initializing SQLite database at: {resolved_db}")
     migrate(backend="sqlite", db_path=resolved_db)
 

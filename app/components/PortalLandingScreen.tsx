@@ -255,7 +255,7 @@ export const PortalLandingScreen = () => {
                       ? (isUrdu
                           ? "مریض کے چیک ان اور اسپتال ریکارڈ میں تضاد پایا گیا۔ معالج کو بھیجا گیا۔"
                           : "Patient check-in diverges from hospital EHR. Routed to care provider for review.")
-                      : "Patient check-in diverges from hospital EHR. Routed to Dr. Sana Malik for review."}
+                      : "[Guided Demo Scenario] Patient check-in diverges from hospital EHR. Routed to care provider for review."}
                   </p>
                 </div>
 
@@ -395,7 +395,7 @@ export const PortalLandingScreen = () => {
                   <p className="text-xs text-slate-300 mt-1 max-w-xs">
                     {isLiveMode
                       ? (isUrdu ? "طبی معالج" : "Clinical Provider")
-                      : "Dr. Sana Malik • City General Hospital"}
+                      : "[Guided Demo Scenario] Dr. Sana Malik • Demo Clinic"}
                   </p>
                 </div>
                 <div className="w-full bg-navy-800/90 rounded-xl p-3 border border-teal-500/30 text-left text-xs space-y-1.5 shadow-2xs">
@@ -672,7 +672,7 @@ export const PortalLandingScreen = () => {
                   </h2>
                   {!isLiveMode && (
                     <span className="text-xs font-semibold text-navy-700 block mt-0.5">
-                      Dr. Sana Malik (City General)
+                      [Guided Demo Scenario] Dr. Sana Malik (Demo Clinic)
                     </span>
                   )}
                 </div>

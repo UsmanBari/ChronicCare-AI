@@ -431,3 +431,13 @@ def test_api_emergency_speech_endpoint(api_client, monkeypatch, tmp_path):
     resp_en = api_client.post("/api/emergency/speech?lang=en")
     assert resp_en.status_code == 200
     assert resp_en.headers["content-type"] == "audio/wav"
+
+
+def test_warmup_models_background_thread(monkeypatch):
+    """Verifies warmup_models handles startup trigger gracefully without crashing (P2-13)."""
+    monkeypatch.setenv("TTS_ENABLED", "true")
+    monkeypatch.setenv("TTS_MOCK", "true")
+    from voice import tts_service
+
+    # Should run without error
+    tts_service.warmup_models()

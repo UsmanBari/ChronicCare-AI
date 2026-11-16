@@ -654,3 +654,46 @@ def test_build_patient_explain_view_empty_sentences() -> None:
     assert out["status"] == "ready"
     assert out["sentences"] == []
     assert out["sources"] == []
+
+
+def test_medication_question_and_metadata_localization() -> None:
+    from main import format_medication_question_for_lang, get_medication_check_ui_metadata
+    from agents.medication_confirmation import MedicationCheckState
+
+    state = MedicationCheckState(
+        items=[{"name": "Metformin 500mg", "dosage": "1 tablet twice daily"}],
+        index=0,
+        attempts=0,
+    )
+
+    # English
+    q_en = format_medication_question_for_lang(state, "en")
+    assert q_en is not None and "Your record lists Metformin 500mg" in q_en
+    meta_en = get_medication_check_ui_metadata("en")
+    assert "Yes, same dose" in meta_en["options"]
+
+    # Urdu
+    q_ur = format_medication_question_for_lang(state, "ur")
+    assert q_ur is not None and "آپ کے ریکارڈ میں Metformin 500mg" in q_ur
+    meta_ur = get_medication_check_ui_metadata("ur")
+    assert "ہاں، وہی مقدار" in meta_ur["options"]
+
+    # Roman Urdu
+    q_roman = format_medication_question_for_lang(state, "roman_ur")
+    assert q_roman is not None and "Aap ke record mein Metformin 500mg" in q_roman
+    meta_roman = get_medication_check_ui_metadata("roman_ur")
+    assert "Haan, wahi dose" in meta_roman["options"]
+    assert "Nahi, band kar di hai" in meta_roman["options"]
+
+    # Retry questions
+    state_retry = MedicationCheckState(
+        items=[{"name": "Metformin 500mg", "dosage": "1 tablet twice daily"}],
+        index=0,
+        attempts=1,
+    )
+    retry_en = format_medication_question_for_lang(state_retry, "en")
+    retry_ur = format_medication_question_for_lang(state_retry, "ur")
+    retry_roman = format_medication_question_for_lang(state_retry, "roman_ur")
+    assert retry_en is not None and "Sorry, I didn't catch that" in retry_en
+    assert retry_ur is not None and "معذرت، میں سمجھ نہیں سکا" in retry_ur
+    assert retry_roman is not None and "Mazzrat, samajh nahi aaya" in retry_roman

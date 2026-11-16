@@ -153,10 +153,63 @@ describe("Provider Diabetes Risk Panel (Part I)", () => {
       expect(caveatItems[0].textContent).toContain(translations.en.riskCaveatHomeBp);
       expect(caveatItems[1].textContent).toContain(translations.en.riskCaveatNotValidatedPakistan);
 
-      // NEVER show raw percentage probability
-      expect(panel.textContent).not.toContain("14.2%");
-      expect(panel.textContent).not.toContain("0.142");
-      expect(panel.textContent).not.toContain("%");
+      // Probability percentage shown next to band
+      expect(screen.getByTestId("risk-probability").textContent).toContain("14% 10-year Diabetes risk");
+    });
+  });
+
+  it("renders Framingham risk with probability and Framingham caveat for chd10_framingham", async () => {
+    const mockDetailFramingham: ReviewDetailResponse = {
+      checkin_id: "chk-risk-framingham",
+      patient_id: "rec-p-fram",
+      patient_display: "Tariq Mahmood",
+      mode: "isolated",
+      emergency: false,
+      intakes: [],
+      reconciliation: null,
+      verification: null,
+      requires_review: true,
+      max_severity: null,
+      review_status: "open",
+      created_at: "2026-10-30T10:00:00Z",
+      actions: [],
+      trends: null,
+      risk: {
+        disease: "cardiovascular",
+        model_name: "chd10_framingham",
+        model_version: "1.0.0",
+        status: "ok",
+        band: "high",
+        probability: 0.29,
+        label_text: {
+          en: "Experimental: trained on US Framingham data, not validated for Pakistani patients",
+        },
+        reasons: [
+          {
+            feature: "sbp",
+            contribution: 0.42,
+            label: { en: "Systolic blood pressure", ur: "سسٹولک بلڈ پریشر" },
+          },
+        ],
+        caveats: ["home_bp_not_exam_bp", "not_validated_pakistan"],
+      },
+    };
+
+    vi.spyOn(api, "getProviderReviewDetail").mockResolvedValue(mockDetailFramingham);
+
+    render(<ReconciliationAlertDetail />);
+
+    await waitFor(() => {
+      const panel = screen.getByTestId("provider-risk-panel");
+      expect(panel).toBeTruthy();
+
+      // Probability shows '29% 10-year CHD risk'
+      const probEl = screen.getByTestId("risk-probability");
+      expect(probEl.textContent).toContain("29% 10-year CHD risk");
+
+      // Caveat shows Framingham study caveat
+      const caveatItems = screen.getAllByTestId("risk-caveat-item");
+      expect(caveatItems.some((item) => item.textContent?.includes("Framingham Heart Study"))).toBe(true);
     });
   });
 

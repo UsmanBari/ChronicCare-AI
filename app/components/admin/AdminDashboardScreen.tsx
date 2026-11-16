@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useApp } from "../../context/AppContext";
-import { api, ProviderDirectoryEntry, Appointment } from "../../lib/api";
+import { api, ProviderDirectoryEntry, Appointment, EHRSystemResponse } from "../../lib/api";
+import { resolveHumanName } from "../../lib/presentation";
 import { AdminConfigStatusSection } from "./AdminConfigStatusSection";
 import {
   Shield,
@@ -36,6 +37,9 @@ export const AdminDashboardScreen = () => {
   const [liveAuditLogs, setLiveAuditLogs] = useState<any[]>([]);
   const [liveProviders, setLiveProviders] = useState<ProviderDirectoryEntry[]>([]);
   const [liveEscalations, setLiveEscalations] = useState<Appointment[]>([]);
+  const [adminUsers, setAdminUsers] = useState<Array<{ user_id: string; email: string; role: string; display_name?: string; created_at: string }>>([]);
+  const [ehrSystems, setEhrSystems] = useState<EHRSystemResponse[]>([]);
+  const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
   const [adminStats, setAdminStats] = useState<{
     total_users: number;
     total_patients: number;
@@ -62,6 +66,24 @@ export const AdminDashboardScreen = () => {
       .getAdminStats()
       .then((res) => {
         if (res) setAdminStats(res);
+      })
+      .catch(() => {});
+    api
+      .getAdminUsers()
+      .then((res) => {
+        if (res && res.users) setAdminUsers(res.users);
+      })
+      .catch(() => {});
+    api
+      .getEHRSystems()
+      .then((res) => {
+        if (res) setEhrSystems(res);
+      })
+      .catch(() => {});
+    api
+      .getProviderAppointments()
+      .then((res) => {
+        if (res && res.appointments) setLiveAppointments(res.appointments);
       })
       .catch(() => {});
   };
@@ -250,6 +272,48 @@ export const AdminDashboardScreen = () => {
     },
   ];
 
+  const providersToDisplay = React.useMemo(() => {
+    if (!isLiveMode) return [];
+    const providerUsers = adminUsers.filter((u) => u.role === "provider" || u.role === "doctor");
+    return providerUsers.map((u) => ({
+      id: u.user_id,
+      name: u.display_name || u.email || u.user_id,
+      specialty: "Clinical Specialist",
+      clinic: ehrSystems[0]?.display_name || "Primary Health System",
+      available: true,
+    }));
+  }, [isLiveMode, adminUsers, ehrSystems]);
+
+  const patientsToDisplay = React.useMemo(() => {
+    if (!isLiveMode) return [];
+    const patientUsers = adminUsers.filter((u) => u.role === "patient");
+    return patientUsers.map((u) => ({
+      id: u.user_id,
+      name: u.display_name || u.email || u.user_id,
+      condition: "Chronic Care Enrolled",
+      clinic: ehrSystems[0]?.display_name || "Primary Health System",
+      createdAt: u.created_at,
+    }));
+  }, [isLiveMode, adminUsers, ehrSystems]);
+
+  const appointmentsToDisplay = React.useMemo(() => {
+    if (!isLiveMode) return [];
+    return liveAppointments.map((apt) => {
+      const patientUser = adminUsers.find((u) => u.user_id === apt.patient_id);
+      return {
+        id: apt.id,
+        patientId: apt.patient_id,
+        patientName: patientUser?.display_name || patientUser?.email || (apt as any).patient_label || resolveHumanName(apt.patient_id),
+        providerId: (apt as any).provider_name || resolveHumanName(apt.provider_id) || "On-Call Clinical Team",
+        slot: apt.slot_date || apt.slot || "Earliest Available",
+        specialty: apt.specialty || "general",
+        urgency: apt.urgency || "routine",
+        status: apt.status || "offered",
+        isLive: true,
+      };
+    });
+  }, [isLiveMode, liveAppointments, adminUsers]);
+
   const auditLogs = [
     { action: "Dr. Sana Malik reviewed Ali Khan's case", time: "2:14 PM", type: "Clinical Review" },
     { action: "Admin registered new Clinic endpoint", time: "2:02 PM", type: "Configuration" },
@@ -406,18 +470,34 @@ export const AdminDashboardScreen = () => {
           </form>
         )}
 
-        {/* Clinics Chips */}
+        {/* Real EHR Systems from /api/ehr/systems (or demo fallback) */}
         <div className="flex flex-wrap gap-2 pt-1">
-          {clinics.map((clinic, idx) => (
-            <div
-              key={idx}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-slate-200/90 text-navy-800 text-xs font-semibold shadow-2xs"
-            >
-              <Hospital className="w-3.5 h-3.5 text-teal-700" />
-              <span>{clinic}</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
-            </div>
-          ))}
+          {isLiveMode && ehrSystems.length > 0 ? (
+            ehrSystems.map((sys, idx) => (
+              <div
+                key={sys.ehr_system_id || (sys as any).id || idx}
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-slate-200/90 text-navy-800 text-xs font-semibold shadow-2xs"
+              >
+                <Hospital className="w-3.5 h-3.5 text-teal-700" />
+                <span>{sys.display_name}</span>
+                <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 font-bold border border-teal-200">
+                  {sys.kind || "FHIR"}
+                </span>
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+              </div>
+            ))
+          ) : (
+            clinics.map((clinic, idx) => (
+              <div
+                key={idx}
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-slate-200/90 text-navy-800 text-xs font-semibold shadow-2xs"
+              >
+                <Hospital className="w-3.5 h-3.5 text-teal-700" />
+                <span>{clinic}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -510,7 +590,7 @@ export const AdminDashboardScreen = () => {
                     </span>
                   </div>
                   <div className="text-xs text-slate-700">
-                    <span className="font-semibold">Patient:</span> {apt.patient_id} • <span className="font-semibold">Doctor:</span> {apt.provider_id || "Unassigned"}
+                    <span className="font-semibold">Patient:</span> {(apt as any).patient_label || resolveHumanName(apt.patient_id)} • <span className="font-semibold">Doctor:</span> {(apt as any).provider_name || resolveHumanName(apt.provider_id)}
                   </div>
                   <div className="text-xs text-slate-600 italic">
                     Reason: {apt.reason || "Clinical follow-up required"}
@@ -596,9 +676,33 @@ export const AdminDashboardScreen = () => {
 
           <div className="divide-y divide-slate-100 text-sm space-y-3">
             {isLiveMode ? (
-              <div className="p-8 text-center text-slate-500 text-sm">
-                <p className="font-medium">{isUrdu ? "ابھی کوئی ڈاکٹر رجسٹرڈ نہیں ہے" : "No providers registered yet"}</p>
-              </div>
+              providersToDisplay.length > 0 ? (
+                providersToDisplay.map((prov) => (
+                  <div key={prov.id} className="pt-3 first:pt-0 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-navy-800">{prov.name}</span>
+                          <span className="text-[10px] text-teal-700 font-mono font-bold bg-teal-50 px-2 py-0.5 rounded">
+                            {prov.id}
+                          </span>
+                        </div>
+                        <span className="text-xs text-slate-500 font-medium block mt-0.5">
+                          {prov.specialty}
+                        </span>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold flex items-center gap-1">
+                        <Building2 className="w-3 h-3 text-slate-500" />
+                        {prov.clinic}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="p-8 text-center text-slate-500 text-sm">
+                  <p className="font-medium">{isUrdu ? "ابھی کوئی ڈاکٹر رجسٹرڈ نہیں ہے" : "No providers registered yet"}</p>
+                </div>
+              )
             ) : (
               doctors.map((doc) => {
               const assigned = patients.filter((p) => doc.assignedPatientIds.includes(p.id));
@@ -740,9 +844,33 @@ export const AdminDashboardScreen = () => {
 
           <div className="divide-y divide-slate-100 text-sm space-y-3">
             {isLiveMode ? (
-              <div className="p-8 text-center text-slate-500 text-sm">
-                <p className="font-medium">{isUrdu ? "ابھی کوئی مریض رجسٹرڈ نہیں ہے" : "No patients enrolled yet"}</p>
-              </div>
+              patientsToDisplay.length > 0 ? (
+                patientsToDisplay.map((p) => (
+                  <div key={p.id} className="pt-3 first:pt-0 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-navy-800">{p.name}</span>
+                          <span className="text-[10px] text-slate-500 font-mono font-bold bg-slate-100 px-2 py-0.5 rounded">
+                            {p.id}
+                          </span>
+                        </div>
+                        <span className="text-xs text-teal-800 font-semibold block mt-0.5">
+                          {p.condition}
+                        </span>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-semibold flex items-center gap-1">
+                        <Building2 className="w-3 h-3 text-slate-500" />
+                        {p.clinic}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="p-8 text-center text-slate-500 text-sm">
+                  <p className="font-medium">{isUrdu ? "ابھی کوئی مریض رجسٹرڈ نہیں ہے" : "No patients enrolled yet"}</p>
+                </div>
+              )
             ) : (
               patients.map((p) => {
               const doc = doctors.find((d) => d.id === p.assignedDoctorId);
@@ -801,9 +929,56 @@ export const AdminDashboardScreen = () => {
 
           <div className="space-y-3 text-sm">
             {isLiveMode ? (
-              <div className="p-8 text-center text-slate-500 text-sm">
-                <p className="font-medium">{isUrdu ? "ابھی کوئی شیڈول موجود نہیں" : "No appointments scheduled"}</p>
-              </div>
+              appointmentsToDisplay.length > 0 ? (
+                appointmentsToDisplay.map((sch) => (
+                  <div
+                    key={sch.id}
+                    className="p-4 rounded-2xl border bg-white/80 border-slate-200/70"
+                  >
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-navy-800">{sch.patientName}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">({sch.patientId})</span>
+                      </div>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          sch.status === "booked" || sch.status === "attended"
+                            ? "bg-mutedGreen-100 text-mutedGreen-800 border border-mutedGreen-200"
+                            : sch.urgency === "urgent"
+                            ? "bg-rose-100 text-rose-800 border border-rose-300"
+                            : sch.status === "offered"
+                            ? "bg-amber-100 text-amber-900 border border-amber-300"
+                            : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {sch.status}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 mt-2 pt-2 border-t border-slate-100">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Attending</span>
+                        <span className="font-medium text-navy-800">{sch.providerId}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block">Slot</span>
+                        <span className="font-medium text-teal-800 font-bold">
+                          {sch.slot}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-slate-500 mt-1.5 flex items-center justify-between">
+                      <span className="truncate capitalize">{sch.specialty} Care ({sch.urgency})</span>
+                      <span className="text-[10px] text-slate-400 shrink-0">{ehrSystems[0]?.display_name || "Primary Health System"}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="p-8 text-center text-slate-500 text-sm">
+                  <p className="font-medium">{isUrdu ? "ابھی کوئی شیڈول موجود نہیں" : "No appointments scheduled"}</p>
+                </div>
+              )
             ) : (
               scheduleEntries.map((sch) => (
                 <div

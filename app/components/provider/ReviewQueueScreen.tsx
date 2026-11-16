@@ -85,6 +85,18 @@ export const ReviewQueueScreen = () => {
   const isAliResolved = resolvedCases.includes("Ali Khan");
   const isSaraResolved = resolvedCases.includes("Sara Ahmed");
 
+  const formatReceivedDate = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+      const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return `${dateStr}, ${timeStr}`;
+    } catch {
+      return iso;
+    }
+  };
+
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6 animate-fadeIn py-2" dir={isUrdu ? "rtl" : "ltr"}>
       {/* Header */}
@@ -184,7 +196,7 @@ export const ReviewQueueScreen = () => {
       )}
 
       {/* Patient-Requested Follow-Up Alert Banner */}
-      {appointment.isBooked && appointment.status === "Requested" && (
+      {appointment?.isBooked && appointment.status === "Requested" && (
         <div className="p-5 rounded-3xl bg-amber-50 border-2 border-amber-300 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fadeIn">
           <div className="flex items-start gap-3.5">
             <div className="w-10 h-10 rounded-2xl bg-amber-200 text-amber-900 flex items-center justify-center shrink-0 shadow-2xs">
@@ -255,6 +267,8 @@ export const ReviewQueueScreen = () => {
                     const reasonText = item.emergency
                       ? "Emergency Clinical Escalation"
                       : `${flaggedCount} flagged item${flaggedCount === 1 ? "" : "s"}`;
+                    const isRowResolved = activeTab === "resolved" || (item as any).status === "resolved" || item.review_status === "resolved";
+                    const showOverdue = !isRowResolved && Boolean(item.overdue);
                     return (
                       <tr
                         key={item.checkin_id}
@@ -266,7 +280,7 @@ export const ReviewQueueScreen = () => {
                         className={`cursor-pointer transition-colors ${
                           item.emergency
                             ? "bg-emergencyRed-50/30 hover:bg-emergencyRed-50/60"
-                            : item.overdue
+                            : showOverdue
                             ? "bg-amber-50/30 hover:bg-amber-50/60"
                             : "bg-white/70 hover:bg-slate-50"
                         }`}
@@ -279,8 +293,8 @@ export const ReviewQueueScreen = () => {
                                 {isUrdu ? "ایمرجنسی" : "Emergency"}
                               </span>
                             )}
-                            {item.overdue && (
-                              <span className="px-2 py-0.5 rounded bg-amber-200 text-amber-950 text-[10px] font-bold uppercase tracking-wider">
+                            {showOverdue && (
+                              <span className="px-2 py-0.5 rounded bg-amber-200 text-amber-950 text-[10px] font-bold uppercase tracking-wider" data-testid="queue-row-overdue">
                                 {isUrdu ? "تاخیر شدہ" : "Overdue"}
                               </span>
                             )}
@@ -299,17 +313,22 @@ export const ReviewQueueScreen = () => {
                             <span>{reasonText}</span>
                           </div>
                           <div className="text-xs text-slate-500 mt-0.5">
-                            Received: {new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            Received: {formatReceivedDate(item.created_at)}
                           </div>
                         </td>
                         <td className="py-4.5 px-5">
                           <div className="flex flex-col gap-1 items-start">
                             <TriageColourChip
-                              level={item.triage_level || (item.emergency ? "emergency" : "review")}
+                              level={(isRowResolved && item.provider_decision === "adjusted" && item.provider_level) ? item.provider_level : (item.triage_level || (item.emergency ? "emergency" : "review"))}
                               colour={item.triage_colour}
                               size="sm"
                             />
-                            {item.max_severity && item.max_severity !== "none" && (
+                            {isRowResolved && item.provider_decision === "adjusted" && (
+                              <span className="text-[10px] text-amber-800 font-semibold">
+                                {item.provider_level ? (item.provider_level.charAt(0).toUpperCase() + item.provider_level.slice(1)) : "Urgent"} (Provider)
+                              </span>
+                            )}
+                            {item.max_severity && item.max_severity !== "none" && !isRowResolved && (
                               <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
                                 Sev: {item.max_severity}
                               </span>
@@ -317,10 +336,24 @@ export const ReviewQueueScreen = () => {
                           </div>
                         </td>
                         <td className="py-4.5 px-5">
-                          {activeTab === "resolved" || (item as any).status === "resolved" ? (
-                            <span className="inline-flex items-center gap-1.5 text-emerald-800 font-bold text-xs">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-700" /> Resolved
-                            </span>
+                          {isRowResolved ? (
+                            <div className="flex flex-col gap-0.5" data-testid="queue-row-decision">
+                              <span className="inline-flex items-center gap-1.5 text-emerald-800 font-bold text-xs">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                                {item.provider_decision === "adjusted"
+                                  ? (isUrdu
+                                      ? `معالج کی جانب سے ${item.provider_level === "urgent" ? "فوری" : item.provider_level === "emergency" ? "ہنگامی" : "معمول"} میں تبدیل شدہ`
+                                      : `Adjusted to ${item.provider_level ? (item.provider_level.charAt(0).toUpperCase() + item.provider_level.slice(1)) : "Urgent"} by provider`)
+                                  : item.provider_decision === "approved"
+                                  ? (isUrdu ? "معالج کی جانب سے منظور شدہ" : "Approved by provider")
+                                  : (isUrdu ? "حل شدہ" : "Resolved")}
+                              </span>
+                              {item.provider_reason && (
+                                <span className="text-[10px] text-slate-500 font-medium truncate max-w-[200px]" title={item.provider_reason}>
+                                  {item.provider_reason}
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 text-amber-800 font-bold text-xs">
                               <Clock className="w-4 h-4 text-amber-800" /> Pending Review

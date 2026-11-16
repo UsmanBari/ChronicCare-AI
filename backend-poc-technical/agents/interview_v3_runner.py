@@ -122,7 +122,12 @@ def _get_localized_text(item: Any, lang: str = "en") -> str:
     return str(item) if item else ""
 
 
-def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots: Optional[List[str]] = None) -> str:
+def _build_dual_summary_text(
+    known_slots: Dict[str, Any],
+    lang: str,
+    asked_slots: Optional[List[str]] = None,
+    session_state: Optional[Dict[str, Any]] = None,
+) -> str:
     """
     R8: Constructs a structured summary listing captured readings and values
     for both diabetes and hypertension in the session language.
@@ -130,7 +135,10 @@ def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots
     if "known_slots" in known_slots and isinstance(known_slots["known_slots"], dict):
         if asked_slots is None and "asked_slots" in known_slots:
             asked_slots = known_slots["asked_slots"]
-        known_slots = known_slots["known_slots"]
+        session_dict = known_slots
+        if session_state is None:
+            session_state = session_dict
+        known_slots = session_dict["known_slots"]
 
     if asked_slots is None:
         asked_slots = []
@@ -140,12 +148,26 @@ def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots
     """
     # 1. Glucose
     gluc = known_slots.get("glucose_reading")
-    if gluc is not None:
+    f_gluc = None
+    if gluc is not None and not isinstance(gluc, bool):
+        try:
+            f_gluc = float(gluc)
+        except (ValueError, TypeError):
+            f_gluc = None
+
+    if f_gluc is not None:
         ctx = known_slots.get("glucose_context", "")
-        ctx_str = f" ({ctx})" if ctx else ""
-        gluc_en = f"Blood Glucose: {gluc:g} mg/dL{ctx_str}"
-        gluc_ur = f"شوگر: {gluc:g} mg/dL{ctx_str}"
-        gluc_ro = f"Sugar: {gluc:g} mg/dL{ctx_str}"
+        ctx_map_en = {"after_meal": "after meal", "fasting": "fasting", "random": "random", "bedtime": "bedtime"}
+        ctx_map_ur = {"after_meal": "کھانے کے بعد", "fasting": "نہار منہ", "random": "کسی بھی وقت", "bedtime": "سونے سے پہلے"}
+        ctx_map_ro = {"after_meal": "khane ke baad", "fasting": "nihar munh", "random": "aam waqt", "bedtime": "sone se pehle"}
+
+        ctx_en = f" ({ctx_map_en.get(ctx, ctx.replace('_', ' '))})" if ctx else ""
+        ctx_ur = f" ({ctx_map_ur.get(ctx, ctx)})" if ctx else ""
+        ctx_ro = f" ({ctx_map_ro.get(ctx, ctx.replace('_', ' '))})" if ctx else ""
+
+        gluc_en = f"Blood Glucose: {f_gluc:g} mg/dL{ctx_en}"
+        gluc_ur = f"شوگر: {f_gluc:g} mg/dL{ctx_ur}"
+        gluc_ro = f"Sugar: {f_gluc:g} mg/dL{ctx_ro}"
     else:
         gluc_en = "Blood Glucose: Not provided"
         gluc_ur = "شوگر: درج نہیں کی گئی"
@@ -154,47 +176,66 @@ def _build_dual_summary_text(known_slots: Dict[str, Any], lang: str, asked_slots
     # 2. Blood Pressure
     bp = known_slots.get("bp_reading")
     if bp and isinstance(bp, (list, tuple)) and len(bp) >= 2:
-        bp_sys = int(bp[0]) if float(bp[0]).is_integer() else bp[0]
-        bp_dia = int(bp[1]) if float(bp[1]).is_integer() else bp[1]
-        bp_en = f"Blood Pressure: {bp_sys}/{bp_dia} mmHg"
-        bp_ur = f"بلڈ پریشر: {bp_sys}/{bp_dia} mmHg"
-        bp_ro = f"Blood Pressure: {bp_sys}/{bp_dia} mmHg"
+        try:
+            bp_sys = int(bp[0]) if float(bp[0]).is_integer() else bp[0]
+            bp_dia = int(bp[1]) if float(bp[1]).is_integer() else bp[1]
+            bp_en = f"Blood Pressure: {bp_sys}/{bp_dia} mmHg"
+            bp_ur = f"بلڈ پریشر: {bp_sys}/{bp_dia} mmHg"
+            bp_ro = f"Blood Pressure: {bp_sys}/{bp_dia} mmHg"
+        except (ValueError, TypeError):
+            bp_en = "Blood Pressure: Not provided"
+            bp_ur = "بلڈ پریشر: درج نہیں کیا گیا"
+            bp_ro = "Blood Pressure: Darj nahi kiya gaya"
     else:
         bp_en = "Blood Pressure: Not provided"
         bp_ur = "بلڈ پریشر: درج نہیں کیا گیا"
         bp_ro = "Blood Pressure: Darj nahi kiya gaya"
 
     # 3. Symptoms
-    symptoms = []
-    if known_slots.get("hyperglycemia_symptoms") is True or known_slots.get("associated_symptoms") is True:
-        symptoms.append("reported symptoms")
-    if known_slots.get("foot_problems") is True:
-        symptoms.append("foot numbness or sores")
+    findings = []
+    if session_state and isinstance(session_state, dict):
+        findings = session_state.get("findings", [])
+    if not findings and isinstance(known_slots, dict):
+        findings = known_slots.get("findings", [])
 
-    symptoms_denied = (
-        known_slots.get("symptoms_denied") is True
-        or known_slots.get("hyperglycemia_symptoms") is False
-        or known_slots.get("associated_symptoms") is False
-        or known_slots.get("foot_problems") is False
-    )
-    symptoms_asked = symptoms_denied or any(
-        k in known_slots for k in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems", "symptoms_denied")
-    ) or any(
-        s in asked_slots for s in ("hyperglycemia_symptoms", "associated_symptoms", "foot_problems", "core_symptoms", "symptoms")
-    )
-
-    if symptoms:
-        symp_en = f"Symptoms: {', '.join(symptoms)}"
-        symp_ur = "علامات: علامات کی اطلاع دی گئی"
-        symp_ro = "Alamaat: Alamaat report ki gayi hain"
-    elif symptoms_asked:
-        symp_en = "Symptoms: None reported"
-        symp_ur = "علامات: کوئی نہیں"
-        symp_ro = "Alamaat: Koi nahi"
+    if findings:
+        from agents.interview_findings import format_finding_label
+        formatted_list = [format_finding_label(f, lang) for f in findings]
+        joined = ", ".join(formatted_list)
+        symp_en = f"Symptoms: {joined}"
+        if lang == "ur":
+            symp_ur = f"علامات: {joined}"
+        elif lang == "roman_ur":
+            symp_ro = f"Alamaat: {joined}"
+        else:
+            symp_ur = f"علامات: {joined}"
+            symp_ro = f"Alamaat: {joined}"
     else:
-        symp_en = "Symptoms: not asked"
-        symp_ur = "علامات: پوچھی نہیں گئیں"
-        symp_ro = "Symptoms: nahi poochay gaye"
+        symptoms = []
+        if known_slots.get("hyperglycemia_symptoms") is True or known_slots.get("associated_symptoms") is True:
+            symptoms.append("reported symptoms")
+        if known_slots.get("foot_problems") is True:
+            symptoms.append("foot numbness or sores")
+
+        symptoms_denied = (
+            known_slots.get("symptoms_denied") is True
+            or known_slots.get("hyperglycemia_symptoms") is False
+            or known_slots.get("associated_symptoms") is False
+            or known_slots.get("foot_problems") is False
+        )
+
+        if symptoms:
+            symp_en = f"Symptoms: {', '.join(symptoms)}"
+            symp_ur = "علامات: علامات کی اطلاع دی گئی"
+            symp_ro = "Alamaat: Alamaat report ki gayi hain"
+        elif symptoms_denied:
+            symp_en = "Symptoms: None reported"
+            symp_ur = "علامات: کوئی نہیں"
+            symp_ro = "Alamaat: Koi nahi"
+        else:
+            symp_en = "Symptoms: not asked"
+            symp_ur = "علامات: پوچھی نہیں گئیں"
+            symp_ro = "Symptoms: nahi poochay gaye"
 
     # 4. Adherence
     adh = known_slots.get("adherence_diabetes")
@@ -342,6 +383,8 @@ def start_v3_session(
         "summary_correction_rounds": 0,
         "awaiting_correction_slot": False,
         "patient_notes": [],
+        "turn_count": 0,
+        "step_attempt_counts": {},
     }
 
     return session_state
@@ -426,43 +469,65 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
         if has_glucose_hint and not is_pure_med_dose:
             meter_tok = detect_meter_lo_hi(answer_text)
             if not meter_tok:
-                mmol_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:mmol(?:/l)?)', lower_ans)
-                if mmol_match:
+                today_match = re.search(r'\b(?:today|aaj|ab|now|آج|اب)\s*(?:it\s*(?:is|was)|is|hai|tha|thi|ko)?\s*(\d{2,3})\b', lower_ans)
+                if today_match:
                     try:
-                        mmol_val = float(mmol_match.group(1))
-                        mg_val = round(mmol_val * 18.0, 1)
-                        if 20 <= mg_val <= 600:
-                            known_slots["glucose_reading"] = mg_val
-                            readings["glucose"] = mg_val
+                        g_val = float(today_match.group(1))
+                        if 20 <= g_val <= 600:
+                            known_slots["glucose_reading"] = g_val
+                            readings["glucose"] = g_val
                             session_state["readings"] = readings
                     except Exception:
                         pass
                 else:
-                    mg_match = re.search(r'(\d{2,3})\s*(?:mg(?:/dl)?)', lower_ans)
-                    if mg_match:
+                    from agents.answer_understanding import strip_duration_phrases, detect_glucose_context
+                    ans_no_dur = strip_duration_phrases(lower_ans)
+                    mmol_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:mmol(?:/l)?)', ans_no_dur)
+                    if mmol_match:
                         try:
-                            g_val = float(mg_match.group(1))
-                            if 20 <= g_val <= 600:
-                                known_slots["glucose_reading"] = g_val
-                                readings["glucose"] = g_val
+                            mmol_val = float(mmol_match.group(1))
+                            mg_val = round(mmol_val * 18.0, 1)
+                            if 20 <= mg_val <= 600:
+                                known_slots["glucose_reading"] = mg_val
+                                readings["glucose"] = mg_val
                                 session_state["readings"] = readings
+                                known_slots.pop("missing_reading", None)
                         except Exception:
                             pass
                     else:
-                        sug_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز).*?(\d{2,3})\b', lower_ans)
-                        if sug_match:
+                        mg_match = re.search(r'(\d{2,3})\s*(?:mg(?:/dl)?)', ans_no_dur)
+                        if mg_match:
                             try:
-                                g_val = float(sug_match.group(1))
+                                g_val = float(mg_match.group(1))
                                 if 20 <= g_val <= 600:
                                     known_slots["glucose_reading"] = g_val
                                     readings["glucose"] = g_val
                                     session_state["readings"] = readings
+                                    known_slots.pop("missing_reading", None)
                             except Exception:
                                 pass
+                        else:
+                            past_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز)\s*(?:was|thi|tha)?\s*(\d{2,3})\s*(?:last\s+week|yesterday|pichle\s+hafte|kal\b)', ans_no_dur)
+                            if not past_match:
+                                sug_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز|lunch|dinner|breakfast|meal|khana|khane|nashta|nashtay|khali\s*pait|khali\s*pet|nahar|fasting|کھانے|ناشتے|خالی\s*پیٹ|نہار).*?(\d{2,3})\b', ans_no_dur)
+                                if sug_match:
+                                    try:
+                                        g_val = float(sug_match.group(1))
+                                        if 20 <= g_val <= 600:
+                                            known_slots["glucose_reading"] = g_val
+                                            readings["glucose"] = g_val
+                                            session_state["readings"] = readings
+                                            known_slots.pop("missing_reading", None)
+                                    except Exception:
+                                        pass
 
     # 3. Early Glucose Context (Fasting / After meal)
     if "glucose_context" not in known_slots and "diabetes_glucose_context" not in known_slots:
-        if any(w in lower_ans for w in ["fasting", "nahar munh", "nahar", "before meal", "khali pet", "before eating", "نہار منہ"]):
+        from agents.answer_understanding import detect_glucose_context
+        ctx = detect_glucose_context(lower_ans)
+        if ctx:
+            known_slots["glucose_context"] = ctx
+        elif any(w in lower_ans for w in ["fasting", "nahar munh", "nahar", "before meal", "khali pet", "before eating", "نہار منہ"]):
             known_slots["glucose_context"] = "fasting"
         elif any(w in lower_ans for w in ["after meal", "after eating", "post meal", "khany k baad", "khane ke baad", "کھانے کے بعد"]):
             known_slots["glucose_context"] = "after_meal"
@@ -511,6 +576,211 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
     if any(re.search(pat, lower_ans) for pat in symptom_denial_patterns):
         known_slots["symptoms_denied"] = True
 
+    # 7. Early Greeting / Wellbeing Detection (P3-24)
+    wellbeing_patterns = [
+        r"\b(?:feeling|feel|doing)\s+(?:fine|good|well|great|okay|ok|alright|better)\b",
+        r"\bi\s*(?:am|'m)\s+(?:fine|good|well|great|okay|ok|alright)\b",
+        r"\ball\s+good\b",
+        r"\btheek\s+(?:hoon|hain|thaak|thak)\b",
+        r"\bsab\s+theek\s*(?:hai)?\b",
+        r"\btabiyat\s+theek\s*(?:hai)?\b",
+        r"\bshukar\s+hai\b",
+        r"(?:ٹھیک\s+ہوں|سب\s+ٹھیک\s*ہے|طبیعت\s+ٹھیک\s*ہے|شکر\s+ہے)",
+    ]
+    if any(re.search(pat, lower_ans) for pat in wellbeing_patterns):
+        known_slots["greeting"] = True
+
+    # 8. Early Fasting & Broke Fast Detection
+    broke_fast_patterns = [
+        r"\b(?:broke|break|broken)\s+(?:my\s+)?fast\b",
+        r"\broza\s+(?:tod|toda|tode|toor|tora|khol|khola|kholi|tor)\b",
+        r"(?:روزہ\s+توڑا|روزہ\s+توڑ|روزہ\s+کھولا|روزہ\s+کھول)",
+    ]
+    if any(re.search(pat, lower_ans) for pat in broke_fast_patterns):
+        known_slots["fasting_broke_fast"] = True
+        session_state["fasting_broke_fast"] = True
+        known_slots["fasting_broke_fast_reason"] = answer_text.strip()
+        known_slots["is_fasting_today"] = True
+
+
+def evaluate_severe_low_sugar(
+    text: Optional[str] = None,
+    session_state: Optional[Any] = None,
+    current_readings: Optional[Dict[str, Any]] = None,
+    current_question: Optional[str] = None,
+    current_step: Optional[str] = None,
+    lang: str = "en",
+) -> Dict[str, Any]:
+    """
+    Evaluates acute severe hypoglycemia (< 54 mg/dL or < 3.0 mmol/L) with confusion,
+    disorientation, inability to eat/drink, or fainting/seizure turn-by-turn.
+    Deterministic: Calls triage_protocol._decide_glucose_low without duplicating thresholds.
+    If glucose < 70 without neuro symptoms, returns approved low-sugar guidance.
+    """
+    from agents.triage_protocol import (
+        GLUCOSE_VERY_LOW_MG_DL,
+        GLUCOSE_LOW_MG_DL,
+        _decide_glucose_low,
+        TriageProtocolState,
+        GLUCOSE,
+    )
+    from agents.interview_bank.loader import get_message
+
+    text_clean = (text or "").strip()
+    lower_ans = text_clean.lower()
+    glucose_val = None
+
+    # 1. Check text for current reading
+    today_match = re.search(r'\b(?:today|aaj|ab|now|آج|اب)\s*(?:it\s*(?:is|was)|is|hai|tha|thi|ko)?\s*(\d{2,3})\b', lower_ans)
+    if today_match:
+        val = float(today_match.group(1))
+        if 20 <= val <= 600:
+            glucose_val = val
+    else:
+        mmol_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:mmol(?:/l)?)', lower_ans)
+        if mmol_match:
+            val = round(float(mmol_match.group(1)) * 18.0, 1)
+            if 20 <= val <= 600:
+                glucose_val = val
+        else:
+            mg_match = re.search(r'(\d{2,3})\s*(?:mg(?:/dl)?)', lower_ans)
+            if mg_match:
+                val = float(mg_match.group(1))
+                if 20 <= val <= 600:
+                    glucose_val = val
+            else:
+                past_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز)\s*(?:was|thi|tha)?\s*(\d{2,3})\s*(?:last\s+week|yesterday|pichle\s+hafte|kal\b)', lower_ans)
+                if not past_match:
+                    sug_match = re.search(r'(?:sugar|glucose|shugar|شوگر|گلوکوز).*?(\d{2,3})\b', lower_ans)
+                    if sug_match:
+                        val = float(sug_match.group(1))
+                        if 20 <= val <= 600:
+                            glucose_val = val
+
+    # 2. Check if answer is a pure numeric response to glucose question
+    if glucose_val is None and current_step in ("glucose_reading", "fasting_blood_sugar", "diabetes_glucose_reading") and text_clean.isdigit():
+        val = float(text_clean)
+        if 20 <= val <= 600:
+            glucose_val = val
+
+    # 3. Check current readings dict
+    if glucose_val is None and current_readings and isinstance(current_readings, dict):
+        val = current_readings.get("glucose")
+        if val is not None:
+            glucose_val = float(val)
+
+    # 4. Check session state
+    if glucose_val is None and session_state:
+        if isinstance(session_state, dict):
+            val = session_state.get("readings", {}).get("glucose")
+            if val is None:
+                val = session_state.get("known_slots", {}).get("glucose_reading")
+            if val is None:
+                val = session_state.get("known_slots", {}).get("diabetes_glucose_reading")
+            if val is not None:
+                try:
+                    glucose_val = float(val)
+                except Exception:
+                    pass
+        elif hasattr(session_state, "answers") and isinstance(session_state.answers, dict):
+            val = session_state.answers.get("glucose_reading")
+            if val is not None:
+                try:
+                    glucose_val = float(val)
+                except Exception:
+                    pass
+
+    # Threshold checks against triage_protocol constants
+    if glucose_val is None or glucose_val >= GLUCOSE_LOW_MG_DL:
+        return {"is_emergency": False, "needs_low_guidance": False, "glucose_val": glucose_val}
+
+    if glucose_val >= GLUCOSE_VERY_LOW_MG_DL:
+        return {
+            "is_emergency": False,
+            "needs_low_guidance": True,
+            "glucose_val": glucose_val,
+            "guidance": get_message("v3_possible_low_guidance", lang),
+        }
+
+    # glucose_val < GLUCOSE_VERY_LOW_MG_DL (< 54 mg/dL or < 3.0 mmol/L)
+    # Check confusion / neuro symptoms in EN, Urdu, Roman Urdu
+    NEURO_PATTERNS = [
+        r'\b(?:confus\w*|disorient\w*|can\'?t think(?:\s+straight)?|cannot think(?:\s+straight)?|unable to think|trouble thinking|mind is foggy|drows\w*|trouble staying awake)\b',
+        r'(?:\u0627\u0644\u062c\u06be\u0646|\u0633\u0645\u062c\u06be \u0646\u06c1\u06cc\u06ba|\u06a9\u0686\u06be \u0633\u0645\u062c\u06be \u0646\u06c1\u06cc\u06ba|\u0630\u06c1\u0646 \u06a9\u0627\u0645 \u0646\u06c1\u06cc\u06ba|\u062f\u0645\u0627\u063a \u06a9\u0627\u0645 \u0646\u06c1\u06cc\u06ba|\u0633\u0648\u0686 \u0646\u06c1\u06cc\u06ba \u067e\u0627 \u0631\u06c1|\u063a\u0646\u0648\u062f\u06af\u06cc)',
+        r'\b(?:kuch samajh nahi|samajh nahi aa rah|samajh nahi arah|samajh nahi aari|samajh nahi aa rahi|zehn kaam nahi|dimagh kaam nahi|soch nahi pa rah|soch nahi pa rahi|socha nahi ja rah|uljhan|ghunoodgi)\b',
+    ]
+    SWALLOW_PATTERNS = [
+        r'\b(?:unable to (?:eat|drink|swallow)|can(?:\'?t|not) (?:eat|drink|swallow)|not able to (?:eat|drink|swallow))\b',
+        r'(?:\u06a9\u06be\u0627 \u067e\u06cc \u0646\u06c1\u06cc\u06ba|\u067e\u0627\u0646\u06cc \u0646\u06c1\u06cc\u06ba \u067e\u06cc|\u0646\u06af\u0644 \u0646\u06c1\u06cc\u06ba)',
+        r'\b(?:kha pi nahi|kuch kha pi nahi|pani nahi pee|nigal nahi|kha pee nahi)\b',
+    ]
+    SEIZURE_PATTERNS = [
+        r'\b(?:faint\w*|passed out|passing out|blacked out|blacking out|collaps\w*|unconscious\w*|loss of consciousness|seizur\w*|fits|convuls\w*)\b',
+        r'(?:\u0628\u06d2 \u06c1\u0648\u0634|\u0628\u06cc\u06c1\u0648\u0634|\u063a\u0634|\u062f\u0648\u0631\u06c1|\u062f\u0648\u0631\u06d2|\u062c\u06be\u0679\u06a9\u06d2)',
+        r'\b(?:behosh|be hosh|gash|daura|daure|jhatke|gir gay[ai])\b',
+    ]
+
+    def has_active_symptom(t: str, patterns: List[str]) -> bool:
+        for pat in patterns:
+            for m in re.finditer(pat, t, re.IGNORECASE):
+                start = m.start()
+                end = m.end()
+                pre = t[max(0, start-20):start].lower()
+                post = t[end:min(len(t), end+20)].lower()
+                is_neg = any(w in pre or w in post for w in ['no', 'not', 'nahi', 'nahin', 'نہیں', 'koi'])
+                if not is_neg:
+                    return True
+        return False
+
+    texts_to_check = [text_clean]
+    if session_state and isinstance(session_state, dict):
+        if session_state.get('opening_note'):
+            texts_to_check.append(session_state['opening_note'])
+        texts_to_check.extend(session_state.get('raw_answers', []))
+        for v in session_state.get('answers', {}).values():
+            if isinstance(v, str):
+                texts_to_check.append(v)
+    elif session_state and hasattr(session_state, 'answers') and isinstance(session_state.answers, dict):
+        for v in session_state.answers.values():
+            if isinstance(v, str):
+                texts_to_check.append(v)
+
+    has_neuro = any(has_active_symptom(t, NEURO_PATTERNS) or has_active_symptom(t, SEIZURE_PATTERNS) for t in texts_to_check)
+    has_swallow = any(has_active_symptom(t, SWALLOW_PATTERNS) for t in texts_to_check)
+
+    # Check affirmative answer to neuro question
+    if not has_neuro and current_question:
+        q_low = current_question.lower()
+        if re.search(r'\b(?:confus\w*|shakin\w*|sweat\w*|dizz\w*|الجھن|چکر|پسینہ|uljhan|chakkar|paseena)\b', q_low):
+            if re.search(r'\b(?:yes|haan|jee|ji|yep|yeah|جی|ہاں)\b', lower_ans):
+                has_neuro = True
+
+    if has_neuro or has_swallow:
+        st = TriageProtocolState(
+            protocol='glucose_low',
+            age_band='adult_18_64',
+            readings={GLUCOSE: glucose_val},
+            answers={'orientation': False} if has_neuro else {'can_swallow': False},
+        )
+        t_res = _decide_glucose_low(st)
+        return {
+            'is_emergency': True,
+            'needs_low_guidance': False,
+            'emergency_reason': t_res.get('summary') or f"glucose low: glucose {glucose_val:g} mg/dL; Low glucose with disorientation or acute confusion.",
+            'triage_dict': t_res,
+            'glucose_val': glucose_val,
+            'guidance': t_res.get('guidance'),
+        }
+
+    return {
+        'is_emergency': False,
+        'needs_low_guidance': True,
+        'emergency_reason': None,
+        'triage_dict': None,
+        'glucose_val': glucose_val,
+        'guidance': get_message('v3_possible_low_guidance', lang),
+    }
+
 
 def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]:
     """
@@ -523,7 +793,33 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     bank = get_default_bank()
     lang = session_state.get("language", "en")
     clean_answer = (answer_text or "").strip()
+    session_state["turn_count"] = session_state.get("turn_count", 0) + 1
     current_slot = session_state.get("step", "greeting")
+    step_counts = session_state.setdefault("step_attempt_counts", {})
+    step_counts[current_slot] = step_counts.get(current_slot, 0) + 1
+
+    # Global Loop Guard: same step asked at most 2 times (original + 1 clarify)
+    # If a step is somehow entered for a 3rd time, mark unclear and bypass it
+    if step_counts.get(current_slot, 0) > 2:
+        known_slots = session_state.setdefault("known_slots", {})
+        known_slots[current_slot] = "unclear"
+        known_slots[f"{current_slot}__evidence"] = clean_answer
+        session_state["needs_clinician_flag"] = True
+        session_state.setdefault("patient_notes", []).append(
+            f"Step '{current_slot}' reached maximum attempts ({step_counts[current_slot]}). Moved forward with clinician flag."
+        )
+        asked_slots = session_state.setdefault("asked_slots", [])
+        if current_slot not in asked_slots:
+            asked_slots.append(current_slot)
+        from agents.interview_planner import SLOT_EQUIVALENCES
+        for eq in SLOT_EQUIVALENCES.get(current_slot, set()):
+            if eq not in asked_slots:
+                asked_slots.append(eq)
+        session_state["safety_clarify_slot"] = None
+        session_state["awaiting_adherence_clarification"] = None
+        session_state["awaiting_glucose_unit"] = False
+        session_state["awaiting_meter_lo_hi_confirmation"] = None
+
     from agents.answer_understanding import detect_caregiver_phrase, strip_caregiver_phrase
     is_caregiver = detect_caregiver_phrase(clean_answer)
     clinical_remainder = strip_caregiver_phrase(clean_answer) if is_caregiver else clean_answer
@@ -713,6 +1009,30 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     eff_answer = clinical_remainder if (is_caregiver and clinical_remainder) else clean_answer
     _extract_early_slots(eff_answer, session_state, lang)
 
+    # P0-2: Immediate severe low sugar check right after early slot extraction
+    early_low_eval = evaluate_severe_low_sugar(
+        text=eff_answer,
+        session_state=session_state,
+        current_readings=session_state.get("readings"),
+        current_question=session_state.get("current_question"),
+        current_step=current_slot,
+        lang=lang,
+    )
+    if early_low_eval.get("is_emergency"):
+        session_state["emergency"] = True
+        session_state["emergency_reason"] = early_low_eval["emergency_reason"]
+        session_state["completed"] = True
+        session_state["step"] = "COMPLETE"
+        session_state["current_question"] = None
+        session_state["system_note"] = get_message("emergency_red_flag_note", lang)
+        from agents.danger_wordgroups import get_safety_note
+        session_state["safety_note"] = get_safety_note(lang)
+        session_state["triage"] = early_low_eval.get("triage_dict")
+        return session_state
+    elif early_low_eval.get("needs_low_guidance"):
+        session_state["safety_note"] = early_low_eval["guidance"]
+        session_state["system_note"] = early_low_eval["guidance"]
+
     # Check if we were awaiting glucose unit clarification
     if session_state.get("awaiting_glucose_unit"):
         unclarified_val = session_state.get("raw_unclarified_glucose")
@@ -823,12 +1143,26 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
 
             readings["glucose"] = glucose_val
             known_slots["glucose_reading"] = glucose_val
+            known_slots.pop("missing_reading", None)
+
+            # P1-3: Extract glucose_context if attached to reading answer
+            from agents.answer_understanding import detect_glucose_context
+            attached_ctx = detect_glucose_context(eff_answer)
+            if attached_ctx and "glucose_context" not in known_slots and "diabetes_glucose_context" not in known_slots:
+                known_slots["glucose_context"] = attached_ctx
+
             if val_res.is_possible_severe_low:
                 session_state["possible_severe_low"] = True
                 session_state["possible_severe_low_guidance"] = val_res.safety_guidance
                 session_state["needs_clinician_flag"] = True
         else:
             known_slots["missing_reading"] = True
+
+    elif "glucose_context" in current_slot or current_slot == "diabetes_glucose_context":
+        from agents.answer_understanding import detect_glucose_context
+        ctx = detect_glucose_context(eff_answer)
+        if ctx:
+            known_slots["glucose_context"] = ctx
 
     elif "bp_reading" in current_slot or current_slot == "hypertension_bp_reading":
         p_bp = parse_bp(eff_answer)
@@ -857,6 +1191,61 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     if is_yes_no:
         yn_res = parse_yes_no(eff_answer, lang=lang)
         target_slot = bank_item.slot if bank_item else current_slot
+        lower_ans = clean_answer.lower()
+
+        # Slot-specific semantic yes/no resolution before safety clarification
+        if target_slot in ("fasting_symptoms", "fasting_ramadan") or current_slot in ("fasting_symptoms", "fasting_ramadan"):
+            broke_fast_patterns = [
+                r"\b(?:broke|break|broken)\s+(?:my\s+)?fast\b",
+                r"\broza\s+(?:tod|toda|tode|toor|tora|khol|khola|kholi|tor)\b",
+                r"(?:روزہ\s+توڑا|روزہ\s+توڑ|روزہ\s+کھولا|روزہ\s+کھول)",
+            ]
+            fast_symptom_kws = [
+                "shakiness", "shaky", "sweat", "sweating", "dizzy", "dizziness",
+                "confusion", "confused", "thirst", "thirsty", "hunger", "hungry",
+                "headache", "tremor", "trembling", "lightheaded", "faint", "fainting",
+                "weakness", "weak", "palpitation", "palpitations", "paseena",
+                "paseenay", "chakkar", "uljhan", "pyas", "thakawat", "bhook",
+                "kapkapi", "kapkapahat", "پسینہ", "چکر", "الجھن", "پیاس", "تھکاوٹ",
+                "بھوک", "کپکپاہٹ", "کمزوری"
+            ]
+            if any(re.search(pat, lower_ans) for pat in broke_fast_patterns):
+                session_state["fasting_broke_fast"] = True
+                known_slots["fasting_broke_fast"] = True
+                known_slots["fasting_broke_fast_reason"] = clean_answer
+                yn_res = {"value": "yes", "evidence": clean_answer, "partial": False}
+            elif yn_res.get("value") not in ("yes", "no"):
+                extracted_f = extract_findings_from_answer(clean_answer)
+                if extracted_f or any(k in lower_ans for k in fast_symptom_kws):
+                    yn_res = {"value": "yes", "evidence": clean_answer, "partial": False}
+                    if not extracted_f:
+                        f_kind = "low_sugar_episode" if any(k in lower_ans for k in ["shakiness", "shaky", "sweat", "sweating", "paseena", "kapkapi"]) else "dizziness"
+                        extracted_f.append(
+                            Finding(
+                                id=f"fnd_fasting_symptom_{len(session_state.get('findings', [])) + 1}",
+                                kind=f_kind,
+                                label=f_kind.replace("_", " ").title(),
+                                raw_quote=clean_answer,
+                                confidence="High",
+                                source_step=current_slot,
+                            )
+                        )
+                    curr_findings_list = [Finding(**f) if isinstance(f, dict) else f for f in session_state.get("findings", [])]
+                    curr_kinds = {f.kind for f in curr_findings_list}
+                    for f in extracted_f:
+                        if f.kind not in curr_kinds:
+                            curr_findings_list.append(f)
+                            curr_kinds.add(f.kind)
+                    session_state["findings"] = [asdict(f) for f in curr_findings_list]
+
+        elif (target_slot == "is_fasting_today" or current_slot == "is_fasting_today") and yn_res.get("value") not in ("yes", "no"):
+            if any(k in lower_ans for k in ["roza", "fasting", "fast"]):
+                yn_res = {"value": "yes", "evidence": clean_answer, "partial": False}
+
+        elif (target_slot == "sick_vomiting_diarrhea" or current_slot == "sick_vomiting_diarrhea") and yn_res.get("value") not in ("yes", "no"):
+            if any(k in lower_ans for k in ["ulti", "dast", "vomit", "diarrhea"]):
+                yn_res = {"value": "yes", "evidence": clean_answer, "partial": False}
+
         is_adh_slot = (
             current_slot in ("adherence_diabetes", "adherence_hypertension", "diabetes_adherence", "hypertension_adherence")
             or (bank_item and bank_item.slot in ("adherence_diabetes", "adherence_hypertension"))
@@ -907,12 +1296,13 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
                 known_slots[f"{target_slot}__evidence"] = yn_res.get("evidence", clean_answer)
                 known_slots[f"{target_slot}__partial"] = yn_res.get("partial", False)
         # B3: Safety-class item answered unknown -> re-ask ONCE with clarification
-        elif bank_item and bank_item.priority_class == "safety" and parse_yes_no(clean_answer, lang=lang)["value"] == "unknown":
+        elif bank_item and bank_item.priority_class == "safety" and yn_res.get("value") == "unknown":
             # P2-4: If opening free-text message with multi-intent readings arrived on first turn,
             # do not trigger safety clarify; handle as slot extraction and ask safety item normally.
             is_opening_free_text = (
-                (len(session_state.get("asked_slots", [])) <= 1 or session_state.get("turn_count", 0) <= 1)
+                (len(session_state.get("asked_slots", [])) <= 1 and session_state.get("turn_count", 0) <= 1)
                 and (readings or any(k in known_slots for k in ("glucose_reading", "bp_reading", "adherence", "adherence_diabetes")))
+                and step_counts.get(current_slot, 0) < 2
             )
             if is_opening_free_text and session_state.get("safety_clarify_slot") != current_slot:
                 known_slots["greeting"] = True
@@ -925,13 +1315,16 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
                 session_state["can_say_unknown"] = True
                 return session_state
 
-            if session_state.get("safety_clarify_slot") == current_slot:
+            if session_state.get("safety_clarify_slot") == current_slot or step_counts.get(current_slot, 0) >= 2:
                 # Second time unknown -> keep unknown, set needs_clinician_flag, move on
                 session_state["safety_clarify_slot"] = None
                 known_slots[current_slot] = "unknown"
                 known_slots[f"{current_slot}__evidence"] = yn_res["evidence"]
                 known_slots[f"{current_slot}__partial"] = yn_res["partial"]
                 session_state["needs_clinician_flag"] = True
+                session_state.setdefault("patient_notes", []).append(
+                    f"Safety question '{current_slot}' remained unknown after clarification. Flagged for clinician review."
+                )
             else:
                 # First time unknown -> re-ask ONCE
                 session_state["safety_clarify_slot"] = current_slot
@@ -956,16 +1349,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             elif yn_res["value"] == "no":
                 known_slots[current_slot] = False
             else:
-                # Slot-specific symptom affirmations (e.g. sick day vomiting/diarrhea or fasting)
-                lower_ans = clean_answer.lower()
-                if current_slot == "sick_vomiting_diarrhea" and any(k in lower_ans for k in ["ulti", "dast", "vomit", "diarrhea"]):
-                    known_slots[current_slot] = True
-                    yn_res["evidence"] = clean_answer
-                elif current_slot == "is_fasting_today" and any(k in lower_ans for k in ["roza", "fasting"]):
-                    known_slots[current_slot] = True
-                    yn_res["evidence"] = clean_answer
-                else:
-                    known_slots[current_slot] = "unknown"
+                known_slots[current_slot] = "unknown"
             known_slots[f"{current_slot}__evidence"] = yn_res["evidence"]
             known_slots[f"{current_slot}__partial"] = yn_res["partial"]
 
@@ -997,6 +1381,8 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             existing_kinds.add(f.kind)
 
     session_state["findings"] = [asdict(f) for f in current_findings]
+    if current_findings:
+        known_slots.pop("symptoms_denied", None)
 
     # R8: Summary Confirmation & Correction Loop
     if current_slot == "summary_confirmation":
@@ -1004,7 +1390,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         lower_raw = clean_answer.lower()
         is_confirm_intent = (
             yn_res.get("value") in (True, "yes")
-            or any(w in lower_raw for w in ["confirm", "submit", "all good", "correct", "theek", "theek hai", "ji haan", "done", "haan", "ٹھیک", "صحیح", "ہاں"])
+            or any(w in lower_raw for w in ["confirm", "submit", "all good", "correct", "theek", "theek hai", "ji haan", "done", "haan", "tasdeeq", "ٹھیک", "صحیح", "ہاں", "تصدیق"])
         )
         is_change_intent = (
             not is_confirm_intent and (
@@ -1085,9 +1471,12 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         # R8: Re-show summary confirmation immediately after the corrected slot is answered
         session_state["is_probe"] = False
         step_id = "summary_confirmation"
-        question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots)
+        question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots, session_state=session_state)
         why_text = get_message("summary_confirm_why", lang)
-        options = ["Confirm and submit", "Need to change something"]
+        options = [
+            get_message("summary_confirm_option_submit", lang),
+            get_message("summary_confirm_option_change", lang),
+        ]
         option_items = [
             {"value": "Confirm and submit", "label": get_message("summary_confirm_option_submit", lang)},
             {"value": "Need to change something", "label": get_message("summary_confirm_option_change", lang)},
@@ -1121,6 +1510,28 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         hard_cap=14,
     )
 
+    # Loop guard: ensure planner target has not already reached max attempts
+    attempts = 0
+    while decision.action not in ("finish", "summary_confirm") and step_counts.get(decision.target_slot, 0) >= 2 and attempts < 10:
+        attempts += 1
+        if decision.target_slot not in asked_slots:
+            asked_slots.append(decision.target_slot)
+        from agents.interview_planner import SLOT_EQUIVALENCES
+        for eq in SLOT_EQUIVALENCES.get(decision.target_slot, set()):
+            if eq not in asked_slots:
+                asked_slots.append(eq)
+        decision = plan_next_step(
+            known_slots=known_slots,
+            findings=current_findings,
+            patient_record=patient_record,
+            recent_checkins=recent_checkins,
+            bank=bank,
+            asked_slots=set(asked_slots),
+            contradictions=contradictions,
+            base_budget=8,
+            hard_cap=14,
+        )
+
     if decision.action == "finish":
         session_state["completed"] = True
         session_state["complete"] = True
@@ -1140,9 +1551,12 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     if decision.action == "summary_confirm":
         session_state["is_probe"] = False
         step_id = "summary_confirmation"
-        question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots)
+        question_text = _build_dual_summary_text(known_slots, lang, asked_slots=asked_slots, session_state=session_state)
         why_text = get_message("summary_confirm_why", lang)
-        options = ["Confirm and submit", "Need to change something"]
+        options = [
+            get_message("summary_confirm_option_submit", lang),
+            get_message("summary_confirm_option_change", lang),
+        ]
         option_items = [
             {"value": "Confirm and submit", "label": get_message("summary_confirm_option_submit", lang)},
             {"value": "Need to change something", "label": get_message("summary_confirm_option_change", lang)},
@@ -1176,6 +1590,30 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     session_state["can_say_unknown"] = can_say_unknown
     session_state["progress_hint"] = f"{decision.question_count}/{decision.max_budget}"
     session_state["current_decision_target"] = decision.target_slot
+
+    # P0-2: Turn-end severe low sugar check
+    low_eval = evaluate_severe_low_sugar(
+        text=eff_answer,
+        session_state=session_state,
+        current_readings=session_state.get("readings"),
+        current_question=session_state.get("current_question"),
+        current_step=session_state.get("step"),
+        lang=lang,
+    )
+    if low_eval.get("is_emergency"):
+        session_state["emergency"] = True
+        session_state["emergency_reason"] = low_eval["emergency_reason"]
+        session_state["completed"] = True
+        session_state["step"] = "COMPLETE"
+        session_state["current_question"] = None
+        session_state["system_note"] = get_message("emergency_red_flag_note", lang)
+        from agents.danger_wordgroups import get_safety_note
+        session_state["safety_note"] = get_safety_note(lang)
+        session_state["triage"] = low_eval.get("triage_dict")
+        return session_state
+    elif low_eval.get("needs_low_guidance"):
+        session_state["safety_note"] = low_eval["guidance"]
+        session_state["system_note"] = low_eval["guidance"]
 
     return session_state
 

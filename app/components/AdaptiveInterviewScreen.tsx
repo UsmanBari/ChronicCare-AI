@@ -56,6 +56,8 @@ export const AdaptiveInterviewScreen = () => {
     language,
   } = useApp();
 
+  const isRomanUrdu = (language as string) === "roman_ur" || liveProfile?.language === "roman_ur";
+
   // --- LIVE MODE STATE ---
   const [liveQuestion, setLiveQuestion] = useState<string>("");
   const [liveAnswerInput, setLiveAnswerInput] = useState<string>("");
@@ -143,12 +145,24 @@ export const AdaptiveInterviewScreen = () => {
       try {
         let currentCheckin = activeLiveCheckin;
         const openingNote = checkIn.note && checkIn.note.trim() ? checkIn.note.trim() : null;
+
+        if (currentCheckin?.emergency) {
+          setEscalationRecorded(currentCheckin.escalation_recorded === true);
+          setScreen("emergency");
+          return;
+        }
+
         if (!currentCheckin || !currentCheckin.checkin_id) {
           setIsSending(true);
           isSendingRef.current = true;
           currentCheckin = await api.startCheckin(openingNote || undefined);
           if (!isMounted) return;
           setActiveLiveCheckin(currentCheckin);
+          if (currentCheckin.emergency) {
+            setEscalationRecorded(currentCheckin.escalation_recorded === true);
+            setScreen("emergency");
+            return;
+          }
           updateCurrentStep(currentCheckin.step || null);
           setIsSending(false);
           isSendingRef.current = false;
@@ -221,7 +235,8 @@ export const AdaptiveInterviewScreen = () => {
   const handleLiveSendAnswerInternal = async (
     answerText: string,
     checkinId?: string,
-    stepToSend?: string | null
+    stepToSend?: string | null,
+    displayLabel?: string
   ) => {
     const cleanAnswer = answerText.trim();
     const targetCheckinId = checkinId || activeLiveCheckin?.checkin_id;
@@ -239,8 +254,9 @@ export const AdaptiveInterviewScreen = () => {
     // Clear input immediately upon send (chips submit directly and leave input empty; input cleared after send)
     setLiveAnswerInput("");
 
-    // Append user message to history
-    setConversationHistory((prev) => [...prev, { role: "user", text: cleanAnswer }]);
+    // Append user message to history: show tapped chip label if provided, otherwise cleanAnswer
+    const textToShow = displayLabel && displayLabel.trim() ? displayLabel.trim() : cleanAnswer;
+    setConversationHistory((prev) => [...prev, { role: "user", text: textToShow }]);
 
     const currentStepValue = stepToSend !== undefined ? stepToSend : currentStepRef.current;
 
@@ -362,8 +378,8 @@ export const AdaptiveInterviewScreen = () => {
   };
 
   // Live Mode Answer Submit Wrapper
-  const handleLiveSendAnswer = async (answerText: string) => {
-    await handleLiveSendAnswerInternal(answerText);
+  const handleLiveSendAnswer = async (answerText: string, displayLabel?: string) => {
+    await handleLiveSendAnswerInternal(answerText, undefined, undefined, displayLabel);
   };
 
   // Retry handler for failed answer send
@@ -658,7 +674,7 @@ export const AdaptiveInterviewScreen = () => {
             {currentStep?.startsWith("medication_check") && (
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-100 text-teal-900 border border-teal-300 text-xs font-bold uppercase tracking-wider w-fit">
                 <Pill className="w-3.5 h-3.5 text-teal-700" />
-                <span>{isUrdu ? "ادویات کی تصدیق" : "Medication check"}</span>
+                <span>{isUrdu ? "ادویات کی تصدیق" : isRomanUrdu ? "Dawaiyon ki Tasdeeq" : "Medication check"}</span>
               </div>
             )}
 
@@ -688,7 +704,7 @@ export const AdaptiveInterviewScreen = () => {
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => handleLiveSendAnswer(opt.value)}
+                    onClick={() => handleLiveSendAnswer(opt.value, opt.label)}
                     disabled={isSending}
                     aria-label={opt.label}
                     className="min-h-[44px] py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 border-2 border-teal-600 text-teal-950 font-semibold text-xs sm:text-sm transition-all flex items-center justify-center text-center shadow-2xs"
@@ -703,7 +719,7 @@ export const AdaptiveInterviewScreen = () => {
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => handleLiveSendAnswer(opt)}
+                    onClick={() => handleLiveSendAnswer(opt, opt)}
                     disabled={isSending}
                     aria-label={opt}
                     className="min-h-[44px] py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-300 text-slate-800 font-semibold text-xs sm:text-sm transition-all flex items-center justify-center text-center shadow-2xs"
@@ -819,23 +835,23 @@ export const AdaptiveInterviewScreen = () => {
               <div className="grid grid-cols-2 gap-2.5 pt-1">
                 <button
                   type="button"
-                  onClick={() => handleLiveSendAnswer("yes")}
+                  onClick={() => handleLiveSendAnswer("yes", isUrdu ? "ہاں، وہی مقدار" : isRomanUrdu ? "Haan, wahi dose" : "Yes, same dose")}
                   disabled={isSending}
                   id="med-check-yes-btn"
                   className="min-h-[42px] py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 border-2 border-teal-600 text-teal-900 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-2xs"
                 >
                   <CheckCircle2 className="w-4 h-4 text-teal-700" />
-                  <span>{isUrdu ? "ہاں، وہی مقدار" : "Yes, same dose"}</span>
+                  <span>{isUrdu ? "ہاں، وہی مقدار" : isRomanUrdu ? "Haan, wahi dose" : "Yes, same dose"}</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleLiveSendAnswer("no")}
+                  onClick={() => handleLiveSendAnswer(isUrdu ? "نہیں، میں نے بند کر دی ہے" : isRomanUrdu ? "band kar di hai" : "no", isUrdu ? "نہیں، میں نے بند کر دی ہے" : isRomanUrdu ? "Nahi, band kar di hai" : "No, I stopped it")}
                   disabled={isSending}
                   id="med-check-no-btn"
                   className="min-h-[42px] py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 border-2 border-slate-300 text-slate-800 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-2xs"
                 >
                   <RotateCcw className="w-4 h-4 text-slate-600" />
-                  <span>{isUrdu ? "نہیں، میں نے بند کر دی ہے" : "No, I stopped it"}</span>
+                  <span>{isUrdu ? "نہیں، میں نے بند کر دی ہے" : isRomanUrdu ? "Nahi, band kar di hai" : "No, I stopped it"}</span>
                 </button>
               </div>
             )}
@@ -846,7 +862,7 @@ export const AdaptiveInterviewScreen = () => {
                 {canSayUnknown && (
                   <button
                     type="button"
-                    onClick={() => handleLiveSendAnswer("unknown")}
+                    onClick={() => handleLiveSendAnswer("unknown", t.dontKnowBtn)}
                     disabled={isSending}
                     id="dont-know-btn"
                     className="min-h-[36px] px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium text-xs transition-colors"
@@ -857,7 +873,7 @@ export const AdaptiveInterviewScreen = () => {
                 {canSkip && (
                   <button
                     type="button"
-                    onClick={() => handleLiveSendAnswer("skip")}
+                    onClick={() => handleLiveSendAnswer("skip", t.skipQuestionBtn)}
                     disabled={isSending}
                     id="skip-question-btn"
                     className="min-h-[36px] px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 font-medium text-xs transition-colors"
@@ -870,7 +886,7 @@ export const AdaptiveInterviewScreen = () => {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => handleLiveSendAnswer("Someone else is answering for me")}
+                  onClick={() => handleLiveSendAnswer(isUrdu ? "کوئی اور جواب دے رہا ہے" : isRomanUrdu ? "Koi aur jawab de raha hai" : "Someone else is answering for me", t.someoneElseAnsweringBtn)}
                   disabled={isSending}
                   id="caregiver-proxy-btn"
                   className="text-xs text-slate-500 hover:text-teal-800 transition-colors"

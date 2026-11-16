@@ -4,8 +4,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { HomeScreen } from "../app/components/HomeScreen";
 import { Header } from "../app/components/Header";
+import { ConnectionScreen } from "../app/components/ConnectionScreen";
 import { translations } from "../app/translations";
 import { isEhrManaged } from "../app/lib/connection";
+import { ApiError, api } from "../app/lib/api";
+import { fireEvent, waitFor } from "@testing-library/react";
 
 const mockAppContext: Record<string, any> = {};
 
@@ -179,5 +182,55 @@ describe("STAGE 10E-0 Bug 3: EHR connection mode single source of truth", () => 
     // Render HomeScreen
     const { container: homeContainer } = render(<HomeScreen />);
     expect(homeContainer.textContent).toContain("آپ کے اسپتال کے ریکارڈ سے منظم ہے۔ آپ کا معالج مکمل فہرست دیکھ سکتا ہے۔");
+  });
+
+  it("ConnectionScreen: marks suggested test IDs that are already linked and shows real reason on 409 (P2-14)", async () => {
+    mockAppContext.isLiveMode = true;
+    mockAppContext.connectionMode = "offline";
+    mockAppContext.liveEhrConnection = { mode: "isolated", connection: null };
+    mockAppContext.t = translations.en;
+    mockAppContext.isUrdu = false;
+    mockAppContext.setScreen = vi.fn();
+
+    vi.spyOn(api, "getEHRSystems").mockResolvedValue([
+      {
+        ehr_system_id: "smart_sandbox",
+        display_name: "SMART on FHIR Public Sandbox",
+        kind: "public_sandbox",
+        description: "Public test server",
+        suggested_patient_ids: ["9bf59715-d419-4b68-b7c1-d2fb70720516", "unlinked-patient-id-1234"],
+        linked_patient_ids: ["9bf59715-d419-4b68-b7c1-d2fb70720516"],
+      },
+    ]);
+
+    render(<ConnectionScreen />);
+
+    // Check linked badge on suggested ID
+    await waitFor(() => {
+      const linkedBadge = screen.getByTestId("badge-linked-9bf59715");
+      expect(linkedBadge).toBeDefined();
+      expect(linkedBadge.textContent).toContain("Already linked");
+    });
+    expect(screen.queryByTestId("badge-linked-unlinked")).toBeNull();
+
+    // Trigger connect with 409 error
+    vi.spyOn(api, "connectEHR").mockRejectedValue(
+      new ApiError(409, "This EHR patient is already linked to another account", {
+        detail: "This EHR patient is already linked to another account",
+      })
+    );
+
+    // Select the suggested ID to populate patientIdInput
+    const suggestedIdBtn = screen.getByTestId("suggested-id-9bf59715");
+    fireEvent.click(suggestedIdBtn);
+
+    const connectBtn = screen.getByRole("button", { name: /Connect EHR/i });
+    fireEvent.click(connectBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("This EHR patient is already linked to another account")).toBeDefined();
+      // Must not show generic conflict text
+      expect(screen.queryByText(/A conflict occurred with existing data or state/i)).toBeNull();
+    });
   });
 });

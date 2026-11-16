@@ -9,13 +9,22 @@
 .PARAMETER Seed
     If specified, re-seeds the local SQLite database with all 17 Nov demo personas and histories.
 
+.PARAMETER Fresh
+    If specified, creates a clean database: backs up backend-poc-technical/local_store.db to
+    local_store.<timestamp>.bak, deletes old DB files (including WAL/SHM), applies fresh schema migrations,
+    and automatically seeds all demo personas.
+
 .EXAMPLE
     .\scripts\start_local_demo.ps1 -Seed
+
+.EXAMPLE
+    .\scripts\start_local_demo.ps1 -Fresh
 #>
 
 [CmdletBinding()]
 param(
-    [switch]$Seed
+    [switch]$Seed,
+    [switch]$Fresh
 )
 
 # 1. Enforce UTF-8 encoding across PowerShell session
@@ -69,6 +78,25 @@ if (-not (Test-Path $venvPython)) {
     Write-Error "Backend virtual environment python.exe not found at: $venvPython"
     Write-Host "Please create the virtual environment before launching."
     exit 1
+}
+
+# 3b. Handle -Fresh clean database reset
+if ($Fresh) {
+    Write-Host "`n[-Fresh] Creating pristine local database..." -ForegroundColor Yellow
+    $dbPath = Join-Path $repoRoot "backend-poc-technical\local_store.db"
+    if (Test-Path $dbPath) {
+        $timestamp = (Get-Date -Format "yyyyMMdd_HHmmss")
+        $backupPath = Join-Path $repoRoot "backend-poc-technical\local_store.$timestamp.bak"
+        Copy-Item -Path $dbPath -Destination $backupPath -Force
+        Write-Host "  Backed up existing DB to: $backupPath" -ForegroundColor Green
+        Remove-Item -Path $dbPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "$dbPath-wal" -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "$dbPath-shm" -Force -ErrorAction SilentlyContinue
+        Write-Host "  Removed existing database files for fresh rebuild." -ForegroundColor Green
+    } else {
+        Write-Host "  No existing database file found at $dbPath; starting fresh." -ForegroundColor Gray
+    }
+    $Seed = $true
 }
 
 # 4. Initialize local SQLite schema
@@ -130,7 +158,7 @@ $healthy = $false
 for ($i = 0; $i -lt 30; $i++) {
     try {
         $resp = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/health" -Method Get -TimeoutSec 2 -ErrorAction Stop
-        if ($resp.status -eq "ok" -or $resp.database -eq "ok") {
+        if ($resp.status -eq "ok" -or $resp.database -eq "ok" -or $resp.status -eq "healthy") {
             $healthy = $true
             break
         }

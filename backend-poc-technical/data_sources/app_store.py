@@ -1356,6 +1356,27 @@ def append_audit(actor_user_id: Optional[str], action: str, target: Optional[str
     detail_str = json.dumps(detail or {}, separators=(",", ":"))
 
     with get_db_cursor(backend=backend, db_path=db_path, mysql_url=mysql_url, ssl_ca=ssl_ca) as (cursor, be, ph):
+        # P3-25: Deduplicate rapid successive double-calls (within 5 seconds for same actor/action/target)
+        if clean_action.lower() in ("login", "soap_generated"):
+            try:
+                cursor.execute(
+                    f"SELECT id, ts FROM audit_log WHERE actor_user_id = {ph} AND LOWER(action) = {ph} AND (target = {ph} OR (target IS NULL AND {ph} IS NULL)) ORDER BY id DESC LIMIT 1",
+                    (actor_user_id, clean_action.lower(), target, target)
+                )
+                last_entry = cursor.fetchone()
+                if last_entry:
+                    last_ts = last_entry["ts"] if isinstance(last_entry, dict) else last_entry[1]
+                    from datetime import datetime
+                    ts_clean = str(last_ts).replace("Z", "+00:00")
+                    now_clean = str(now).replace("Z", "+00:00")
+                    last_dt = datetime.fromisoformat(ts_clean)
+                    now_dt = datetime.fromisoformat(now_clean)
+                    if abs((now_dt - last_dt).total_seconds()) < 5.0:
+                        last_id = last_entry["id"] if isinstance(last_entry, dict) else last_entry[0]
+                        return int(last_id)
+            except Exception:
+                pass
+
         cursor.execute(
             f"INSERT INTO audit_log (ts, actor_user_id, action, target, outcome, detail_json) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
             (now, actor_user_id, clean_action, target, clean_outcome, detail_str)
@@ -2454,6 +2475,7 @@ def get_provider_review_queue(review_status: str = "open", backend: Optional[str
             SELECT r.checkin_id, r.emergency, r.max_severity, r.review_status, r.created_at,
                    r.intakes_json, r.reconciliation_json, r.verification_json,
                    r.trigger_category, r.trigger_text, r.escalated_at, r.triage_level, r.triage_json,
+                   r.provider_decision, r.provider_level, r.provider_reason, r.reviewed_by, r.reviewed_at,
                    c.mode, c.user_id,
                    u.display_name, u.email
             FROM checkin_results r
@@ -2485,15 +2507,16 @@ def get_provider_review_queue(review_status: str = "open", backend: Optional[str
             max_severity = d.get("max_severity")
             created_at_str = d["created_at"]
             
-            # Compute overdue: emergency or high severity older than 2 hours
+            # Compute overdue: emergency or high severity older than 2 hours (only for unresolved cases)
             overdue = False
-            try:
-                created_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
-                age_seconds = (now_dt - created_dt).total_seconds()
-                if (emergency or max_severity == "high") and age_seconds > 7200:
-                    overdue = True
-            except Exception:
-                overdue = False
+            if review_status != "resolved" and d.get("review_status") != "resolved":
+                try:
+                    created_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                    age_seconds = (now_dt - created_dt).total_seconds()
+                    if (emergency or max_severity == "high") and age_seconds > 7200:
+                        overdue = True
+                except Exception:
+                    overdue = False
 
             # Compute summary counts
             counts = {"observations": 0, "discrepancies": 0, "medications": 0}
@@ -2534,6 +2557,14 @@ def get_provider_review_queue(review_status: str = "open", backend: Optional[str
                 "trigger_reading": trigger_reading,
                 "escalated_at": d.get("escalated_at"),
                 "triage_level": d.get("triage_level"),
+                "review_status": d.get("review_status"),
+                "provider_decision": d.get("provider_decision"),
+                "provider_level": d.get("provider_level"),
+                "provider_reason": d.get("provider_reason"),
+                "reviewed_by": d.get("reviewed_by"),
+                "reviewed_at": d.get("reviewed_at"),
+                "user_id": d.get("user_id"),
+                "patient_id": d.get("user_id"),
             })
         return items
 
