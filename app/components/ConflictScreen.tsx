@@ -28,7 +28,10 @@ export const ConflictScreen = () => {
   const isRomanUrdu = (language as string) === "roman_ur";
 
   // In live mode, extract comparisons and verifications
-  const obsComparisons = liveCheckinResult?.reconciliation?.observation_comparisons || [];
+  const obsComparisons = React.useMemo(
+    () => liveCheckinResult?.reconciliation?.observation_comparisons || [],
+    [liveCheckinResult]
+  );
   const medComparisons = liveCheckinResult?.reconciliation?.medication_comparisons || [];
   const medVerifications = liveCheckinResult?.verification?.medication_verifications || [];
 
@@ -69,13 +72,13 @@ export const ConflictScreen = () => {
   const confirmedMedItems = dedupeMedItems(rawMedItems.filter((m) => m.desc.isConfirmed));
 
   // Discrepancy comparisons that matter (BP, glucose, HbA1c) comparing hospital value to today's reading
-  const discrepancyComparisons = isLiveMode
-    ? obsComparisons.filter(isObservationDiscrepancy)
-    : [];
+  const discrepancyComparisons = React.useMemo(() => {
+    return isLiveMode ? obsComparisons.filter(isObservationDiscrepancy) : [];
+  }, [isLiveMode, obsComparisons]);
 
   // If no discrepancies, check for first-checkin (missing_in_a) for an observation that matters
-  const firstCheckinComparisons =
-    isLiveMode && discrepancyComparisons.length === 0
+  const firstCheckinComparisons = React.useMemo(() => {
+    return isLiveMode && discrepancyComparisons.length === 0
       ? obsComparisons.filter(
           (c: any) =>
             isObservationThatMatters(c.observation_type) &&
@@ -84,6 +87,7 @@ export const ConflictScreen = () => {
             c.value_b !== undefined
         )
       : [];
+  }, [isLiveMode, discrepancyComparisons, obsComparisons]);
 
   const combinedFirstCheckin = React.useMemo(() => {
     const list: any[] = [];

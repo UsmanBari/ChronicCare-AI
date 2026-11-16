@@ -129,6 +129,13 @@ $env:NEXT_PUBLIC_AUTH_MODE = "firebase"
 npm run dev
 ```
 
+### Enabling Google Sign-in in Firebase Console (Optional)
+To enable Google sign-in with Firebase:
+1. In the Firebase Console, navigate to **Authentication -> Sign-in method -> Add new provider** and select **Google**, then click **Enable** and save your project support email.
+2. In **Authentication -> Settings -> Authorized domains**, ensure your evaluation domain (e.g., `localhost`) is listed in the authorized domains table.
+3. When `NEXT_PUBLIC_AUTH_MODE=firebase` is active, the "Continue with Google" button appears across Patient, Provider, and Admin portals.
+4. Accounts created or signed in with Google are authenticated via standard ID tokens and role-mapped via `DEMO_ROLE_MAP`.
+
 ### Step 12: Verify Frontend DevTools Network Routing
 1. Open your browser to `http://localhost:3000`.
 2. Open DevTools (F12) -> **Network** tab.

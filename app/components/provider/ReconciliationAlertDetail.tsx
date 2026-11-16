@@ -266,7 +266,7 @@ export const ReconciliationAlertDetail = () => {
     return () => {
       isMounted = false;
     };
-  }, [isLiveMode, selectedPatient, demoScenario, isUrdu]);
+  }, [isLiveMode, selectedPatient, demoScenario, isUrdu, setSelectedPatientDisplay, setSelectedPatientId]);
 
   useEffect(() => {
     if (isLiveMode && selectedPatient && selectedPatient !== "Ali Khan") {

@@ -78,6 +78,8 @@ export interface AppointmentState {
   provider: string;
   status: string;
   bookedAt: string;
+  patientName?: string;
+  patientId?: string;
 }
 
 interface AppContextType {

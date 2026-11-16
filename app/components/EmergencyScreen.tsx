@@ -20,7 +20,7 @@ export const EmergencyScreen = () => {
     const reasonStr = [
       activeLiveCheckin?.emergency_reason,
       (activeLiveCheckin as any)?.reason,
-      ...(activeLiveCheckin?.reasons || []),
+      ...((activeLiveCheckin as any)?.reasons || []),
       ...(liveCheckinResult?.triage?.reasons || []),
       liveCheckinResult?.triage?.trigger_detail,
       liveCheckinResult?.safety_note,
@@ -41,7 +41,7 @@ export const EmergencyScreen = () => {
 
     // 2. Check readings in activeLiveCheckin or liveCheckinResult
     const allIntakes = [
-      ...(activeLiveCheckin?.intakes || []),
+      ...((activeLiveCheckin as any)?.intakes || []),
       ...(liveCheckinResult?.intakes || []),
     ];
     for (const it of allIntakes) {
