@@ -223,12 +223,16 @@ def _build_dual_summary_text(
             or known_slots.get("associated_symptoms") is False
             or known_slots.get("foot_problems") is False
         )
+        has_opening_note = bool(
+            (session_state and session_state.get("opening_note"))
+            or (isinstance(known_slots, dict) and known_slots.get("opening_note"))
+        )
 
         if symptoms:
             symp_en = f"Symptoms: {', '.join(symptoms)}"
             symp_ur = "علامات: علامات کی اطلاع دی گئی"
             symp_ro = "Alamaat: Alamaat report ki gayi hain"
-        elif symptoms_denied:
+        elif symptoms_denied or has_opening_note:
             symp_en = "Symptoms: None reported"
             symp_ur = "علامات: کوئی نہیں"
             symp_ro = "Alamaat: Koi nahi"
@@ -300,14 +304,21 @@ def start_v3_session(
 
     clean_note = opening_note.strip() if (opening_note and isinstance(opening_note, str) and opening_note.strip()) else None
     if clean_note:
-        temp_state = {"known_slots": known_slots, "readings": readings}
+        temp_state = {"known_slots": known_slots, "readings": readings, "findings": findings}
         _extract_early_slots(clean_note, temp_state, lang)
         known_slots["greeting"] = True
+        extracted_findings = extract_findings_from_answer(clean_note)
+        for f in extracted_findings:
+            f_dict = asdict(f) if hasattr(f, "__dataclass_fields__") else f
+            findings.append(f_dict)
+        if findings:
+            known_slots.pop("symptoms_denied", None)
 
+    findings_objects = [Finding(**f) if isinstance(f, dict) else f for f in findings]
     # Get first question from planner
     decision: PlanDecision = plan_next_step(
         known_slots=known_slots,
-        findings=[],
+        findings=findings_objects,
         patient_record=patient_record,
         recent_checkins=recent_checkins,
         bank=bank,
