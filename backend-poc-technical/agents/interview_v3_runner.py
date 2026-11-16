@@ -371,6 +371,8 @@ def start_v3_session(
         "summary_correction_rounds": 0,
         "awaiting_correction_slot": False,
         "patient_notes": [],
+        "turn_count": 0,
+        "step_attempt_counts": {},
     }
 
     return session_state
@@ -576,6 +578,18 @@ def _extract_early_slots(answer_text: str, session_state: Dict[str, Any], lang: 
     if any(re.search(pat, lower_ans) for pat in wellbeing_patterns):
         known_slots["greeting"] = True
 
+    # 8. Early Fasting & Broke Fast Detection
+    broke_fast_patterns = [
+        r"\b(?:broke|break|broken)\s+(?:my\s+)?fast\b",
+        r"\broza\s+(?:tod|toda|tode|toor|tora|khol|khola|kholi|tor)\b",
+        r"(?:روزہ\s+توڑا|روزہ\s+توڑ|روزہ\s+کھولا|روزہ\s+کھول)",
+    ]
+    if any(re.search(pat, lower_ans) for pat in broke_fast_patterns):
+        known_slots["fasting_broke_fast"] = True
+        session_state["fasting_broke_fast"] = True
+        known_slots["fasting_broke_fast_reason"] = answer_text.strip()
+        known_slots["is_fasting_today"] = True
+
 
 def evaluate_severe_low_sugar(
     text: Optional[str] = None,
@@ -767,7 +781,34 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     bank = get_default_bank()
     lang = session_state.get("language", "en")
     clean_answer = (answer_text or "").strip()
+    session_state["turn_count"] = session_state.get("turn_count", 0) + 1
     current_slot = session_state.get("step", "greeting")
+    step_counts = session_state.setdefault("step_attempt_counts", {})
+    step_counts[current_slot] = step_counts.get(current_slot, 0) + 1
+
+    # Global Loop Guard: same step asked at most 2 times (original + 1 clarify)
+    # If a step is somehow entered for a 3rd time, mark unclear and bypass it
+    if step_counts.get(current_slot, 0) > 2:
+        known_slots = session_state.setdefault("known_slots", {})
+        known_slots[current_slot] = "unclear"
+        known_slots[f"{current_slot}__evidence"] = clean_answer
+        known_slots[f"{current_slot}__partial"] = False
+        session_state["needs_clinician_flag"] = True
+        session_state.setdefault("patient_notes", []).append(
+            f"Step '{current_slot}' reached maximum attempts ({step_counts[current_slot]}). Moved forward with clinician flag."
+        )
+        asked_slots = session_state.setdefault("asked_slots", [])
+        if current_slot not in asked_slots:
+            asked_slots.append(current_slot)
+        from agents.interview_planner import SLOT_EQUIVALENCES
+        for eq in SLOT_EQUIVALENCES.get(current_slot, set()):
+            if eq not in asked_slots:
+                asked_slots.append(eq)
+        session_state["safety_clarify_slot"] = None
+        session_state["awaiting_adherence_clarification"] = None
+        session_state["awaiting_glucose_unit"] = False
+        session_state["awaiting_meter_lo_hi_confirmation"] = None
+
     from agents.answer_understanding import detect_caregiver_phrase, strip_caregiver_phrase
     is_caregiver = detect_caregiver_phrase(clean_answer)
     clinical_remainder = strip_caregiver_phrase(clean_answer) if is_caregiver else clean_answer
@@ -1140,6 +1181,61 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
     if is_yes_no:
         yn_res = parse_yes_no(eff_answer, lang=lang)
         target_slot = bank_item.slot if bank_item else current_slot
+        lower_ans = clean_answer.lower()
+
+        # Slot-specific semantic yes/no resolution before safety clarification
+        if target_slot in ("fasting_symptoms", "fasting_ramadan") or current_slot in ("fasting_symptoms", "fasting_ramadan"):
+            broke_fast_patterns = [
+                r"\b(?:broke|break|broken)\s+(?:my\s+)?fast\b",
+                r"\broza\s+(?:tod|toda|tode|toor|tora|khol|khola|kholi|tor)\b",
+                r"(?:روزہ\s+توڑا|روزہ\s+توڑ|روزہ\s+کھولا|روزہ\s+کھول)",
+            ]
+            fast_symptom_kws = [
+                "shakiness", "shaky", "sweat", "sweating", "dizzy", "dizziness",
+                "confusion", "confused", "thirst", "thirsty", "hunger", "hungry",
+                "headache", "tremor", "trembling", "lightheaded", "faint", "fainting",
+                "weakness", "weak", "palpitation", "palpitations", "paseena",
+                "paseenay", "chakkar", "uljhan", "pyas", "thakawat", "bhook",
+                "kapkapi", "kapkapahat", "پسینہ", "چکر", "الجھن", "پیاس", "تھکاوٹ",
+                "بھوک", "کپکپاہٹ", "کمزوری"
+            ]
+            if any(re.search(pat, lower_ans) for pat in broke_fast_patterns):
+                session_state["fasting_broke_fast"] = True
+                known_slots["fasting_broke_fast"] = True
+                known_slots["fasting_broke_fast_reason"] = clean_answer
+                yn_res = {"value": "yes", "evidence": clean_answer, "partial": False}
+            elif yn_res.get("value") not in ("yes", "no"):
+                extracted_f = extract_findings_from_answer(clean_answer)
+                if extracted_f or any(k in lower_ans for k in fast_symptom_kws):
+                    yn_res = {"value": "yes", "evidence": clean_answer, "partial": False}
+                    if not extracted_f:
+                        f_kind = "low_sugar_episode" if any(k in lower_ans for k in ["shakiness", "shaky", "sweat", "sweating", "paseena", "kapkapi"]) else "dizziness"
+                        extracted_f.append(
+                            Finding(
+                                id=f"fnd_fasting_symptom_{len(session_state.get('findings', [])) + 1}",
+                                kind=f_kind,
+                                label=f_kind.replace("_", " ").title(),
+                                raw_quote=clean_answer,
+                                confidence="High",
+                                source_step=current_slot,
+                            )
+                        )
+                    curr_findings_list = [Finding(**f) if isinstance(f, dict) else f for f in session_state.get("findings", [])]
+                    curr_kinds = {f.kind for f in curr_findings_list}
+                    for f in extracted_f:
+                        if f.kind not in curr_kinds:
+                            curr_findings_list.append(f)
+                            curr_kinds.add(f.kind)
+                    session_state["findings"] = [asdict(f) for f in curr_findings_list]
+
+        elif (target_slot == "is_fasting_today" or current_slot == "is_fasting_today") and yn_res.get("value") not in ("yes", "no"):
+            if any(k in lower_ans for k in ["roza", "fasting", "fast"]):
+                yn_res = {"value": "yes", "evidence": clean_answer, "partial": False}
+
+        elif (target_slot == "sick_vomiting_diarrhea" or current_slot == "sick_vomiting_diarrhea") and yn_res.get("value") not in ("yes", "no"):
+            if any(k in lower_ans for k in ["ulti", "dast", "vomit", "diarrhea"]):
+                yn_res = {"value": "yes", "evidence": clean_answer, "partial": False}
+
         is_adh_slot = (
             current_slot in ("adherence_diabetes", "adherence_hypertension", "diabetes_adherence", "hypertension_adherence")
             or (bank_item and bank_item.slot in ("adherence_diabetes", "adherence_hypertension"))
@@ -1190,12 +1286,13 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
                 known_slots[f"{target_slot}__evidence"] = yn_res.get("evidence", clean_answer)
                 known_slots[f"{target_slot}__partial"] = yn_res.get("partial", False)
         # B3: Safety-class item answered unknown -> re-ask ONCE with clarification
-        elif bank_item and bank_item.priority_class == "safety" and parse_yes_no(clean_answer, lang=lang)["value"] == "unknown":
+        elif bank_item and bank_item.priority_class == "safety" and yn_res.get("value") == "unknown":
             # P2-4: If opening free-text message with multi-intent readings arrived on first turn,
             # do not trigger safety clarify; handle as slot extraction and ask safety item normally.
             is_opening_free_text = (
-                (len(session_state.get("asked_slots", [])) <= 1 or session_state.get("turn_count", 0) <= 1)
+                (len(session_state.get("asked_slots", [])) <= 1 and session_state.get("turn_count", 0) <= 1)
                 and (readings or any(k in known_slots for k in ("glucose_reading", "bp_reading", "adherence", "adherence_diabetes")))
+                and step_counts.get(current_slot, 0) < 2
             )
             if is_opening_free_text and session_state.get("safety_clarify_slot") != current_slot:
                 known_slots["greeting"] = True
@@ -1208,13 +1305,16 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
                 session_state["can_say_unknown"] = True
                 return session_state
 
-            if session_state.get("safety_clarify_slot") == current_slot:
+            if session_state.get("safety_clarify_slot") == current_slot or step_counts.get(current_slot, 0) >= 2:
                 # Second time unknown -> keep unknown, set needs_clinician_flag, move on
                 session_state["safety_clarify_slot"] = None
                 known_slots[current_slot] = "unknown"
                 known_slots[f"{current_slot}__evidence"] = yn_res["evidence"]
                 known_slots[f"{current_slot}__partial"] = yn_res["partial"]
                 session_state["needs_clinician_flag"] = True
+                session_state.setdefault("patient_notes", []).append(
+                    f"Safety question '{current_slot}' remained unknown after clarification. Flagged for clinician review."
+                )
             else:
                 # First time unknown -> re-ask ONCE
                 session_state["safety_clarify_slot"] = current_slot
@@ -1239,16 +1339,7 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
             elif yn_res["value"] == "no":
                 known_slots[current_slot] = False
             else:
-                # Slot-specific symptom affirmations (e.g. sick day vomiting/diarrhea or fasting)
-                lower_ans = clean_answer.lower()
-                if current_slot == "sick_vomiting_diarrhea" and any(k in lower_ans for k in ["ulti", "dast", "vomit", "diarrhea"]):
-                    known_slots[current_slot] = True
-                    yn_res["evidence"] = clean_answer
-                elif current_slot == "is_fasting_today" and any(k in lower_ans for k in ["roza", "fasting"]):
-                    known_slots[current_slot] = True
-                    yn_res["evidence"] = clean_answer
-                else:
-                    known_slots[current_slot] = "unknown"
+                known_slots[current_slot] = "unknown"
             known_slots[f"{current_slot}__evidence"] = yn_res["evidence"]
             known_slots[f"{current_slot}__partial"] = yn_res["partial"]
 
@@ -1408,6 +1499,28 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         base_budget=8,
         hard_cap=14,
     )
+
+    # Loop guard: ensure planner target has not already reached max attempts
+    attempts = 0
+    while decision.action not in ("finish", "summary_confirm") and step_counts.get(decision.target_slot, 0) >= 2 and attempts < 10:
+        attempts += 1
+        if decision.target_slot not in asked_slots:
+            asked_slots.append(decision.target_slot)
+        from agents.interview_planner import SLOT_EQUIVALENCES
+        for eq in SLOT_EQUIVALENCES.get(decision.target_slot, set()):
+            if eq not in asked_slots:
+                asked_slots.append(eq)
+        decision = plan_next_step(
+            known_slots=known_slots,
+            findings=current_findings,
+            patient_record=patient_record,
+            recent_checkins=recent_checkins,
+            bank=bank,
+            asked_slots=set(asked_slots),
+            contradictions=contradictions,
+            base_budget=8,
+            hard_cap=14,
+        )
 
     if decision.action == "finish":
         session_state["completed"] = True
