@@ -52,7 +52,7 @@ const screenTransition = {
 };
 
 export default function App() {
-  const { portal, screen, providerScreen, adminScreen, showTour, setShowTour } = useApp();
+  const { portal, screen, providerScreen, adminScreen, adminIdentifier, showTour, setShowTour } = useApp();
   const [hasLoaded, setHasLoaded] = useState(false);
   const [dismissTourToast, setDismissTourToast] = useState(false);
 
@@ -240,12 +240,12 @@ export default function App() {
             {/* Admin Portal Flow */}
             {portal === "admin" && (
               <div className="w-full">
-                {adminScreen === "login" && (
+                {(adminScreen === "login" || !adminIdentifier) && (
                   <div className="max-w-md mx-auto px-4 py-10 flex flex-col items-center justify-center min-h-[calc(100vh-140px)]">
                     <AdminLoginScreen />
                   </div>
                 )}
-                {adminScreen === "dashboard" && (
+                {adminScreen === "dashboard" && Boolean(adminIdentifier) && (
                   <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-8">
                     <AdminDashboardScreen />
                   </div>

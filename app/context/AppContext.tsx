@@ -230,7 +230,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [portal, setPortalState] = useState<PortalType>("landing");
   const [screen, setScreenState] = useState<PatientScreenType>("home");
   const [providerScreen, setProviderScreenState] = useState<ProviderScreenType>("dashboard");
-  const [adminScreen, setAdminScreenState] = useState<AdminScreenType>("dashboard");
+  const [adminScreen, setAdminScreenState] = useState<AdminScreenType>("login");
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showTour, setShowTour] = useState<boolean>(false);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
@@ -243,7 +243,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [userIdentifier, setUserIdentifier] = useState<string>("ali.khan@demo.care");
   const [providerIdentifier, setProviderIdentifier] = useState<string>(() => isFirebaseEnabled() ? "" : "dr.sanamalik@citygeneral.org");
   const [providerDisplayName, setProviderDisplayName] = useState<string | null>(null);
-  const [adminIdentifier, setAdminIdentifier] = useState<string>("admin@citygeneral.org");
+  const [adminIdentifier, setAdminIdentifier] = useState<string>("");
   const [userRole, setUserRole] = useState<string | null>(null);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const userRoleRef = React.useRef<string | null>(userRole);
@@ -655,6 +655,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setProviderDisplayName(null);
     setProviderScreenState("login");
     setAdminIdentifier("");
+    setAdminScreenState("login");
     setSelectedPatient(null);
     setLiveProfile(null);
     setLiveEhrConnection(null);
@@ -710,8 +711,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (p === "provider" && !providerIdentifier) {
       setProviderScreenState("login");
     }
+    if (p === "admin" && !adminIdentifier) {
+      setAdminScreenState("login");
+    }
     setPortalState(p);
-    pushNavState(p, screen, p === "provider" && !providerIdentifier ? "login" : providerScreen, adminScreen);
+    pushNavState(
+      p,
+      screen,
+      p === "provider" && !providerIdentifier ? "login" : providerScreen,
+      p === "admin" && !adminIdentifier ? "login" : adminScreen
+    );
   };
 
   const setScreen = (s: PatientScreenType) => {
