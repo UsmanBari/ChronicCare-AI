@@ -114,3 +114,36 @@ def test_v3_interview_duration_number_not_missing_reading():
         next_q = (st.get("current_question") or "").lower()
         assert "glucometer" not in next_q, f"Asked about glucometer after valid reading: {next_q}"
         assert "missing" not in next_q, f"Asked about missing data after valid reading: {next_q}"
+
+
+def test_item_5_glucose_duration_cases():
+    """
+    Explicit test cases required by FIX4 Item 5:
+    - '2 hours after lunch 165' -> valid, 165.0, after_meal
+    - '45 hours', '120 hours' -> invalid / no reading / ambiguous
+    - '2 ghante pehle 58' -> valid, 58.0
+    - 'sugar 45 min ago' -> invalid / no reading
+    """
+    # 1. "2 hours after lunch 165" -> valid, 165.0, after_meal
+    res1 = validate_glucose_input("2 hours after lunch 165")
+    assert res1.valid is True
+    assert res1.value == 165.0
+    assert detect_glucose_context("2 hours after lunch 165") == "after_meal"
+
+    # 2. "45 hours" -> invalid / no reading
+    res2 = validate_glucose_input("45 hours")
+    assert res2.valid is False or res2.value is None
+
+    # 3. "120 hours" -> invalid / no reading
+    res3 = validate_glucose_input("120 hours")
+    assert res3.valid is False or res3.value is None
+
+    # 4. "2 ghante pehle 58" -> valid, 58.0
+    res4 = validate_glucose_input("2 ghante pehle 58")
+    assert res4.valid is True
+    assert res4.value == 58.0
+
+    # 5. "sugar 45 min ago" -> invalid / no reading
+    res5 = validate_glucose_input("sugar 45 min ago")
+    assert res5.valid is False or res5.value is None
+
