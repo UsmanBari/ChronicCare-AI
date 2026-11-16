@@ -148,7 +148,14 @@ def _build_dual_summary_text(
     """
     # 1. Glucose
     gluc = known_slots.get("glucose_reading")
-    if gluc is not None:
+    f_gluc = None
+    if gluc is not None and not isinstance(gluc, bool):
+        try:
+            f_gluc = float(gluc)
+        except (ValueError, TypeError):
+            f_gluc = None
+
+    if f_gluc is not None:
         ctx = known_slots.get("glucose_context", "")
         ctx_map_en = {"after_meal": "after meal", "fasting": "fasting", "random": "random", "bedtime": "bedtime"}
         ctx_map_ur = {"after_meal": "کھانے کے بعد", "fasting": "نہار منہ", "random": "کسی بھی وقت", "bedtime": "سونے سے پہلے"}
@@ -158,9 +165,9 @@ def _build_dual_summary_text(
         ctx_ur = f" ({ctx_map_ur.get(ctx, ctx)})" if ctx else ""
         ctx_ro = f" ({ctx_map_ro.get(ctx, ctx.replace('_', ' '))})" if ctx else ""
 
-        gluc_en = f"Blood Glucose: {gluc:g} mg/dL{ctx_en}"
-        gluc_ur = f"شوگر: {gluc:g} mg/dL{ctx_ur}"
-        gluc_ro = f"Sugar: {gluc:g} mg/dL{ctx_ro}"
+        gluc_en = f"Blood Glucose: {f_gluc:g} mg/dL{ctx_en}"
+        gluc_ur = f"شوگر: {f_gluc:g} mg/dL{ctx_ur}"
+        gluc_ro = f"Sugar: {f_gluc:g} mg/dL{ctx_ro}"
     else:
         gluc_en = "Blood Glucose: Not provided"
         gluc_ur = "شوگر: درج نہیں کی گئی"
@@ -169,11 +176,16 @@ def _build_dual_summary_text(
     # 2. Blood Pressure
     bp = known_slots.get("bp_reading")
     if bp and isinstance(bp, (list, tuple)) and len(bp) >= 2:
-        bp_sys = int(bp[0]) if float(bp[0]).is_integer() else bp[0]
-        bp_dia = int(bp[1]) if float(bp[1]).is_integer() else bp[1]
-        bp_en = f"Blood Pressure: {bp_sys}/{bp_dia} mmHg"
-        bp_ur = f"بلڈ پریشر: {bp_sys}/{bp_dia} mmHg"
-        bp_ro = f"Blood Pressure: {bp_sys}/{bp_dia} mmHg"
+        try:
+            bp_sys = int(bp[0]) if float(bp[0]).is_integer() else bp[0]
+            bp_dia = int(bp[1]) if float(bp[1]).is_integer() else bp[1]
+            bp_en = f"Blood Pressure: {bp_sys}/{bp_dia} mmHg"
+            bp_ur = f"بلڈ پریشر: {bp_sys}/{bp_dia} mmHg"
+            bp_ro = f"Blood Pressure: {bp_sys}/{bp_dia} mmHg"
+        except (ValueError, TypeError):
+            bp_en = "Blood Pressure: Not provided"
+            bp_ur = "بلڈ پریشر: درج نہیں کیا گیا"
+            bp_ro = "Blood Pressure: Darj nahi kiya gaya"
     else:
         bp_en = "Blood Pressure: Not provided"
         bp_ur = "بلڈ پریشر: درج نہیں کیا گیا"
@@ -792,7 +804,6 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         known_slots = session_state.setdefault("known_slots", {})
         known_slots[current_slot] = "unclear"
         known_slots[f"{current_slot}__evidence"] = clean_answer
-        known_slots[f"{current_slot}__partial"] = False
         session_state["needs_clinician_flag"] = True
         session_state.setdefault("patient_notes", []).append(
             f"Step '{current_slot}' reached maximum attempts ({step_counts[current_slot]}). Moved forward with clinician flag."
@@ -1152,7 +1163,6 @@ def next_turn(session_state: Dict[str, Any], answer_text: str) -> Dict[str, Any]
         ctx = detect_glucose_context(eff_answer)
         if ctx:
             known_slots["glucose_context"] = ctx
-            known_slots["diabetes_glucose_context"] = ctx
 
     elif "bp_reading" in current_slot or current_slot == "hypertension_bp_reading":
         p_bp = parse_bp(eff_answer)
