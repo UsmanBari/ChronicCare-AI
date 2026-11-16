@@ -158,7 +158,7 @@ $healthy = $false
 for ($i = 0; $i -lt 30; $i++) {
     try {
         $resp = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/health" -Method Get -TimeoutSec 2 -ErrorAction Stop
-        if ($resp.status -eq "ok" -or $resp.database -eq "ok") {
+        if ($resp.status -eq "ok" -or $resp.database -eq "ok" -or $resp.status -eq "healthy") {
             $healthy = $true
             break
         }
