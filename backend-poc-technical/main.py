@@ -7026,6 +7026,101 @@ def mark_provider_appointment_attended(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(v_err)) from v_err
 
 
+class CreateAppointmentRequest(BaseModel):
+    patient_id: str
+    slot: Optional[str] = None
+    slot_date: Optional[str] = None
+    provider_id: Optional[str] = None
+    specialty: Optional[str] = "internal_medicine"
+    urgency: Optional[str] = "routine"
+    reason: Optional[str] = None
+    checkin_id: Optional[str] = None
+    status: Optional[str] = "booked"
+    mode: Optional[str] = "in_person"
+
+
+@app.post("/api/appointments", tags=["Appointments"])
+@app.put("/api/appointments", tags=["Appointments"])
+@app.put("/api/appointments/{appointment_id}", tags=["Appointments"])
+def create_or_update_appointment_endpoint(
+    req: CreateAppointmentRequest,
+    appointment_id: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin", "patient")),
+):
+    """Creates or updates a scheduled appointment from provider review or direct booking."""
+    import uuid
+    from data_sources.app_store import get_db_cursor, create_appointment
+
+    pid = (req.patient_id or "").strip()
+    slot_val = (req.slot or req.slot_date or "").strip()
+    prv_id = (req.provider_id or current_user.get("user_id") or "prov-demo-im").strip()
+    chk_id = (req.checkin_id or "").strip()
+    specialty = req.specialty or "internal_medicine"
+    urgency = req.urgency or "routine"
+    mode = req.mode or "in_person"
+    status_val = req.status or "booked"
+
+    with get_db_cursor() as (cursor, backend, ph):
+        existing_id = appointment_id
+        if not existing_id and chk_id:
+            cursor.execute(f"SELECT id FROM appointments WHERE checkin_id = {ph} LIMIT 1", (chk_id,))
+            row = cursor.fetchone()
+            if row:
+                existing_id = row["id"] if isinstance(row, dict) else row[0]
+        if not existing_id and pid:
+            cursor.execute(f"SELECT id FROM appointments WHERE patient_id = {ph} AND status IN ('offered', 'booked') ORDER BY created_at DESC LIMIT 1", (pid,))
+            row = cursor.fetchone()
+            if row:
+                existing_id = row["id"] if isinstance(row, dict) else row[0]
+
+        if existing_id:
+            cursor.execute(
+                f"""
+                UPDATE appointments
+                SET slot_date = {ph}, status = {ph}, provider_id = {ph}
+                WHERE id = {ph}
+                """,
+                (slot_val, status_val, prv_id, existing_id),
+            )
+            return {
+                "id": existing_id,
+                "patient_id": pid,
+                "checkin_id": chk_id,
+                "provider_id": prv_id,
+                "specialty": specialty,
+                "urgency": urgency,
+                "mode": mode,
+                "status": status_val,
+                "slot_date": slot_val,
+                "reason": req.reason,
+            }
+        else:
+            new_id = f"apt-{uuid.uuid4().hex[:12]}"
+            create_appointment(
+                appointment_id=new_id,
+                patient_id=pid,
+                checkin_id=chk_id,
+                provider_id=prv_id,
+                specialty=specialty,
+                urgency=urgency,
+                mode=mode,
+                status=status_val,
+                slot_date=slot_val,
+            )
+            return {
+                "id": new_id,
+                "patient_id": pid,
+                "checkin_id": chk_id,
+                "provider_id": prv_id,
+                "specialty": specialty,
+                "urgency": urgency,
+                "mode": mode,
+                "status": status_val,
+                "slot_date": slot_val,
+                "reason": req.reason,
+            }
+
+
 @app.get("/api/admin/providers", tags=["Appointments"])
 def get_admin_providers(current_user: Dict[str, Any] = Depends(require_role("doctor", "provider", "admin"))):
     """Retrieves synthetic provider directory."""

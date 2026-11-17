@@ -60,6 +60,7 @@ export const PatientDetailScreen = () => {
     resolveCase,
     connectionMode,
     profile,
+    appointment,
     t,
     isUrdu,
   } = useApp();
@@ -126,6 +127,31 @@ export const PatientDetailScreen = () => {
           <span>{isAcknowledged ? "Acknowledged ✓" : t.acknowledge}</span>
         </button>
       </div>
+
+      {/* Scheduled Consultation Banner */}
+      {appointment?.isBooked && (
+        <div
+          data-testid="patient-scheduled-appointment"
+          className="p-4 rounded-2xl bg-teal-50 border-2 border-teal-300 text-teal-950 flex items-center justify-between shadow-xs animate-fadeIn"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold shrink-0">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-heading font-bold text-sm text-navy-900">
+                Consultation Scheduled: {appointment.slot}
+              </div>
+              <div className="text-xs text-slate-600">
+                Provider: {appointment.provider} • Reason: {appointment.reason}
+              </div>
+            </div>
+          </div>
+          <span className="px-3 py-1 rounded-full bg-teal-100 text-teal-900 border border-teal-300 font-bold text-xs uppercase tracking-wider">
+            {appointment.status || "Confirmed"}
+          </span>
+        </div>
+      )}
 
       {/* Sara Ahmed Incomplete Check-in Notice */}
       {isSara && (

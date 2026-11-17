@@ -339,6 +339,9 @@ export function isObservationDiscrepancy(comp?: any): boolean {
 export function formatObservationTitle(obsType?: string | null, isUrdu?: boolean): string {
   if (!obsType) return isUrdu ? "طبی ریڈنگ" : "Clinical Observation";
   const t = obsType.toLowerCase().replace(/[\s_-]+/g, "");
+  if (t === "bloodpressure" || t === "bp") {
+    return isUrdu ? "بلڈ پریشر" : "Blood Pressure";
+  }
   if (t.includes("systolic")) {
     return isUrdu ? "بلڈ پریشر (سسٹولک)" : "Blood Pressure (Systolic)";
   }
@@ -354,6 +357,100 @@ export function formatObservationTitle(obsType?: string | null, isUrdu?: boolean
   return obsType
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export interface OlderHospitalReading {
+  value: string;
+  unit: string;
+  date: string;
+  rawTimestamp?: string;
+}
+
+export function findOlderHospitalReading(
+  obsType?: string | null,
+  allComparisons?: any[] | null
+): OlderHospitalReading | null {
+  if (!obsType || !Array.isArray(allComparisons)) return null;
+  const normType = obsType.toLowerCase().replace(/[\s_-]+/g, "");
+
+  // 1. Blood Pressure (check for systolic/diastolic in bundle A)
+  if (normType.includes("bloodpressure") || normType === "bp" || normType.includes("systolic") || normType.includes("diastolic")) {
+    const sys = allComparisons.find(
+      (x: any) =>
+        (x.observation_type?.toLowerCase().includes("systolic") ||
+         x.observation_type === "blood_pressure") &&
+        x.value_a !== null &&
+        x.value_a !== undefined
+    );
+    const dia = allComparisons.find(
+      (x: any) =>
+        x.observation_type?.toLowerCase().includes("diastolic") &&
+        x.value_a !== null &&
+        x.value_a !== undefined
+    );
+
+    if (sys && dia) {
+      const rawTs = sys.timestamp_a || dia.timestamp_a || "";
+      const dateStr = rawTs ? rawTs.slice(0, 10) : "";
+      return {
+        value: `${sys.value_a}/${dia.value_a}`,
+        unit: "mmHg",
+        date: dateStr,
+        rawTimestamp: rawTs,
+      };
+    } else if (sys) {
+      const rawTs = sys.timestamp_a || "";
+      const dateStr = rawTs ? rawTs.slice(0, 10) : "";
+      return {
+        value: String(sys.value_a),
+        unit: sys.unit_a || "mmHg",
+        date: dateStr,
+        rawTimestamp: rawTs,
+      };
+    }
+  }
+
+  // 2. Glucose
+  if (normType.includes("glucose") || normType.includes("sugar")) {
+    const match = allComparisons.find(
+      (x: any) =>
+        (x.observation_type?.toLowerCase().includes("glucose") ||
+         x.observation_type?.toLowerCase().includes("sugar")) &&
+        x.value_a !== null &&
+        x.value_a !== undefined
+    );
+    if (match) {
+      const rawTs = match.timestamp_a || "";
+      const dateStr = rawTs ? rawTs.slice(0, 10) : "";
+      return {
+        value: String(match.value_a),
+        unit: match.unit_a || "mg/dL",
+        date: dateStr,
+        rawTimestamp: rawTs,
+      };
+    }
+  }
+
+  // 3. General match
+  const match = allComparisons.find(
+    (x: any) =>
+      x.observation_type &&
+      x.observation_type.toLowerCase().replace(/[\s_-]+/g, "") === normType &&
+      x.value_a !== null &&
+      x.value_a !== undefined
+  );
+  if (match) {
+    const rawTs = match.timestamp_a || "";
+    const dateStr = rawTs ? rawTs.slice(0, 10) : "";
+    return {
+      value: String(match.value_a),
+      unit: match.unit_a || "",
+      date: dateStr,
+      rawTimestamp: rawTs,
+    };
+  }
+
+  return null;
 }
 
 /**

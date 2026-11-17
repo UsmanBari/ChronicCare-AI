@@ -24,6 +24,8 @@ export const ReviewQueueScreen = () => {
   const {
     setProviderScreen,
     setSelectedPatient,
+    setSelectedPatientDisplay,
+    setSelectedPatientId,
     isLiveMode,
     demoScenario,
     resolvedCases,
@@ -148,7 +150,7 @@ export const ReviewQueueScreen = () => {
           )}
           <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-teal-700" />
-            <span>City General Triage Engine</span>
+            <span>ChronicCare Triage Engine</span>
           </span>
         </div>
       </div>
@@ -274,6 +276,8 @@ export const ReviewQueueScreen = () => {
                         key={item.checkin_id}
                         onClick={() => {
                           setSelectedPatient(item.checkin_id);
+                          if (setSelectedPatientDisplay) setSelectedPatientDisplay(item.patient_display || null);
+                          if (setSelectedPatientId) setSelectedPatientId(item.patient_id || null);
                           setProviderScreen("reconciliation_alert");
                         }}
                         id={`queue-row-${item.checkin_id}`}
@@ -380,6 +384,8 @@ export const ReviewQueueScreen = () => {
                     <tr
                       onClick={() => {
                         setSelectedPatient("Ali Khan");
+                        if (setSelectedPatientDisplay) setSelectedPatientDisplay("Ali Khan (PT-04821)");
+                        if (setSelectedPatientId) setSelectedPatientId("PT-04821");
                         setProviderScreen("reconciliation_alert");
                       }}
                       id="queue-row-ali-khan-conflict"
@@ -430,6 +436,8 @@ export const ReviewQueueScreen = () => {
                     <tr
                       onClick={() => {
                         setSelectedPatient("Ali Khan");
+                        if (setSelectedPatientDisplay) setSelectedPatientDisplay("Ali Khan (PT-04821)");
+                        if (setSelectedPatientId) setSelectedPatientId("PT-04821");
                         setProviderScreen("reconciliation_alert");
                       }}
                       id="queue-row-ali-khan-emergency"

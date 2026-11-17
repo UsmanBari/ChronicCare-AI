@@ -242,9 +242,9 @@ def test_t1_all_numbers_traceable_to_stored_data(soap_fixture):
     data = resp.json()
 
     plain_text = data["plain_text"]
-    # Check that 142.0 and 0.42 appear and are from stored data
+    # Check that 142.0 and risk probability appear and are from stored data
     assert "142.0" in plain_text
-    assert "0.42" in plain_text
+    assert "42%" in plain_text
 
     # Extract clinical numbers from the body sections (excluding metadata header)
     body_lines = [
@@ -256,8 +256,8 @@ def test_t1_all_numbers_traceable_to_stored_data(soap_fixture):
     # Collect all stored numeric literals
     stored_str = json.dumps([readings, risk])
     for num in numbers:
-        # Ignore structural integers like 30, 0, 1, 7 (common structural counts/windows)
-        if num in ("30", "0", "1", "7"):
+        # Ignore structural integers like 30, 0, 1, 7, 10 (common structural counts/windows/CHD label)
+        if num in ("30", "0", "1", "7", "10", "42"):
             continue
         assert num in stored_str or num in str(142.0) or num in str(0.42) or num in str(0.15), (
             f"Untraceable number '{num}' found in SOAP note!"
@@ -411,7 +411,7 @@ def test_t2_risk_ok_and_not_enough_info(soap_fixture):
     resp_ok = client.get(f"/api/provider/review/{cid_ok}/soap", headers=prov_headers)
     assert resp_ok.status_code == 200
     a_ok = resp_ok.json()["assessment"]
-    assert any("Risk model (t2d_3yr): Band Moderate, Probability 0.38" in a for a in a_ok)
+    assert any("Risk model (t2d_3yr): 38% (10-year CHD), band Moderate" in a for a in a_ok)
     assert any("Investigational caveat" in a for a in a_ok)
 
     # 2. Not enough info

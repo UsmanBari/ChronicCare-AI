@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getAuth, Auth } from "firebase/auth";
+import { getAuth, Auth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, UserCredential } from "firebase/auth";
 
 let firebaseAppInstance: FirebaseApp | null = null;
 let firebaseAuthInstance: Auth | null = null;
@@ -105,8 +105,61 @@ export function getAuthErrorMessage(
       return t.authTooManyRequests || t.authGeneralError;
     case "auth/network-request-failed":
       return t.authNetworkError || t.authGeneralError;
+    case "auth/operation-not-allowed":
+      return "Google sign-in is not enabled in Firebase Console";
+    case "auth/account-exists-with-different-credential":
+      return "An account already exists with this email using a different sign-in method";
+    case "auth/unauthorized-domain":
+      return "This domain is not authorized in Firebase Console";
+    case "auth/popup-blocked":
+      return "Pop-up blocked. Please allow pop-ups for this site and retry.";
     default:
       return t.authGeneralError;
   }
 }
+
+/**
+ * Initiates Google sign-in using Firebase GoogleAuthProvider and signInWithPopup.
+ * Falls back to signInWithRedirect if popup is blocked, or handles popup closed gracefully.
+ * Uses the cached Firebase Auth instance.
+ */
+export async function signInWithGoogle(): Promise<{ userCredential?: UserCredential; cancelled?: boolean; error?: string }> {
+  if (!isFirebaseEnabled()) {
+    return { error: "Google sign-in is available in Firebase mode only." };
+  }
+  const auth = getFirebaseAuth();
+  if (!auth) {
+    return { error: "Firebase authentication is not configured." };
+  }
+
+  const provider = new GoogleAuthProvider();
+  try {
+    const cred = await signInWithPopup(auth, provider);
+    return { userCredential: cred };
+  } catch (err: any) {
+    const code = err?.code || "";
+    if (code === "auth/popup-closed-by-user") {
+      return { cancelled: true };
+    }
+    if (code === "auth/operation-not-allowed") {
+      return { error: "Google sign-in is not enabled in Firebase Console" };
+    }
+    if (code === "auth/account-exists-with-different-credential") {
+      return { error: "An account already exists with this email using a different sign-in method" };
+    }
+    if (code === "auth/unauthorized-domain") {
+      return { error: "This domain is not authorized in Firebase Console" };
+    }
+    if (code === "auth/popup-blocked") {
+      try {
+        await signInWithRedirect(auth, provider);
+        return { cancelled: true };
+      } catch {
+        return { error: "Pop-up blocked. Please allow pop-ups for this site and retry." };
+      }
+    }
+    return { error: err?.message || "Google sign-in failed. Please try again." };
+  }
+}
+
 

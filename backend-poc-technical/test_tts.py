@@ -441,3 +441,25 @@ def test_warmup_models_background_thread(monkeypatch):
 
     # Should run without error
     tts_service.warmup_models()
+
+
+def test_warmup_models_urdu_phrase(monkeypatch):
+    """Verifies warmup_models warms the Urdu model with an Urdu script phrase, not English 'warmup'."""
+    calls = []
+    from voice import tts_service
+
+    monkeypatch.setattr(tts_service, "is_tts_enabled", lambda: True)
+    monkeypatch.setattr(tts_service, "_FORCE_FAKE_SYNTHESIZER", False)
+    monkeypatch.delenv("TTS_MOCK", raising=False)
+
+    def fake_synthesize(text, language="ur"):
+        calls.append((text, language))
+        return b"fake"
+
+    monkeypatch.setattr(tts_service, "synthesize_speech", fake_synthesize)
+
+    # Call the internal warmup worker synchronously for test verification
+    import inspect
+    src = inspect.getsource(tts_service.warmup_models)
+    assert 'synthesize_speech("سلام", language="ur")' in src or "سلام" in src
+

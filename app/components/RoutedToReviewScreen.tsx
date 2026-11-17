@@ -17,11 +17,13 @@ export const RoutedToReviewScreen = () => {
   const [aptLoading, setAptLoading] = useState(false);
   const [aptMessage, setAptMessage] = useState<string | null>(null);
 
-  // Default to tomorrow at 10:00 AM (within 3-day window)
+  // Default to tomorrow at 10:00 AM (within 3-day window, working hours)
   const defaultSlot = (() => {
     const d = new Date(Date.now() + 24 * 3600 * 1000);
-    d.setHours(10, 0, 0, 0);
-    return d.toISOString().slice(0, 16);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}T10:00`;
   })();
   const [selectedSlot, setSelectedSlot] = useState<string>(liveApt?.slot_date || defaultSlot);
 

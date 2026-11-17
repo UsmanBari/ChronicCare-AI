@@ -697,3 +697,42 @@ def test_escalation_timeout_env_override(temp_db, monkeypatch):
     s3 = compute_escalation_state(appt, now_dt=t_10m, backend="sqlite", db_path=temp_db)
     assert s3["escalation_state"] == "admin_flag"
 
+
+def test_create_or_update_appointment_api(api_client, monkeypatch):
+    """Verifies POST /api/appointments creates a booked appointment and updates on second call."""
+    client, db_path = api_client
+    from main import get_current_user
+
+    provider_user = {"user_id": "prov-demo-im", "role": "provider", "email": "dr.demo@citygeneral.org"}
+    app.dependency_overrides[get_current_user] = lambda: provider_user
+
+    with patch.dict(os.environ, {"LOCAL_DB_PATH": db_path}):
+        resp = client.post(
+            "/api/appointments",
+            json={
+                "patient_id": "local_tariq_001",
+                "slot": "Tomorrow • 10:00 AM",
+                "provider_id": "prov-demo-im",
+                "reason": "Follow-up consultation for Tariq Mahmood",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["patient_id"] == "local_tariq_001"
+        assert data["slot_date"] == "Tomorrow • 10:00 AM"
+        assert data["status"] == "booked"
+
+        # Update slot
+        resp_update = client.post(
+            "/api/appointments",
+            json={
+                "patient_id": "local_tariq_001",
+                "slot": "Monday, 17 Nov • 11:00 AM",
+            },
+        )
+        assert resp_update.status_code == 200
+        data_up = resp_update.json()
+        assert data_up["id"] == data["id"]
+        assert data_up["slot_date"] == "Monday, 17 Nov • 11:00 AM"
+
+

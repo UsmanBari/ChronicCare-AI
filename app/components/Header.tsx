@@ -38,6 +38,7 @@ export const Header = () => {
     liveEhrConnection,
     providerIdentifier,
     providerDisplayName,
+    adminIdentifier,
     userIdentifier,
     setPortal,
     setScreen,
@@ -237,8 +238,9 @@ export const Header = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    const isAdminSignedIn = Boolean(adminIdentifier);
                     setPortal("admin");
-                    setAdminScreen("dashboard");
+                    setAdminScreen(isAdminSignedIn ? "dashboard" : "login");
                     setShowPortalMenu(false);
                   }}
                   id="switch-to-admin-btn"
@@ -397,8 +399,9 @@ export const Header = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    const isAdminSignedIn = Boolean(adminIdentifier);
                     setPortal("admin");
-                    setAdminScreen("dashboard");
+                    setAdminScreen(isAdminSignedIn ? "dashboard" : "login");
                     setMobileMenuOpen(false);
                   }}
                   id="mobile-nav-admin-btn"

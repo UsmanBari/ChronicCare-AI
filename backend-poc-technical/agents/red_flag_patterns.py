@@ -431,37 +431,49 @@ _PAST_PATTERNS = [
     r"\b\d+\s*(?:years?|yrs?|months?|weeks?)\s+ago\b",
     r"\b(?:years?|months?)\s+ago\b",
     r"\blast\s+(?:year|month|week)\b",
-    r"\b(?:in\s+my\s+)?childhood\b",
+    r"\bas\s+a\s+child\b",
+    r"\b(?:in\s+my\s+|in\s+)?childhood\b",
     r"\bwhen\s+i\s+was\s+(?:young|a\s+child)\b",
+    r"\bin\s+(?:19\d\d|20[0-1]\d|202[0-5])\b",
     r"\bhistory\s+of\b",
     r"\b(?:\d+|teen|tin|aik|do|char|panch|chhe|saat|aath|nau|das)\s*(?:saal|sal|baras|mahine|hafte)\s+pehle\b",
     r"\b(?:saal|sal|mahine|hafte|baras)\s+pehle\b",
+    r"\b(?:saalon|saloon)\s+pehle\b",
     r"\bpichle\s+(?:saal|sal|mahine|hafte)\b",
-    r"\bbachpan\s+me\b",
+    r"\bbachpan\s+(?:me|mein|se|ka)\b",
+    r"\b\d{4}\s+mein\b",
     r"\bpehle\s+kabhi\b",
     r"\bpehle\s+(?:\w+\s+){0,3}(?:tha|thi|the)\b",
     r"\b\d+\s*(?:سال|مہینے|ہفتے)\s*پہلے\b",
     r"\b(?:سال|مہینے|ہفتے)\s*پہلے\b",
     r"\bپچھلے\s*(?:سال|مہینے|ہفتے)\b",
-    r"\bبچپن\s*میں\b",
+    r"\bبچپن\s*(?:میں|کا|سے)\b",
+    r"\b\d{4}\s*میں\b",
     r"\bپہلے\s*(?:\S+\s*){0,3}(?:تھا|تھی|تھے)\b",
 ]
 
 _CURRENT_PATTERNS = [
     r"\b(?:right\s+)?now\b",
+    r"\bjust\s+now\b",
     r"\btoday\b",
     r"\bcurrently\b",
     r"\bat\s+(?:this|the)\s+moment\b",
+    r"\b\d+\s+minutes?\s+ago\b",
+    r"\bminutes?\s+ago\b",
+    r"\banother\s+(?:one|seizure|fit)\b",
     r"\babhi\b",
     r"\baaj\b",
     r"\bis\s+waqt\b",
     r"\bdobara\b",
     r"\bphir\s+se\b",
+    r"\b\d+\s+minute\s+pehle\b",
     r"\bابھی\b",
     r"\bآج\b",
     r"\bاس\s*وقت\b",
     r"\bدوبارہ\b",
     r"\bپھر\s*سے\b",
+    r"\b\d+\s*منٹ\s*پہلے\b",
+    r"\bچند\s*منٹ\s*پہلے\b",
 ]
 
 _EXERTION_PATTERNS = [
@@ -644,10 +656,11 @@ _PAST_CUES_RE = re.compile(
     r"\b(?:pichle|pichlay|pichli)\s+(?:sa+l|sal|mahine|mahiney|hafte|haftay)\b|"
     r"\b" + _NUMBERS_RE_STR + r"\s+(?:sa+l|sal|mahine|mahiney)\s+pehle\b|"
     r"\b(?:saalon|saloon)\s+pehle\b|"
-    r"\bbachpan\s+me(?:in)?\b|"
-    r"\bin\s+childhood\b|"
+    r"\bbachpan\s+(?:me|mein|se|ka)\b|"
+    r"\bas\s+a\s+child\b|"
+    r"\b(?:in\s+my\s+|in\s+)?childhood\b|"
     r"\bpehle\s+kabhi\b|"
-    + r"(?:پچھلے\s*سال|پچھلے\s*مہینے|پچھلے\s*ہفتے|سال\s*پہلے|مہینے\s*پہلے|بچپن\s*میں|پہلے\s*کبھی|"
+    + r"(?:پچھلے\s*سال|پچھلے\s*مہینے|پچھلے\s*ہفتے|سال\s*پہلے|مہینے\s*پہلے|بچپن\s*(?:میں|کا|سے)|پہلے\s*کبھی|"
     + _NUMBERS_RE_STR + r"\s*(?:سال|مہینے)\s*پہلے)",
     re.IGNORECASE
 )
@@ -662,14 +675,16 @@ _RECOVERY_RE = re.compile(
     r"\bہوا\s*تھا\b|"
     r"\bfainted\s+once\b|"
     r"\bhappened\s+once\b|"
+    r"\b(?:nothing\s+since|never\s+again|no\s+seizures?\s+since|none\s+since)\b|"
     r"\b(?:recovered|fully\s+recovered|fine\s+now|doing\s+fine|normal\s+now|completely\s+stopped\s+now|stopped\s+now|perfectly\s+healthy|fully\s+resolved(?:\s+now)?)\b|"
     r"\b(?:theek|thik|sahi)\s+(?:ho\s+gaya|tha|thi)\b|"
-    r"\bab\s+(?:bilkul\s+)?(?:theek|thik|sahi|koi\s+masla\s+nahi)\b|"
+    r"\b(?:theek|thik)\s+hoon\s+tab\s+se\b|"
+    r"\bab\s+(?:bilkul\s+)?(?:theek|thik|sahi|koi\s+masla\s+nahi|nahi|nahin|nai|ni)\b|"
     r"\b(?:movement|function|harkat)\s+(?:is\s+)?normal\b|"
     r"\bab\s+(?:\w+\s+){0,2}normal(?:\s+hai)?\b|"
     r"\b(?:poori|puri)\s+harkat\s+wapas\b|"
     r"\b(?:movement\s+returned|function\s+returned|tests\s+normal|doctor\s+ne\s+check\s+kiya\s+sab\s+normal\s+tha)\b|"
-    r"(?:سب\s*ٹھیک|اب\s*ٹھیک|اب\s*بالکل\s*ٹھیک|ٹیسٹ\s*نارمل|ٹھیک\s*ہو\s*گیا|حرکت\s*واپس|مکمل\s*صحت\s*یاب|سب\s*نارمل|پوری\s*حرکت\s*واپس|کوئی\s*مسئلہ\s*نہیں)",
+    r"(?:سب\s*ٹھیک|اب\s*ٹھیک|اب\s*بالکل\s*ٹھیک|اب\s*نہیں|ٹھیک\s*ہوں\s*تب\s*سے|ٹیسٹ\s*نارمل|ٹھیک\s*ہو\s*گیا|حرکت\s*واپس|مکمل\s*صحت\s*یاب|سب\s*نارمل|پوری\s*حرکت\s*واپس|کوئی\s*مسئلہ\s*نہیں)",
     re.IGNORECASE
 )
 
@@ -1877,13 +1892,123 @@ _SEIZURE_NEGATIONS = [
     r"(?:نہیں|نہ)\s*(?:\S+\s*){0,2}(?:جھٹکے|دورہ|فٹ)",
     r"(?:دورہ|جھٹکے|فٹ)\s*(?:نہیں\s*پڑا|نہیں\s*آیا|نہیں\s*لگ\s*رہے)",
     r"کوئی\s*(?:مرگی\s*کا\s*)?دورہ\s*نہیں",
+    r"(?:مرگی\s*کا\s*)?دورہ.*?اب\s*(?:نہیں|نہ)",
 ]
+
+_SEIZURE_REMOTE_PAST = [
+    # English
+    r"\bas\s+a\s+child\b",
+    r"\b(?:in\s+my\s+|in\s+)?childhood\b",
+    r"\bwhen\s+i\s+was\s+(?:young|a\s+child)\b",
+    r"\b\d+\s+(?:years?|yrs?)\s+ago\b",
+    r"\byears?\s+ago\b",
+    r"\bin\s+(?:19\d\d|20[0-1]\d|202[0-5])\b",
+    r"\bhistory\s+of\b",
+    r"\blast\s+year\b",
+    # Roman Urdu
+    r"\bbachpan\s+(?:me|mein|se|ka)\b",
+    r"\b(?:\d+|teen|tin|aik|do|char|panch|chhe|saat|aath|nau|das)\s*(?:saal|sal|baras)\s+pehle\b",
+    r"\b(?:saal|sal|baras)\s+pehle\b",
+    r"\b(?:saalon|saloon)\s+pehle\b",
+    r"\bpehle\s+kabhi\b",
+    r"\b\d{4}\s+mein\b",
+    r"\bpichle\s+(?:saal|sal)\b",
+    # Urdu script
+    r"بچپن\s*(?:میں|کا|سے)",
+    r"(?:\d+|ایک|دو|تین|چار|پانچ|دس)\s*(?:سال|برس)\s*پہلے",
+    r"(?:سال|برس)\s*پہلے",
+    r"پہلے\s*کبھی",
+    r"\d{4}\s*میں",
+    r"پچھلے\s*سال",
+]
+
+_SEIZURE_RECOVERY_CUES = [
+    # English
+    r"\bnothing\s+since\b",
+    r"\bnever\s+again\b",
+    r"\bnever\s+had\s+(?:one|a\s+seizure|any)(?:\s+since)?\b",
+    r"\bno\s+seizures?\s+since\b",
+    r"\bnone\s+since\b",
+    r"\bnot\s+had\s+(?:one|any)(?:\s+since)?\b",
+    r"\b(?:fine|okay|all\s+good|normal)\s+(?:since|now)\b",
+    r"\bfully\s+recovered\b",
+    r"\bresolved\b",
+    # Roman Urdu
+    r"\bab\s+(?:nahi|nahin|nai|ni)\b",
+    r"\btheek\s+hoon\s+tab\s+se\b",
+    r"\bthik\s+hoon\s+tab\s+se\b",
+    r"\btheek\s+hun\s+tab\s+se\b",
+    r"\btab\s+se\s+(?:theek|thik|sahi)\b",
+    r"\bphir\s+kabhi\s+(?:nahi|nahin|nai|ni)\b",
+    r"\bphir\s+(?:nahi|nahin)\b",
+    r"\bdobara\s+(?:nahi|nahin)\b",
+    r"\bus\s*(?:ke|k)\s+baad\s+(?:kabhi\s+)?(?:nahi|nahin)\b",
+    r"\bab\s+(?:bilkul\s+)?(?:theek|thik|sahi|koi\s+masla\s+nahi)\b",
+    r"\bab\s+(?:theek|thik|sahi)\b",
+    # Urdu script
+    r"اب\s*(?:نہیں|نہ)",
+    r"ٹھیک\s*ہوں\s*تب\s*سے",
+    r"تب\s*سے\s*ٹھیک",
+    r"پھر\s*کبھی\s*(?:نہیں|نہ)",
+    r"دوبارہ\s*(?:نہیں|نہ)",
+    r"اس\s*کے\s*بعد\s*(?:کبھی\s*)?(?:نہیں|نہ)",
+    r"اب\s*(?:بالکل\s*)?ٹھیک",
+    r"اب\s*ٹھیک",
+    r"اب\s*کوئی\s*مسئلہ\s*نہیں",
+]
+
+_SEIZURE_ACUTE_RECURRENCE = [
+    # English
+    r"\banother\s+(?:one|seizure|fit)\b",
+    r"\b(?:having|had)\s+(?:one|a\s+seizure|another\s+one)\s+(?:right\s+now|just\s+now|today|recently|\d+\s+minutes?\s+ago)\b",
+    r"\b(?:right\s+)?now\b",
+    r"\bjust\s+now\b",
+    r"\btoday\b",
+    r"\b\d+\s+minutes?\s+ago\b",
+    r"\bminutes?\s+ago\b",
+    r"\bstarted\s+again\b",
+    r"\brecurred\b",
+    r"\bhappening\s+(?:right\s+)?now\b",
+    # Roman Urdu
+    r"\babhi\s+(?:dobara|phir|bhi)\b",
+    r"\baaj\s+(?:dobara|phir)\b",
+    r"\bpa[rd]\s*rah\w*\b",
+    r"\baa\s*rah\w*\b",
+    r"\babhi\b",
+    r"\baaj\b",
+    r"\b\d+\s+minute\s+pehle\b",
+    r"\bchand\s+minute\s+pehle\b",
+    r"\bis\s+waqt\b",
+    # Urdu script
+    r"ابھی\s*(?:دوبارہ|پھر|بھی)",
+    r"آج\s*(?:دوبارہ|پھر)",
+    r"پڑ\s*رہ\w*",
+    r"آ\s*رہ\w*",
+    r"ابھی",
+    r"آج",
+    r"\d+\s*منٹ\s*پہلے",
+    r"چند\s*منٹ\s*پہلے",
+    r"اس\s*وقت",
+]
+
+
+def _is_remote_past_seizure(norm: str) -> bool:
+    """
+    Returns True if seizure occurred in the remote past with a recovery cue
+    and NO active acute recurrence markers are present.
+    """
+    has_past = _has_any(norm, _SEIZURE_REMOTE_PAST)
+    has_rec = _has_any(norm, _SEIZURE_RECOVERY_CUES)
+    has_acute = _has_any(norm, _SEIZURE_ACUTE_RECURRENCE)
+    return has_past and has_rec and not has_acute
 
 
 def _match_seizure(norm: str) -> bool:
     if not _has_any(norm, _SEIZURE_PATTERNS):
         return False
     if _has_any(norm, _SEIZURE_NEGATIONS):
+        return False
+    if _is_remote_past_seizure(norm):
         return False
     return True
 
@@ -2252,6 +2377,12 @@ def split_into_clauses(text: str) -> List[str]:
         s,
         flags=re.IGNORECASE | re.UNICODE
     )
+    s = re.sub(
+        r'([\,\،]|\b(?:but|however|although|yet|lekin|magar|halanke|halankay)\b|\s*(?:لیکن|مگر|حالانکہ))\s*(?=(?:nothing\s+since|never\s+again|never\s+had|no\s+seizures?\s+since|none\s+since|ab\s+(?:nahi|nahin|nai|ni|theek|thik|sahi)|theek\s+hoon\s+tab\s+se|thik\s+hoon\s+tab\s+se|اب\s*(?:نہیں|نہ|ٹھیک)|ٹھیک\s*ہوں\s*تب\s*سے|پھر\s*کبھی\s*(?:نہیں|نہ)|اس\s*کے\s*بعد\s*(?:کبھی\s*)?(?:نہیں|نہ)|fine\s+now|doing\s+fine|all\s+good\s+now))',
+        r'___RECOVERY_CONN___ ',
+        s,
+        flags=re.IGNORECASE | re.UNICODE
+    )
 
     # 3. Protect prepositional 'par' / 'پر'
     s = re.sub(
@@ -2279,7 +2410,7 @@ def split_into_clauses(text: str) -> List[str]:
         # Restore protected tokens
         for k, v in _REV_ECHO_PUNCT_MAP.items():
             p = p.replace(k, v)
-        p = p.replace('___RECOVERY_COMMA___', ', ').replace('___PREP_PAR___', 'par').replace('___URDU_PREP_PAR___', 'پر').strip()
+        p = p.replace('___RECOVERY_CONN___', ', ').replace('___RECOVERY_COMMA___', ', ').replace('___PREP_PAR___', 'par').replace('___URDU_PREP_PAR___', 'پر').strip()
         if p:
             clauses.append(p)
     return clauses
@@ -2376,6 +2507,9 @@ def decide_red(answer: str) -> RedDecision:
             if cat in ("loss_of_consciousness", "fainting") and is_syncope_rec:
                 is_cancelled = True
                 cancel_reason = "fainting_recovered"
+            elif cat in ("loss_of_consciousness", "fainting", "seizure", "convulsions") and _is_remote_past_seizure(normalize_text(clause)):
+                is_cancelled = True
+                cancel_reason = "childhood_seizure_recovered"
             elif cat in ("confusion_and_stroke", "stroke", "confusion", "one_sided_weakness") and _is_benign_postural_or_chronic_numbness(normalize_text(answer), normalize_text(answer).split()):
                 is_cancelled = True
                 cancel_reason = "postural_numbness_recovered"

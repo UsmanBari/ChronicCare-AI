@@ -152,8 +152,8 @@ def build_soap(
         except Exception:
             result = None
 
-    state = checkin.get("state") or {}
-    answers = state.get("answers") or {}
+    state = checkin.get("state") or checkin.get("state_dict") or {}
+    answers = state.get("answers") or state.get("raw_answers") or {}
     intakes = (result.get("intakes") if result else None) or state.get("intakes") or []
 
     # Safe trend computation if not provided
@@ -193,7 +193,7 @@ def build_soap(
         reported_symptoms.append(f"Reported symptoms: {'; '.join(formatted_findings)}")
         found_symp = True
     else:
-        # Check if symptoms were explicitly denied
+        # Check if symptoms were explicitly denied or opening note was given
         symptoms_denied = (
             state.get("symptoms_denied") is True
             or (isinstance(state.get("known_slots"), dict) and state["known_slots"].get("symptoms_denied") is True)
@@ -202,7 +202,13 @@ def build_soap(
             or answers.get("foot_problems") is False
             or answers.get("symptoms_denied") is True
         )
-        if symptoms_denied:
+        has_opening_note = bool(
+            state.get("opening_note")
+            or checkin.get("opening_note")
+            or answers.get("opening_note")
+            or (isinstance(state.get("known_slots"), dict) and state["known_slots"].get("opening_note"))
+        )
+        if symptoms_denied or has_opening_note:
             reported_symptoms.append("Reported symptoms: None reported")
             found_symp = True
         else:
@@ -495,6 +501,17 @@ def build_soap(
         a_lines.append("Stage-2 escalation: None (rules level maintained)")
 
     # 3. Risk models
+    def _format_risk_prob(p_val: Any) -> str:
+        if p_val is None:
+            return "Unknown"
+        try:
+            val = float(p_val)
+            if 0.0 <= val <= 1.0:
+                val = val * 100
+            return f"{round(val)}%"
+        except Exception:
+            return f"{p_val}%"
+
     risk_data = result.get("risk") if result else None
     if risk_data and isinstance(risk_data, dict):
         models_dict = risk_data.get("models")
@@ -505,7 +522,8 @@ def build_soap(
                     if status == "ok":
                         band = m_info.get("band", "Unknown")
                         prob = m_info.get("probability")
-                        a_lines.append(f"Risk model ({model_name}): Band {band}, Probability {prob}")
+                        prob_str = _format_risk_prob(prob)
+                        a_lines.append(f"Risk model ({model_name}): {prob_str} (10-year CHD), band {band}")
                         drivers = m_info.get("drivers", [])[:3]
                         if drivers:
                             drv_strs = [
@@ -523,7 +541,8 @@ def build_soap(
             if status == "ok":
                 band = risk_data.get("band", "Unknown")
                 prob = risk_data.get("probability")
-                a_lines.append(f"Risk model: Band {band}, Probability {prob}")
+                prob_str = _format_risk_prob(prob)
+                a_lines.append(f"Risk model: {prob_str} (10-year CHD), band {band}")
                 drivers = risk_data.get("drivers", [])[:3]
                 if drivers:
                     drv_strs = [

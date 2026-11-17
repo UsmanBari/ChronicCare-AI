@@ -19,6 +19,7 @@ import {
   isObservationDiscrepancy,
   isObservationThatMatters,
   formatObservationTitle,
+  findOlderHospitalReading,
 } from "../lib/presentation";
 import { getReadingStatus } from "../lib/referenceRanges";
 
@@ -27,7 +28,10 @@ export const ConflictScreen = () => {
   const isRomanUrdu = (language as string) === "roman_ur";
 
   // In live mode, extract comparisons and verifications
-  const obsComparisons = liveCheckinResult?.reconciliation?.observation_comparisons || [];
+  const obsComparisons = React.useMemo(
+    () => liveCheckinResult?.reconciliation?.observation_comparisons || [],
+    [liveCheckinResult]
+  );
   const medComparisons = liveCheckinResult?.reconciliation?.medication_comparisons || [];
   const medVerifications = liveCheckinResult?.verification?.medication_verifications || [];
 
@@ -68,13 +72,13 @@ export const ConflictScreen = () => {
   const confirmedMedItems = dedupeMedItems(rawMedItems.filter((m) => m.desc.isConfirmed));
 
   // Discrepancy comparisons that matter (BP, glucose, HbA1c) comparing hospital value to today's reading
-  const discrepancyComparisons = isLiveMode
-    ? obsComparisons.filter(isObservationDiscrepancy)
-    : [];
+  const discrepancyComparisons = React.useMemo(() => {
+    return isLiveMode ? obsComparisons.filter(isObservationDiscrepancy) : [];
+  }, [isLiveMode, obsComparisons]);
 
   // If no discrepancies, check for first-checkin (missing_in_a) for an observation that matters
-  const firstCheckinComparisons =
-    isLiveMode && discrepancyComparisons.length === 0
+  const firstCheckinComparisons = React.useMemo(() => {
+    return isLiveMode && discrepancyComparisons.length === 0
       ? obsComparisons.filter(
           (c: any) =>
             isObservationThatMatters(c.observation_type) &&
@@ -83,6 +87,48 @@ export const ConflictScreen = () => {
             c.value_b !== undefined
         )
       : [];
+  }, [isLiveMode, discrepancyComparisons, obsComparisons]);
+
+  const combinedFirstCheckin = React.useMemo(() => {
+    const list: any[] = [];
+    let bpSys: any = null;
+    let bpDia: any = null;
+
+    for (const c of firstCheckinComparisons) {
+      const t = (c.observation_type || "").toLowerCase();
+      if (t.includes("systolic") || t === "blood_pressure_systolic") {
+        bpSys = c;
+      } else if (t.includes("diastolic") || t === "blood_pressure_diastolic") {
+        bpDia = c;
+      } else {
+        list.push(c);
+      }
+    }
+
+    if (bpSys && bpDia) {
+      list.unshift({
+        observation_type: "blood_pressure",
+        value_b: `${bpSys.value_b}/${bpDia.value_b}`,
+        unit_b: "mmHg",
+        source_b: bpSys.source_b,
+        status: "missing_in_a",
+        _sys: bpSys,
+        _dia: bpDia,
+      });
+    } else if (bpSys) {
+      list.unshift(bpSys);
+    } else if (bpDia) {
+      list.unshift(bpDia);
+    }
+
+    return list;
+  }, [firstCheckinComparisons]);
+
+  const hasOlderHospitalReadings = React.useMemo(() => {
+    return firstCheckinComparisons.some((c: any) =>
+      Boolean(findOlderHospitalReading(c.observation_type, obsComparisons))
+    );
+  }, [firstCheckinComparisons, obsComparisons]);
 
   const hasObsComparisons = isLiveMode
     ? discrepancyComparisons.length > 0 || firstCheckinComparisons.length > 0
@@ -251,7 +297,11 @@ export const ConflictScreen = () => {
           <p className="text-sm font-semibold text-navy-800">
             {isLiveMode
               ? isMissingBaselineA
-                ? t.firstCheckinNoRecordTitle
+                ? hasOlderHospitalReadings
+                  ? (isUrdu
+                      ? "ہسپتال کا پچھلا ریکارڈ ۴۸ گھنٹے سے پرانا ہے، اس لیے طبی معالج اس کا جائزہ لیں گے۔"
+                      : "Hospital records on file are older than 48 hours, so a clinician will review today's check-in.")
+                  : t.firstCheckinNoRecordTitle
                 : hasObsComparisons
                 ? isUrdu
                   ? "آپ کے آج کے چیک ان اور پہلے سے موجود ریکارڈ کے درمیان فرق پایا گیا ہے۔"
@@ -263,7 +313,11 @@ export const ConflictScreen = () => {
           </p>
           <p className="text-xs text-slate-500">
             {isLiveMode && isMissingBaselineA
-              ? t.firstCheckinNoRecordDesc
+              ? hasOlderHospitalReadings
+                ? (isUrdu
+                    ? "ریڈنگز کا موازنہ ۴۸ گھنٹوں کے اندر کیا جاتا ہے۔ معالج فالو اپ طے کر سکتے ہیں۔"
+                    : "Readings are compared within 48 hours. A clinician will review today's readings.")
+                : t.firstCheckinNoRecordDesc
               : isUrdu
               ? "طبی معالج کے جائزے کے لیے کیس بھیج دیا گیا ہے۔"
               : "Flagged for clinician review to ensure longitudinal safety."}
@@ -364,25 +418,6 @@ export const ConflictScreen = () => {
                         <p className="text-xs text-amber-950 leading-relaxed">
                           {itemSideBDesc}
                         </p>
-                        {otherReadings.length > 0 && (
-                          <div className="pt-2 mt-2 border-t border-amber-200/60 space-y-1.5">
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
-                              {isUrdu ? "آج کی دیگر ریڈنگز:" : isRomanUrdu ? "Aaj ki deegar readings:" : "Also reported today:"}
-                            </span>
-                            {otherReadings.map((r, rIdx) => (
-                              <div key={rIdx} className="flex items-center justify-between text-xs py-0.5">
-                                <span className="text-slate-700 font-medium">
-                                  {r.label}: <strong className="font-mono text-navy-800">{r.value}</strong>
-                                </span>
-                                {r.targetTag && r.targetTag.status !== "unspecified" && (
-                                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${r.targetTag.badgeClass}`}>
-                                    {r.targetTag.label}
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -390,71 +425,81 @@ export const ConflictScreen = () => {
               })}
 
             {/* Live Mode: First check-in with no baseline on file */}
-            {isLiveMode && firstCheckinComparisons.length > 0 &&
-              firstCheckinComparisons.map((c: any, idx: number) => {
+            {isLiveMode && combinedFirstCheckin.length > 0 &&
+              combinedFirstCheckin.map((c: any, idx: number) => {
                 const itemSideBLabel = describeSide("b", c.source_b, null, liveEhrConnection?.mode, null, null, isUrdu);
                 const itemSideBVal = `${c.value_b} ${c.unit_b || ""}`.trim();
                 const itemSideBDesc = isUrdu ? `آج کا جواب: ${itemSideBVal}` : `Your answer today: ${itemSideBVal}`;
                 const itemBStatus = getReadingStatus(c.observation_type, c.value_b, language as any, c.unit_b || "mg/dL");
-                const normObsType = (c.observation_type || "").toLowerCase();
-                const otherReadings = todayReadingsList.filter(
-                  (r) => !r.key.includes(normObsType) && !normObsType.includes(r.key)
-                );
+
+                const older = findOlderHospitalReading(c.observation_type, obsComparisons);
+
+                const itemSideALabel = older
+                  ? (isUrdu ? "ہسپتال کا پرانا ریکارڈ" : "Hospital EHR (Older Record)")
+                  : (isUrdu ? "ہسپتال کا ریکارڈ" : "Hospital EHR");
+
+                const itemSideAVal = older
+                  ? `${older.value} ${older.unit}`.trim()
+                  : t.notOnFile;
+
+                const itemSideADesc = older
+                  ? (isUrdu
+                      ? `آخری ہسپتال کی ریڈنگ: ${older.value} ${older.unit} (${older.date}) — موازنہ کے لیے بہت پرانی ہے (ریڈنگز کا ۴۸ گھنٹوں کے اندر موازنہ کیا جاتا ہے)`
+                      : `Last hospital reading: ${older.value} ${older.unit} (${older.date}) — too old to compare (readings are compared within 48 hours)`)
+                  : (isUrdu
+                      ? "ہسپتال EHR: کوئی پچھلا ریکارڈ موجود نہیں — یہ مریض کا پہلا چیک ان ہے"
+                      : "Hospital EHR: No prior reading on file — this is the patient's first check-in");
 
                 return (
-                  <div key={idx} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-2 text-left">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-slate-200 text-slate-800 inline-flex items-center gap-1">
-                          <FileText className="w-3.5 h-3.5" />
-                          {t.notOnFile}
+                  <div key={idx} className="space-y-2 p-3 sm:p-4 rounded-2xl bg-white/70 border border-slate-200/90 shadow-xs">
+                    {combinedFirstCheckin.length > 1 && (
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-xs font-bold uppercase tracking-wider text-navy-800 flex items-center gap-1.5">
+                          <Activity className="w-3.5 h-3.5 text-teal-700" />
+                          {formatObservationTitle(c.observation_type, isUrdu)}
                         </span>
                       </div>
-                      <div className="text-2xl font-bold text-navy-800 pt-1 font-mono">
-                        {t.notOnFile}
-                      </div>
-                      <p className="text-xs text-slate-600 leading-relaxed">
-                        {t.firstCheckinNoRecordDesc}
-                      </p>
-                    </div>
-
-                    <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/80 border-2 border-amber-300 space-y-2 text-left">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-teal-100 text-teal-900 inline-flex items-center gap-1">
-                          <Activity className="w-3.5 h-3.5" />
-                          {itemSideBLabel}
-                        </span>
-                        {itemBStatus.status !== "unspecified" && (
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${itemBStatus.badgeClass}`}>
-                            {itemBStatus.label}
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border-2 border-slate-200 space-y-2 text-left" data-testid={`first-checkin-card-a-${idx}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-slate-200 text-slate-800 inline-flex items-center gap-1">
+                            <FileText className="w-3.5 h-3.5" />
+                            {itemSideALabel}
                           </span>
-                        )}
-                      </div>
-                      <div className="text-2xl font-bold text-navy-800 pt-1 font-mono">
-                        {itemSideBVal}
-                      </div>
-                      <p className="text-xs text-amber-950 leading-relaxed">
-                        {itemSideBDesc}
-                      </p>
-                      {otherReadings.length > 0 && (
-                        <div className="pt-2 mt-2 border-t border-amber-200/60 space-y-1.5">
-                          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
-                            {isUrdu ? "آج کی دیگر ریڈنگز:" : isRomanUrdu ? "Aaj ki deegar readings:" : "Also reported today:"}
-                          </span>
-                          {otherReadings.map((r, rIdx) => (
-                            <div key={rIdx} className="flex items-center justify-between text-xs py-0.5">
-                              <span className="text-slate-700 font-medium">
-                                {r.label}: <strong className="font-mono text-navy-800">{r.value}</strong>
-                              </span>
-                              {r.targetTag && r.targetTag.status !== "unspecified" && (
-                                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${r.targetTag.badgeClass}`}>
-                                  {r.targetTag.label}
-                                </span>
-                              )}
-                            </div>
-                          ))}
+                          {older && (
+                            <span className="text-[10px] font-semibold text-slate-500 font-mono">
+                              {older.date}
+                            </span>
+                          )}
                         </div>
-                      )}
+                        <div className="text-2xl font-bold text-navy-800 pt-1 font-mono">
+                          {itemSideAVal}
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed" data-testid={`first-checkin-desc-${idx}`}>
+                          {itemSideADesc}
+                        </p>
+                      </div>
+
+                      <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/80 border-2 border-amber-300 space-y-2 text-left">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded bg-teal-100 text-teal-900 inline-flex items-center gap-1">
+                            <Activity className="w-3.5 h-3.5" />
+                            {itemSideBLabel}
+                          </span>
+                          {itemBStatus.status !== "unspecified" && (
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${itemBStatus.badgeClass}`}>
+                              {itemBStatus.label}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-2xl font-bold text-navy-800 pt-1 font-mono">
+                          {itemSideBVal}
+                        </div>
+                        <p className="text-xs text-amber-950 leading-relaxed">
+                          {itemSideBDesc}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 );
@@ -500,6 +545,32 @@ export const ConflictScreen = () => {
                   <p className="text-xs text-amber-950 leading-relaxed">
                     {sideBDesc}
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* Single "Also reported today" section at the bottom of the section */}
+            {isLiveMode && todayReadingsList.length > 0 && (
+              <div
+                data-testid="also-reported-today-section"
+                className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-left space-y-2 mt-3"
+              >
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-600 block">
+                  {isUrdu ? "آج کی دیگر ریڈنگز:" : isRomanUrdu ? "Aaj ki deegar readings:" : "Also reported today:"}
+                </span>
+                <div className="space-y-1.5">
+                  {todayReadingsList.map((r, rIdx) => (
+                    <div key={rIdx} className="flex items-center justify-between text-xs py-1 border-b border-amber-200/50 last:border-none">
+                      <span className="text-slate-800 font-medium">
+                        {r.label}: <strong className="font-mono text-navy-900">{r.value}</strong>
+                      </span>
+                      {r.targetTag && r.targetTag.status !== "unspecified" && (
+                        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${r.targetTag.badgeClass}`}>
+                          {r.targetTag.label}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
